@@ -1,0 +1,259 @@
+// TypeScript interfaces matching backend models
+
+// Frontend User interface (snake_case)
+export interface User {
+    _id: string
+    email: string
+    first_name: string
+    last_name: string
+    role: 'company_admin' | 'hr' | 'manager' | 'employee'
+    org_id: string
+    department?: string
+    position?: string
+    manager_id?: string
+    hire_date?: string
+    status: 'active' | 'inactive'
+    createdAt: string
+    updatedAt: string
+}
+
+// Backend User interface (camelCase - as returned from API)
+export interface BackendUser {
+    _id: string
+    email: string
+    firstName: string
+    lastName: string
+    role: 'company_admin' | 'hr' | 'manager' | 'employee'
+    org_id: string
+    department?: string
+    manager_id?: string
+    status: 'active' | 'inactive'
+    createdAt: string
+    updatedAt: string
+}
+
+export interface Award {
+    _id: string
+    title: string
+    description: string
+    recipient_id: string
+    recipient?: User
+    awarded_by: string
+    awarded_by_user?: User
+    org_id: string
+    award_date: string
+    category: string
+    createdAt: string
+    updatedAt: string
+}
+
+export interface KPI {
+    _id: string
+    name: string
+    description: string
+    category: string
+    weight: number
+    org_id: string
+    target_value?: number
+    measurement_unit?: string
+    createdAt: string
+    updatedAt: string
+}
+
+export interface PerformanceReview {
+    _id: string
+    employee_id: string
+    employee?: User
+    reviewer_id: string
+    reviewer?: User
+    org_id: string
+    review_period_start: string
+    review_period_end: string
+    overall_rating: number
+    kpi_scores: Array<{
+        kpi_id: string
+        score: number
+        comments?: string
+    }>
+    strengths?: string
+    areas_for_improvement?: string
+    goals?: string
+    status: 'draft' | 'submitted' | 'completed'
+    createdAt: string
+    updatedAt: string
+}
+
+export interface Feedback {
+    _id: string
+    from_user_id: string
+    from_user?: User
+    to_user_id: string
+    to_user?: User
+    org_id: string
+    feedback_type: 'positive' | 'constructive' | 'general'
+    content: string
+    is_anonymous: boolean
+    createdAt: string
+    updatedAt: string
+}
+
+export interface PDP {
+    _id: string
+    employee_id: string
+    employee?: User
+    org_id: string
+    title: string
+    description: string
+    goals: Array<{
+        title: string
+        description: string
+        target_date: string
+        status: 'not_started' | 'in_progress' | 'completed'
+        progress: number
+    }>
+    status: 'active' | 'completed' | 'archived'
+    start_date: string
+    end_date: string
+    createdAt: string
+    updatedAt: string
+}
+
+export interface Attendance {
+    _id: string
+    employee_id: string
+    employee?: User
+    org_id: string
+    date: string
+    status: 'present' | 'absent' | 'late' | 'half_day' | 'leave'
+    check_in_time?: string
+    check_out_time?: string
+    notes?: string
+    createdAt: string
+    updatedAt: string
+}
+
+export interface Organization {
+    _id: string
+    name: string
+    slug: string // Unique company identifier for login URLs
+    email: string
+    phone?: string
+    website?: string
+    industry: string
+    employeeCount: string
+    size: string
+    logo?: string
+    primaryColor?: string
+    secondaryColor?: string
+    subscription?: 'starter' | 'professional' | 'enterprise'
+    status?: 'active' | 'suspended' | 'inactive'
+    settings?: {
+        working_hours?: number
+        leave_policy?: any
+    }
+    createdAt: string
+    updatedAt: string
+}
+
+// API Response types
+export interface ApiResponse<T = any> {
+    success: boolean
+    data?: T
+    message?: string
+    error?: string
+}
+
+export interface PaginatedResponse<T> extends ApiResponse<T[]> {
+    pagination?: {
+        page: number
+        limit: number
+        total: number
+        totalPages: number
+    }
+}
+
+// Auth types
+export interface LoginRequest {
+    email: string
+    password: string
+}
+
+export interface LoginResponse {
+    success: boolean
+    token: string
+    user: User
+}
+
+export interface RegisterCompanyRequest {
+    name: string
+    email: string
+    adminEmail: string
+    adminPassword: string
+    adminName: string
+    industry: string
+    employeeCount: string
+    phone?: string
+    website?: string
+}
+
+export interface RegisterCompanyResponse {
+    success: boolean
+    token: string
+    user: BackendUser
+    company: Organization
+}
+
+// Request payload types
+export interface CreateUserRequest {
+    email: string
+    password: string
+    first_name: string
+    last_name: string
+    role: User['role']
+    department?: string
+    position?: string
+    manager_id?: string
+    hire_date?: string
+}
+
+export interface UpdateUserRequest {
+    first_name?: string
+    last_name?: string
+    department?: string
+    position?: string
+    manager_id?: string
+    status?: User['status']
+}
+
+export interface CreateAwardRequest {
+    title: string
+    description: string
+    recipient_id: string
+    category: string
+    award_date?: string
+}
+
+export interface CreateKPIRequest {
+    name: string
+    description: string
+    category: string
+    weight: number
+    target_value?: number
+    measurement_unit?: string
+}
+
+export interface CreateFeedbackRequest {
+    to_user_id: string
+    feedback_type: Feedback['feedback_type']
+    content: string
+    is_anonymous?: boolean
+}
+
+export interface CreatePDPRequest {
+    employee_id: string
+    title: string
+    description: string
+    goals: PDP['goals']
+    start_date: string
+    end_date: string
+}

@@ -1,0 +1,220 @@
+// Centralized API service for all HTTP requests
+
+import { getToken, logout } from './auth'
+import type {
+    ApiResponse,
+    LoginRequest,
+    LoginResponse,
+    RegisterCompanyRequest,
+    RegisterCompanyResponse,
+    User,
+    Award,
+    KPI,
+    PerformanceReview,
+    Feedback,
+    PDP,
+    Attendance,
+    CreateUserRequest,
+    UpdateUserRequest,
+    CreateAwardRequest,
+    CreateKPIRequest,
+    CreateFeedbackRequest,
+    CreatePDPRequest,
+} from './types'
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'
+
+// HTTP client with error handling
+class ApiClient {
+    private baseURL: string
+
+    constructor(baseURL: string) {
+        this.baseURL = baseURL
+    }
+
+    private async request<T>(
+        endpoint: string,
+        options: RequestInit = {}
+    ): Promise<ApiResponse<T>> {
+        const token = getToken()
+        const headers: Record<string, string> = {
+            'Content-Type': 'application/json',
+            ...(options.headers as Record<string, string>),
+        }
+
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`
+        }
+
+        try {
+            const response = await fetch(`${this.baseURL}${endpoint}`, {
+                ...options,
+                headers,
+            })
+
+            // Handle 401 Unauthorized
+            if (response.status === 401) {
+                logout()
+                throw new Error('Session expired. Please login again.')
+            }
+
+            const data = await response.json()
+
+            if (!response.ok) {
+                throw new Error(data.message || data.error || 'Request failed')
+            }
+
+            return data
+        } catch (error) {
+            console.error('API Error:', error)
+            throw error
+        }
+    }
+
+    async get<T>(endpoint: string): Promise<ApiResponse<T>> {
+        return this.request<T>(endpoint, { method: 'GET' })
+    }
+
+    async post<T>(endpoint: string, body?: any): Promise<ApiResponse<T>> {
+        return this.request<T>(endpoint, {
+            method: 'POST',
+            body: body ? JSON.stringify(body) : undefined,
+        })
+    }
+
+    async put<T>(endpoint: string, body?: any): Promise<ApiResponse<T>> {
+        return this.request<T>(endpoint, {
+            method: 'PUT',
+            body: body ? JSON.stringify(body) : undefined,
+        })
+    }
+
+    async delete<T>(endpoint: string): Promise<ApiResponse<T>> {
+        return this.request<T>(endpoint, { method: 'DELETE' })
+    }
+}
+
+const client = new ApiClient(API_URL)
+
+// Authentication API
+export const authApi = {
+    login: (data: LoginRequest) =>
+        client.post<LoginResponse>('/api/auth/login', data),
+
+    registerCompany: (data: RegisterCompanyRequest) =>
+        client.post<RegisterCompanyResponse>('/api/auth/register-company', data),
+
+    changePassword: (oldPassword: string, newPassword: string) =>
+        client.post('/api/auth/change-password', { oldPassword, newPassword }),
+}
+
+// Users API
+export const usersApi = {
+    getAll: () => client.get<User[]>('/api/users'),
+
+    getById: (userId: string) => client.get<User>(`/api/users/${userId}`),
+
+    create: (data: CreateUserRequest) =>
+        client.post<User>('/api/users', data),
+
+    update: (userId: string, data: UpdateUserRequest) =>
+        client.put<User>(`/api/users/${userId}`, data),
+
+    delete: (userId: string) =>
+        client.delete(`/api/users/${userId}`),
+
+    getTeamMembers: (managerId: string) =>
+        client.get<User[]>(`/api/users/team/${managerId}`),
+}
+
+// Awards API
+export const awardsApi = {
+    getAll: () => client.get<Award[]>('/api/awards'),
+
+    getById: (id: string) => client.get<Award>(`/api/awards/${id}`),
+
+    create: (data: CreateAwardRequest) =>
+        client.post<Award>('/api/awards', data),
+
+    update: (id: string, data: Partial<CreateAwardRequest>) =>
+        client.put<Award>(`/api/awards/${id}`, data),
+
+    delete: (id: string) => client.delete(`/api/awards/${id}`),
+
+    getLeaderboard: () =>
+        client.get<any[]>('/api/awards/leaderboard/top'),
+}
+
+// KPIs API
+export const kpisApi = {
+    getAll: () => client.get<KPI[]>('/api/kpis'),
+
+    getById: (id: string) => client.get<KPI>(`/api/kpis/${id}`),
+
+    create: (data: CreateKPIRequest) =>
+        client.post<KPI>('/api/kpis', data),
+
+    update: (id: string, data: Partial<CreateKPIRequest>) =>
+        client.put<KPI>(`/api/kpis/${id}`, data),
+
+    delete: (id: string) => client.delete(`/api/kpis/${id}`),
+}
+
+// Performance API
+export const performanceApi = {
+    getAll: () => client.get<PerformanceReview[]>('/api/performance'),
+
+    getById: (id: string) =>
+        client.get<PerformanceReview>(`/api/performance/${id}`),
+
+    create: (data: any) =>
+        client.post<PerformanceReview>('/api/performance', data),
+
+    update: (id: string, data: any) =>
+        client.put<PerformanceReview>(`/api/performance/${id}`, data),
+}
+
+// Feedback API
+export const feedbackApi = {
+    getAll: () => client.get<Feedback[]>('/api/feedback'),
+
+    create: (data: CreateFeedbackRequest) =>
+        client.post<Feedback>('/api/feedback', data),
+}
+
+// PDPs API
+export const pdpsApi = {
+    getAll: () => client.get<PDP[]>('/api/pdps'),
+
+    getById: (id: string) => client.get<PDP>(`/api/pdps/${id}`),
+
+    create: (data: CreatePDPRequest) =>
+        client.post<PDP>('/api/pdps', data),
+
+    update: (id: string, data: Partial<CreatePDPRequest>) =>
+        client.put<PDP>(`/api/pdps/${id}`, data),
+
+    delete: (id: string) => client.delete(`/api/pdps/${id}`),
+}
+
+// Attendance API
+export const attendanceApi = {
+    getAll: () => client.get<Attendance[]>('/api/attendance'),
+
+    create: (data: any) =>
+        client.post<Attendance>('/api/attendance', data),
+}
+
+// Export all APIs
+export const api = {
+    auth: authApi,
+    users: usersApi,
+    awards: awardsApi,
+    kpis: kpisApi,
+    performance: performanceApi,
+    feedback: feedbackApi,
+    pdps: pdpsApi,
+    attendance: attendanceApi,
+}
+
+export default api
