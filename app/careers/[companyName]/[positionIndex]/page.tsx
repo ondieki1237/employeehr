@@ -4,11 +4,18 @@ import React, { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import {
   Briefcase, MapPin, Calendar, DollarSign, Clock, Building2,
-  CheckCircle, ArrowLeft
+  CheckCircle, ArrowLeft, Send
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { useToast } from '@/hooks/use-toast';
 import API_URL from '@/lib/apiBase';
 
 interface Job {
@@ -31,11 +38,33 @@ interface Job {
   created_at: string;
 }
 
+interface FormField {
+  field_id: string;
+  label: string;
+  type: string;
+  required: boolean;
+  placeholder?: string;
+  options?: string[];
+}
+
+interface ApplicationForm {
+  _id: string;
+  title: string;
+  description?: string;
+  fields: FormField[];
+}
+
 export default function PublicJobPage() {
   const params = useParams();
   const [job, setJob] = useState<Job | null>(null);
+  const [applicationForm, setApplicationForm] = useState<ApplicationForm | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [isApplyDialogOpen, setIsApplyDialogOpen] = useState(false);
+  const [formData, setFormData] = useState<Record<string, any>>({});
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const { toast } = useToast();
 
   useEffect(() => {
     fetchJob();
@@ -52,6 +81,8 @@ export default function PublicJobPage() {
 
       if (data.success) {
         setJob(data.data);
+        // Fetch application form
+        fetchApplicationForm(data.data._id);
       } else {
         setError(data.message);
       }
@@ -60,6 +91,73 @@ export default function PublicJobPage() {
       setError('Failed to load job posting');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchApplicationForm = async (jobId: string) => {
+    try {
+      const response = await fetch(`${API_URL}/api/application-forms/job/${jobId}`);
+      const data = await response.json();
+      if (data.success) {
+        setApplicationForm(data.data);
+      }
+    } catch (err) {
+      console.error('Error fetching form:', err);
+    }
+  };
+
+  const handleSubmitApplication = async () => {
+    if (!job || !applicationForm) return;
+
+    // Validate required fields
+    const missingFields = applicationForm.fields
+      .filter(field => field.required && !formData[field.field_id])
+      .map(field => field.label);
+
+    if (missingFields.length > 0) {
+      toast({
+        title: 'Missing Required Fields',
+        description: `Please fill in: ${missingFields.join(', ')}`,
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const response = await fetch(`${API_URL}/api/job-applications/submit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          job_id: job._id,
+          form_id: applicationForm._id,
+          applicant_name: formData.full_name || formData.name || 'Unknown',
+          applicant_email: formData.email,
+          applicant_phone: formData.phone,
+          answers: formData,
+          source: new URLSearchParams(window.location.search).get('source') || 'direct',
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setSubmitted(true);
+        toast({
+          title: 'Application Submitted!',
+          description: 'We have received your application and will be in touch soon.',
+        });
+      } else {
+        throw new Error(data.message);
+      }
+    } catch (err) {
+      toast({
+        title: 'Submission Failed',
+        description: err instanceof Error ? err.message : 'Please try again later',
+        variant: 'destructive',
+      });
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -210,9 +308,110 @@ export default function PublicJobPage() {
                 <CardDescription>Join our team at {job.company_name}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <Button className="w-full" size="lg">
-                  Apply Now
-                </Button>
+                <Dialog open={isApplyDialogOpen} onOpenChange={setIsApplyDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button className="w-full" size="lg">
+                      Apply Now
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                    <DialogHeader>
+                      <DialogTitle>
+                        {submitted ? 'Application Submitted!' : applicationForm?.title || 'Application Form'}
+                      </DialogTitle>
+                      <DialogDescription>
+                        {submitted 
+                          ? 'Thank you for your application. We will review it and get back to you soon.'
+                          : applicationForm?.description || `Apply for ${job.title}`
+                        }
+                      </DialogDescription>
+                    </DialogHeader>
+
+                    {!submitted ? (
+                      <div className="space-y-4 py-4">
+                        {applicationForm?.fields.map((field) => (
+                          <div key={field.field_id}>
+                            <Label>
+                              {field.label}
+                              {field.required && <span className="text-red-500 ml-1">*</span>}
+                            </Label>
+                            
+                            {field.type === 'textarea' ? (
+                              <Textarea
+                                placeholder={field.placeholder}
+                                value={formData[field.field_id] || ''}
+                                onChange={(e) => setFormData({ ...formData, [field.field_id]: e.target.value })}
+                                rows={4}
+                              />
+                            ) : field.type === 'select' ? (
+                              <Select
+                                value={formData[field.field_id] || ''}
+                                onValueChange={(value) => setFormData({ ...formData, [field.field_id]: value })}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder={field.placeholder || 'Select...'} />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {field.options?.map((option) => (
+                                    <SelectItem key={option} value={option}>
+                                      {option}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            ) : field.type === 'checkbox' ? (
+                              <div className="flex items-center gap-2 mt-2">
+                                <Checkbox
+                                  checked={formData[field.field_id] || false}
+                                  onCheckedChange={(checked) => setFormData({ ...formData, [field.field_id]: checked })}
+                                />
+                                <span className="text-sm">{field.placeholder}</span>
+                              </div>
+                            ) : field.type === 'file' ? (
+                              <Input
+                                type="file"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) {
+                                    // In production, upload to cloud storage and store URL
+                                    setFormData({ ...formData, [field.field_id]: file.name });
+                                  }
+                                }}
+                              />
+                            ) : (
+                              <Input
+                                type={field.type}
+                                placeholder={field.placeholder}
+                                value={formData[field.field_id] || ''}
+                                onChange={(e) => setFormData({ ...formData, [field.field_id]: e.target.value })}
+                              />
+                            )}
+                          </div>
+                        ))}
+
+                        <div className="flex gap-2 justify-end pt-4">
+                          <Button variant="outline" onClick={() => setIsApplyDialogOpen(false)}>
+                            Cancel
+                          </Button>
+                          <Button onClick={handleSubmitApplication} disabled={submitting}>
+                            <Send size={16} className="mr-2" />
+                            {submitting ? 'Submitting...' : 'Submit Application'}
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-center py-8">
+                        <CheckCircle className="h-16 w-16 text-green-600 mx-auto mb-4" />
+                        <p className="text-gray-600 mb-6">
+                          A confirmation email has been sent to {formData.email}
+                        </p>
+                        <Button onClick={() => setIsApplyDialogOpen(false)}>
+                          Close
+                        </Button>
+                      </div>
+                    )}
+                  </DialogContent>
+                </Dialog>
                 <p className="text-sm text-gray-600 text-center">
                   By applying, you agree to our terms and conditions
                 </p>

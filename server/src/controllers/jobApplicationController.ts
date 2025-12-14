@@ -3,7 +3,7 @@ import type { AuthenticatedRequest } from "../middleware/auth"
 import JobApplication from "../models/JobApplication"
 import Job from "../models/Job"
 import JobAnalytics from "../models/JobAnalytics"
-import User from "../models/User"
+import { User } from "../models/User"
 import EmailService from "../services/email.service"
 
 export class JobApplicationController {

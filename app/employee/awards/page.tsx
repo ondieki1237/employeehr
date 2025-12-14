@@ -6,7 +6,6 @@ import { Badge } from "@/components/ui/badge"
 import { Award, Trophy, Medal, Star, Calendar } from "lucide-react"
 import { getUser } from "@/lib/auth"
 import API_URL from "@/lib/apiBase"
-import API_URL from "@/lib/apiBase"
 
 interface AwardType {
   _id: string

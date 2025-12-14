@@ -237,7 +237,7 @@ export default function FormBuilderPage({ params }: { params: { jobId: string } 
                                 <SelectItem value="phone">Phone</SelectItem>
                                 <SelectItem value="number">Number</SelectItem>
                                 <SelectItem value="textarea">Textarea</SelectItem>
-                                <SelectItem value="select">Select</SelectItem>
+                                <SelectItem value="select">Dropdown</SelectItem>
                                 <SelectItem value="checkbox">Checkbox</SelectItem>
                                 <SelectItem value="file">File Upload</SelectItem>
                                 <SelectItem value="date">Date</SelectItem>
@@ -249,6 +249,20 @@ export default function FormBuilderPage({ params }: { params: { jobId: string } 
                               placeholder="Placeholder..."
                             />
                           </div>
+                          
+                          {/* Options for select/checkbox */}
+                          {(field.type === 'select' || field.type === 'checkbox') && (
+                            <div>
+                              <Label className="text-xs">Options (one per line)</Label>
+                              <Textarea
+                                placeholder="Option 1&#10;Option 2&#10;Option 3"
+                                value={field.options?.join('\n') || ''}
+                                onChange={(e) => updateField(index, { options: e.target.value.split('\n').filter(o => o.trim()) })}
+                                rows={3}
+                              />
+                            </div>
+                          )}
+
                           <div className="flex items-center gap-4">
                             <div className="flex items-center gap-2">
                               <Checkbox

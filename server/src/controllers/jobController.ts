@@ -1,7 +1,7 @@
 import type { Response } from "express"
 import type { AuthenticatedRequest } from "../middleware/auth"
 import Job from "../models/Job"
-import Organization from "../models/Organization"
+import { Company } from "../models/Company"
 import JobAnalytics from "../models/JobAnalytics"
 import { Request } from "express"
 
@@ -27,13 +27,13 @@ export class JobController {
         return res.status(400).json({ success: false, message: "Organization context required" })
       }
 
-      // Get organization details
-      const organization = await Organization.findOne({ _id: req.org_id })
-      if (!organization) {
-        return res.status(404).json({ success: false, message: "Organization not found" })
+      // Get company details
+      const company = await Company.findOne({ _id: req.org_id })
+      if (!company) {
+        return res.status(404).json({ success: false, message: "Company not found" })
       }
 
-      const companyName = organization.company_name
+      const companyName = company.company_name
       const companySlug = JobController.generateCompanySlug(companyName)
       const positionIndex = await JobController.getNextPositionIndex(req.org_id)
 
