@@ -5,6 +5,9 @@ import { tenantIsolation } from "../middleware/tenantIsolation.middleware"
 
 const router = Router()
 
+// Public route: fetch form for a job (used on public careers page)
+router.get("/job/:jobId", ApplicationFormController.getFormByJobId)
+
 // Protected routes (require authentication)
 router.use(authMiddleware, orgMiddleware, tenantIsolation)
 
@@ -13,9 +16,6 @@ router.post("/", roleMiddleware("company_admin", "hr"), ApplicationFormControlle
 
 // Get all forms
 router.get("/", ApplicationFormController.getAllForms)
-
-// Get form by job ID
-router.get("/job/:jobId", ApplicationFormController.getFormByJobId)
 
 // Update form (Admin/HR only)
 router.put("/:formId", roleMiddleware("company_admin", "hr"), ApplicationFormController.updateForm)

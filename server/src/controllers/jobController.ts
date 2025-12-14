@@ -46,6 +46,7 @@ export class JobController {
         company_name: companyName,
         position_index: positionIndex,
         created_by: req.user.userId,
+        status: req.body?.status || "open",
         share_link: shareLink,
       }
 

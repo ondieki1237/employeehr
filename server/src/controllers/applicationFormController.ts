@@ -59,12 +59,8 @@ export class ApplicationFormController {
   // Get form by job ID
   static async getFormByJobId(req: AuthenticatedRequest, res: Response) {
     try {
-      if (!req.org_id) {
-        return res.status(400).json({ success: false, message: "Organization ID required" })
-      }
-
       const { jobId } = req.params
-      const form = await ApplicationForm.findOne({ org_id: req.org_id, job_id: jobId, status: "active" })
+      const form = await ApplicationForm.findOne({ job_id: jobId, status: "active" })
 
       if (!form) {
         return res.status(404).json({ success: false, message: "Form not found" })
