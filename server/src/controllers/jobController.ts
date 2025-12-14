@@ -33,8 +33,8 @@ export class JobController {
         return res.status(404).json({ success: false, message: "Company not found" })
       }
 
-      const companyName = company.company_name
-      const companySlug = JobController.generateCompanySlug(companyName)
+      const companyName = company.name
+      const companySlug = company.slug ?? JobController.generateCompanySlug(companyName)
       const positionIndex = await JobController.getNextPositionIndex(req.org_id)
 
       // Generate share link
