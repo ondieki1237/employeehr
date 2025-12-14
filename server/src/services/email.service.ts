@@ -214,4 +214,6 @@ class EmailService {
       subject: subject,
       html,
     })
-  }
+  }}
+
+export default new EmailService()
