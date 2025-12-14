@@ -1,23 +1,42 @@
 "use client"
 
 import type React from "react"
-
+import { useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { ArrowLeft, Mail, Lock } from "lucide-react"
 import { api } from "@/lib/api"
 import { setToken, setUser } from "@/lib/auth"
+import InvitationForm from "@/components/auth/invitation-form"
 
 export default function LoginPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const inviteToken = searchParams.get("invite")
+  const orgId = searchParams.get("org_id")
+  const invitedEmail = searchParams.get("email")
+  const companyName = searchParams.get("company") || "our organization"
+
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
+
+  // If we have an invite token, show the invitation form
+  if (inviteToken && orgId) {
+    return (
+      <InvitationForm
+        inviteToken={inviteToken}
+        invitedEmail={invitedEmail || ""}
+        companyName={companyName}
+        orgId={orgId}
+      />
+    )
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -128,4 +147,3 @@ export default function LoginPage() {
       </p>
     </div>
   )
-}

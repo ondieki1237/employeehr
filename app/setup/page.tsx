@@ -1,12 +1,15 @@
 "use client"
 
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import CompanySetup from "@/components/setup/company-setup"
-import { CheckCircle2 } from "lucide-react"
+import { CheckCircle2, Loader2, AlertCircle } from "lucide-react"
+import { api } from "@/lib/api"
 
 export default function SetupPage() {
   const [completedSteps, setCompletedSteps] = useState<string[]>([])
   const [currentStep, setCurrentStep] = useState("company")
+  const [companyData, setCompanyData] = useState<any>(null)
 
   const steps = ["company", "team", "confirmation"]
 
@@ -66,7 +69,8 @@ export default function SetupPage() {
         <div>
           {currentStep === "company" && (
             <CompanySetup
-              onNext={() => {
+              onNext={(data) => {
+                setCompanyData(data)
                 handleStepComplete("company")
                 setCurrentStep("team")
               }}
@@ -75,6 +79,7 @@ export default function SetupPage() {
 
           {currentStep === "team" && (
             <TeamInviteSetup
+              companyData={companyData}
               onNext={() => {
                 handleStepComplete("team")
                 setCurrentStep("confirmation")
@@ -90,8 +95,18 @@ export default function SetupPage() {
   )
 }
 
-function TeamInviteSetup({ onNext, onBack }: { onNext: () => void; onBack: () => void }) {
+function TeamInviteSetup({
+  companyData,
+  onNext,
+  onBack,
+}: {
+  companyData: any
+  onNext: () => void
+  onBack: () => void
+}) {
   const [team, setTeam] = useState<{ email: string; role: string }[]>([{ email: "", role: "manager" }])
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState("")
 
   const addTeamMember = () => {
     setTeam([...team, { email: "", role: "manager" }])
@@ -105,6 +120,41 @@ function TeamInviteSetup({ onNext, onBack }: { onNext: () => void; onBack: () =>
     const updated = [...team]
     updated[index][field] = value
     setTeam(updated)
+  }
+
+  const handleContinue = async () => {
+    setError("")
+
+    // Filter empty emails
+    const validTeamMembers = team.filter((member) => member.email.trim())
+
+    // If there are team members to invite, send invitations
+    if (validTeamMembers.length > 0) {
+      setIsLoading(true)
+
+      try {
+        // Get company domain from the current URL or use the company data
+        const companyDomain = companyData?.domain || window.location.hostname
+
+        const response = await api.invitations.send({
+          team_members: validTeamMembers,
+          company_domain: companyDomain,
+        })
+
+        if (response.success) {
+          onNext()
+        } else {
+          setError(response.message || "Failed to send invitations")
+        }
+      } catch (err: any) {
+        setError(err.message || "An error occurred while sending invitations")
+      } finally {
+        setIsLoading(false)
+      }
+    } else {
+      // No team members to invite, just continue
+      onNext()
+    }
   }
 
   return (
@@ -123,11 +173,13 @@ function TeamInviteSetup({ onNext, onBack }: { onNext: () => void; onBack: () =>
               value={member.email}
               onChange={(e) => updateTeamMember(index, "email", e.target.value)}
               className="flex-1 px-4 py-2 border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary"
+              disabled={isLoading}
             />
             <select
               value={member.role}
               onChange={(e) => updateTeamMember(index, "role", e.target.value)}
               className="px-4 py-2 border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary"
+              disabled={isLoading}
             >
               <option value="manager">Manager</option>
               <option value="employee">Employee</option>
@@ -136,7 +188,8 @@ function TeamInviteSetup({ onNext, onBack }: { onNext: () => void; onBack: () =>
             {team.length > 1 && (
               <button
                 onClick={() => removeTeamMember(index)}
-                className="px-4 py-2 text-destructive hover:bg-destructive/10 rounded-lg transition"
+                className="px-4 py-2 text-destructive hover:bg-destructive/10 rounded-lg transition disabled:opacity-50"
+                disabled={isLoading}
               >
                 Remove
               </button>
@@ -145,22 +198,36 @@ function TeamInviteSetup({ onNext, onBack }: { onNext: () => void; onBack: () =>
         ))}
       </div>
 
-      <button onClick={addTeamMember} className="text-primary hover:text-primary/80 font-medium mb-8 transition">
+      <button
+        onClick={addTeamMember}
+        className="text-primary hover:text-primary/80 font-medium mb-8 transition disabled:opacity-50"
+        disabled={isLoading}
+      >
         + Add another team member
       </button>
+
+      {error && (
+        <div className="p-4 bg-destructive/10 text-destructive rounded-lg text-sm flex gap-3 mb-8">
+          <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+          <span>{error}</span>
+        </div>
+      )}
 
       <div className="flex gap-3 pt-8 border-t border-border">
         <button
           onClick={onBack}
-          className="flex-1 px-6 py-3 border border-border rounded-lg hover:bg-secondary transition font-medium"
+          className="flex-1 px-6 py-3 border border-border rounded-lg hover:bg-secondary transition font-medium disabled:opacity-50"
+          disabled={isLoading}
         >
           Back
         </button>
         <button
-          onClick={onNext}
-          className="flex-1 px-6 py-3 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg transition font-medium"
+          onClick={handleContinue}
+          className="flex-1 px-6 py-3 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg transition font-medium disabled:opacity-50 flex items-center justify-center gap-2"
+          disabled={isLoading}
         >
-          Continue
+          {isLoading && <Loader2 size={18} className="animate-spin" />}
+          {isLoading ? "Sending invitations..." : "Continue"}
         </button>
       </div>
     </div>

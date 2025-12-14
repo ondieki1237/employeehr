@@ -30,6 +30,7 @@ import applicationFormRoutes from "./routes/applicationForm.routes"
 import jobApplicationRoutes from "./routes/jobApplication.routes"
 import jobAnalyticsRoutes from "./routes/jobAnalytics.routes"
 import communicationRoutes from "./routes/communication.routes"
+import invitationRoutes from "./routes/invitation.routes"
 import { JobController } from "./controllers/jobController"
 import { JobApplicationController } from "./controllers/jobApplicationController"
 import { ApplicationFormController } from "./controllers/applicationFormController"
@@ -111,6 +112,7 @@ app.use("/api/application-forms", applicationFormRoutes)
 app.use("/api/job-applications", jobApplicationRoutes)
 app.use("/api/job-analytics", jobAnalyticsRoutes)
 app.use("/api/communications", communicationRoutes)
+app.use("/api/invitations", invitationRoutes)
 
 // 404 handler
 app.use((req, res) => {

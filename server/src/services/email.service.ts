@@ -214,6 +214,55 @@ class EmailService {
       subject: subject,
       html,
     })
-  }}
+  }
+
+  async sendInvitationEmail(
+    inviteeEmail: string,
+    companyName: string,
+    inviteLink: string,
+    invitedByName: string
+  ): Promise<boolean> {
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: #4F46E5; color: white; padding: 20px; text-align: center; }
+          .content { background: #f9f9f9; padding: 30px; }
+          .button { display: inline-block; background: #4F46E5; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; margin: 20px 0; }
+          .footer { font-size: 12px; color: #999; margin-top: 20px; text-align: center; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>You're Invited to Join ${companyName}</h1>
+          </div>
+          <div class="content">
+            <p>Hello,</p>
+            <p><strong>${invitedByName}</strong> has invited you to join <strong>${companyName}</strong> on Elevate - our performance management platform.</p>
+            <p>Click the button below to accept your invitation and set up your account:</p>
+            <p><a href="${inviteLink}" class="button">Accept Invitation</a></p>
+            <p>Or copy and paste this link in your browser:<br><code>${inviteLink}</code></p>
+            <p>This invitation will expire in 7 days.</p>
+            <p>Best regards,<br>Elevate Team</p>
+            <div class="footer">
+              <p>If you did not expect this invitation, you can safely ignore this email.</p>
+            </div>
+          </div>
+        </div>
+      </body>
+      </html>
+    `
+
+    return this.sendEmail({
+      to: inviteeEmail,
+      subject: `${invitedByName} invited you to join ${companyName} on Elevate`,
+      html,
+    })
+  }
+}
 
 export default new EmailService()

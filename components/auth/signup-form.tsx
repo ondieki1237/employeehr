@@ -77,8 +77,8 @@ export default function SignupForm({ onBack }: SignupFormProps) {
           org_id: response.data.user.org_id,
         })
 
-        // Redirect to dashboard
-        router.push("/dashboard")
+        // Redirect to setup/onboarding flow instead of dashboard
+        router.push("/setup")
       } else {
         setError(response.message || "Registration failed")
       }
