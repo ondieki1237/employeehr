@@ -1,10 +1,11 @@
 import { Router } from "express"
 import { FeedbackController } from "../controllers/feedbackController"
 import { authMiddleware, orgMiddleware } from "../middleware/auth"
+import { tenantIsolation } from "../middleware/tenantIsolation.middleware"
 
 const router = Router()
 
-router.use(authMiddleware, orgMiddleware)
+router.use(authMiddleware, orgMiddleware, tenantIsolation)
 
 // Get feedback for user
 router.get("/:userId", FeedbackController.getFeedbackForUser)

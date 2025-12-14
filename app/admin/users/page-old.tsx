@@ -42,6 +42,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useToast } from '@/hooks/use-toast';
 import { getToken } from '@/lib/auth';
+import API_URL from '@/lib/apiBase';
 
 interface User {
   _id: string;
@@ -68,8 +69,6 @@ export default function UsersPage() {
     password: '',
   });
   const { toast } = useToast();
-
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
   useEffect(() => {
     fetchUsers();

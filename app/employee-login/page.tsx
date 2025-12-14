@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import API_URL from "@/lib/apiBase"
 
 export default function EmployeeLoginPage() {
   const router = useRouter()
@@ -20,7 +21,7 @@ export default function EmployeeLoginPage() {
     setError("")
 
     try {
-      const response = await fetch("http://localhost:5000/api/auth/employee-login", {
+      const response = await fetch(`${API_URL}/api/auth/employee-login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ employee_id: employeeId, password }),

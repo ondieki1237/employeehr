@@ -1,11 +1,12 @@
 import { Router } from "express"
 import { UserController } from "../controllers/userController"
 import { authMiddleware, roleMiddleware, orgMiddleware } from "../middleware/auth"
+import { tenantIsolation } from "../middleware/tenantIsolation.middleware"
 
 const router = Router()
 
 // All user routes require authentication
-router.use(authMiddleware, orgMiddleware)
+router.use(authMiddleware, orgMiddleware, tenantIsolation)
 
 // Get all users in organization
 router.get("/", UserController.getAllUsers)

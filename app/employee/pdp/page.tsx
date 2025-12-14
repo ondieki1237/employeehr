@@ -13,6 +13,7 @@ import { Progress } from "@/components/ui/progress"
 import { Plus, Save, CheckCircle2, Target, BookOpen, TrendingUp, Heart, Users, Brain, Calendar, ChevronRight } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { getToken } from "@/lib/auth"
+import API_URL from "@/lib/apiBase"
 
 interface PDP {
   _id?: string
@@ -65,7 +66,7 @@ export default function EmployeePDPPage() {
   const fetchColleagues = async () => {
     try {
       const token = getToken()
-      const response = await fetch("http://localhost:5000/api/users/colleagues/list", {
+      const response = await fetch(`${API_URL}/api/users/colleagues/list`, {
         headers: { Authorization: `Bearer ${token}` },
       })
       const data = await response.json()
@@ -80,7 +81,7 @@ export default function EmployeePDPPage() {
   const fetchPDPs = async () => {
     try {
       const token = getToken()
-      const response = await fetch("http://localhost:5000/api/pdps", {
+      const response = await fetch(`${API_URL}/api/pdps`, {
         headers: { Authorization: `Bearer ${token}` },
       })
       const data = await response.json()
@@ -127,7 +128,7 @@ export default function EmployeePDPPage() {
         period: new Date().getFullYear().toString(),
       }
       
-      const response = await fetch("http://localhost:5000/api/pdps", {
+      const response = await fetch(`${API_URL}/api/pdps`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -165,7 +166,7 @@ export default function EmployeePDPPage() {
 
     try {
       const token = getToken()
-      const response = await fetch(`http://localhost:5000/api/pdps/${currentPDP._id}`, {
+      const response = await fetch(`${API_URL}/api/pdps/${currentPDP._id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -208,7 +209,7 @@ export default function EmployeePDPPage() {
 
     try {
       const token = getToken()
-      const response = await fetch(`http://localhost:5000/api/pdps/${currentPDP._id}/journal`, {
+      const response = await fetch(`${API_URL}/api/pdps/${currentPDP._id}/journal`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

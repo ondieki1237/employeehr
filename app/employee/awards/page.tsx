@@ -5,6 +5,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Award, Trophy, Medal, Star, Calendar } from "lucide-react"
 import { getUser } from "@/lib/auth"
+import API_URL from "@/lib/apiBase"
+import API_URL from "@/lib/apiBase"
 
 interface AwardType {
   _id: string
@@ -38,7 +40,7 @@ export default function AwardsPage() {
       const user = getUser()
       if (!user) return
 
-      const response = await fetch("http://localhost:5000/api/awards/my-awards", {
+      const response = await fetch(`${API_URL}/api/awards/my-awards`, {
         headers: {
           Authorization: `Bearer ${user.token}`,
         },

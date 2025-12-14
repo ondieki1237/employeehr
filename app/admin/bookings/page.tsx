@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { getToken } from '@/lib/auth';
+import API_URL from '@/lib/apiBase';
 
 interface ResourceBooking {
   _id: string;
@@ -25,8 +26,6 @@ export default function BookingsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const { toast } = useToast();
-
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
   useEffect(() => {
     fetchBookings();

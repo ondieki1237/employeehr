@@ -1,10 +1,11 @@
 import { Router } from "express"
 import { AlertController } from "../controllers/alertController"
-import { authMiddleware } from "../middleware/auth"
+import { authMiddleware, orgMiddleware } from "../middleware/auth"
+import { tenantIsolation } from "../middleware/tenantIsolation.middleware"
 
 const router = Router()
 
-router.use(authMiddleware)
+router.use(authMiddleware, orgMiddleware, tenantIsolation)
 
 // Get alerts
 router.get("/", AlertController.getAlerts)

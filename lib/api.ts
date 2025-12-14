@@ -1,6 +1,7 @@
 // Centralized API service for all HTTP requests
 
 import { getToken, logout } from './auth'
+import API_URL from './apiBase'
 import type {
     ApiResponse,
     LoginRequest,
@@ -22,7 +23,6 @@ import type {
     CreatePDPRequest,
 } from './types'
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'
 
 // HTTP client with error handling
 class ApiClient {

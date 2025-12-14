@@ -44,6 +44,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { getToken } from '@/lib/auth';
+import API_URL from '@/lib/apiBase';
 
 interface Contract {
   _id: string;
@@ -97,8 +98,6 @@ export default function AdminContractsPage() {
     name: '',
     link: '',
   });
-
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
   useEffect(() => {
     fetchContracts();

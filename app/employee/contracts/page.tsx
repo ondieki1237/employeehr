@@ -24,6 +24,7 @@ import {
 } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { getToken } from '@/lib/auth';
+import API_URL from '@/lib/apiBase';
 
 interface Contract {
   _id: string;
@@ -52,8 +53,6 @@ export default function EmployeeContractsPage() {
   const [contract, setContract] = useState<Contract | null>(null);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
-
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
   useEffect(() => {
     fetchEmployeeContract();

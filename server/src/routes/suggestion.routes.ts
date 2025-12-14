@@ -1,10 +1,11 @@
 import { Router } from "express"
 import { SuggestionController } from "../controllers/suggestionController"
-import { authMiddleware } from "../middleware/auth"
+import { authMiddleware, orgMiddleware } from "../middleware/auth"
+import { tenantIsolation } from "../middleware/tenantIsolation.middleware"
 
 const router = Router()
 
-router.use(authMiddleware)
+router.use(authMiddleware, orgMiddleware, tenantIsolation)
 
 router.get("/", SuggestionController.getSuggestions)
 router.post("/", SuggestionController.createSuggestion)

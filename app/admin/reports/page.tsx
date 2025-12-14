@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { getToken } from '@/lib/auth';
+import API_URL from '@/lib/apiBase';
 
 interface ReportData {
   period: string;
@@ -24,8 +25,6 @@ export default function ReportsPage() {
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState('month');
   const { toast } = useToast();
-
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
   useEffect(() => {
     fetchReports();

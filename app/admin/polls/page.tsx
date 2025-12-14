@@ -23,6 +23,7 @@ import {
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { getToken, getUser } from '@/lib/auth';
+import API_URL from '@/lib/apiBase';
 
 interface Poll {
   _id: string;
@@ -63,7 +64,7 @@ export default function PollsPage() {
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
   const { toast } = useToast();
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+  // API base URL handled by lib/apiBase
 
   useEffect(() => {
     const user = getUser();

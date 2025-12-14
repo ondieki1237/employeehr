@@ -16,8 +16,9 @@ import {
 } from "recharts"
 import { TrendingUp, Target, Award, BookOpen, CheckSquare, Mail } from "lucide-react"
 import Link from "next/link"
+import API_URL from "@/lib/apiBase"
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5010"
+// API base URL handled by lib/apiBase
 
 const performanceData = [
   { month: "Jan", score: 6.5 },

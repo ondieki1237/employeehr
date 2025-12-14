@@ -1,10 +1,11 @@
 import { Router } from "express"
 import { PDPController } from "../controllers/pdpController"
 import { authMiddleware, roleMiddleware, orgMiddleware } from "../middleware/auth"
+import { tenantIsolation } from "../middleware/tenantIsolation.middleware"
 
 const router = Router()
 
-router.use(authMiddleware, orgMiddleware)
+router.use(authMiddleware, orgMiddleware, tenantIsolation)
 
 // Get PDPs
 router.get("/", PDPController.getPDPs)

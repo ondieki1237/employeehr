@@ -20,7 +20,10 @@ import {
   FileCheck,
   AlertCircle,
   Bell,
-  ChevronDown
+  ChevronDown,
+  Briefcase,
+  UserCheck,
+  TrendingUp
 } from "lucide-react"
 import { logout } from "@/lib/auth"
 
@@ -42,6 +45,26 @@ const adminMenuItems = [
     icon: Users,
     href: "/admin/users",
     section: "CORE"
+  },
+
+  // Recruitment & Jobs
+  {
+    label: "Job Postings",
+    icon: Briefcase,
+    href: "/admin/jobs",
+    section: "RECRUITMENT"
+  },
+  {
+    label: "Applications",
+    icon: UserCheck,
+    href: "/admin/applications",
+    section: "RECRUITMENT"
+  },
+  {
+    label: "Job Analytics",
+    icon: TrendingUp,
+    href: "/admin/analytics",
+    section: "RECRUITMENT"
   },
 
   // Employee Management

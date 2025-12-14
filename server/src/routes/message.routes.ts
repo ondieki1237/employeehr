@@ -1,10 +1,11 @@
 import { Router } from "express"
 import { MessageController } from "../controllers/messageController"
 import { authMiddleware, orgMiddleware } from "../middleware/auth"
+import { tenantIsolation } from "../middleware/tenantIsolation.middleware"
 
 const router = Router()
 
-router.use(authMiddleware, orgMiddleware)
+router.use(authMiddleware, orgMiddleware, tenantIsolation)
 
 // Get inbox messages
 router.get("/inbox", MessageController.getInboxMessages)

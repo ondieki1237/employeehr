@@ -1,10 +1,11 @@
 import { Router } from "express"
 import { PerformanceController } from "../controllers/performanceController"
 import { authMiddleware, orgMiddleware } from "../middleware/auth"
+import { tenantIsolation } from "../middleware/tenantIsolation.middleware"
 
 const router = Router()
 
-router.use(authMiddleware, orgMiddleware)
+router.use(authMiddleware, orgMiddleware, tenantIsolation)
 
 // Get performance by period
 router.get("/:userId/:period", PerformanceController.getPerformanceByPeriod)

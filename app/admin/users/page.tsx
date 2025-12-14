@@ -46,6 +46,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
 import { getToken } from '@/lib/auth';
+import API_URL from '@/lib/apiBase';
 
 interface User {
   _id: string;
@@ -114,8 +115,6 @@ export default function AdminUsersPage() {
   // Message dialog
   const [isMessageDialogOpen, setIsMessageDialogOpen] = useState(false);
   const [message, setMessage] = useState({ subject: '', body: '' });
-
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
   useEffect(() => {
     fetchUsers();

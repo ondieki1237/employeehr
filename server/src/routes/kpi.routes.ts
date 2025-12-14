@@ -1,10 +1,11 @@
 import { Router } from "express"
 import { KPIController } from "../controllers/kpiController"
 import { authMiddleware, roleMiddleware, orgMiddleware } from "../middleware/auth"
+import { tenantIsolation } from "../middleware/tenantIsolation.middleware"
 
 const router = Router()
 
-router.use(authMiddleware, orgMiddleware)
+router.use(authMiddleware, orgMiddleware, tenantIsolation)
 
 // Get all KPIs
 router.get("/", KPIController.getAllKPIs)

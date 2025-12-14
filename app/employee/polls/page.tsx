@@ -6,9 +6,10 @@ import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { getToken } from "@/lib/auth"
+import API_URL from "@/lib/apiBase"
 import { Vote, BarChart3, CheckCircle } from "lucide-react"
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5010"
+// API base URL handled by lib/apiBase
 
 interface PollOption {
   _id: string

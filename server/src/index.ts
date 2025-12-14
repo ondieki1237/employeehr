@@ -25,6 +25,10 @@ import badgeRoutes from "./routes/badge.routes"
 import pollRoutes from "./routes/poll.routes"
 import contractRoutes from "./routes/contract.routes"
 import alertRoutes from "./routes/alert.routes"
+import jobRoutes from "./routes/job.routes"
+import applicationFormRoutes from "./routes/applicationForm.routes"
+import jobApplicationRoutes from "./routes/jobApplication.routes"
+import jobAnalyticsRoutes from "./routes/jobAnalytics.routes"
 
 const app = express()
 const PORT = process.env.PORT || 5010
@@ -93,6 +97,10 @@ app.use("/api/badges", badgeRoutes)
 app.use("/api/polls", pollRoutes)
 app.use("/api/contracts", contractRoutes)
 app.use("/api/alerts", alertRoutes)
+app.use("/api/jobs", jobRoutes)
+app.use("/api/application-forms", applicationFormRoutes)
+app.use("/api/job-applications", jobApplicationRoutes)
+app.use("/api/job-analytics", jobAnalyticsRoutes)
 
 // 404 handler
 app.use((req, res) => {
