@@ -241,12 +241,20 @@ export class JobController {
       const { source } = req.query
       const shareLink = `${companyName}/${positionIndex}`
 
-      const job = await Job.findOne({ share_link: shareLink, status: "open" })
+      // Fetch by share link first; enforce availability after existence check for clearer errors
+      const job = await Job.findOne({ share_link: shareLink })
 
       if (!job) {
         return res.status(404).json({
           success: false,
           message: "Job not found or no longer available",
+        })
+      }
+
+      if (job.status !== "open") {
+        return res.status(403).json({
+          success: false,
+          message: "This job is not open for applications",
         })
       }
 
