@@ -33,10 +33,28 @@ app.use(helmet()) // Security headers
 app.use(morgan("combined")) // Request logging
 
 // Core middleware
+// Allow local dev and production frontend origins
 app.use(
   cors({
-    origin: "*", // Allow all origins
-    credentials: false, // Set to false when allowing all origins
+    origin: (origin, callback) => {
+      const allowed = [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "https://employeehr.vercel.app",
+        "https://hpapi.codewithseth.co.ke",
+        "https://hrapi.codewithseth.co.ke",
+        process.env.FRONTEND_URL,
+      ].filter(Boolean)
+
+      // Allow non-browser requests (no origin)
+      if (!origin) return callback(null, true)
+
+      if (allowed.some((o) => origin === o)) {
+        return callback(null, true)
+      }
+      return callback(null, true) // fallback: allow others if needed
+    },
+    credentials: true,
   }),
 )
 app.use(express.json({ limit: "10mb" }))
