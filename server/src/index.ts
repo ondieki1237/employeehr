@@ -29,6 +29,8 @@ import jobRoutes from "./routes/job.routes"
 import applicationFormRoutes from "./routes/applicationForm.routes"
 import jobApplicationRoutes from "./routes/jobApplication.routes"
 import jobAnalyticsRoutes from "./routes/jobAnalytics.routes"
+import { JobController } from "./controllers/jobController"
+import { JobApplicationController } from "./controllers/jobApplicationController"
 
 const app = express()
 const PORT = process.env.PORT || 5010
@@ -79,6 +81,11 @@ app.get("/health", (req, res) => {
     version: "1.1.0",
   })
 })
+
+// Public endpoints (no auth) — mounted early
+app.get("/api/jobs/public/:companyName/:positionIndex", JobController.getPublicJob)
+app.get("/api/application-forms/job/:jobId", JobApplicationController.getFormByJobId)
+app.post("/api/job-applications/submit", JobApplicationController.submitApplication)
 
 // API Routes
 app.use("/api/auth", authRoutes)
