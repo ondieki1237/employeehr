@@ -134,7 +134,13 @@ export default function PublicJobPage() {
           applicant_name: formData.full_name || formData.name || 'Unknown',
           applicant_email: formData.email,
           applicant_phone: formData.phone,
-          answers: formData,
+          answers: (applicationForm.fields || []).map((field) => ({
+            field_id: field.field_id,
+            label: field.label,
+            value: formData[field.field_id] ?? null,
+          })),
+          resume_url: formData.resume_url,
+          cover_letter: formData.cover_letter,
           source: new URLSearchParams(window.location.search).get('source') || 'direct',
         }),
       });
@@ -145,7 +151,7 @@ export default function PublicJobPage() {
         setSubmitted(true);
         toast({
           title: 'Application Submitted!',
-          description: 'We have received your application and will be in touch soon.',
+          description: 'We have received your application. A confirmation email has been sent.',
         });
       } else {
         throw new Error(data.message);
@@ -314,7 +320,7 @@ export default function PublicJobPage() {
                       Apply Now
                     </Button>
                   </DialogTrigger>
-                  <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                  <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto backdrop-blur-sm">
                     <DialogHeader>
                       <DialogTitle>
                         {submitted ? 'Application Submitted!' : applicationForm?.title || 'Application Form'}
