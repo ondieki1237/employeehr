@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { getToken } from "@/lib/auth"
 import { Trophy, Award, Star, Medal } from "lucide-react"
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5010"
 
 interface BadgeData {
   _id: string

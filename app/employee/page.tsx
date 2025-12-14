@@ -17,6 +17,8 @@ import {
 import { TrendingUp, Target, Award, BookOpen, CheckSquare, Mail } from "lucide-react"
 import Link from "next/link"
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5010"
+
 const performanceData = [
   { month: "Jan", score: 6.5 },
   { month: "Feb", score: 7.0 },
@@ -48,7 +50,7 @@ export default function EmployeePortal() {
     const fetchTaskStats = async () => {
       try {
         const token = localStorage.getItem("token")
-        const response = await fetch("http://localhost:5000/api/tasks", {
+        const response = await fetch(`${API_URL}/api/tasks`, {
           headers: { Authorization: `Bearer ${token}` },
         })
         const data = await response.json()
@@ -68,7 +70,7 @@ export default function EmployeePortal() {
     const fetchMessageStats = async () => {
       try {
         const token = localStorage.getItem("token")
-        const response = await fetch("http://localhost:5000/api/messages/inbox", {
+        const response = await fetch(`${API_URL}/api/messages/inbox`, {
           headers: { Authorization: `Bearer ${token}` },
         })
         const data = await response.json()

@@ -11,7 +11,7 @@ import { Separator } from "@/components/ui/separator"
 import { User, Mail, Phone, Calendar, Building, MapPin, Edit, Save, X } from "lucide-react"
 import { getUser, getToken } from "@/lib/auth"
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5010"
 
 interface UserProfile {
   _id: string

@@ -9,6 +9,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Calendar as CalendarIcon, Clock, CheckCircle2, XCircle, AlertCircle } from "lucide-react"
 import { getUser } from "@/lib/auth"
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5010"
+
 interface AttendanceRecord {
   _id: string
   date: string
@@ -39,7 +41,7 @@ export default function AttendancePage() {
       const user = getUser()
       if (!user) return
 
-      const response = await fetch("http://localhost:5000/api/attendance/my-attendance", {
+      const response = await fetch(`${API_URL}/api/attendance/my-attendance`, {
         headers: {
           Authorization: `Bearer ${user.token}`,
         },
@@ -76,7 +78,7 @@ export default function AttendancePage() {
       const user = getUser()
       if (!user) return
 
-      const response = await fetch("http://localhost:5000/api/attendance/check-in", {
+      const response = await fetch(`${API_URL}/api/attendance/check-in`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -97,7 +99,7 @@ export default function AttendancePage() {
       const user = getUser()
       if (!user) return
 
-      const response = await fetch("http://localhost:5000/api/attendance/check-out", {
+      const response = await fetch(`${API_URL}/api/attendance/check-out`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

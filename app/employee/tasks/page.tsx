@@ -8,6 +8,8 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { CheckCircle2, Circle, Clock, AlertCircle } from "lucide-react"
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5010"
+
 interface Task {
   _id: string
   title: string
@@ -37,7 +39,7 @@ export default function EmployeeTasksPage() {
       const token = localStorage.getItem("token")
       const statusParam = filter !== "all" ? `?status=${filter}` : ""
       
-      const response = await fetch(`http://localhost:5000/api/tasks${statusParam}`, {
+      const response = await fetch(`${API_URL}/api/tasks${statusParam}`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -58,7 +60,7 @@ export default function EmployeeTasksPage() {
     try {
       const token = localStorage.getItem("token")
       
-      const response = await fetch(`http://localhost:5000/api/tasks/${taskId}/complete`, {
+      const response = await fetch(`${API_URL}/api/tasks/${taskId}/complete`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

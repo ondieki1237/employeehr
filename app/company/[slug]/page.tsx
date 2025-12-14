@@ -36,7 +36,7 @@ export default function CompanyLoginPage() {
   useEffect(() => {
     const validateCompany = async () => {
       try {
-        const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"
+        const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5010"
         const response = await fetch(`${API_URL}/api/auth/validate-company/${slug}`)
         const data = await response.json()
 
@@ -72,7 +72,7 @@ export default function CompanyLoginPage() {
     setLoginError("")
 
     try {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5010"
       const response = await fetch(`${API_URL}/api/auth/company-login`, {
         method: "POST",
         headers: {

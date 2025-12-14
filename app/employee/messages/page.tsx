@@ -18,6 +18,8 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5010"
+
 interface Message {
   _id: string
   subject: string
@@ -61,10 +63,10 @@ export default function EmployeeMessagesPage() {
       const token = localStorage.getItem("token")
       
       const [inboxRes, sentRes] = await Promise.all([
-        fetch("http://localhost:5000/api/messages/inbox", {
+        fetch(`${API_URL}/api/messages/inbox`, {
           headers: { Authorization: `Bearer ${token}` },
         }),
-        fetch("http://localhost:5000/api/messages/sent", {
+        fetch(`${API_URL}/api/messages/sent`, {
           headers: { Authorization: `Bearer ${token}` },
         }),
       ])
@@ -87,7 +89,7 @@ export default function EmployeeMessagesPage() {
     try {
       const token = localStorage.getItem("token")
       
-      const response = await fetch("http://localhost:5000/api/messages/send", {
+      const response = await fetch(`${API_URL}/api/messages/send`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -117,7 +119,7 @@ export default function EmployeeMessagesPage() {
     try {
       const token = localStorage.getItem("token")
       
-      await fetch(`http://localhost:5000/api/messages/${messageId}/read`, {
+      await fetch(`${API_URL}/api/messages/${messageId}/read`, {
         method: "PUT",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -134,7 +136,7 @@ export default function EmployeeMessagesPage() {
     try {
       const token = localStorage.getItem("token")
       
-      await fetch(`http://localhost:5000/api/messages/${messageId}`, {
+      await fetch(`${API_URL}/api/messages/${messageId}`, {
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${token}`,

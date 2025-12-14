@@ -8,7 +8,7 @@ import { Progress } from "@/components/ui/progress"
 import { getToken } from "@/lib/auth"
 import { Vote, BarChart3, CheckCircle } from "lucide-react"
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5010"
 
 interface PollOption {
   _id: string
