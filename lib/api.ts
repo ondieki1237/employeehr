@@ -205,6 +205,21 @@ export const attendanceApi = {
         client.post<Attendance>('/api/attendance', data),
 }
 
+// Invitations API
+export const invitationsApi = {
+    send: (data: { team_members: Array<{ email: string; role: string }>; company_domain: string }) =>
+        client.post<any>('/api/invitations/send', data),
+
+    accept: (data: { invite_token: string; email: string; firstName: string; lastName: string; password: string }) =>
+        client.post<any>('/api/invitations/accept', data),
+
+    getPending: () =>
+        client.get<any[]>('/api/invitations/pending'),
+
+    resend: (data: { invitation_id: string; company_domain: string }) =>
+        client.post<any>('/api/invitations/resend', data),
+}
+
 // Export all APIs
 export const api = {
     auth: authApi,
@@ -215,6 +230,7 @@ export const api = {
     feedback: feedbackApi,
     pdps: pdpsApi,
     attendance: attendanceApi,
+    invitations: invitationsApi,
 }
 
 export default api

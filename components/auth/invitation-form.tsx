@@ -64,23 +64,15 @@ export default function InvitationForm({
 
     try {
       // Accept invitation and create account
-      const response = await fetch(`${api.baseURL}/invitations/accept`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          invite_token: inviteToken,
-          email: invitedEmail,
-          firstName,
-          lastName,
-          password,
-        }),
+      const response = await api.invitations.accept({
+        invite_token: inviteToken,
+        email: invitedEmail,
+        firstName,
+        lastName,
+        password,
       })
 
-      const data = await response.json()
-
-      if (data.success && data.data) {
+      if (response.success && response.data) {
         setSuccess(true)
 
         // Log the user in after accepting invitation
@@ -111,7 +103,7 @@ export default function InvitationForm({
           }
         }
       } else {
-        setError(data.message || "Failed to accept invitation")
+        setError(response.message || "Failed to accept invitation")
       }
     } catch (err: any) {
       setError(err.message || "An error occurred. Please try again.")

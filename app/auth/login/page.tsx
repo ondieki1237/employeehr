@@ -1,19 +1,20 @@
 "use client"
 
 import type React from "react"
+import { Suspense } from "react"
 import { useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { ArrowLeft, Mail, Lock } from "lucide-react"
 import { api } from "@/lib/api"
 import { setToken, setUser } from "@/lib/auth"
 import InvitationForm from "@/components/auth/invitation-form"
 
-export default function LoginPage() {
+function LoginContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const inviteToken = searchParams.get("invite")
@@ -147,3 +148,13 @@ export default function LoginPage() {
       </p>
     </div>
   )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <LoginContent />
+    </Suspense>
+  )
+}
+ 

@@ -20,9 +20,9 @@ export class InvitationController {
         return res.status(400).json({ success: false, message: "team_members array is required" })
       }
 
-      if (!company_domain) {
-        return res.status(400).json({ success: false, message: "company_domain is required" })
-      }
+      // Resolve tenant domain: prefer provided non-localhost domain, else derive from company slug
+      const TENANT_BASE_DOMAIN = process.env.TENANT_BASE_DOMAIN || "codewithseth.co.ke" // e.g., codewithseth.co.ke
+      const TENANT_SUBDOMAIN = process.env.TENANT_SUBDOMAIN || "hr" // e.g., hr
 
       // Get company details
       const company = await Company.findById(req.org_id)
@@ -60,8 +60,15 @@ export class InvitationController {
             expires_at,
           })
 
-          // Build invite link with company domain and org_id
-          const invite_link = `https://${company_domain}/auth/login?invite=${invite_token}&org_id=${req.org_id}`
+          // Determine final domain for invite link
+          const derivedDomain = `${TENANT_SUBDOMAIN}.${company.slug}.${TENANT_BASE_DOMAIN}`
+          const finalDomain = company_domain && !String(company_domain).includes("localhost")
+            ? company_domain
+            : derivedDomain
+
+          // Build invite link with domain, org_id, and company name
+          const encodedCompanyName = encodeURIComponent(company.name)
+          const invite_link = `https://${finalDomain}/auth/login?invite=${invite_token}&org_id=${req.org_id}&company=${encodedCompanyName}&email=${encodeURIComponent(member.email)}`
 
           // Send invitation email
           await EmailService.sendInvitationEmail(
@@ -237,8 +244,15 @@ export class InvitationController {
       invitation.expires_at.setDate(invitation.expires_at.getDate() + 7)
       await invitation.save()
 
-      // Resend email
-      const invite_link = `https://${company_domain}/auth/login?invite=${invitation.invite_token}&org_id=${req.org_id}`
+      // Resend email with derived tenant domain and company name in URL
+      const TENANT_BASE_DOMAIN = process.env.TENANT_BASE_DOMAIN || "codewithseth.co.ke"
+      const TENANT_SUBDOMAIN = process.env.TENANT_SUBDOMAIN || "hr"
+      const derivedDomain = `${TENANT_SUBDOMAIN}.${company.slug}.${TENANT_BASE_DOMAIN}`
+      const finalDomain = company_domain && !String(company_domain).includes("localhost")
+        ? company_domain
+        : derivedDomain
+      const encodedCompanyName = encodeURIComponent(company.name)
+      const invite_link = `https://${finalDomain}/auth/login?invite=${invitation.invite_token}&org_id=${req.org_id}&company=${encodedCompanyName}&email=${encodeURIComponent(invitation.email)}`
       await EmailService.sendInvitationEmail(invitation.email, company.name, invite_link, req.user?.firstName || "Admin")
 
       res.status(200).json({

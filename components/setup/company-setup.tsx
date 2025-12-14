@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Building2, Globe, Phone } from "lucide-react"
 
 interface CompanySetupProps {
-  onNext: () => void
+  onNext: (data: any) => void
 }
 
 export default function CompanySetup({ onNext }: CompanySetupProps) {
@@ -31,7 +31,12 @@ export default function CompanySetup({ onNext }: CompanySetupProps) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    onNext()
+    // Get company domain from window location
+    const domain = window.location.hostname
+    onNext({
+      ...formData,
+      domain,
+    })
   }
 
   return (
