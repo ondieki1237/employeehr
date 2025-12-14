@@ -23,7 +23,8 @@ import {
   ChevronDown,
   Briefcase,
   UserCheck,
-  TrendingUp
+  TrendingUp,
+  Mail
 } from "lucide-react"
 import { logout } from "@/lib/auth"
 
@@ -64,6 +65,12 @@ const adminMenuItems = [
     label: "Job Analytics",
     icon: TrendingUp,
     href: "/admin/analytics",
+    section: "RECRUITMENT"
+  },
+  {
+    label: "Communications",
+    icon: Mail,
+    href: "/admin/communications",
     section: "RECRUITMENT"
   },
 

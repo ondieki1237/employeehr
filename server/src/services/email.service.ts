@@ -176,6 +176,42 @@ class EmailService {
       html,
     })
   }
-}
 
-export default new EmailService()
+  async sendBulkInterviewInviteEmail(
+    applicantEmail: string,
+    applicantName: string,
+    subject: string,
+    body: string
+  ): Promise<boolean> {
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: #4F46E5; color: white; padding: 20px; text-align: center; }
+          .content { background: #f9f9f9; padding: 30px; white-space: pre-wrap; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>${subject}</h1>
+          </div>
+          <div class="content">
+            <h2>Hi ${applicantName},</h2>
+            <p>${body}</p>
+            <p>Best regards,<br>Hiring Team</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `
+
+    return this.sendEmail({
+      to: applicantEmail,
+      subject: subject,
+      html,
+    })
+  }

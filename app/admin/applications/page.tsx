@@ -290,13 +290,32 @@ export default function ApplicationsPage() {
                         <div className="space-y-4">
                           <div>
                             <h4 className="font-semibold mb-2">Application Details</h4>
-                            <div className="space-y-2">
-                              {Object.entries(app.answers).map(([key, value]) => (
-                                <div key={key} className="grid grid-cols-3 gap-2">
-                                  <span className="font-medium capitalize">{key.replace(/_/g, ' ')}:</span>
-                                  <span className="col-span-2">{String(value)}</span>
-                                </div>
-                              ))}
+                            <div className="space-y-3 bg-gray-50 p-4 rounded">
+                              {Array.isArray(app.answers) ? (
+                                // Handle array of answer objects
+                                app.answers.map((answer: any, idx: number) => (
+                                  <div key={idx} className="border-b pb-2 last:border-b-0">
+                                    <span className="font-medium text-gray-700">{answer.label}:</span>
+                                    <span className="ml-2 text-gray-600">
+                                      {Array.isArray(answer.value)
+                                        ? answer.value.join(', ')
+                                        : String(answer.value || 'N/A')}
+                                    </span>
+                                  </div>
+                                ))
+                              ) : (
+                                // Handle legacy object format
+                                Object.entries(app.answers).map(([key, value]) => (
+                                  <div key={key} className="border-b pb-2 last:border-b-0">
+                                    <span className="font-medium text-gray-700 capitalize">{key.replace(/_/g, ' ')}:</span>
+                                    <span className="ml-2 text-gray-600">
+                                      {Array.isArray(value)
+                                        ? value.join(', ')
+                                        : String(value || 'N/A')}
+                                    </span>
+                                  </div>
+                                ))
+                              )}
                             </div>
                           </div>
 
