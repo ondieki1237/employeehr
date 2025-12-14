@@ -27,7 +27,7 @@ import contractRoutes from "./routes/contract.routes"
 import alertRoutes from "./routes/alert.routes"
 
 const app = express()
-const PORT = process.env.PORT || 5000
+const PORT = process.env.PORT || 5010
 
 app.use(helmet()) // Security headers
 app.use(morgan("combined")) // Request logging
