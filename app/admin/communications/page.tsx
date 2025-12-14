@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Mail, Send, Check, AlertCircle, Briefcase } from 'lucide-react';
+import { Mail, Send, Check, AlertCircle, Briefcase, History } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { getToken } from '@/lib/auth';
 import API_URL from '@/lib/apiBase';
@@ -28,6 +29,20 @@ interface Applicant {
   notes?: Array<{ note: string; type: string }>;
 }
 
+interface SentEmail {
+  _id: string;
+  subject: string;
+  body: string;
+  sent_count: number;
+  failed_count: number;
+  recipient_count: number;
+  recipient_emails: string[];
+  failed_emails?: string[];
+  job_id: string;
+  created_at: string;
+  include_notes: boolean;
+}
+
 interface EmailTemplate {
   subject: string;
   body: string;
@@ -38,10 +53,12 @@ const statusOptions = ['pending', 'reviewing', 'shortlisted', 'rejected', 'hired
 export default function CommunicationsPage() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [applicants, setApplicants] = useState<Applicant[]>([]);
+  const [sentEmails, setSentEmails] = useState<SentEmail[]>([]);
   const [selectedJob, setSelectedJob] = useState<string>('');
   const [selectedStatus, setSelectedStatus] = useState<string>('');
   const [selectedApplicants, setSelectedApplicants] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
+  const [loadingSentEmails, setLoadingSentEmails] = useState(false);
   const [sendingEmails, setSendingEmails] = useState(false);
   const [showTemplateDialog, setShowTemplateDialog] = useState(false);
   const [template, setTemplate] = useState<EmailTemplate>({
@@ -54,6 +71,7 @@ export default function CommunicationsPage() {
 
   useEffect(() => {
     fetchJobs();
+    fetchSentEmails();
   }, []);
 
   const fetchJobs = async () => {
@@ -65,7 +83,23 @@ export default function CommunicationsPage() {
       if (data.success) setJobs(data.data || []);
     } catch (error) {
       console.error('Error fetching jobs:', error);
-      toast({ title: 'Error', description: 'Failed to load jobs', variant: 'destructive' });
+    }
+  };
+
+  const fetchSentEmails = async (jobId?: string) => {
+    try {
+      setLoadingSentEmails(true);
+      const params = new URLSearchParams();
+      if (jobId) params.append('job_id', jobId);
+      const response = await fetch(`${API_URL}/api/communications/sent?${params}`, {
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      const data = await response.json();
+      if (data.success) setSentEmails(data.data || []);
+    } catch (error) {
+      console.error('Error fetching sent emails:', error);
+    } finally {
+      setLoadingSentEmails(false);
     }
   };
 
@@ -93,6 +127,9 @@ export default function CommunicationsPage() {
     setSelectedJob(jobId);
     setSelectedStatus('');
     setApplicants([]);
+    if (jobId) {
+      fetchSentEmails(jobId);
+    }
   };
 
   const handleStatusChange = (status: string) => {
@@ -184,31 +221,39 @@ export default function CommunicationsPage() {
           <Mail className="h-8 w-8" />
           Communications
         </h1>
-        <p className="text-gray-600 mt-2">Send bulk emails to applicants</p>
+        <p className="text-gray-600 mt-2">Send bulk emails to applicants and track history</p>
       </div>
 
-      {sentResult && (
-        <Card className="bg-green-50 border-green-200">
-          <CardContent className="pt-6">
-            <div className="flex items-start gap-3">
-              <Check className="h-5 w-5 text-green-600 mt-0.5" />
-              <div>
-                <h3 className="font-semibold text-green-900">Emails Sent Successfully</h3>
-                <p className="text-sm text-green-800 mt-1">
-                  {sentResult.sentCount} email(s) sent successfully
-                  {sentResult.failedCount > 0 && `, ${sentResult.failedCount} failed`}
-                </p>
-                {sentResult.failedEmails && sentResult.failedEmails.length > 0 && (
-                  <div className="mt-2 text-xs text-green-700">
-                    <p className="font-medium">Failed emails:</p>
-                    <ul className="list-disc list-inside">{sentResult.failedEmails.map((e: string) => <li key={e}>{e}</li>)}</ul>
+      <Tabs defaultValue="compose" className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="compose">Compose & Send</TabsTrigger>
+          <TabsTrigger value="history">Sent History</TabsTrigger>
+        </TabsList>
+
+        {/* Compose Tab */}
+        <TabsContent value="compose" className="space-y-6">
+          {sentResult && (
+            <Card className="bg-green-50 border-green-200">
+              <CardContent className="pt-6">
+                <div className="flex items-start gap-3">
+                  <Check className="h-5 w-5 text-green-600 mt-0.5" />
+                  <div>
+                    <h3 className="font-semibold text-green-900">Emails Sent Successfully</h3>
+                    <p className="text-sm text-green-800 mt-1">
+                      {sentResult.sentCount} email(s) sent successfully
+                      {sentResult.failedCount > 0 && `, ${sentResult.failedCount} failed`}
+                    </p>
+                    {sentResult.failedEmails && sentResult.failedEmails.length > 0 && (
+                      <div className="mt-2 text-xs text-green-700">
+                        <p className="font-medium">Failed emails:</p>
+                        <ul className="list-disc list-inside">{sentResult.failedEmails.map((e: string) => <li key={e}>{e}</li>)}</ul>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
       <Card>
         <CardHeader>
@@ -397,6 +442,72 @@ Hiring Team"
           </div>
         </DialogContent>
       </Dialog>
+        </TabsContent>
+
+        {/* History Tab */}
+        <TabsContent value="history" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <History className="h-5 w-5" />
+                Sent Emails History
+              </CardTitle>
+              <CardDescription>View all bulk emails sent from your organization</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {loadingSentEmails ? (
+                <div className="text-center py-8">
+                  <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                  <p className="text-gray-600 mt-2">Loading history...</p>
+                </div>
+              ) : sentEmails.length === 0 ? (
+                <div className="text-center py-8 bg-gray-50 rounded">
+                  <Mail className="h-8 w-8 text-gray-400 mx-auto" />
+                  <p className="text-gray-600 mt-2">No sent emails yet</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {sentEmails.map((email) => (
+                    <div key={email._id} className="border rounded-lg p-4 hover:bg-gray-50">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <h3 className="font-semibold">{email.subject}</h3>
+                          <p className="text-sm text-gray-600 mt-1">
+                            {new Date(email.created_at).toLocaleString()}
+                          </p>
+                          <div className="flex gap-2 mt-2">
+                            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                              Sent: {email.sent_count}
+                            </Badge>
+                            {email.failed_count > 0 && (
+                              <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
+                                Failed: {email.failed_count}
+                              </Badge>
+                            )}
+                            <Badge variant="outline">
+                              Recipients: {email.recipient_count}
+                            </Badge>
+                          </div>
+                          <div className="text-xs text-gray-500 mt-2">
+                            <p className="font-medium">Recipients ({email.recipient_emails.length}):</p>
+                            <p className="truncate">{email.recipient_emails.join(', ')}</p>
+                          </div>
+                          {email.failed_emails && email.failed_emails.length > 0 && (
+                            <div className="text-xs text-red-500 mt-2">
+                              <p className="font-medium">Failed emails:</p>
+                              <p className="truncate">{email.failed_emails.join(', ')}</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

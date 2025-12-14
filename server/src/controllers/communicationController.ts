@@ -2,6 +2,7 @@ import type { Response } from "express"
 import type { AuthenticatedRequest } from "../middleware/auth"
 import JobApplication from "../models/JobApplication"
 import Job from "../models/Job"
+import SentEmail from "../models/SentEmail"
 import EmailService from "../services/email.service"
 
 export class CommunicationController {
@@ -111,6 +112,21 @@ export class CommunicationController {
           failedEmails,
         },
       })
+
+      // Save sent email record
+      await SentEmail.create({
+        org_id: req.org_id,
+        job_id,
+        sender_id: req.user.userId,
+        subject,
+        body,
+        recipient_count: applicants.length,
+        sent_count: sentCount,
+        failed_count: failedEmails.length,
+        failed_emails: failedEmails,
+        recipient_emails: applicants.map((a) => a.applicant_email),
+        include_notes,
+      })
     } catch (error) {
       console.error("Send bulk email error:", error)
       res.status(500).json({
@@ -120,4 +136,36 @@ export class CommunicationController {
       })
     }
   }
+
+  // Get sent emails history
+  static async getSentEmails(req: AuthenticatedRequest, res: Response) {
+    try {
+      if (!req.org_id) {
+        return res.status(400).json({ success: false, message: "Organization ID required" })
+      }
+
+      const { job_id } = req.query
+      const filter: any = { org_id: req.org_id }
+
+      if (job_id) filter.job_id = String(job_id)
+
+      const sentEmails = await SentEmail.find(filter).sort({ created_at: -1 }).limit(100)
+
+      res.status(200).json({
+        success: true,
+        data: sentEmails,
+        count: sentEmails.length,
+      })
+    } catch (error) {
+      console.error("Get sent emails error:", error)
+      res.status(500).json({
+        success: false,
+        message: "Failed to fetch sent emails",
+        error: error instanceof Error ? error.message : "Unknown error",
+      })
+    }
+  }
 }
+
+export default CommunicationController
+
