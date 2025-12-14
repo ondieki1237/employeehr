@@ -14,15 +14,15 @@ export class InvitationController {
         return res.status(400).json({ success: false, message: "Organization context required" })
       }
 
-      const { team_members, company_domain } = req.body
+      const { team_members } = req.body
 
       if (!team_members || !Array.isArray(team_members) || team_members.length === 0) {
         return res.status(400).json({ success: false, message: "team_members array is required" })
       }
 
-      // Resolve tenant domain: prefer provided non-localhost domain, else derive from company slug
-      const TENANT_BASE_DOMAIN = process.env.TENANT_BASE_DOMAIN || "codewithseth.co.ke" // e.g., codewithseth.co.ke
-      const TENANT_SUBDOMAIN = process.env.TENANT_SUBDOMAIN || "hr" // e.g., hr
+      // Always derive tenant domain from company org_id and env config
+      const TENANT_BASE_DOMAIN = process.env.TENANT_BASE_DOMAIN || "codewithseth.co.ke"
+      const TENANT_SUBDOMAIN = process.env.TENANT_SUBDOMAIN || "hr"
 
       // Get company details
       const company = await Company.findById(req.org_id)
@@ -60,15 +60,13 @@ export class InvitationController {
             expires_at,
           })
 
-          // Determine final domain for invite link
-          const derivedDomain = `${TENANT_SUBDOMAIN}.${company.slug}.${TENANT_BASE_DOMAIN}`
-          const finalDomain = company_domain && !String(company_domain).includes("localhost")
-            ? company_domain
-            : derivedDomain
+          // Build tenant domain using org_id as fallback if slug missing
+          const tenantIdentifier = company.slug || req.org_id
+          const tenantDomain = `${TENANT_SUBDOMAIN}.${TENANT_BASE_DOMAIN}`
 
-          // Build invite link with domain, org_id, and company name
+          // Build invite link with tenant domain, org_id, and company name
           const encodedCompanyName = encodeURIComponent(company.name)
-          const invite_link = `https://${finalDomain}/auth/login?invite=${invite_token}&org_id=${req.org_id}&company=${encodedCompanyName}&email=${encodeURIComponent(member.email)}`
+          const invite_link = `https://${tenantDomain}/auth/login?invite=${invite_token}&org_id=${req.org_id}&company=${encodedCompanyName}&email=${encodeURIComponent(member.email)}`
 
           // Send invitation email and track failures
           const emailSent = await EmailService.sendInvitationEmail(
@@ -222,10 +220,10 @@ export class InvitationController {
         return res.status(400).json({ success: false, message: "Organization ID required" })
       }
 
-      const { invitation_id, company_domain } = req.body
+      const { invitation_id } = req.body
 
-      if (!invitation_id || !company_domain) {
-        return res.status(400).json({ success: false, message: "invitation_id and company_domain required" })
+      if (!invitation_id) {
+        return res.status(400).json({ success: false, message: "invitation_id is required" })
       }
 
       const invitation = await Invitation.findOne({
@@ -247,15 +245,12 @@ export class InvitationController {
       invitation.expires_at.setDate(invitation.expires_at.getDate() + 7)
       await invitation.save()
 
-      // Resend email with derived tenant domain and company name in URL
+      // Resend email with tenant domain
       const TENANT_BASE_DOMAIN = process.env.TENANT_BASE_DOMAIN || "codewithseth.co.ke"
       const TENANT_SUBDOMAIN = process.env.TENANT_SUBDOMAIN || "hr"
-      const derivedDomain = `${TENANT_SUBDOMAIN}.${company.slug}.${TENANT_BASE_DOMAIN}`
-      const finalDomain = company_domain && !String(company_domain).includes("localhost")
-        ? company_domain
-        : derivedDomain
+      const tenantDomain = `${TENANT_SUBDOMAIN}.${TENANT_BASE_DOMAIN}`
       const encodedCompanyName = encodeURIComponent(company.name)
-      const invite_link = `https://${finalDomain}/auth/login?invite=${invitation.invite_token}&org_id=${req.org_id}&company=${encodedCompanyName}&email=${encodeURIComponent(invitation.email)}`
+      const invite_link = `https://${tenantDomain}/auth/login?invite=${invitation.invite_token}&org_id=${req.org_id}&company=${encodedCompanyName}&email=${encodeURIComponent(invitation.email)}`
       await EmailService.sendInvitationEmail(invitation.email, company.name, invite_link, req.user?.firstName || "Admin")
 
       res.status(200).json({

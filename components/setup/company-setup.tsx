@@ -31,12 +31,8 @@ export default function CompanySetup({ onNext }: CompanySetupProps) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    // Get company domain from window location
-    const domain = window.location.hostname
-    onNext({
-      ...formData,
-      domain,
-    })
+    // Don't pass localhost - let backend derive tenant domain
+    onNext(formData)
   }
 
   return (

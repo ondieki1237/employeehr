@@ -133,12 +133,9 @@ function TeamInviteSetup({
       setIsLoading(true)
 
       try {
-        // Get company domain from the current URL or use the company data
-        const companyDomain = companyData?.domain || window.location.hostname
-
+        // Don't pass localhost - backend will derive proper tenant domain
         const response = await api.invitations.send({
           team_members: validTeamMembers,
-          company_domain: companyDomain,
         })
 
         if (response.success) {

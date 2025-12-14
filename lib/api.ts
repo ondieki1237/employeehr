@@ -207,7 +207,7 @@ export const attendanceApi = {
 
 // Invitations API
 export const invitationsApi = {
-    send: (data: { team_members: Array<{ email: string; role: string }>; company_domain: string }) =>
+    send: (data: { team_members: Array<{ email: string; role: string }>; company_domain?: string }) =>
         client.post<any>('/api/invitations/send', data),
 
     accept: (data: { invite_token: string; email: string; firstName: string; lastName: string; password: string }) =>
@@ -216,7 +216,7 @@ export const invitationsApi = {
     getPending: () =>
         client.get<any[]>('/api/invitations/pending'),
 
-    resend: (data: { invitation_id: string; company_domain: string }) =>
+    resend: (data: { invitation_id: string; company_domain?: string }) =>
         client.post<any>('/api/invitations/resend', data),
 }
 
