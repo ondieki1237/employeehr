@@ -70,20 +70,23 @@ export class InvitationController {
           const encodedCompanyName = encodeURIComponent(company.name)
           const invite_link = `https://${finalDomain}/auth/login?invite=${invite_token}&org_id=${req.org_id}&company=${encodedCompanyName}&email=${encodeURIComponent(member.email)}`
 
-          // Send invitation email
-          await EmailService.sendInvitationEmail(
+          // Send invitation email and track failures
+          const emailSent = await EmailService.sendInvitationEmail(
             member.email,
             company.name,
             invite_link,
             req.user.firstName || "Admin"
           )
-
-          invitations.push({
-            _id: invitation._id,
-            email: invitation.email,
-            role: invitation.role,
-            status: invitation.status,
-          })
+          if (!emailSent) {
+            failed.push(member.email)
+          } else {
+            invitations.push({
+              _id: invitation._id,
+              email: invitation.email,
+              role: invitation.role,
+              status: invitation.status,
+            })
+          }
         } catch (error) {
           console.error(`Failed to send invitation to ${member.email}:`, error)
           failed.push(member.email)

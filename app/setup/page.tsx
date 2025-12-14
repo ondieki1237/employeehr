@@ -235,6 +235,23 @@ function TeamInviteSetup({
 }
 
 function ConfirmationStep({ onBack }: { onBack: () => void }) {
+  // Read user from localStorage to route based on role
+  const goToDashboard = () => {
+    try {
+      const raw = localStorage.getItem('elevate_user')
+      const user = raw ? JSON.parse(raw) : null
+      const role = user?.role
+      if (role === 'company_admin' || role === 'hr') {
+        window.location.href = '/admin'
+      } else if (role === 'manager') {
+        window.location.href = '/manager'
+      } else {
+        window.location.href = '/employee'
+      }
+    } catch (e) {
+      window.location.href = '/dashboard'
+    }
+  }
   return (
     <div className="bg-card border border-border rounded-lg p-8 text-center">
       <div className="w-16 h-16 rounded-full bg-accent/20 flex items-center justify-center mx-auto mb-6">
@@ -256,7 +273,7 @@ function ConfirmationStep({ onBack }: { onBack: () => void }) {
       </div>
 
       <button
-        onClick={() => (window.location.href = "/dashboard")}
+        onClick={goToDashboard}
         className="w-full px-6 py-3 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg transition font-medium mb-3"
       >
         Go to Dashboard
