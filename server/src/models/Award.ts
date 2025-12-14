@@ -3,7 +3,7 @@ import type { IAward, IAwardNomination } from "../types/interfaces"
 
 const awardSchema = new Schema<IAward>(
   {
-    org_id: { type: String, required: true, index: true },
+    org_id: { type: String, required: true },
     name: { type: String, required: true },
     description: { type: String },
     type: {
@@ -23,7 +23,7 @@ export const Award = mongoose.model<IAward>("Award", awardSchema)
 
 const awardNominationSchema = new Schema<IAwardNomination>(
   {
-    org_id: { type: String, required: true, index: true },
+    org_id: { type: String, required: true },
     award_id: { type: String, required: true },
     user_id: { type: String, required: true },
     nominator_id: { type: String },

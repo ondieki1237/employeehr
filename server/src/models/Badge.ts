@@ -3,7 +3,7 @@ import mongoose, { Schema } from "mongoose"
 // Badge Schema
 const badgeSchema = new Schema(
   {
-    org_id: { type: String, required: true, index: true },
+    org_id: { type: String, required: true },
     name: { type: String, required: true },
     description: { type: String },
     icon: { type: String }, // Emoji or icon name
@@ -27,7 +27,7 @@ export const Badge = mongoose.model("Badge", badgeSchema)
 // User Badge Schema (tracks which users have which badges)
 const userBadgeSchema = new Schema(
   {
-    org_id: { type: String, required: true, index: true },
+    org_id: { type: String, required: true },
     user_id: { type: String, required: true },
     badge_id: { type: String, required: true },
     awarded_by: { type: String },

@@ -3,7 +3,7 @@ import type { IUser } from "../types/interfaces"
 
 const userSchema = new Schema<IUser>(
   {
-    org_id: { type: String, required: true, index: true },
+    org_id: { type: String, required: true },
     employee_id: { type: String, unique: true, sparse: true }, // Unique employee ID for login (e.g., EMP001)
     firstName: { type: String, required: true },
     lastName: { type: String, required: true },

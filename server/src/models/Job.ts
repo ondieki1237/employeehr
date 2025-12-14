@@ -29,7 +29,7 @@ export interface IJob extends Document {
 
 const JobSchema = new Schema<IJob>(
   {
-    org_id: { type: String, required: true, index: true },
+    org_id: { type: String, required: true },
     company_name: { type: String, required: true },
     position_index: { type: Number, required: true },
     title: { type: String, required: true },
