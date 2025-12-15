@@ -171,11 +171,9 @@ export default function AdminSidebar({ isOpen, onToggle }: SidebarProps) {
       `}
       >
         <div className="p-6 flex items-center justify-between border-b border-border">
-          <Link href="/admin" className="flex items-center gap-2 font-bold text-lg">
-            <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-              <Shield className="w-5 h-5 text-primary-foreground" />
-            </div>
-            <span>Admin Panel</span>
+          <Link href="/admin" className="flex items-center gap-3 font-bold text-lg">
+            <div className="w-8 h-8 bg-center bg-no-repeat bg-contain" style={{ backgroundImage: 'var(--company-logo-url)' }}></div>
+            <span className="" style={{ color: 'var(--brand-primary)' }}>Admin Panel</span>
           </Link>
           <button onClick={onToggle} className="lg:hidden p-1 hover:bg-secondary rounded">
             <ChevronLeft size={20} />

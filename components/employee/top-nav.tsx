@@ -40,9 +40,7 @@ export function EmployeeTopNav() {
     <header className="flex h-16 items-center justify-between border-b bg-white dark:bg-gray-950 px-6">
       {/* Company Info */}
       <div className="flex items-center gap-3">
-        <div className="h-10 w-10 rounded-full bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center text-white font-bold text-sm">
-          {company.name.substring(0, 2).toUpperCase()}
-        </div>
+        <div className="h-10 w-10 bg-center bg-no-repeat bg-contain" style={{ backgroundImage: 'var(--company-logo-url)' }}></div>
         <div>
           <h2 className="text-sm font-semibold text-gray-900 dark:text-white">{company.name}</h2>
           <p className="text-xs text-gray-500 dark:text-gray-400">Employee Portal</p>

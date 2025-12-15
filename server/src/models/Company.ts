@@ -13,6 +13,12 @@ const companySchema = new Schema<ICompany>(
     logo: { type: String },
     primaryColor: { type: String, default: "#2563eb" }, // Company branding
     secondaryColor: { type: String, default: "#059669" },
+    accentColor: { type: String, default: "#f59e0b" },
+    backgroundColor: { type: String, default: "#ffffff" },
+    textColor: { type: String, default: "#1f2937" },
+    borderRadius: { type: String, default: "0.5rem" },
+    fontFamily: { type: String, default: "system-ui" },
+    buttonStyle: { type: String, enum: ["rounded", "sharp", "pill"], default: "rounded" },
     subscription: {
       type: String,
       enum: ["starter", "professional", "enterprise"],

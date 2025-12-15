@@ -1,6 +1,6 @@
 "use client"
 
-import { Menu, Bell, User } from "lucide-react"
+import { Menu, Bell } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { getUser } from "@/lib/auth"
 
@@ -22,8 +22,11 @@ export default function AdminTopNav({ onMenuClick }: TopNavProps) {
         >
           <Menu size={20} />
         </Button>
-        <div className="text-sm text-muted-foreground">
-          <span className="font-semibold text-foreground">Admin Panel</span> / Organization Management
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 bg-center bg-no-repeat bg-contain" style={{ backgroundImage: 'var(--company-logo-url)' }}></div>
+          <div className="text-sm text-muted-foreground">
+            <span className="font-semibold text-foreground">Admin Panel</span> / Organization Management
+          </div>
         </div>
       </div>
 

@@ -1,315 +1,392 @@
-'use client';
+"use client"
 
-import React, { useState, useEffect } from 'react';
-import { BarChart3, TrendingUp, Users, AlertCircle } from 'lucide-react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { useToast } from '@/hooks/use-toast';
-import { getToken } from '@/lib/auth';
-import API_URL from '@/lib/apiBase';
+import { useEffect, useState } from "react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { Input } from "@/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { CheckCircle2, XCircle, Eye, Loader2 } from "lucide-react"
+import { api } from "@/lib/api"
+import { useToast } from "@/hooks/use-toast"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog"
+import { Textarea } from "@/components/ui/textarea"
 
-interface ReportData {
-  period: string;
-  totalUsers: number;
-  activeUsers: number;
-  completedPDPs: number;
-  pendingAlerts: number;
-  bookingCount: number;
-  sugestionCount: number;
-  pollCount: number;
-  contractCount: number;
+interface Report {
+  _id: string
+  user_id?: {
+    _id: string
+    name: string
+    email: string
+  }
+  type: "daily" | "weekly" | "monthly" | "quarterly" | "annual"
+  title: string
+  content: string
+  status: "submitted" | "approved" | "rejected"
+  submitted_at?: string
+  approved_at?: string
+  rejection_reason?: string
+  tags?: string[]
 }
 
-export default function ReportsPage() {
-  const [reportData, setReportData] = useState<ReportData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [period, setPeriod] = useState('month');
-  const { toast } = useToast();
+const statusColors = {
+  submitted: "bg-blue-100 text-blue-800 dark:bg-blue-900",
+  approved: "bg-green-100 text-green-800 dark:bg-green-900",
+  rejected: "bg-red-100 text-red-800 dark:bg-red-900",
+}
+
+export default function AdminReportsPage() {
+  const { toast } = useToast()
+
+  const [reports, setReports] = useState<Report[]>([])
+  const [filteredReports, setFilteredReports] = useState<Report[]>([])
+  const [loading, setLoading] = useState(true)
+  const [actionLoading, setActionLoading] = useState<string | null>(null)
+
+  // Filters
+  const [searchQuery, setSearchQuery] = useState("")
+  const [selectedType, setSelectedType] = useState<string>("all")
+  const [selectedStatus, setSelectedStatus] = useState<string>("submitted")
+
+  // Dialog states
+  const [showRejectionDialog, setShowRejectionDialog] = useState(false)
+  const [selectedReportId, setSelectedReportId] = useState<string | null>(null)
+  const [rejectionReason, setRejectionReason] = useState("")
 
   useEffect(() => {
-    fetchReports();
-  }, [period]);
+    loadReports()
+  }, [])
 
-  const fetchReports = async () => {
+  useEffect(() => {
+    filterReports()
+  }, [reports, searchQuery, selectedType, selectedStatus])
+
+  const loadReports = async () => {
     try {
-      setLoading(true);
-      const response = await fetch(`${API_URL}/api/reports?period=${period}`, {
-        headers: {
-          Authorization: `Bearer ${getToken()}`,
-        },
-      });
-
-      if (!response.ok) {
-        // Generate sample data if endpoint not available
-        setReportData({
-          period,
-          totalUsers: 156,
-          activeUsers: 142,
-          completedPDPs: 98,
-          pendingAlerts: 24,
-          bookingCount: 342,
-          sugestionCount: 67,
-          pollCount: 12,
-          contractCount: 89,
-        });
+      setLoading(true)
+      const response = await api.reports.getAllSubmitted()
+      if (response.success) {
+        setReports(response.data || [])
       } else {
-        const data = await response.json();
-        setReportData(data);
+        toast({ description: "Failed to load reports", variant: "destructive" })
       }
-    } catch (error) {
-      console.error('Error fetching reports:', error);
-      // Set default data
-      setReportData({
-        period,
-        totalUsers: 156,
-        activeUsers: 142,
-        completedPDPs: 98,
-        pendingAlerts: 24,
-        bookingCount: 342,
-        sugestionCount: 67,
-        pollCount: 12,
-        contractCount: 89,
-      });
+    } catch (error: any) {
+      toast({ description: error.message, variant: "destructive" })
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
-  const downloadReport = () => {
-    if (!reportData) return;
+  const filterReports = () => {
+    let filtered = reports
 
-    const csv =
-      'Metric,Value\n' +
-      `Period,${reportData.period}\n` +
-      `Total Users,${reportData.totalUsers}\n` +
-      `Active Users,${reportData.activeUsers}\n` +
-      `Completed PDPs,${reportData.completedPDPs}\n` +
-      `Pending Alerts,${reportData.pendingAlerts}\n` +
-      `Resource Bookings,${reportData.bookingCount}\n` +
-      `Suggestions,${reportData.sugestionCount}\n` +
-      `Polls,${reportData.pollCount}\n` +
-      `Contracts,${reportData.contractCount}`;
+    // Filter by status
+    if (selectedStatus !== "all") {
+      filtered = filtered.filter((r) => r.status === selectedStatus)
+    }
 
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `report-${reportData.period}-${new Date().getTime()}.csv`;
-    a.click();
-    window.URL.revokeObjectURL(url);
+    // Filter by type
+    if (selectedType !== "all") {
+      filtered = filtered.filter((r) => r.type === selectedType)
+    }
 
-    toast({
-      title: 'Success',
-      description: 'Report downloaded successfully',
-    });
-  };
+    // Filter by search query
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase()
+      filtered = filtered.filter(
+        (r) =>
+          r.title.toLowerCase().includes(query) ||
+          r.content.toLowerCase().includes(query) ||
+          r.user_id?.name.toLowerCase().includes(query) ||
+          r.user_id?.email.toLowerCase().includes(query)
+      )
+    }
+
+    setFilteredReports(filtered)
+  }
+
+  const handleApprove = async (reportId: string) => {
+    try {
+      setActionLoading(reportId)
+      const response = await api.reports.approve(reportId)
+      if (response.success) {
+        toast({ description: "Report approved successfully" })
+        loadReports()
+      } else {
+        toast({ description: response.message || "Failed to approve report", variant: "destructive" })
+      }
+    } catch (error: any) {
+      toast({ description: error.message, variant: "destructive" })
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  const handleRejectClick = (reportId: string) => {
+    setSelectedReportId(reportId)
+    setRejectionReason("")
+    setShowRejectionDialog(true)
+  }
+
+  const handleRejectSubmit = async () => {
+    if (!selectedReportId) return
+
+    if (!rejectionReason.trim()) {
+      toast({ description: "Please provide a rejection reason", variant: "destructive" })
+      return
+    }
+
+    try {
+      setActionLoading(selectedReportId)
+      const response = await api.reports.reject(selectedReportId, rejectionReason)
+      if (response.success) {
+        toast({ description: "Report rejected successfully" })
+        setShowRejectionDialog(false)
+        loadReports()
+      } else {
+        toast({ description: response.message || "Failed to reject report", variant: "destructive" })
+      }
+    } catch (error: any) {
+      toast({ description: error.message, variant: "destructive" })
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  // Stats
+  const stats = {
+    submitted: reports.filter((r) => r.status === "submitted").length,
+    approved: reports.filter((r) => r.status === "approved").length,
+    rejected: reports.filter((r) => r.status === "rejected").length,
+  }
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-96">
-        <p className="text-gray-600">Loading reports...</p>
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
       </div>
-    );
+    )
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Reports & Analytics</h1>
-          <p className="text-gray-600 mt-2">Organization-wide metrics and insights</p>
-        </div>
-        <div className="flex gap-2">
-          <select
-            value={period}
-            onChange={(e) => setPeriod(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-md"
-          >
-            <option value="week">This Week</option>
-            <option value="month">This Month</option>
-            <option value="quarter">This Quarter</option>
-            <option value="year">This Year</option>
-          </select>
-          <Button onClick={downloadReport}>Download Report</Button>
-        </div>
+      {/* Header */}
+      <div>
+        <h1 className="text-3xl font-bold">Report Approvals</h1>
+        <p className="text-muted-foreground mt-1">Review and approve employee reports</p>
       </div>
 
-      {reportData && (
-        <>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium flex items-center gap-2">
-                  <Users size={18} />
-                  Total Users
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-3xl font-bold">{reportData.totalUsers}</p>
-                <p className="text-xs text-gray-500 mt-1">
-                  {reportData.activeUsers} active
-                </p>
-              </CardContent>
-            </Card>
+      {/* Stats */}
+      <div className="grid grid-cols-3 gap-4">
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-center">
+              <p className="text-3xl font-bold text-blue-600">{stats.submitted}</p>
+              <p className="text-sm text-muted-foreground mt-1">Pending Review</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-center">
+              <p className="text-3xl font-bold text-green-600">{stats.approved}</p>
+              <p className="text-sm text-muted-foreground mt-1">Approved</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-center">
+              <p className="text-3xl font-bold text-red-600">{stats.rejected}</p>
+              <p className="text-sm text-muted-foreground mt-1">Rejected</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium flex items-center gap-2">
-                  <BarChart3 size={18} />
-                  Completed PDPs
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-3xl font-bold">{reportData.completedPDPs}</p>
-                <p className="text-xs text-gray-500 mt-1">
-                  {Math.round((reportData.completedPDPs / reportData.totalUsers) * 100)}%
-                  completion
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium flex items-center gap-2">
-                  <AlertCircle size={18} />
-                  Pending Alerts
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-3xl font-bold text-orange-600">
-                  {reportData.pendingAlerts}
-                </p>
-                <p className="text-xs text-gray-500 mt-1">Require attention</p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium flex items-center gap-2">
-                  <TrendingUp size={18} />
-                  Engagement
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-3xl font-bold text-green-600">
-                  {Math.round(
-                    ((reportData.bookingCount +
-                      reportData.sugestionCount +
-                      reportData.pollCount) /
-                      100) *
-                      100
-                  )}
-                  %
-                </p>
-                <p className="text-xs text-gray-500 mt-1">Overall activity</p>
-              </CardContent>
-            </Card>
+      {/* Filters */}
+      <Card>
+        <CardContent className="pt-6 space-y-4">
+          <div className="grid grid-cols-3 gap-4">
+            <Input
+              placeholder="Search by title, content, or employee..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+            <Select value={selectedType} onValueChange={setSelectedType}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Types</SelectItem>
+                <SelectItem value="daily">Daily</SelectItem>
+                <SelectItem value="weekly">Weekly</SelectItem>
+                <SelectItem value="monthly">Monthly</SelectItem>
+                <SelectItem value="quarterly">Quarterly</SelectItem>
+                <SelectItem value="annual">Annual</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="submitted">Pending Review</SelectItem>
+                <SelectItem value="approved">Approved</SelectItem>
+                <SelectItem value="rejected">Rejected</SelectItem>
+                <SelectItem value="all">All Statuses</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
+        </CardContent>
+      </Card>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Feature Usage</CardTitle>
-                <CardDescription>Activity across all features</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium">Resource Bookings</span>
-                    <span className="text-sm font-bold">{reportData.bookingCount}</span>
+      {/* Reports List */}
+      <div className="space-y-4">
+        {filteredReports.length === 0 ? (
+          <Card>
+            <CardContent className="pt-6 text-center py-12">
+              <p className="text-muted-foreground">No reports found</p>
+            </CardContent>
+          </Card>
+        ) : (
+          filteredReports.map((report) => (
+            <Card key={report._id} className="hover:shadow-lg transition-shadow">
+              <CardContent className="pt-6">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-3 mb-2">
+                      <h3 className="text-lg font-semibold">{report.title}</h3>
+                      <Badge variant="outline">{report.type}</Badge>
+                      <Badge className={statusColors[report.status]}>
+                        {report.status}
+                      </Badge>
+                    </div>
+                    <p className="text-sm text-muted-foreground mb-3">
+                      By{" "}
+                      <span className="font-medium">
+                        {report.user_id?.name || "Unknown"}
+                      </span>{" "}
+                      ({report.user_id?.email || "N/A"}) •{" "}
+                      <span>
+                        Submitted{" "}
+                        {report.submitted_at
+                          ? new Date(report.submitted_at).toLocaleDateString()
+                          : "N/A"}
+                      </span>
+                    </p>
+                    <p className="text-sm text-foreground line-clamp-2 mb-3">
+                      {report.content}
+                    </p>
+                    {report.tags && report.tags.length > 0 && (
+                      <div className="flex flex-wrap gap-2">
+                        {report.tags.map((tag) => (
+                          <Badge key={tag} variant="secondary" className="text-xs">
+                            {tag}
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div
-                      className="bg-blue-500 h-2 rounded-full"
-                      style={{
-                        width: `${Math.min((reportData.bookingCount / 500) * 100, 100)}%`,
-                      }}
-                    ></div>
+
+                  {/* Actions */}
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <Button variant="outline" size="sm">
+                      <Eye className="w-4 h-4" />
+                    </Button>
+                    {report.status === "submitted" && (
+                      <>
+                        <Button
+                          size="sm"
+                          className="bg-green-600 hover:bg-green-700"
+                          onClick={() => handleApprove(report._id)}
+                          disabled={actionLoading === report._id}
+                        >
+                          {actionLoading === report._id && (
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          )}
+                          <CheckCircle2 className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => handleRejectClick(report._id)}
+                          disabled={actionLoading === report._id}
+                        >
+                          {actionLoading === report._id && (
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          )}
+                          <XCircle className="w-4 h-4" />
+                        </Button>
+                      </>
+                    )}
                   </div>
                 </div>
 
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium">Suggestions</span>
-                    <span className="text-sm font-bold">{reportData.sugestionCount}</span>
+                {/* Approval/Rejection Info */}
+                {report.status === "approved" && report.approved_at && (
+                  <div className="mt-4 text-sm text-green-600 dark:text-green-400">
+                    ✓ Approved on {new Date(report.approved_at).toLocaleDateString()}
                   </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div
-                      className="bg-green-500 h-2 rounded-full"
-                      style={{
-                        width: `${Math.min((reportData.sugestionCount / 500) * 100, 100)}%`,
-                      }}
-                    ></div>
+                )}
+                {report.status === "rejected" && report.rejection_reason && (
+                  <div className="mt-4 text-sm text-red-600 dark:text-red-400">
+                    ✗ Rejected: {report.rejection_reason}
                   </div>
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium">Polls</span>
-                    <span className="text-sm font-bold">{reportData.pollCount}</span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div
-                      className="bg-purple-500 h-2 rounded-full"
-                      style={{
-                        width: `${Math.min((reportData.pollCount / 500) * 100, 100)}%`,
-                      }}
-                    ></div>
-                  </div>
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium">Contracts</span>
-                    <span className="text-sm font-bold">{reportData.contractCount}</span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div
-                      className="bg-orange-500 h-2 rounded-full"
-                      style={{
-                        width: `${Math.min((reportData.contractCount / 500) * 100, 100)}%`,
-                      }}
-                    ></div>
-                  </div>
-                </div>
+                )}
               </CardContent>
             </Card>
+          ))
+        )}
+      </div>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Summary</CardTitle>
-                <CardDescription>Key metrics snapshot</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex items-center justify-between p-3 bg-blue-50 rounded">
-                  <span className="text-sm font-medium">Employee Participation Rate</span>
-                  <span className="text-lg font-bold text-blue-600">
-                    {Math.round((reportData.activeUsers / reportData.totalUsers) * 100)}%
-                  </span>
-                </div>
-                <div className="flex items-center justify-between p-3 bg-green-50 rounded">
-                  <span className="text-sm font-medium">PDP Completion Rate</span>
-                  <span className="text-lg font-bold text-green-600">
-                    {Math.round((reportData.completedPDPs / reportData.totalUsers) * 100)}%
-                  </span>
-                </div>
-                <div className="flex items-center justify-between p-3 bg-orange-50 rounded">
-                  <span className="text-sm font-medium">Avg Bookings per Employee</span>
-                  <span className="text-lg font-bold text-orange-600">
-                    {(reportData.bookingCount / reportData.totalUsers).toFixed(2)}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between p-3 bg-purple-50 rounded">
-                  <span className="text-sm font-medium">Contract Management Rate</span>
-                  <span className="text-lg font-bold text-purple-600">
-                    {Math.round((reportData.contractCount / reportData.totalUsers) * 100)}%
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
+      {/* Rejection Dialog */}
+      <Dialog open={showRejectionDialog} onOpenChange={setShowRejectionDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reject Report</DialogTitle>
+            <DialogDescription>
+              Please provide a reason for rejecting this report. The employee will be able to view it and revise if needed.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <Textarea
+              placeholder="Rejection reason..."
+              value={rejectionReason}
+              onChange={(e) => setRejectionReason(e.target.value)}
+              className="min-h-24"
+            />
           </div>
-        </>
-      )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowRejectionDialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleRejectSubmit}
+              disabled={actionLoading === selectedReportId}
+            >
+              {actionLoading === selectedReportId && (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              )}
+              Reject
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
-  );
+  )
 }

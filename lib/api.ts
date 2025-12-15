@@ -220,6 +220,74 @@ export const invitationsApi = {
         client.post<any>('/api/invitations/resend', data),
 }
 
+// Reports API
+export const reportsApi = {
+    save: (data: { report_id?: string; type: string; title: string; content: string; tags?: string[] }) =>
+        client.post<any>('/api/reports/save', data),
+
+    submit: (data: { report_id: string }) =>
+        client.post<any>('/api/reports/submit', data),
+
+    getMyReports: (type?: string, status?: string) => {
+        let url = '/api/reports/my-reports'
+        const params = new URLSearchParams()
+        if (type) params.append('type', type)
+        if (status) params.append('status', status)
+        if (params.toString()) url += '?' + params.toString()
+        return client.get<any[]>(url)
+    },
+
+    getReport: (report_id: string) =>
+        client.get<any>(`/api/reports/${report_id}`),
+
+    deleteReport: (report_id: string) =>
+        client.delete<any>(`/api/reports/${report_id}`),
+
+    getAllSubmitted: (type?: string, status?: string, user_id?: string) => {
+        let url = '/api/reports/admin/all'
+        const params = new URLSearchParams()
+        if (type) params.append('type', type)
+        if (status) params.append('status', status)
+        if (user_id) params.append('user_id', user_id)
+        if (params.toString()) url += '?' + params.toString()
+        return client.get<any[]>(url)
+    },
+
+    approve: (data: { report_id: string }) =>
+        client.post<any>('/api/reports/admin/approve', data),
+
+    reject: (data: { report_id: string; reason?: string }) =>
+        client.post<any>('/api/reports/admin/reject', data),
+
+    getAnalytics: (type?: string, month?: string) => {
+        let url = '/api/reports/admin/analytics'
+        const params = new URLSearchParams()
+        if (type) params.append('type', type)
+        if (month) params.append('month', month)
+        if (params.toString()) url += '?' + params.toString()
+        return client.get<any>(url)
+    },
+
+    generateSummary: (data: { fromType: string; toType: string }) =>
+        client.post<any>('/api/reports/generate-summary', data),
+}
+
+export const companyApi = {
+    getBranding: () => client.get<any>('/api/company/branding'),
+    updateBranding: (data: { 
+        primaryColor?: string
+        secondaryColor?: string
+        accentColor?: string
+        backgroundColor?: string
+        textColor?: string
+        borderRadius?: string
+        fontFamily?: string
+        buttonStyle?: string
+        logo?: string 
+    }) =>
+        client.post<any>('/api/company/branding', data),
+}
+
 // Export all APIs
 export const api = {
     auth: authApi,
@@ -231,6 +299,8 @@ export const api = {
     pdps: pdpsApi,
     attendance: attendanceApi,
     invitations: invitationsApi,
+    reports: reportsApi,
+    company: companyApi,
 }
 
 export default api

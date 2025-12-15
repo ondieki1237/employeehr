@@ -23,6 +23,7 @@ import {
   Trophy,
   Vote,
   AlertCircle,
+  FileText,
 } from "lucide-react"
 
 const navigation = [
@@ -40,6 +41,7 @@ const navigation = [
   { name: "Voting & Polls", href: "/employee/polls", icon: Vote },
   { name: "Contract Alerts", href: "/employee/contracts", icon: FileWarning },
   { name: "Alerts & Notifications", href: "/employee/alerts", icon: AlertCircle },
+  { name: "Reports", href: "/employee/reports", icon: FileText },
   { name: "Company Info", href: "/employee/company", icon: Building2 },
   { name: "Notifications", href: "/employee/notifications", icon: Bell },
   { name: "Settings", href: "/employee/settings", icon: Settings },
@@ -56,8 +58,9 @@ export function EmployeeSidebar() {
   return (
     <div className="flex h-screen w-64 flex-col border-r bg-white dark:bg-gray-950">
       {/* Logo */}
-      <div className="flex h-16 items-center border-b px-6">
-        <h1 className="text-xl font-bold text-primary">Employee Portal</h1>
+      <div className="flex h-16 items-center border-b px-6 gap-3">
+        <div className="h-8 w-8 bg-center bg-no-repeat bg-contain" style={{ backgroundImage: 'var(--company-logo-url)' }}></div>
+        <h1 className="text-xl font-bold" style={{ color: 'var(--brand-primary)' }}>Employee Portal</h1>
       </div>
 
       {/* Navigation */}
