@@ -49,8 +49,13 @@ const __dirname = path.dirname(__filename)
 app.use(helmet()) // Security headers
 app.use(morgan("combined")) // Request logging
 
-// Serve static files from uploads directory
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')))
+// Serve static files from uploads directory with CORS headers
+app.use('/uploads', (req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*')
+  res.header('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS')
+  res.header('Access-Control-Allow-Headers', 'Content-Type')
+  next()
+}, express.static(path.join(__dirname, '../uploads')))
 
 // Core middleware
 // Allow local dev and production frontend origins
@@ -63,6 +68,7 @@ app.use(
         "https://employeehr.vercel.app",
         "https://hpapi.codewithseth.co.ke",
         "https://hrapi.codewithseth.co.ke",
+        "https://hr.codewithseth.co.ke",
         process.env.FRONTEND_URL,
       ].filter(Boolean)
 

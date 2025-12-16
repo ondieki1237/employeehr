@@ -2,6 +2,14 @@ import type { Response } from "express"
 import type { AuthenticatedRequest } from "../middleware/auth"
 import { Company } from "../models/Company"
 
+const buildBaseUrl = (req: AuthenticatedRequest) => {
+  const forwardedProto = (req.headers["x-forwarded-proto"] as string) || req.protocol
+  const host = req.headers.host
+  if (process.env.API_URL) return process.env.API_URL
+  if (host) return `${forwardedProto}://${host}`
+  return "http://localhost:5010"
+}
+
 export class CompanyController {
   static async getBranding(req: AuthenticatedRequest, res: Response) {
     try {
@@ -12,8 +20,9 @@ export class CompanyController {
       if (!company) return res.status(404).json({ success: false, message: "Company not found" })
       
       // Build full logo URL if it's a file path
-      const logoUrl = company.logo && !company.logo.startsWith('http') 
-        ? `${process.env.API_URL || 'http://localhost:5010'}/uploads/logos/${company.logo}` 
+      const baseUrl = buildBaseUrl(req)
+      const logoUrl = company.logo && !company.logo.startsWith("http")
+        ? `${baseUrl}/uploads/logos/${company.logo}`
         : company.logo
       
       return res.json({ success: true, data: { ...company.toObject(), logo: logoUrl } })
@@ -60,8 +69,9 @@ export class CompanyController {
       }
       
       // Build full logo URL for response
-      const logoResponseUrl = company.logo && !company.logo.startsWith('http') 
-        ? `${process.env.API_URL || 'http://localhost:5010'}/uploads/logos/${company.logo}` 
+      const baseUrl = buildBaseUrl(req)
+      const logoResponseUrl = company.logo && !company.logo.startsWith("http")
+        ? `${baseUrl}/uploads/logos/${company.logo}`
         : company.logo
       
       const responseData = { ...company.toObject(), logo: logoResponseUrl }

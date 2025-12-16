@@ -47,12 +47,48 @@ export default function CompanySettingsPage() {
         setBorderRadius(res.data.borderRadius || "0.5rem")
         setFontFamily(res.data.fontFamily || "system-ui")
         setButtonStyle(res.data.buttonStyle || "rounded")
+        
+        // Apply colors immediately after loading
+        setTimeout(() => {
+          applyCssVarsFromApi(
+            res.data.primaryColor || "#2563eb",
+            res.data.secondaryColor || "#059669",
+            res.data.accentColor || "#f59e0b",
+            res.data.backgroundColor || "#ffffff",
+            res.data.textColor || "#1f2937",
+            res.data.borderRadius || "0.5rem",
+            res.data.logo
+          )
+        }, 0)
       }
     } catch (e: any) {
       toast({ description: e.message || "Failed to load branding", variant: "destructive" })
     } finally {
       setLoading(false)
     }
+  }
+
+  const applyCssVarsFromApi = (
+    pc: string, 
+    sc: string, 
+    ac: string, 
+    bgc: string, 
+    tc: string, 
+    br: string, 
+    logo?: string
+  ) => {
+    const root = document.documentElement
+    root.style.setProperty("--brand-primary", pc)
+    root.style.setProperty("--primary", pc)
+    root.style.setProperty("--brand-secondary", sc)
+    root.style.setProperty("--brand-accent", ac)
+    root.style.setProperty("--accent", ac)
+    root.style.setProperty("--brand-background", bgc)
+    root.style.setProperty("--brand-text", tc)
+    root.style.setProperty("--brand-radius", br)
+    root.style.setProperty("--radius", br)
+    root.style.backgroundColor = bgc
+    if (logo) root.style.setProperty("--company-logo-url", `url('${logo}')`)
   }
 
   const onLogoFile = (file: File) => {
@@ -171,9 +207,23 @@ export default function CompanySettingsPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center gap-4">
-              <div className="w-20 h-20 border rounded bg-center bg-no-repeat bg-contain" style={{ backgroundImage: logo ? `url('${logo}')` : 'var(--company-logo-url)' }} />
+              {logo ? (
+                <img 
+                  src={logo} 
+                  alt="Logo preview" 
+                  className="w-20 h-20 border rounded object-contain"
+                  crossOrigin="anonymous"
+                  onError={(e) => {
+                    console.error('Logo load error:', logo, e)
+                    e.currentTarget.style.display = 'none'
+                  }}
+                />
+              ) : (
+                <div className="w-20 h-20 border rounded bg-center bg-no-repeat bg-contain bg-gray-100" />
+              )}
               <div className="flex-1">
                 <p className="text-sm text-muted-foreground mb-2">PNG or SVG, up to ~300 KB recommended</p>
+                {logo && <p className="text-xs text-gray-500 mb-2 break-all">{logo}</p>}
                 <label className="inline-flex items-center gap-2 px-3 py-2 border rounded cursor-pointer hover:bg-secondary">
                   <ImageIcon className="w-4 h-4" />
                   <span>Upload Logo</span>
