@@ -28,7 +28,7 @@ export class CompanyController {
       if (!req.org_id) {
         return res.status(400).json({ success: false, message: "Organization context required" })
       }
-      const { primaryColor, secondaryColor, accentColor, backgroundColor, textColor, borderRadius, fontFamily, buttonStyle, logoUrl } = req.body
+      const { primaryColor, secondaryColor, accentColor, backgroundColor, textColor, borderRadius, fontFamily, buttonStyle, logoUrl, logo } = req.body
       const updateFields: any = {}
       
       if (primaryColor !== undefined) updateFields.primaryColor = primaryColor
@@ -40,13 +40,13 @@ export class CompanyController {
       if (fontFamily !== undefined) updateFields.fontFamily = fontFamily
       if (buttonStyle !== undefined) updateFields.buttonStyle = buttonStyle
       
-      // Handle logo upload or URL
+      // Handle logo upload or URL (accept both logoUrl and logo fields)
       if (req.file) {
         // Save only filename, not full path
         updateFields.logo = req.file.filename
-      } else if (logoUrl !== undefined) {
+      } else if (logoUrl !== undefined || logo !== undefined) {
         // Save external URL directly
-        updateFields.logo = logoUrl
+        updateFields.logo = logoUrl ?? logo
       }
       
       const company = await Company.findByIdAndUpdate(
