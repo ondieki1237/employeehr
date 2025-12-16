@@ -1,4 +1,4 @@
-import mongoose, { Schema } from "mongoose"
+import mongoose, { Schema, type Document } from "mongoose"
 import type { ICompany } from "../types/interfaces"
 
 const companySchema = new Schema<ICompany>(
@@ -9,8 +9,12 @@ const companySchema = new Schema<ICompany>(
     phone: { type: String },
     website: { type: String },
     industry: { type: String, required: true },
-    employeeCount: { type: String, required: true },
+    employeeCount: { type: Number, required: true },
     logo: { type: String },
+    country: { type: String },
+    state: { type: String },
+    city: { type: String },
+    countryCode: { type: String }, // ISO 2-letter code for Holiday API (e.g., US, KE)
     primaryColor: { type: String, default: "#2563eb" }, // Company branding
     secondaryColor: { type: String, default: "#059669" },
     accentColor: { type: String, default: "#f59e0b" },

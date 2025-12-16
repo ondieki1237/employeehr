@@ -15,6 +15,12 @@ export interface IUser {
   phone?: string
   dateOfJoining?: Date
   status: "active" | "inactive" | "pending"
+  salary?: number
+  bankDetails?: {
+    accountName: string
+    accountNumber: string
+    bankName: string
+  }
   createdAt?: Date
   updatedAt?: Date
 }
@@ -29,8 +35,18 @@ export interface ICompany {
   industry: string
   employeeCount: number
   logo?: string
+  country?: string
+  state?: string
+  city?: string
+  countryCode?: string
   primaryColor?: string // Company branding color
   secondaryColor?: string
+  accentColor?: string
+  backgroundColor?: string
+  textColor?: string
+  borderRadius?: string
+  fontFamily?: string
+  buttonStyle?: string
   subscription: "starter" | "professional" | "enterprise"
   status: "active" | "suspended" | "inactive"
   createdAt?: Date

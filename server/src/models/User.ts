@@ -25,6 +25,12 @@ const userSchema = new Schema<IUser>(
       enum: ["active", "inactive", "pending"],
       default: "active",
     },
+    salary: { type: Number },
+    bankDetails: {
+      accountName: { type: String },
+      accountNumber: { type: String },
+      bankName: { type: String },
+    },
   },
   { timestamps: true },
 )

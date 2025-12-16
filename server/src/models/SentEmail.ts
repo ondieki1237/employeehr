@@ -1,4 +1,4 @@
-import mongoose, { Schema } from "mongoose"
+import { Schema, model, Document } from "mongoose"
 
 export interface ISentEmail extends Document {
   org_id: string
@@ -37,4 +37,4 @@ sentEmailSchema.index({ org_id: 1, created_at: -1 })
 sentEmailSchema.index({ job_id: 1 })
 sentEmailSchema.index({ sender_id: 1 })
 
-export default mongoose.model<ISentEmail>("SentEmail", sentEmailSchema)
+export default model<ISentEmail>("SentEmail", sentEmailSchema)
