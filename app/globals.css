@@ -5,8 +5,13 @@
 
 :root {
     /* Dynamic branding variables (overridden by ThemeProvider) */
-    --brand-primary: var(--primary);
-    --brand-secondary: var(--accent);
+    --brand-primary: #2563eb;
+    --brand-secondary: #059669;
+    --brand-accent: #f59e0b;
+    --brand-background: #ffffff;
+    --brand-text: #1f2937;
+    --brand-radius: 0.5rem;
+    --brand-font: system-ui;
     --company-logo-url: none;
   /* Updated color scheme for professional HR SaaS: blue primary, slate neutrals, emerald accent */
   --background: oklch(1 0 0);

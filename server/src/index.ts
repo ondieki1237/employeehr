@@ -3,6 +3,8 @@ import express from "express"
 import cors from "cors"
 import helmet from "helmet"
 import morgan from "morgan"
+import path from "path"
+import { fileURLToPath } from "url"
 import { connectDB } from "./config/database"
 import { errorHandler } from "./middleware/errorHandler"
 import { sanitizeInput } from "./middleware/sanitization.middleware"
@@ -40,8 +42,15 @@ import { ApplicationFormController } from "./controllers/applicationFormControll
 const app = express()
 const PORT = process.env.PORT || 5010
 
+// Get __dirname equivalent in ES modules
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+
 app.use(helmet()) // Security headers
 app.use(morgan("combined")) // Request logging
+
+// Serve static files from uploads directory
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')))
 
 // Core middleware
 // Allow local dev and production frontend origins

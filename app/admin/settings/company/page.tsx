@@ -15,6 +15,7 @@ export default function CompanySettingsPage() {
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [logoFile, setLogoFile] = useState<File | null>(null)
 
   const [name, setName] = useState("")
   const [logo, setLogo] = useState<string | undefined>(undefined)
@@ -54,8 +55,10 @@ export default function CompanySettingsPage() {
     }
   }
 
-  const onLogoFile = async (file: File) => {
+  const onLogoFile = (file: File) => {
     if (!file) return
+    setLogoFile(file)
+    // Show preview
     const reader = new FileReader()
     reader.onload = () => {
       setLogo(reader.result as string)
@@ -75,6 +78,8 @@ export default function CompanySettingsPage() {
     root.style.setProperty("--brand-radius", borderRadius)
     root.style.setProperty("--radius", borderRadius)
     root.style.setProperty("--brand-font", fontFamily)
+    // Apply to actual page background
+    root.style.backgroundColor = backgroundColor
     if (logo) root.style.setProperty("--company-logo-url", `url('${logo}')`)
   }
 
@@ -90,13 +95,25 @@ export default function CompanySettingsPage() {
         borderRadius,
         fontFamily,
         buttonStyle,
-        logo 
+        logoFile: logoFile || undefined,
+        logoUrl: logoFile ? undefined : logo
       })
-      if (res?.success) {
+      if (res?.success && res.data) {
+        // Confirm data persisted to database
+        console.log('✓ Branding saved to database:', res.data)
+        // Update logo display with the server response
+        setLogo(res.data.logo)
+        setLogoFile(null) // Clear file input
         applyCssVars()
-        toast({ description: "Branding updated for your organization" })
+        toast({ 
+          description: "✓ Branding updated and synced across your organization. All employees will see the new branding when they refresh.",
+          variant: "default"
+        })
+      } else {
+        throw new Error('No response data')
       }
     } catch (e: any) {
+      console.error('Save error:', e)
       toast({ description: e.message || "Failed to save branding", variant: "destructive" })
     } finally {
       setSaving(false)

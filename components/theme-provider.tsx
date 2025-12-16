@@ -28,6 +28,10 @@ export function ThemeProvider({ children, ...props }: ThemeProviderProps) {
           }
           if (backgroundColor) {
             root.style.setProperty('--brand-background', backgroundColor)
+            // Apply to actual page background in light mode
+            if (!document.documentElement.classList.contains('dark')) {
+              root.style.backgroundColor = backgroundColor
+            }
           }
           if (textColor) {
             root.style.setProperty('--brand-text', textColor)
@@ -44,7 +48,7 @@ export function ThemeProvider({ children, ...props }: ThemeProviderProps) {
           }
         }
       } catch (e) {
-        // ignore
+        console.error('Failed to load branding:', e)
       }
     }
     applyBranding()

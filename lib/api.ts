@@ -274,7 +274,7 @@ export const reportsApi = {
 
 export const companyApi = {
     getBranding: () => client.get<any>('/api/company/branding'),
-    updateBranding: (data: { 
+    updateBranding: async (data: { 
         primaryColor?: string
         secondaryColor?: string
         accentColor?: string
@@ -283,9 +283,53 @@ export const companyApi = {
         borderRadius?: string
         fontFamily?: string
         buttonStyle?: string
-        logo?: string 
-    }) =>
-        client.post<any>('/api/company/branding', data),
+        logoFile?: File
+        logoUrl?: string
+    }) => {
+        // If logoFile is provided, use FormData instead of JSON
+        if (data.logoFile) {
+            const token = getToken()
+            const formData = new FormData()
+            formData.append('logo', data.logoFile)
+            if (data.primaryColor) formData.append('primaryColor', data.primaryColor)
+            if (data.secondaryColor) formData.append('secondaryColor', data.secondaryColor)
+            if (data.accentColor) formData.append('accentColor', data.accentColor)
+            if (data.backgroundColor) formData.append('backgroundColor', data.backgroundColor)
+            if (data.textColor) formData.append('textColor', data.textColor)
+            if (data.borderRadius) formData.append('borderRadius', data.borderRadius)
+            if (data.fontFamily) formData.append('fontFamily', data.fontFamily)
+            if (data.buttonStyle) formData.append('buttonStyle', data.buttonStyle)
+            
+            const headers: Record<string, string> = {}
+            if (token) headers['Authorization'] = `Bearer ${token}`
+            
+            const response = await fetch(`${API_URL}/api/company/branding`, {
+                method: 'POST',
+                headers,
+                body: formData
+            })
+            
+            if (!response.ok) {
+                const errorData = await response.json()
+                throw new Error(errorData.message || 'Upload failed')
+            }
+            
+            return response.json()
+        }
+        
+        // Otherwise use JSON
+        return client.post<any>('/api/company/branding', {
+            primaryColor: data.primaryColor,
+            secondaryColor: data.secondaryColor,
+            accentColor: data.accentColor,
+            backgroundColor: data.backgroundColor,
+            textColor: data.textColor,
+            borderRadius: data.borderRadius,
+            fontFamily: data.fontFamily,
+            buttonStyle: data.buttonStyle,
+            logoUrl: data.logoUrl
+        })
+    },
 }
 
 // Export all APIs
