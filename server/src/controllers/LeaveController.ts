@@ -166,4 +166,36 @@ export class LeaveController {
             return
         }
     }
+    // Admin: Get all requests (for full admin view)
+    static async getAllRequests(req: AuthenticatedRequest, res: Response) {
+        try {
+            const org_id = req.user?.org_id
+
+            // This relies on user_id schema definition being Ref if using populate directly, 
+            // OR simple manual lookup. For improved admin table we will populate user info manually
+            // if generic populate fails (as seen in team requests comment).
+            // However, for admin table, we should allow fetching all requests.
+
+            const requests = await LeaveRequest.find({ org_id }).sort({ createdAt: -1 })
+
+            // Manually populate user info for now to match current schema capabilities
+            // assuming user_id stores the string ID.
+            const userIds = requests.map(r => r.user_id)
+            const users = await User.find({ _id: { $in: userIds } }).select('firstName lastName email')
+
+            const populatedRequests = requests.map(req => {
+                const user = users.find(u => u._id.toString() === req.user_id)
+                return {
+                    ...req.toObject(),
+                    user: user ? { firstName: user.firstName, lastName: user.lastName, email: user.email } : null
+                }
+            })
+
+            res.status(200).json({ success: true, data: populatedRequests })
+            return
+        } catch (error: any) {
+            res.status(500).json({ success: false, message: error.message })
+            return
+        }
+    }
 }

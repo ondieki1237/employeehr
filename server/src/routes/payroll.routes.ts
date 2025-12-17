@@ -11,6 +11,7 @@ router.get("/my-payslips", PayrollController.getMyPayslips)
 
 // Admin/HR routes
 router.post("/generate", roleMiddleware("company_admin", "hr"), PayrollController.generate)
+router.put("/:id", roleMiddleware("company_admin", "hr"), PayrollController.update)
 router.get("/all", roleMiddleware("company_admin", "hr"), PayrollController.getAll)
 
 export default router

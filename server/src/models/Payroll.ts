@@ -3,15 +3,15 @@ import mongoose, { Schema } from "mongoose"
 export interface IPayroll extends Document {
     org_id: string
     user_id: string
-    month: string // e.g., "2025-05"
+    month: string // YYYY-MM
     base_salary: number
     bonus: number
-    deductions: number
+    deduction_items: { name: string; amount: number }[]
+    total_deductions: number
     net_pay: number
-    currency: string
-    status: "draft" | "processed" | "paid"
+    status: 'draft' | 'processed' | 'paid'
     generated_at: Date
-    paid_at?: Date
+    // createdAt and updatedAt are added by timestamps: true
     createdAt: Date
     updatedAt: Date
 }
@@ -23,16 +23,18 @@ const payrollSchema = new Schema<IPayroll>(
         month: { type: String, required: true },
         base_salary: { type: Number, required: true },
         bonus: { type: Number, default: 0 },
-        deductions: { type: Number, default: 0 },
+        deduction_items: [{
+            name: { type: String, required: true },
+            amount: { type: Number, required: true }
+        }],
+        total_deductions: { type: Number, default: 0 },
         net_pay: { type: Number, required: true },
-        currency: { type: String, default: "KES" },
         status: {
             type: String,
             enum: ["draft", "processed", "paid"],
-            default: "draft",
+            default: "processed", // Changed default from "draft" to "processed"
         },
         generated_at: { type: Date, default: Date.now },
-        paid_at: { type: Date },
     },
     { timestamps: true },
 )

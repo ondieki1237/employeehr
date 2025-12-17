@@ -15,4 +15,7 @@ router.get("/balance", LeaveController.getBalance)
 router.get("/team-requests", roleMiddleware("manager", "company_admin", "hr"), LeaveController.getTeamRequests)
 router.put("/request/:id", roleMiddleware("manager", "company_admin", "hr"), LeaveController.updateStatus)
 
+// Admin/HR routes
+router.get("/admin/all", roleMiddleware("company_admin", "hr"), LeaveController.getAllRequests)
+
 export default router

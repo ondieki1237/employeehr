@@ -274,7 +274,7 @@ export const reportsApi = {
 
 export const companyApi = {
     getBranding: () => client.get<any>('/api/company/branding'),
-    updateBranding: async (data: { 
+    updateBranding: async (data: {
         primaryColor?: string
         secondaryColor?: string
         accentColor?: string
@@ -285,6 +285,10 @@ export const companyApi = {
         buttonStyle?: string
         logoFile?: File
         logoUrl?: string
+        country?: string
+        state?: string
+        city?: string
+        countryCode?: string
     }) => {
         // If logoFile is provided, use FormData instead of JSON
         if (data.logoFile) {
@@ -299,24 +303,28 @@ export const companyApi = {
             if (data.borderRadius) formData.append('borderRadius', data.borderRadius)
             if (data.fontFamily) formData.append('fontFamily', data.fontFamily)
             if (data.buttonStyle) formData.append('buttonStyle', data.buttonStyle)
-            
+            if (data.country) formData.append('country', data.country)
+            if (data.state) formData.append('state', data.state)
+            if (data.city) formData.append('city', data.city)
+            if (data.countryCode) formData.append('countryCode', data.countryCode)
+
             const headers: Record<string, string> = {}
             if (token) headers['Authorization'] = `Bearer ${token}`
-            
+
             const response = await fetch(`${API_URL}/api/company/branding`, {
                 method: 'POST',
                 headers,
                 body: formData
             })
-            
+
             if (!response.ok) {
                 const errorData = await response.json()
                 throw new Error(errorData.message || 'Upload failed')
             }
-            
+
             return response.json()
         }
-        
+
         // Otherwise use JSON
         return client.post<any>('/api/company/branding', {
             primaryColor: data.primaryColor,
@@ -327,9 +335,52 @@ export const companyApi = {
             borderRadius: data.borderRadius,
             fontFamily: data.fontFamily,
             buttonStyle: data.buttonStyle,
-            logoUrl: data.logoUrl
+            logoUrl: data.logoUrl,
+            country: data.country,
+            state: data.state,
+            city: data.city,
+            countryCode: data.countryCode
         })
     },
+}
+
+export const holidayApi = {
+    sync: (data: { year: number }) => client.post<any>('/api/holidays/sync', data),
+    getAll: (year?: number) => client.get<any>(`/api/holidays${year ? `?year=${year}` : ''}`),
+}
+
+export const leaveApi = {
+    apply: (data: { type: string; startDate: Date; endDate: Date; reason: string }) =>
+        client.post<any>('/api/leave/apply', data),
+
+    getMyRequests: () => client.get<any[]>('/api/leave/my-requests'),
+
+    getBalance: () => client.get<any>('/api/leave/balance'),
+
+    getTeamRequests: () => client.get<any[]>('/api/leave/team-requests'),
+
+    updateStatus: (id: string, data: { status: 'approved' | 'rejected'; comment?: string }) =>
+        client.put<any>(`/api/leave/request/${id}`, data),
+
+    getAllRequests: () => client.get<any[]>('/api/leave/admin/all'),
+}
+
+export const payrollApi = {
+    getMyPayslips: () => client.get<any[]>('/api/payroll/my-payslips'),
+
+    generate: (data: {
+        user_id: string;
+        month: string;
+        bonus?: number;
+        deduction_items?: { name: string; amount: number }[];
+        base_salary?: number
+    }) =>
+        client.post<any>('/api/payroll/generate', data),
+
+    update: (id: string, data: any) => client.put<any>(`/api/payroll/${id}`, data),
+
+    getAll: (month?: string) =>
+        client.get<any[]>(`/api/payroll/all${month ? `?month=${month}` : ''}`),
 }
 
 // Export all APIs
@@ -345,6 +396,10 @@ export const api = {
     invitations: invitationsApi,
     reports: reportsApi,
     company: companyApi,
+    company: companyApi,
+    holidays: holidayApi,
+    leave: leaveApi,
+    payroll: payrollApi,
 }
 
 export default api

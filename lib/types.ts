@@ -194,6 +194,10 @@ export interface RegisterCompanyRequest {
     employeeCount: string
     phone?: string
     website?: string
+    country?: string
+    state?: string
+    city?: string
+    countryCode?: string
 }
 
 export interface RegisterCompanyResponse {

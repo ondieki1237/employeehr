@@ -2,11 +2,11 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { 
-  LayoutDashboard, 
-  Users, 
-  Target, 
-  Award, 
+import {
+  LayoutDashboard,
+  Users,
+  Target,
+  Award,
   BarChart3,
   Settings,
   Building2,
@@ -24,7 +24,8 @@ import {
   Briefcase,
   UserCheck,
   TrendingUp,
-  Mail
+  Mail,
+  Banknote
 } from "lucide-react"
 import { logout } from "@/lib/auth"
 
@@ -35,14 +36,14 @@ interface SidebarProps {
 
 const adminMenuItems = [
   // Core Management
-  { 
-    label: "Dashboard", 
+  {
+    label: "Dashboard",
     icon: LayoutDashboard,
     href: "/admin",
     section: "CORE"
   },
-  { 
-    label: "Manage Users", 
+  {
+    label: "Manage Users",
     icon: Users,
     href: "/admin/users",
     section: "CORE"
@@ -75,6 +76,18 @@ const adminMenuItems = [
   },
 
   // Employee Management
+  {
+    label: "Leave Requests",
+    icon: Calendar,
+    href: "/admin/leave",
+    section: "EMPLOYEE MANAGEMENT"
+  },
+  {
+    label: "Payroll Management",
+    icon: Banknote,
+    href: "/admin/payroll",
+    section: "EMPLOYEE MANAGEMENT"
+  },
   {
     label: "Resource Booking",
     icon: Calendar,
@@ -196,8 +209,8 @@ export default function AdminSidebar({ isOpen, onToggle }: SidebarProps) {
                       href={item.href}
                       className={`
                         flex items-center gap-3 px-4 py-2.5 rounded-lg transition text-sm
-                        ${isActive 
-                          ? "bg-primary text-primary-foreground font-medium" 
+                        ${isActive
+                          ? "bg-primary text-primary-foreground font-medium"
                           : "text-foreground hover:bg-secondary"
                         }
                       `}
@@ -213,7 +226,7 @@ export default function AdminSidebar({ isOpen, onToggle }: SidebarProps) {
         </nav>
 
         <div className="p-4 border-t border-border">
-          <button 
+          <button
             onClick={handleLogout}
             className="w-full flex items-center gap-3 px-4 py-3 text-muted-foreground hover:text-foreground hover:bg-destructive/10 rounded-lg transition"
           >

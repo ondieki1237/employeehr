@@ -7,7 +7,7 @@ export class PayrollController {
     // Generate Payroll (Admin)
     static async generate(req: AuthenticatedRequest, res: Response) {
         try {
-            const { user_id, month, bonus = 0, deductions = 0 } = req.body
+            const { user_id, month, bonus = 0, deduction_items = [], base_salary } = req.body
             const org_id = req.user?.org_id
 
             const user = await User.findById(user_id)
@@ -15,27 +15,71 @@ export class PayrollController {
                 return res.status(404).json({ success: false, message: "User not found" })
             }
 
-            if (!user.salary) {
-                return res.status(400).json({ success: false, message: "User has no base salary set" })
+            // Use provided base_salary or fall back to user profile salary
+            let salaryToUse = Number(base_salary)
+            if (!salaryToUse && user.salary) {
+                salaryToUse = user.salary
             }
 
-            const base_salary = user.salary
-            // Simple tax calculation could go here (e.g. 30% flat for now as placeholder or 0)
-            // Let's assume deductions passed in body include tax for now to keep it flexible
-            const net_pay = base_salary + bonus - deductions
+            if (!salaryToUse) {
+                return res.status(400).json({ success: false, message: "No salary provided" })
+            }
+
+            const total_deductions = deduction_items.reduce((sum: number, item: any) => sum + Number(item.amount), 0)
+            const net_pay = salaryToUse + Number(bonus) - total_deductions
+
+            // Check if payroll already exists for this user/month
+            const existing = await Payroll.findOne({ org_id, user_id, month })
+            if (existing) {
+                return res.status(409).json({ success: false, message: "Payroll already exists for this month. Please edit instead." })
+            }
 
             const payroll = await Payroll.create({
                 org_id,
                 user_id,
                 month,
-                base_salary,
-                bonus,
-                deductions,
+                base_salary: salaryToUse,
+                bonus: Number(bonus),
+                deduction_items,
+                total_deductions,
                 net_pay,
                 status: 'processed'
             })
 
             res.status(201).json({ success: true, data: payroll })
+            return
+        } catch (error: any) {
+            res.status(500).json({ success: false, message: error.message })
+            return
+        }
+    }
+
+    // Update Payroll
+    static async update(req: AuthenticatedRequest, res: Response) {
+        try {
+            const { id } = req.params
+            const { base_salary, bonus, deduction_items, status } = req.body
+
+            const payroll = await Payroll.findById(id)
+            if (!payroll) {
+                return res.status(404).json({ success: false, message: "Payroll record not found" })
+            }
+
+            // Update fields if provided
+            if (base_salary !== undefined) payroll.base_salary = Number(base_salary)
+            if (bonus !== undefined) payroll.bonus = Number(bonus)
+            if (deduction_items !== undefined) {
+                payroll.deduction_items = deduction_items
+                payroll.total_deductions = deduction_items.reduce((sum: number, item: any) => sum + Number(item.amount), 0)
+            }
+            if (status) payroll.status = status
+
+            // Recalculate net pay
+            payroll.net_pay = payroll.base_salary + payroll.bonus - payroll.total_deductions
+
+            await payroll.save()
+
+            res.status(200).json({ success: true, data: payroll })
             return
         } catch (error: any) {
             res.status(500).json({ success: false, message: error.message })

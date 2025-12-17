@@ -11,6 +11,7 @@ import { ArrowLeft, Mail, Lock, Building2 } from "lucide-react"
 import Link from "next/link"
 import { api } from "@/lib/api"
 import { setToken, setUser } from "@/lib/auth"
+import { LocationSelector } from "@/components/ui/location-selector"
 
 interface SignupFormProps {
   onBack: () => void
@@ -25,6 +26,10 @@ export default function SignupForm({ onBack }: SignupFormProps) {
     confirmPassword: "",
     industry: "",
     teamSize: "",
+    country: "",
+    state: "",
+    city: "",
+    countryCode: "",
   })
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
@@ -63,6 +68,10 @@ export default function SignupForm({ onBack }: SignupFormProps) {
         adminName: "Admin", // Default admin name
         industry: formData.industry,
         employeeCount: formData.teamSize,
+        country: formData.country,
+        state: formData.state,
+        city: formData.city,
+        countryCode: formData.countryCode,
       })
 
       if (response.success && response.data) {
@@ -209,6 +218,18 @@ export default function SignupForm({ onBack }: SignupFormProps) {
               </select>
             </div>
           </div>
+
+          <LocationSelector
+            country={formData.country}
+            state={formData.state}
+            city={formData.city}
+            onCountryChange={(name, code) =>
+              setFormData((prev) => ({ ...prev, country: name, countryCode: code, state: "", city: "" }))
+            }
+            onStateChange={(name) => setFormData((prev) => ({ ...prev, state: name, city: "" }))}
+            onCityChange={(name) => setFormData((prev) => ({ ...prev, city: name }))}
+            disabled={isLoading}
+          />
 
           {error && <div className="p-4 bg-destructive/10 text-destructive rounded-lg text-sm">{error}</div>}
 

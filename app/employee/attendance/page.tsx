@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Calendar as CalendarIcon, Clock, CheckCircle2, XCircle, AlertCircle } from "lucide-react"
 import API_URL from "@/lib/apiBase"
 import { getUser } from "@/lib/auth"
+import { HolidayList } from "@/components/attendance/holiday-list"
 
 // API base URL handled by lib/apiBase
 
@@ -274,7 +275,6 @@ export default function AttendancePage() {
         </Card>
       </div>
 
-      {/* Today's Status */}
       {todayRecord && (
         <Card>
           <CardHeader>
@@ -302,6 +302,11 @@ export default function AttendancePage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Holidays Section */}
+      <div className="mt-6">
+        <HolidayList />
+      </div>
     </div>
   )
 }

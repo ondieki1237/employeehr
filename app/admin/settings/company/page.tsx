@@ -8,6 +8,8 @@ import { useToast } from "@/hooks/use-toast"
 import { api } from "@/lib/api"
 import { Loader2, Image as ImageIcon, Palette, RefreshCw, Type, Layout, Eye } from "lucide-react"
 import { Label } from "@/components/ui/label"
+import { LocationSelector } from "@/components/ui/location-selector"
+import { Building2 } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 export default function CompanySettingsPage() {
@@ -28,6 +30,13 @@ export default function CompanySettingsPage() {
   const [fontFamily, setFontFamily] = useState("system-ui")
   const [buttonStyle, setButtonStyle] = useState("rounded")
 
+  // Location & Holidays
+  const [country, setCountry] = useState("")
+  const [state, setState] = useState("")
+  const [city, setCity] = useState("")
+  const [countryCode, setCountryCode] = useState("")
+  const [syncingHolidays, setSyncingHolidays] = useState(false)
+
   useEffect(() => {
     loadBranding()
   }, [])
@@ -47,7 +56,11 @@ export default function CompanySettingsPage() {
         setBorderRadius(res.data.borderRadius || "0.5rem")
         setFontFamily(res.data.fontFamily || "system-ui")
         setButtonStyle(res.data.buttonStyle || "rounded")
-        
+        setCountry(res.data.country || "")
+        setState(res.data.state || "")
+        setCity(res.data.city || "")
+        setCountryCode(res.data.countryCode || "")
+
         // Apply colors immediately after loading
         setTimeout(() => {
           applyCssVarsFromApi(
@@ -69,12 +82,12 @@ export default function CompanySettingsPage() {
   }
 
   const applyCssVarsFromApi = (
-    pc: string, 
-    sc: string, 
-    ac: string, 
-    bgc: string, 
-    tc: string, 
-    br: string, 
+    pc: string,
+    sc: string,
+    ac: string,
+    bgc: string,
+    tc: string,
+    br: string,
     logo?: string
   ) => {
     const root = document.documentElement
@@ -122,9 +135,9 @@ export default function CompanySettingsPage() {
   const saveBranding = async () => {
     try {
       setSaving(true)
-      const res = await api.company.updateBranding({ 
-        primaryColor, 
-        secondaryColor, 
+      const res = await api.company.updateBranding({
+        primaryColor,
+        secondaryColor,
         accentColor,
         backgroundColor,
         textColor,
@@ -132,7 +145,11 @@ export default function CompanySettingsPage() {
         fontFamily,
         buttonStyle,
         logoFile: logoFile || undefined,
-        logoUrl: logoFile ? undefined : logo
+        logoUrl: logoFile ? undefined : logo,
+        country,
+        state,
+        city,
+        countryCode
       })
       if (res?.success && res.data) {
         // Confirm data persisted to database
@@ -141,7 +158,7 @@ export default function CompanySettingsPage() {
         setLogo(res.data.logo)
         setLogoFile(null) // Clear file input
         applyCssVars()
-        toast({ 
+        toast({
           description: "✓ Branding updated and synced across your organization. All employees will see the new branding when they refresh.",
           variant: "default"
         })
@@ -153,6 +170,30 @@ export default function CompanySettingsPage() {
       toast({ description: e.message || "Failed to save branding", variant: "destructive" })
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleSyncHolidays = async () => {
+    try {
+      setSyncingHolidays(true)
+      // Save location first if changed
+      if (countryCode) {
+        await api.company.updateBranding({ countryCode })
+      }
+
+      const res = await api.holidays.sync({ year: new Date().getFullYear() })
+      if (res.success) {
+        toast({
+          description: `✓ ${res.message}`,
+          variant: "default"
+        })
+      } else {
+        throw new Error(res.message)
+      }
+    } catch (e: any) {
+      toast({ description: e.message || "Failed to sync holidays", variant: "destructive" })
+    } finally {
+      setSyncingHolidays(false)
     }
   }
 
@@ -197,6 +238,42 @@ export default function CompanySettingsPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Location & Holidays */}
+        <Card className="md:col-span-2 border-2">
+          <CardHeader>
+            <CardTitle className="text-base flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Building2 className="w-4 h-4" />
+                Location & Holidays
+              </div>
+              <Button variant="outline" size="sm" onClick={handleSyncHolidays} disabled={syncingHolidays || !countryCode}>
+                {syncingHolidays ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+                Sync Public Holidays
+              </Button>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <LocationSelector
+              country={country}
+              state={state}
+              city={city}
+              onCountryChange={(name, code) => {
+                setCountry(name)
+                setCountryCode(code)
+                setState("")
+                setCity("")
+              }}
+              onStateChange={(name) => {
+                setState(name)
+                setCity("")
+              }}
+              onCityChange={(name) => setCity(name)}
+              disabled={saving || loading}
+            />
+            {!countryCode && <p className="text-sm text-yellow-600">Please select a country to enable holiday synchronization.</p>}
+          </CardContent>
+        </Card>
+
         {/* Logo */}
         <Card className="border-2">
           <CardHeader>
@@ -208,9 +285,9 @@ export default function CompanySettingsPage() {
           <CardContent className="space-y-4">
             <div className="flex items-center gap-4">
               {logo ? (
-                <img 
-                  src={logo} 
-                  alt="Logo preview" 
+                <img
+                  src={logo}
+                  alt="Logo preview"
                   className="w-20 h-20 border rounded object-contain"
                   crossOrigin="anonymous"
                   onError={(e) => {
@@ -371,35 +448,35 @@ export default function CompanySettingsPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="rounded-lg border p-6 space-y-4" style={{ 
-            background: backgroundColor, 
+          <div className="rounded-lg border p-6 space-y-4" style={{
+            background: backgroundColor,
             color: textColor,
             fontFamily: fontFamily
           }}>
             <h3 className="text-lg font-semibold">Sample Card</h3>
             <p className="text-sm opacity-80">This is how your branding will appear across the platform.</p>
             <div className="flex gap-3 flex-wrap">
-              <button 
-                className="px-4 py-2 text-white font-medium transition hover:opacity-90" 
-                style={{ 
+              <button
+                className="px-4 py-2 text-white font-medium transition hover:opacity-90"
+                style={{
                   background: primaryColor,
                   borderRadius: buttonStyle === 'pill' ? '9999px' : buttonStyle === 'sharp' ? '0' : borderRadius
                 }}
               >
                 Primary Button
               </button>
-              <button 
-                className="px-4 py-2 text-white font-medium transition hover:opacity-90" 
-                style={{ 
+              <button
+                className="px-4 py-2 text-white font-medium transition hover:opacity-90"
+                style={{
                   background: secondaryColor,
                   borderRadius: buttonStyle === 'pill' ? '9999px' : buttonStyle === 'sharp' ? '0' : borderRadius
                 }}
               >
                 Secondary Button
               </button>
-              <button 
-                className="px-4 py-2 text-white font-medium transition hover:opacity-90" 
-                style={{ 
+              <button
+                className="px-4 py-2 text-white font-medium transition hover:opacity-90"
+                style={{
                   background: accentColor,
                   borderRadius: buttonStyle === 'pill' ? '9999px' : buttonStyle === 'sharp' ? '0' : borderRadius
                 }}
