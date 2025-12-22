@@ -24,10 +24,22 @@ class EmailService {
         pass: process.env.EMAIL_PASSWORD,
       },
     })
+
+    // Verify connection
+    this.transporter.verify((error, success) => {
+      if (error) {
+        console.error("❌ Email transporter verification failed:", error)
+      } else {
+        console.log("✅ Email transporter is ready to send emails")
+      }
+    })
   }
 
   async sendEmail(options: EmailOptions): Promise<boolean> {
     try {
+      console.log(`Attempting to send email to: ${options.to}`)
+      console.log(`Email subject: ${options.subject}`)
+      
       const info = await this.transporter.sendMail({
         from: `"Elevate HR" <${process.env.EMAIL_USER}>`,
         to: options.to,
@@ -35,10 +47,16 @@ class EmailService {
         html: options.html,
       })
 
-      console.log("Email sent:", info.messageId)
+      console.log("✅ Email sent successfully:", info.messageId)
+      console.log("Accepted recipients:", info.accepted)
+      console.log("Rejected recipients:", info.rejected)
       return true
     } catch (error) {
-      console.error("Failed to send email:", error)
+      console.error("❌ Failed to send email:", error)
+      if (error instanceof Error) {
+        console.error("Error message:", error.message)
+        console.error("Error stack:", error.stack)
+      }
       return false
     }
   }

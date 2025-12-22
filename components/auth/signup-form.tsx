@@ -60,6 +60,15 @@ export default function SignupForm({ onBack }: SignupFormProps) {
     setError("")
 
     try {
+      // Convert team size range to a numeric value
+      const employeeCountMap: { [key: string]: number } = {
+        "1-10": 10,
+        "11-50": 50,
+        "51-200": 200,
+        "200+": 500,
+      }
+      const employeeCount = employeeCountMap[formData.teamSize] || 10
+
       const response = await api.auth.registerCompany({
         name: formData.companyName,
         email: formData.email,
@@ -67,7 +76,7 @@ export default function SignupForm({ onBack }: SignupFormProps) {
         adminPassword: formData.password,
         adminName: "Admin", // Default admin name
         industry: formData.industry,
-        employeeCount: formData.teamSize,
+        employeeCount: employeeCount,
         country: formData.country,
         state: formData.state,
         city: formData.city,

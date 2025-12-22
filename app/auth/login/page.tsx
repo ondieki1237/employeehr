@@ -40,9 +40,19 @@ function LoginContent() {
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
+    console.log('handleSubmit called')
     e.preventDefault()
+    e.stopPropagation()
+    console.log('preventDefault called')
+    
+    if (isLoading) {
+      console.log('Already loading, returning')
+      return // Prevent multiple submissions
+    }
+    
     setError("")
     setIsLoading(true)
+    console.log('Starting login...')
 
     try {
       const response = await api.auth.login({ email, password })

@@ -71,7 +71,11 @@ export const logout = (): void => {
     removeToken()
     removeUser()
     if (typeof window !== 'undefined') {
-        window.location.href = '/auth/login'
+        // Only redirect if not already on auth page
+        const currentPath = window.location.pathname
+        if (!currentPath.startsWith('/auth/')) {
+            window.location.href = '/auth/login'
+        }
     }
 }
 

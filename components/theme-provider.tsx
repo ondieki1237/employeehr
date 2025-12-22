@@ -2,14 +2,24 @@
 
 import * as React from 'react'
 import { api } from '@/lib/api'
+import { isAuthenticated } from '@/lib/auth'
+import { usePathname } from 'next/navigation'
 import {
   ThemeProvider as NextThemesProvider,
   type ThemeProviderProps,
 } from 'next-themes'
 
 export function ThemeProvider({ children, ...props }: ThemeProviderProps) {
+  const pathname = usePathname()
+
   React.useEffect(() => {
     const applyBranding = async () => {
+      // Skip branding fetch on auth pages or if not authenticated
+      const isAuthPage = pathname?.startsWith('/auth/') || pathname === '/auth'
+      if (isAuthPage || !isAuthenticated()) {
+        return
+      }
+
       try {
         const res = await api.company.getBranding()
         if (res?.success && res.data) {
@@ -48,11 +58,12 @@ export function ThemeProvider({ children, ...props }: ThemeProviderProps) {
           }
         }
       } catch (e) {
-        console.error('Failed to load branding:', e)
+        // Silently fail - branding is optional
+        console.debug('Branding not loaded:', e)
       }
     }
     applyBranding()
-  }, [])
+  }, [pathname])
 
   return <NextThemesProvider {...props}>{children}</NextThemesProvider>
 }
