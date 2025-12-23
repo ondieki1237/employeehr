@@ -52,23 +52,25 @@ export class MeetingController {
         status: "scheduled",
       })
 
-      // Send invitation emails to attendees
-      const attendeeUsers = await User.find({
-        _id: { $in: attendees.map((a: any) => a.user_id) },
-      })
-
-      for (const user of attendeeUsers) {
-        await emailService.sendEmail({
-          to: user.email,
-          subject: `Meeting Invitation: ${title}`,
-          html: `
-            <h2>You've been invited to a meeting</h2>
-            <p><strong>${title}</strong></p>
-            <p>Scheduled: ${new Date(scheduled_at).toLocaleString()}</p>
-            ${description ? `<p>${description}</p>` : ""}
-            ${meeting_link ? `<p>Join: <a href="${meeting_link}">${meeting_link}</a></p>` : ""}
-          `,
+      // Send invitation emails to attendees if any
+      if (attendees && attendees.length > 0) {
+        const attendeeUsers = await User.find({
+          _id: { $in: attendees.map((a: any) => a.user_id || a) },
         })
+
+        for (const user of attendeeUsers) {
+          await emailService.sendEmail({
+            to: user.email,
+            subject: `Meeting Invitation: ${title}`,
+            html: `
+              <h2>You've been invited to a meeting</h2>
+              <p><strong>${title}</strong></p>
+              <p>Scheduled: ${new Date(scheduled_at).toLocaleString()}</p>
+              ${description ? `<p>${description}</p>` : ""}
+              ${meeting_link ? `<p>Join: <a href="${meeting_link}">${meeting_link}</a></p>` : ""}
+            `,
+          })
+        }
       }
 
       res.status(201).json({ success: true, data: meeting })

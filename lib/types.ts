@@ -261,3 +261,55 @@ export interface CreatePDPRequest {
     start_date: string
     end_date: string
 }
+
+// Meeting types
+export interface MeetingAttendee {
+    user_id: string
+    user?: User
+    joined_at?: string
+    left_at?: string
+    duration_minutes?: number
+    status: 'invited' | 'joined' | 'left'
+}
+
+export interface Meeting {
+    _id: string
+    title: string
+    description?: string
+    scheduled_start: string
+    scheduled_end: string
+    actual_start_time?: string
+    actual_end_time?: string
+    meeting_type: 'team' | 'one_on_one' | 'company_wide' | 'client' | 'other'
+    organizer_id: string
+    organizer?: User
+    attendees: MeetingAttendee[]
+    meeting_link?: string
+    location?: string
+    agenda?: string
+    status: 'scheduled' | 'in_progress' | 'completed' | 'cancelled'
+    ai_transcript?: string
+    ai_summary?: string
+    ai_action_items?: Array<{
+        description: string
+        assigned_to: string
+        due_date?: string
+        priority?: 'low' | 'medium' | 'high'
+    }>
+    recording_url?: string
+    org_id: string
+    createdAt: string
+    updatedAt: string
+}
+
+export interface CreateMeetingRequest {
+    title: string
+    description?: string
+    scheduled_start: string
+    scheduled_end: string
+    meeting_type: Meeting['meeting_type']
+    attendees: string[] // Array of user IDs
+    meeting_link?: string
+    location?: string
+    agenda?: string
+}

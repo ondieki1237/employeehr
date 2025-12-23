@@ -21,6 +21,8 @@ import type {
     CreateKPIRequest,
     CreateFeedbackRequest,
     CreatePDPRequest,
+    Meeting,
+    CreateMeetingRequest,
 } from './types'
 
 
@@ -383,6 +385,61 @@ export const payrollApi = {
         client.get<any[]>(`/api/payroll/all${month ? `?month=${month}` : ''}`),
 }
 
+// Meetings API
+export const meetingsApi = {
+    getAll: () => client.get<Meeting[]>('/api/meetings'),
+
+    getById: (id: string) => client.get<Meeting>(`/api/meetings/${id}`),
+
+    create: (data: CreateMeetingRequest) =>
+        client.post<Meeting>('/api/meetings', data),
+
+    update: (id: string, data: Partial<CreateMeetingRequest>) =>
+        client.put<Meeting>(`/api/meetings/${id}`, data),
+
+    delete: (id: string) => client.delete(`/api/meetings/${id}`),
+
+    start: (id: string) =>
+        client.put<Meeting>(`/api/meetings/${id}/start`, {}),
+
+    end: (id: string) =>
+        client.put<Meeting>(`/api/meetings/${id}/end`, {}),
+
+    join: (id: string) =>
+        client.post<Meeting>(`/api/meetings/${id}/join`, {}),
+
+    leave: (id: string) =>
+        client.post<Meeting>(`/api/meetings/${id}/leave`, {}),
+
+    processWithAI: (id: string, audioFile?: File) => {
+        if (audioFile) {
+            // Handle file upload
+            const token = getToken()
+            const formData = new FormData()
+            formData.append('audio', audioFile)
+
+            const headers: Record<string, string> = {}
+            if (token) headers['Authorization'] = `Bearer ${token}`
+
+            return fetch(`${API_URL}/api/meetings/${id}/process-ai`, {
+                method: 'POST',
+                headers,
+                body: formData
+            }).then(res => res.json())
+        }
+        return client.post<Meeting>(`/api/meetings/${id}/process-ai`, {})
+    },
+
+    getReport: (id: string) =>
+        client.get<any>(`/api/meetings/${id}/report`),
+
+    getUserStats: () =>
+        client.get<any>('/api/meetings/stats/user'),
+
+    getTeamStats: () =>
+        client.get<any>('/api/meetings/stats/team'),
+}
+
 // Export all APIs
 export const api = {
     auth: authApi,
@@ -396,10 +453,10 @@ export const api = {
     invitations: invitationsApi,
     reports: reportsApi,
     company: companyApi,
-    company: companyApi,
     holidays: holidayApi,
     leave: leaveApi,
     payroll: payrollApi,
+    meetings: meetingsApi,
 }
 
 export default api

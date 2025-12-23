@@ -6,30 +6,9 @@ import { MeetingInterface } from '@/components/meetings/meeting-interface'
 import { MeetingReport } from '@/components/meetings/meeting-report'
 import { Button } from '@/components/ui/button'
 import { ArrowLeft } from 'lucide-react'
-
-interface Meeting {
-  _id: string
-  title: string
-  description?: string
-  scheduled_at: string
-  duration_minutes: number
-  meeting_type: 'video' | 'audio' | 'in-person'
-  meeting_link?: string
-  status: 'scheduled' | 'in-progress' | 'completed' | 'cancelled'
-  organizer_id: string
-  attendees: Array<{
-    user_id: string
-    status: 'invited' | 'accepted' | 'declined' | 'tentative'
-    attended: boolean
-    user?: any
-  }>
-  ai_processed: boolean
-  ai_processing_status?: 'pending' | 'processing' | 'completed' | 'failed'
-  ai_summary?: string
-  key_points?: string[]
-  action_items?: any[]
-  transcript?: string
-}
+import { meetingsApi } from '@/lib/api'
+import { getUser } from '@/lib/auth'
+import type { Meeting } from '@/lib/types'
 
 export default function MeetingsPage() {
   const [meetings, setMeetings] = useState<Meeting[]>([])
@@ -39,11 +18,10 @@ export default function MeetingsPage() {
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    // Get current user from local storage or context
-    const userData = localStorage.getItem('user')
-    if (userData) {
-      const user = JSON.parse(userData)
-      setCurrentUserId(user._id || user.userId)
+    // Get current user from auth
+    const user = getUser()
+    if (user) {
+      setCurrentUserId(user._id || user.userId || '')
     }
 
     fetchMeetings()
@@ -52,15 +30,9 @@ export default function MeetingsPage() {
   const fetchMeetings = async () => {
     try {
       setIsLoading(true)
-      const token = localStorage.getItem('token')
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/meetings`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      })
-      const data = await response.json()
-      if (data.success) {
-        setMeetings(data.data)
+      const response = await meetingsApi.getAll()
+      if (response.success) {
+        setMeetings(response.data)
       }
     } catch (error) {
       console.error('Error fetching meetings:', error)
@@ -71,17 +43,8 @@ export default function MeetingsPage() {
 
   const createMeeting = async (meetingData: any) => {
     try {
-      const token = localStorage.getItem('token')
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/meetings`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(meetingData),
-      })
-      const data = await response.json()
-      if (data.success) {
+      const response = await meetingsApi.create(meetingData)
+      if (response.success) {
         await fetchMeetings()
       }
     } catch (error) {
@@ -92,13 +55,7 @@ export default function MeetingsPage() {
 
   const startMeeting = async (meetingId: string) => {
     try {
-      const token = localStorage.getItem('token')
-      await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/meetings/${meetingId}/start`, {
-        method: 'PUT',
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      })
+      await meetingsApi.start(meetingId)
       await fetchMeetings()
     } catch (error) {
       console.error('Error starting meeting:', error)
@@ -108,15 +65,7 @@ export default function MeetingsPage() {
 
   const endMeeting = async (meetingId: string, transcript: string) => {
     try {
-      const token = localStorage.getItem('token')
-      await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/meetings/${meetingId}/end`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ transcript }),
-      })
+      await meetingsApi.end(meetingId)
       await fetchMeetings()
     } catch (error) {
       console.error('Error ending meeting:', error)
@@ -126,19 +75,10 @@ export default function MeetingsPage() {
 
   const downloadReport = async (meetingId: string) => {
     try {
-      const token = localStorage.getItem('token')
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/meetings/${meetingId}/report`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      )
-      const data = await response.json()
-      if (data.success) {
+      const response = await meetingsApi.getReport(meetingId)
+      if (response.success) {
         // Create downloadable HTML file
-        const blob = new Blob([JSON.stringify(data.data, null, 2)], {
+        const blob = new Blob([JSON.stringify(response.data, null, 2)], {
           type: 'application/json',
         })
         const url = URL.createObjectURL(blob)
