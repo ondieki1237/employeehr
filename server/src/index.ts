@@ -44,6 +44,7 @@ import meetingRoutes from "./routes/meeting.routes"
 import { JobController } from "./controllers/jobController"
 import { JobApplicationController } from "./controllers/jobApplicationController"
 import { ApplicationFormController } from "./controllers/applicationFormController"
+import { MeetingController } from "./controllers/meetingController"
 
 const app = express()
 const server = createServer(app)
@@ -116,6 +117,7 @@ app.get("/health", (req, res) => {
 app.get("/api/jobs/public/:companyName/:positionIndex", JobController.getPublicJob)
 app.get("/api/application-forms/job/:jobId", ApplicationFormController.getFormByJobId)
 app.post("/api/job-applications/submit", JobApplicationController.submitApplication)
+app.get("/api/meetings/by-meeting-id/:meetingId", MeetingController.getMeetingByMeetingIdPublic)
 
 // API Routes
 app.use("/api/auth", authRoutes)
