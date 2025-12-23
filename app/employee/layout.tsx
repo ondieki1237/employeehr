@@ -13,6 +13,7 @@ export default function EmployeeLayout({
 }) {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
   useEffect(() => {
     const user = getUser()
@@ -47,12 +48,12 @@ export default function EmployeeLayout({
   return (
     <div className="flex h-screen overflow-hidden">
       {/* Sidebar */}
-      <EmployeeSidebar />
+      <EmployeeSidebar isOpen={sidebarOpen} onToggle={() => setSidebarOpen(!sidebarOpen)} />
       
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Top Navigation */}
-        <EmployeeTopNav />
+        <EmployeeTopNav onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
         
         {/* Page Content */}
         <main className="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-900">

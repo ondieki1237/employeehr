@@ -79,19 +79,29 @@ export function MeetingInterface({
   )
   const [joinTime, setJoinTime] = useState<Date | null>(null)
   const [isMinimized, setIsMinimized] = useState(false)
+  const [permissionStatus, setPermissionStatus] = useState<'pending' | 'granted' | 'denied'>('pending')
+  const [permissionError, setPermissionError] = useState<string>('')
+  const [isConnecting, setIsConnecting] = useState(false)
+  const [localStream, setLocalStream] = useState<MediaStream | null>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const audioChunksRef = useRef<Blob[]>([])
 
   const isOrganizer = meeting.organizer_id === currentUserId
 
+  // Request media permissions when meeting becomes active
   useEffect(() => {
-    if (isMeetingActive && isVideoOn) {
-      startVideoStream()
+    if (isMeetingActive && permissionStatus === 'pending') {
+      requestMediaPermissions()
     }
-    return () => {
-      stopVideoStream()
+  }, [isMeetingActive])
+
+  // Update video stream when video/audio toggles change
+  useEffect(() => {
+    if (localStream && isMeetingActive) {
+      updateStreamTracks()
     }
-  }, [isMeetingActive, isVideoOn])
+  }, [isVideoOn, isAudioOn])
 
   // Track time in meeting for KPI
   useEffect(() => {
@@ -109,6 +119,16 @@ export function MeetingInterface({
       }
     }
   }, [isMeetingActive])
+
+  // Cleanup media streams on unmount
+  useEffect(() => {
+    return () => {
+      stopVideoStream()
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        mediaRecorderRef.current.stop()
+      }
+    }
+  }, [])
 
   const trackJoinTime = async () => {
     try {
@@ -138,52 +158,142 @@ export function MeetingInterface({
     }
   }
 
-  const startVideoStream = async () => {
+  const requestMediaPermissions = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: isVideoOn,
-        audio: isAudioOn,
-      })
+      setIsConnecting(true)
+      setPermissionError('')
+      
+      const constraints: MediaStreamConstraints = {
+        audio: true,
+        video: meeting.meeting_type !== 'audio' ? {
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          facingMode: 'user'
+        } : false
+      }
 
+      console.log('Requesting media permissions with constraints:', constraints)
+      const stream = await navigator.mediaDevices.getUserMedia(constraints)
+      
+      console.log('Permissions granted! Stream tracks:', stream.getTracks().map(t => ({
+        kind: t.kind,
+        enabled: t.enabled,
+        label: t.label
+      })))
+      
+      setLocalStream(stream)
+      setPermissionStatus('granted')
+      
+      // Attach stream to video element
       if (videoRef.current) {
         videoRef.current.srcObject = stream
       }
 
-      // Setup recording
-      if (recordingActive) {
+      // Start recording if meeting is active
+      if (isMeetingActive) {
         startRecording(stream)
       }
-    } catch (error) {
-      console.error('Error accessing media devices:', error)
+    } catch (error: any) {
+      console.error('Error requesting media permissions:', error)
+      setPermissionStatus('denied')
+      
+      if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+        setPermissionError('Camera and microphone access denied. Please allow permissions in your browser settings.')
+      } else if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
+        setPermissionError('No camera or microphone found. Please check your device.')
+      } else {
+        setPermissionError(`Failed to access media: ${error.message}`)
+      }
+    } finally {
+      setIsConnecting(false)
+    }
+  }
+
+  const updateStreamTracks = () => {
+    if (!localStream) return
+
+    // Update audio tracks
+    localStream.getAudioTracks().forEach(track => {
+      track.enabled = isAudioOn
+    })
+
+    // Update video tracks
+    localStream.getVideoTracks().forEach(track => {
+      track.enabled = isVideoOn
+    })
+  }
+
+  const startVideoStream = async () => {
+    if (permissionStatus === 'granted' && localStream) {
+      updateStreamTracks()
+    } else if (permissionStatus === 'pending') {
+      await requestMediaPermissions()
     }
   }
 
   const stopVideoStream = () => {
-    if (videoRef.current && videoRef.current.srcObject) {
-      const tracks = (videoRef.current.srcObject as MediaStream).getTracks()
-      tracks.forEach((track) => track.stop())
+    if (localStream) {
+      localStream.getTracks().forEach((track) => {
+        track.stop()
+        console.log(`Stopped ${track.kind} track`)
+      })
+      setLocalStream(null)
+    }
+    
+    if (videoRef.current) {
+      videoRef.current.srcObject = null
     }
   }
 
   const startRecording = (stream: MediaStream) => {
-    const mediaRecorder = new MediaRecorder(stream)
-    mediaRecorderRef.current = mediaRecorder
+    try {
+      audioChunksRef.current = []
+      
+      const options: MediaRecorderOptions = {
+        mimeType: 'audio/webm;codecs=opus',
+      }
+      
+      // Fallback for browsers that don't support webm
+      if (!MediaRecorder.isTypeSupported(options.mimeType!)) {
+        options.mimeType = 'audio/mp4'
+      }
+      
+      const mediaRecorder = new MediaRecorder(stream, options)
+      mediaRecorderRef.current = mediaRecorder
 
-    mediaRecorder.ondataavailable = (event) => {
-      const audioBlob = new Blob([event.data], { type: 'audio/webm' })
-      console.log('Recording data available:', audioBlob.size)
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data)
+          console.log('Recording chunk received:', event.data.size, 'bytes')
+        }
+      }
+
+      mediaRecorder.onerror = (event: any) => {
+        console.error('MediaRecorder error:', event.error)
+      }
+
+      mediaRecorder.start(1000) // Collect data every second
+      setRecordingActive(true)
+      console.log('Recording started')
+    } catch (error) {
+      console.error('Error starting recording:', error)
     }
-
-    mediaRecorder.start()
   }
 
   const stopRecording = (): Promise<Blob> => {
     return new Promise((resolve) => {
-      if (mediaRecorderRef.current) {
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
         mediaRecorderRef.current.onstop = () => {
-          resolve(new Blob([], { type: 'audio/webm' }))
+          const audioBlob = new Blob(audioChunksRef.current, { 
+            type: audioChunksRef.current[0]?.type || 'audio/webm' 
+          })
+          console.log('Recording stopped. Total size:', audioBlob.size, 'bytes')
+          resolve(audioBlob)
         }
         mediaRecorderRef.current.stop()
+        setRecordingActive(false)
+      } else {
+        resolve(new Blob([], { type: 'audio/webm' }))
       }
     })
   }
@@ -192,7 +302,7 @@ export function MeetingInterface({
     try {
       await onStartMeeting(meeting._id)
       setIsMeetingActive(true)
-      setRecordingActive(true)
+      // Permission request will be triggered by the useEffect
     } catch (error) {
       console.error('Error starting meeting:', error)
     }
@@ -214,6 +324,14 @@ export function MeetingInterface({
     } catch (error) {
       console.error('Error ending meeting:', error)
     }
+  }
+
+  const toggleAudio = () => {
+    setIsAudioOn(!isAudioOn)
+  }
+
+  const toggleVideo = () => {
+    setIsVideoOn(!isVideoOn)
   }
 
   const getStatusColor = (status: string) => {
@@ -256,7 +374,7 @@ export function MeetingInterface({
           </div>
           <div className="px-3 pb-3 flex gap-2">
             <Button
-              onClick={() => setIsAudioOn(!isAudioOn)}
+              onClick={toggleAudio}
               variant={isAudioOn ? 'default' : 'destructive'}
               size="sm"
               className="flex-1"
@@ -281,30 +399,75 @@ export function MeetingInterface({
           {/* Video Area */}
           <div className="flex-1 flex items-center justify-center bg-gradient-to-b from-gray-900 to-black p-4">
             {isMeetingActive ? (
-          <div className="w-full h-full max-w-4xl">
-            {isVideoOn ? (
-              <video
-                ref={videoRef}
-                autoPlay
-                muted
-                className="w-full h-full rounded-lg object-cover bg-black"
-              />
+              <>
+                {/* Permission Status */}
+                {permissionStatus === 'pending' && isConnecting && (
+                  <Card className="w-full max-w-md p-8 text-center bg-gray-800 border-gray-700">
+                    <Loader className="w-16 h-16 text-blue-500 mx-auto mb-4 animate-spin" />
+                    <h3 className="text-xl font-semibold text-white mb-2">
+                      Requesting Permissions
+                    </h3>
+                    <p className="text-gray-400">
+                      Please allow access to your camera and microphone
+                    </p>
+                  </Card>
+                )}
+
+                {permissionStatus === 'denied' && (
+                  <Card className="w-full max-w-md p-8 text-center bg-gray-800 border-gray-700">
+                    <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
+                    <h3 className="text-xl font-semibold text-white mb-2">
+                      Permission Denied
+                    </h3>
+                    <p className="text-gray-400 mb-4">{permissionError}</p>
+                    <Button
+                      onClick={requestMediaPermissions}
+                      className="w-full"
+                    >
+                      Try Again
+                    </Button>
+                  </Card>
+                )}
+
+                {permissionStatus === 'granted' && (
+                  <div className="w-full h-full max-w-4xl relative">
+                    {isVideoOn ? (
+                      <>
+                        <video
+                          ref={videoRef}
+                          autoPlay
+                          playsInline
+                          muted
+                          className="w-full h-full rounded-lg object-cover bg-black"
+                        />
+                        {recordingActive && (
+                          <div className="absolute top-4 left-4 flex items-center gap-2 bg-red-600/90 px-3 py-2 rounded-lg">
+                            <div className="w-3 h-3 bg-white rounded-full animate-pulse"></div>
+                            <span className="text-white font-medium text-sm">Recording</span>
+                          </div>
+                        )}
+                        <div className="absolute bottom-4 left-4 bg-black/70 px-3 py-2 rounded-lg">
+                          <p className="text-white text-sm font-medium">You</p>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="w-full h-full rounded-lg bg-gray-800 flex items-center justify-center">
+                        <div className="text-center">
+                          <Users className="w-16 h-16 text-gray-500 mx-auto mb-4" />
+                          <p className="text-gray-400">Video disabled</p>
+                          {recordingActive && (
+                            <div className="mt-4 flex items-center justify-center gap-2">
+                              <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
+                              <span className="text-red-500 font-medium">Recording</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
             ) : (
-              <div className="w-full h-full rounded-lg bg-gray-800 flex items-center justify-center">
-                <div className="text-center">
-                  <Users className="w-16 h-16 text-gray-500 mx-auto mb-4" />
-                  <p className="text-gray-400">Video disabled</p>
-                  {recordingActive && (
-                    <div className="mt-4 flex items-center justify-center gap-2">
-                      <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
-                      <span className="text-red-500 font-medium">Recording</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-        ) : (
           <Card className="w-full max-w-md p-8 text-center bg-gray-800 border-gray-700">
             <h3 className="text-xl font-semibold text-white mb-4">
               {meeting.title}
@@ -335,66 +498,74 @@ export function MeetingInterface({
       </div>
 
       {/* Controls */}
-      {isMeetingActive && !isMinimized && (
+      {isMeetingActive && !isMinimized && permissionStatus === 'granted' && (
         <div className="bg-gray-900 border-t border-gray-700 p-4">
-          <div className="max-w-4xl mx-auto flex items-center justify-center gap-4">
-            <Button
-              onClick={() => setIsAudioOn(!isAudioOn)}
-              variant={isAudioOn ? 'default' : 'destructive'}
-              size="lg"
-              className="rounded-full w-14 h-14 p-0"
-            >
-              {isAudioOn ? (
-                <Mic className="w-6 h-6" />
-              ) : (
-                <MicOff className="w-6 h-6" />
+          <div className="max-w-4xl mx-auto flex items-center justify-between">
+            {/* Left side - Meeting info */}
+            <div className="flex items-center gap-4 text-white">
+              <div className="flex items-center gap-2">
+                <Clock className="w-4 h-4" />
+                <span className="text-sm">
+                  {joinTime && new Date().getTime() - joinTime.getTime() > 0
+                    ? `${Math.floor((new Date().getTime() - joinTime.getTime()) / 60000)}m`
+                    : '0m'}
+                </span>
+              </div>
+              {recordingActive && (
+                <div className="flex items-center gap-2 text-red-500">
+                  <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+                  <span className="text-sm font-medium">REC</span>
+                </div>
               )}
-            </Button>
+            </div>
 
-            <Button
-              onClick={() => setIsVideoOn(!isVideoOn)}
-              variant={isVideoOn ? 'default' : 'destructive'}
-              size="lg"
-              className="rounded-full w-14 h-14 p-0"
-            >
-              <Video className="w-6 h-6" />
-            </Button>
+            {/* Center - Main controls */}
+            <div className="flex items-center gap-3">
+              <Button
+                onClick={toggleAudio}
+                size="lg"
+                variant={isAudioOn ? 'default' : 'destructive'}
+                className="rounded-full w-12 h-12 p-0"
+                title={isAudioOn ? 'Mute' : 'Unmute'}
+              >
+                {isAudioOn ? <Mic className="w-5 h-5" /> : <MicOff className="w-5 h-5" />}
+              </Button>
 
-            <Button
-              onClick={handleEndMeeting}
-              variant="destructive"
-              size="lg"
-              className="rounded-full w-14 h-14 p-0"
-            >
-              <PhoneOff className="w-6 h-6" />
-            </Button>
+              {meeting.meeting_type !== 'audio' && (
+                <Button
+                  onClick={toggleVideo}
+                  size="lg"
+                  variant={isVideoOn ? 'default' : 'secondary'}
+                  className="rounded-full w-12 h-12 p-0"
+                  title={isVideoOn ? 'Turn off camera' : 'Turn on camera'}
+                >
+                  <Video className="w-5 h-5" />
+                </Button>
+              )}
 
-            <Button 
-              variant="outline" 
-              size="lg" 
-              className="rounded-full w-14 h-14 p-0"
-            >
-              <Share2 className="w-6 h-6" />
-            </Button>
+              <Button
+                onClick={handleEndMeeting}
+                size="lg"
+                variant="destructive"
+                className="rounded-full w-12 h-12 p-0"
+                title="Leave meeting"
+              >
+                <PhoneOff className="w-5 h-5" />
+              </Button>
+            </div>
 
-            <Button
-              onClick={() => setShowTranscript(!showTranscript)}
-              variant="outline"
-              size="lg"
-              className="rounded-full w-14 h-14 p-0"
-            >
-              <MessageSquare className="w-6 h-6" />
-            </Button>
-
-            <Button
-              onClick={() => setIsMinimized(true)}
-              variant="outline"
-              size="lg"
-              className="rounded-full w-14 h-14 p-0"
-              title="Minimize meeting"
-            >
-              ↓
-            </Button>
+            {/* Right side - Additional controls */}
+            <div className="flex items-center gap-2">
+              <Button
+                onClick={() => setIsMinimized(true)}
+                variant="ghost"
+                size="sm"
+                className="text-white"
+                title="Minimize"
+              >
+                ↓
+              </Button>
+            </div>
           </div>
         </div>
       )}

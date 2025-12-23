@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Bell, User } from "lucide-react"
+import { Bell, User, Menu } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 
@@ -20,7 +20,11 @@ interface CompanyData {
   primaryColor?: string
 }
 
-export function EmployeeTopNav() {
+interface EmployeeTopNavProps {
+  onMenuClick?: () => void
+}
+
+export function EmployeeTopNav({ onMenuClick }: EmployeeTopNavProps) {
   const [user, setUser] = useState<UserData | null>(null)
   const [company, setCompany] = useState<CompanyData | null>(null)
 
@@ -37,13 +41,26 @@ export function EmployeeTopNav() {
   const initials = `${user.firstName[0]}${user.lastName[0]}`.toUpperCase()
 
   return (
-    <header className="flex h-16 items-center justify-between border-b bg-white dark:bg-gray-950 px-6">
-      {/* Company Info */}
+    <header className="flex h-16 items-center justify-between border-b bg-white dark:bg-gray-950 px-4 lg:px-6">
+      {/* Left side - Menu button + Company Info */}
       <div className="flex items-center gap-3">
-        <div className="h-10 w-10 bg-center bg-no-repeat bg-contain" style={{ backgroundImage: 'var(--company-logo-url)' }}></div>
-        <div>
-          <h2 className="text-sm font-semibold text-gray-900 dark:text-white">{company.name}</h2>
-          <p className="text-xs text-gray-500 dark:text-gray-400">Employee Portal</p>
+        {/* Mobile Menu Button */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="lg:hidden"
+          onClick={onMenuClick}
+        >
+          <Menu className="h-5 w-5" />
+        </Button>
+
+        {/* Company Info */}
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 bg-center bg-no-repeat bg-contain" style={{ backgroundImage: 'var(--company-logo-url)' }}></div>
+          <div className="hidden sm:block">
+            <h2 className="text-sm font-semibold text-gray-900 dark:text-white">{company.name}</h2>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Employee Portal</p>
+          </div>
         </div>
       </div>
 
