@@ -6,9 +6,25 @@ import { Task } from "../models/Task"
 import { AIAnalysisService } from "../services/aiAnalysisService"
 import { emailService } from "../services/emailService"
 import { AIMeetingService } from "../services/aiMeetingService"
+import crypto from "crypto"
 
 const aiService = new AIAnalysisService()
 const aiMeetingService = new AIMeetingService()
+
+/**
+ * Generate a unique meeting ID
+ */
+function generateMeetingId(): string {
+  return crypto.randomBytes(6).toString('hex') // 12-character hex string
+}
+
+/**
+ * Generate meeting link
+ */
+function generateMeetingLink(meetingId: string, baseUrl?: string): string {
+  const base = baseUrl || process.env.APP_URL || "https://hrapi.codewithseth.co.ke"
+  return `${base}/meeting/${meetingId}`
+}
 
 export class MeetingController {
   /**
@@ -25,10 +41,13 @@ export class MeetingController {
         scheduled_at,
         duration_minutes,
         meeting_type,
-        meeting_link,
         attendees,
         agenda,
+        require_password,
+        password,
       } = req.body
+
+      console.log('Received attendees:', JSON.stringify(attendees))
 
       // Validate required fields
       if (!title || !scheduled_at) {
@@ -38,6 +57,37 @@ export class MeetingController {
         })
       }
 
+      // Generate unique meeting ID and link
+      const meeting_id = generateMeetingId()
+      const meeting_link = generateMeetingLink(meeting_id)
+
+      // Format attendees - ensure they have the correct structure
+      let formattedAttendees: any[] = []
+      
+      if (attendees && Array.isArray(attendees) && attendees.length > 0) {
+        formattedAttendees = attendees.map((item: any) => {
+          // Handle if already formatted as object
+          if (typeof item === 'object' && item.user_id) {
+            return {
+              user_id: item.user_id,
+              status: item.status || "invited",
+              attended: item.attended || false,
+            }
+          }
+          // Handle if just a user ID string
+          if (typeof item === 'string') {
+            return {
+              user_id: item,
+              status: "invited",
+              attended: false,
+            }
+          }
+          return null
+        }).filter(Boolean)
+      }
+
+      console.log('Formatted attendees:', JSON.stringify(formattedAttendees))
+
       const meeting = await Meeting.create({
         org_id,
         organizer_id,
@@ -46,16 +96,19 @@ export class MeetingController {
         scheduled_at: new Date(scheduled_at),
         duration_minutes: duration_minutes || 60,
         meeting_type: meeting_type || "video",
+        meeting_id,
         meeting_link,
-        attendees: attendees || [],
+        password: require_password ? password : undefined,
+        require_password: require_password || false,
+        attendees: formattedAttendees,
         agenda,
         status: "scheduled",
       })
 
       // Send invitation emails to attendees if any
-      if (attendees && attendees.length > 0) {
+      if (formattedAttendees.length > 0) {
         const attendeeUsers = await User.find({
-          _id: { $in: attendees.map((a: any) => a.user_id || a) },
+          _id: { $in: formattedAttendees.map((a) => a.user_id) },
         })
 
         for (const user of attendeeUsers) {
@@ -66,8 +119,12 @@ export class MeetingController {
               <h2>You've been invited to a meeting</h2>
               <p><strong>${title}</strong></p>
               <p>Scheduled: ${new Date(scheduled_at).toLocaleString()}</p>
-              ${description ? `<p>${description}</p>` : ""}
-              ${meeting_link ? `<p>Join: <a href="${meeting_link}">${meeting_link}</a></p>` : ""}
+              ${description ? `<p>Description: ${description}</p>` : ""}
+              ${agenda ? `<p>Agenda: ${agenda}</p>` : ""}
+              <p><strong>Meeting Link:</strong> <a href="${meeting_link}">${meeting_link}</a></p>
+              <p><strong>Meeting ID:</strong> ${meeting_id}</p>
+              ${require_password ? `<p><strong>Password:</strong> ${password}</p>` : ""}
+              <p>Duration: ${duration_minutes || 60} minutes</p>
             `,
           })
         }

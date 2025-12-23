@@ -281,6 +281,10 @@ export interface Meeting {
     actual_start_time?: string
     actual_end_time?: string
     meeting_type: 'team' | 'one_on_one' | 'company_wide' | 'client' | 'other'
+    meeting_id: string
+    meeting_link?: string
+    password?: string
+    require_password: boolean
     organizer_id: string
     organizer?: User
     attendees: MeetingAttendee[]
@@ -308,8 +312,10 @@ export interface CreateMeetingRequest {
     scheduled_start: string
     scheduled_end: string
     meeting_type: Meeting['meeting_type']
-    attendees: string[] // Array of user IDs
+    attendees?: string[] // Array of user IDs
     meeting_link?: string
     location?: string
     agenda?: string
+    require_password?: boolean
+    password?: string
 }

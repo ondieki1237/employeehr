@@ -7,7 +7,10 @@ export interface IMeeting extends Document {
   scheduled_at: Date
   duration_minutes: number
   meeting_type: "video" | "audio" | "in-person"
+  meeting_id: string // Unique meeting ID for generating links
   meeting_link?: string // For external video conferencing links
+  password?: string // Optional meeting password
+  require_password: boolean // Whether password is required
   status: "scheduled" | "in-progress" | "completed" | "cancelled"
   organizer_id: string
   attendees: Array<{
@@ -50,7 +53,10 @@ const MeetingSchema = new Schema<IMeeting>(
       enum: ["video", "audio", "in-person"],
       default: "video",
     },
+    meeting_id: { type: String, required: true, unique: true, index: true },
     meeting_link: { type: String },
+    password: { type: String },
+    require_password: { type: Boolean, default: false },
     status: {
       type: String,
       enum: ["scheduled", "in-progress", "completed", "cancelled"],

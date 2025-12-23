@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   Dialog,
   DialogContent,
@@ -11,9 +12,18 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
 import {
   Video,
   Plus,
@@ -25,8 +35,12 @@ import {
   Loader,
   BarChart3,
   Download,
+  Lock,
+  Copy,
+  Check,
 } from 'lucide-react'
 import { format } from 'date-fns'
+import { usersApi } from '@/lib/api'
 
 interface Meeting {
   _id: string
@@ -71,21 +85,66 @@ export function MeetingList({
     scheduled_at: '',
     duration_minutes: 60,
     meeting_type: 'video' as const,
+    require_password: false,
+    password: '',
+    attendees: [] as string[],
   })
   const [isLoading, setIsLoading] = useState(false)
+  const [availableUsers, setAvailableUsers] = useState<any[]>([])
+  const [loadingUsers, setLoadingUsers] = useState(false)
+  const [selectedAttendees, setSelectedAttendees] = useState<string[]>([])
+  const [copiedLink, setCopiedLink] = useState(false)
+
+  // Fetch available users when dialog opens
+  useEffect(() => {
+    if (isCreateDialogOpen) {
+      fetchUsers()
+    }
+  }, [isCreateDialogOpen])
+
+  const fetchUsers = async () => {
+    try {
+      setLoadingUsers(true)
+      const response = await usersApi.getAll()
+      if (response.success) {
+        // Filter out current user
+        const users = response.data.filter((u: any) => u._id !== currentUserId)
+        setAvailableUsers(users)
+      }
+    } catch (error) {
+      console.error('Error fetching users:', error)
+    } finally {
+      setLoadingUsers(false)
+    }
+  }
+
+  const toggleAttendee = (userId: string) => {
+    setSelectedAttendees(prev =>
+      prev.includes(userId)
+        ? prev.filter(id => id !== userId)
+        : [...prev, userId]
+    )
+  }
 
   const handleCreateMeeting = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
     try {
-      await onCreateMeeting(formData)
+      await onCreateMeeting({
+        ...formData,
+        attendees: selectedAttendees,
+      })
       setFormData({
         title: '',
         description: '',
         scheduled_at: '',
         duration_minutes: 60,
         meeting_type: 'video',
+        require_password: false,
+        password: '',
+        attendees: [],
       })
+      setSelectedAttendees([])
       setIsCreateDialogOpen(false)
     } catch (error) {
       console.error('Error creating meeting:', error)
@@ -198,6 +257,51 @@ export function MeetingList({
                         {meeting.attendees.length} attendees
                       </div>
                     </div>
+                    
+                    {/* Meeting Link and Password */}
+                    {(meeting as any).meeting_link && (
+                      <div className="mt-3 space-y-2 p-3 bg-muted/50 rounded-lg">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-medium text-muted-foreground mb-1">
+                              Meeting Link
+                            </p>
+                            <p className="text-sm font-mono truncate">
+                              {(meeting as any).meeting_link}
+                            </p>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              navigator.clipboard.writeText((meeting as any).meeting_link)
+                              setCopiedLink(true)
+                              setTimeout(() => setCopiedLink(false), 2000)
+                            }}
+                          >
+                            {copiedLink ? (
+                              <Check className="w-4 h-4 text-green-600" />
+                            ) : (
+                              <Copy className="w-4 h-4" />
+                            )}
+                          </Button>
+                        </div>
+                        
+                        {(meeting as any).require_password && (meeting as any).password && (
+                          <div className="flex items-center gap-2">
+                            <Lock className="w-4 h-4 text-muted-foreground" />
+                            <div>
+                              <p className="text-xs font-medium text-muted-foreground">
+                                Password
+                              </p>
+                              <p className="text-sm font-mono">
+                                {(meeting as any).password}
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                   <Button
                     onClick={() => onSelectMeeting(meeting)}
@@ -363,6 +467,88 @@ export function MeetingList({
                 <option value="audio">Audio</option>
                 <option value="in-person">In Person</option>
               </select>
+            </div>
+
+            {/* Password Protection */}
+            <div className="space-y-3 border rounded-lg p-4 bg-muted/50">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Lock className="w-4 h-4" />
+                  <Label htmlFor="require-password" className="cursor-pointer">
+                    Require Password
+                  </Label>
+                </div>
+                <Switch
+                  id="require-password"
+                  checked={formData.require_password}
+                  onCheckedChange={(checked) =>
+                    setFormData({ ...formData, require_password: checked, password: checked ? formData.password : '' })
+                  }
+                />
+              </div>
+              
+              {formData.require_password && (
+                <div>
+                  <Input
+                    type="text"
+                    value={formData.password}
+                    onChange={(e) =>
+                      setFormData({ ...formData, password: e.target.value })
+                    }
+                    placeholder="Enter meeting password"
+                    required={formData.require_password}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Password will be sent to all attendees
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Invite Attendees */}
+            <div className="space-y-3 border rounded-lg p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Users className="w-4 h-4" />
+                <Label>Invite Attendees ({selectedAttendees.length} selected)</Label>
+              </div>
+              
+              {loadingUsers ? (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader className="w-4 h-4 animate-spin" />
+                  Loading users...
+                </div>
+              ) : (
+                <div className="max-h-48 overflow-y-auto space-y-2">
+                  {availableUsers.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No users available</p>
+                  ) : (
+                    availableUsers.map((user) => (
+                      <div
+                        key={user._id}
+                        className="flex items-center space-x-2 p-2 rounded hover:bg-muted"
+                      >
+                        <Checkbox
+                          id={`attendee-${user._id}`}
+                          checked={selectedAttendees.includes(user._id)}
+                          onCheckedChange={() => toggleAttendee(user._id)}
+                        />
+                        <label 
+                          htmlFor={`attendee-${user._id}`}
+                          className="flex-1 cursor-pointer text-sm"
+                        >
+                          {user.first_name} {user.last_name}
+                          <span className="text-muted-foreground ml-2">
+                            {user.email}
+                          </span>
+                        </label>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground">
+                Selected attendees will receive email invitations with meeting details
+              </p>
             </div>
 
             <Alert>
