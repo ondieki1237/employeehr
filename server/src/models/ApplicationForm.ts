@@ -3,10 +3,12 @@ import mongoose, { Schema, Document } from "mongoose"
 export interface IFormField {
   field_id: string
   label: string
-  type: "text" | "email" | "phone" | "number" | "select" | "checkbox" | "textarea" | "file" | "date"
+  type: "text" | "email" | "phone" | "number" | "select" | "checkbox" | "textarea" | "file" | "date" | "time" | "datetime-local" | "url" | "password" | "radio" | "rating" | "slider" | "color" | "range" | "address" | "currency" | "percentage"
   required: boolean
   placeholder?: string
-  options?: string[] // For select/checkbox
+  options?: string[] // For select/checkbox/radio
+  min_value?: number // For slider/range/number
+  max_value?: number // For slider/range/number
   validation?: {
     min?: number
     max?: number
@@ -33,12 +35,18 @@ const FormFieldSchema = new Schema<IFormField>({
   label: { type: String, required: true },
   type: {
     type: String,
-    enum: ["text", "email", "phone", "number", "select", "checkbox", "textarea", "file", "date"],
+    enum: [
+      "text", "email", "phone", "number", "select", "checkbox", "textarea", "file", "date",
+      "time", "datetime-local", "url", "password", "radio", "rating", "slider", "color",
+      "range", "address", "currency", "percentage"
+    ],
     required: true,
   },
   required: { type: Boolean, default: false },
   placeholder: { type: String },
   options: [{ type: String }],
+  min_value: { type: Number },
+  max_value: { type: Number },
   validation: {
     min: { type: Number },
     max: { type: Number },

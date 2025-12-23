@@ -8,6 +8,7 @@ export interface IJobApplication extends Document {
   applicant_email: string
   applicant_phone?: string
   answers: Record<string, any>
+  uploaded_files?: Record<string, string> // field_id -> file path mapping
   resume_url?: string
   cover_letter?: string
   status: "pending" | "reviewing" | "shortlisted" | "rejected" | "hired"
@@ -39,6 +40,7 @@ const JobApplicationSchema = new Schema<IJobApplication>(
     applicant_email: { type: String, required: true },
     applicant_phone: { type: String },
     answers: { type: Schema.Types.Mixed, required: true },
+    uploaded_files: { type: Schema.Types.Mixed }, // Store file paths
     resume_url: { type: String },
     cover_letter: { type: String },
     status: {

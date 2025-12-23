@@ -5,6 +5,8 @@ import Job from "../models/Job"
 import JobAnalytics from "../models/JobAnalytics"
 import { User } from "../models/User"
 import EmailService from "../services/email.service"
+import path from "path"
+import fs from "fs"
 
 export class JobApplicationController {
   // PUBLIC: Submit application
@@ -19,6 +21,25 @@ export class JobApplicationController {
         return res.status(404).json({ success: false, message: "Job not found" })
       }
 
+      // Handle uploaded files
+      const uploadedFiles: Record<string, string> = {}
+      if (req.files && Array.isArray(req.files)) {
+        req.files.forEach((file: Express.Multer.File) => {
+          // The fieldname contains the field_id from the form
+          uploadedFiles[file.fieldname] = file.path
+        })
+      }
+
+      // Parse answers if it's a string
+      let parsedAnswers = answers
+      if (typeof answers === 'string') {
+        try {
+          parsedAnswers = JSON.parse(answers)
+        } catch (e) {
+          parsedAnswers = answers
+        }
+      }
+
       const application = await JobApplication.create({
         org_id: job.org_id,
         job_id,
@@ -26,7 +47,8 @@ export class JobApplicationController {
         applicant_name,
         applicant_email,
         applicant_phone,
-        answers,
+        answers: parsedAnswers,
+        uploaded_files: Object.keys(uploadedFiles).length > 0 ? uploadedFiles : undefined,
         resume_url,
         cover_letter,
         source: source || "direct",
@@ -326,6 +348,55 @@ export class JobApplicationController {
       res.status(500).json({
         success: false,
         message: "Failed to fetch application statistics",
+        error: error instanceof Error ? error.message : "Unknown error",
+      })
+    }
+  }
+
+  // Download uploaded file
+  static async downloadFile(req: AuthenticatedRequest, res: Response) {
+    try {
+      const { applicationId, fieldId } = req.params
+
+      if (!req.org_id) {
+        return res.status(400).json({ success: false, message: "Organization ID required" })
+      }
+
+      const application = await JobApplication.findOne({
+        _id: applicationId,
+        org_id: req.org_id,
+      })
+
+      if (!application) {
+        return res.status(404).json({ success: false, message: "Application not found" })
+      }
+
+      if (!application.uploaded_files || !application.uploaded_files[fieldId]) {
+        return res.status(404).json({ success: false, message: "File not found" })
+      }
+
+      const filePath = application.uploaded_files[fieldId]
+      
+      // Check if file exists
+      if (!fs.existsSync(filePath)) {
+        return res.status(404).json({ success: false, message: "File not found on server" })
+      }
+
+      // Get original filename from path
+      const filename = path.basename(filePath)
+
+      // Set headers for download
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
+      res.setHeader('Content-Type', 'application/octet-stream')
+
+      // Stream the file
+      const fileStream = fs.createReadStream(filePath)
+      fileStream.pipe(res)
+    } catch (error) {
+      console.error("Download file error:", error)
+      res.status(500).json({
+        success: false,
+        message: "Failed to download file",
         error: error instanceof Error ? error.message : "Unknown error",
       })
     }

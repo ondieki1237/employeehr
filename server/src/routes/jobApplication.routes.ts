@@ -2,11 +2,12 @@ import { Router } from "express"
 import { JobApplicationController } from "../controllers/jobApplicationController"
 import { authMiddleware, roleMiddleware, orgMiddleware } from "../middleware/auth"
 import { tenantIsolation } from "../middleware/tenantIsolation.middleware"
+import { uploadApplicationFiles } from "../middleware/upload.middleware"
 
 const router = Router()
 
 // Public routes (no auth required)
-router.post("/submit", JobApplicationController.submitApplication)
+router.post("/submit", uploadApplicationFiles.any(), JobApplicationController.submitApplication)
 
 // Protected routes (require authentication)
 router.use(authMiddleware, orgMiddleware, tenantIsolation)
@@ -28,5 +29,8 @@ router.post("/:applicationId/notes", roleMiddleware("company_admin", "hr"), JobA
 
 // Rate application
 router.patch("/:applicationId/rating", roleMiddleware("company_admin", "hr"), JobApplicationController.rateApplication)
+
+// Download application file
+router.get("/:applicationId/download/:fieldId", roleMiddleware("company_admin", "hr"), JobApplicationController.downloadFile)
 
 export default router
