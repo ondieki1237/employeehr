@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { MeetingInterface } from '@/components/meetings/meeting-interface'
+import { MeetingInterface } from '@/components/meetings/meeting-interface-webrtc'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'

@@ -16,11 +16,11 @@ router.get("/", MeetingController.getMeetings)
 // Get upcoming meetings
 router.get("/upcoming", MeetingController.getUpcomingMeetings)
 
+// Get meeting by meeting_id (public link) - must come before /:id
+router.get("/by-meeting-id/:meetingId", MeetingController.getMeetingByMeetingId)
+
 // Get meeting by ID
 router.get("/:id", MeetingController.getMeetingById)
-
-// Get meeting by meeting_id (public link)
-router.get("/by-meeting-id/:meetingId", MeetingController.getMeetingByMeetingId)
 
 // Join meeting (track join time)
 router.post("/:id/join", MeetingController.joinMeeting)
@@ -38,10 +38,10 @@ router.get("/stats/team", MeetingController.getTeamMeetingStats)
 router.put("/:id/status", MeetingController.updateMeetingStatus)
 
 // Start meeting
-router.put("/:id/start", MeetingController.startMeeting)
+router.post("/:id/start", MeetingController.startMeeting)
 
 // End meeting and trigger AI processing
-router.put("/:id/end", MeetingController.endMeeting)
+router.post("/:id/end", MeetingController.endMeeting)
 
 // Process meeting with AI (transcription and analysis)
 router.post("/:id/process-ai", MeetingController.processWithAI)
