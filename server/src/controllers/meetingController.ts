@@ -22,7 +22,7 @@ function generateMeetingId(): string {
  * Generate meeting link
  */
 function generateMeetingLink(meetingId: string, baseUrl?: string): string {
-  const base = baseUrl || process.env.APP_URL || "https://hrapi.codewithseth.co.ke"
+  const base = baseUrl || process.env.FRONTEND_URL || "https://hr.codewithseth.co.ke"
   return `${base}/meeting/${meetingId}`
 }
 
@@ -233,6 +233,62 @@ export class MeetingController {
       })
     } catch (error: any) {
       console.error("Get meeting error:", error)
+      res.status(500).json({ success: false, message: error.message })
+    }
+  }
+
+  /**
+   * Get meeting by meeting_id (for public links)
+   */
+  static async getMeetingByMeetingId(req: AuthenticatedRequest, res: Response) {
+    try {
+      const { meetingId } = req.params
+      const { password } = req.query
+      const org_id = req.user?.org_id
+
+      const meeting = await Meeting.findOne({ meeting_id: meetingId, org_id }).lean()
+
+      if (!meeting) {
+        return res.status(404).json({ success: false, message: "Meeting not found" })
+      }
+
+      // Check password if required
+      if (meeting.require_password) {
+        if (!password || password !== meeting.password) {
+          return res.status(403).json({ 
+            success: false, 
+            message: "Invalid or missing password" 
+          })
+        }
+      }
+
+      // Populate organizer and attendee details
+      const organizer = await User.findById(meeting.organizer_id).select(
+        "firstName lastName email employee_id position"
+      )
+
+      const attendeeDetails = await Promise.all(
+        meeting.attendees.map(async (attendee) => {
+          const user = await User.findById(attendee.user_id).select(
+            "firstName lastName email employee_id position department"
+          )
+          return {
+            ...attendee,
+            user,
+          }
+        })
+      )
+
+      res.status(200).json({
+        success: true,
+        data: {
+          ...meeting,
+          organizer,
+          attendees: attendeeDetails,
+        },
+      })
+    } catch (error: any) {
+      console.error("Get meeting by meeting_id error:", error)
       res.status(500).json({ success: false, message: error.message })
     }
   }

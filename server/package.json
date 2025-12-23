@@ -30,6 +30,7 @@
     "nodemailer": "^6.9.7",
     "openai": "^6.15.0",
     "sanitize-html": "^2.11.0",
+    "socket.io": "^4.8.2",
     "zod": "^3.22.4"
   },
   "devDependencies": {

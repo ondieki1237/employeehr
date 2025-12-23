@@ -1,5 +1,6 @@
 import "dotenv/config" // Must be the first import
 import express from "express"
+import { createServer } from "http"
 import cors from "cors"
 import helmet from "helmet"
 import morgan from "morgan"
@@ -9,6 +10,7 @@ import { connectDB } from "./config/database"
 import { errorHandler } from "./middleware/errorHandler"
 import { sanitizeInput } from "./middleware/sanitization.middleware"
 import { apiLimiter } from "./middleware/rateLimit.middleware"
+import { WebRTCSignalingService } from "./services/webrtcSignaling"
 
 // Routes
 import authRoutes from "./routes/auth.routes"
@@ -44,7 +46,11 @@ import { JobApplicationController } from "./controllers/jobApplicationController
 import { ApplicationFormController } from "./controllers/applicationFormController"
 
 const app = express()
+const server = createServer(app)
 const PORT = process.env.PORT || 5010
+
+// Initialize WebRTC signaling service
+const webrtcService = new WebRTCSignalingService(server)
 
 // Get __dirname equivalent in ES modules
 const __filename = fileURLToPath(import.meta.url)
@@ -152,6 +158,7 @@ app.use((req, res) => {
 // Error handler (must be last)
 app.use(errorHandler)
 
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`)
+  console.log(`WebRTC signaling service initialized`)
 })

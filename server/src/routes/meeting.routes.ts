@@ -19,6 +19,9 @@ router.get("/upcoming", MeetingController.getUpcomingMeetings)
 // Get meeting by ID
 router.get("/:id", MeetingController.getMeetingById)
 
+// Get meeting by meeting_id (public link)
+router.get("/by-meeting-id/:meetingId", MeetingController.getMeetingByMeetingId)
+
 // Join meeting (track join time)
 router.post("/:id/join", MeetingController.joinMeeting)
 
