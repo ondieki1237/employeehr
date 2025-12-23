@@ -24,16 +24,20 @@ import {
   Vote,
   AlertCircle,
   FileText,
+  Receipt,
+  Video,
 } from "lucide-react"
 
 const navigation = [
   { name: "Dashboard", href: "/employee", icon: LayoutDashboard },
   { name: "My Profile", href: "/employee/profile", icon: User },
   { name: "My Tasks", href: "/employee/tasks", icon: CheckSquare },
+  { name: "Meetings", href: "/employee/meetings", icon: Video },
   { name: "Messages", href: "/employee/messages", icon: Mail },
   { name: "My Feedback", href: "/employee/feedback", icon: MessageSquare },
   { name: "My PDP", href: "/employee/pdp", icon: BarChart },
   { name: "My Attendance", href: "/employee/attendance", icon: Calendar },
+  { name: "My Payslips", href: "/employee/payslip", icon: Receipt },
   { name: "My Awards", href: "/employee/awards", icon: Award },
   { name: "Badges", href: "/employee/badges", icon: Trophy },
   { name: "Resource Booking", href: "/employee/bookings", icon: Car },

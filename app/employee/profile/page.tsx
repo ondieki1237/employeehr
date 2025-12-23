@@ -70,18 +70,26 @@ export default function ProfilePage() {
       if (!user) return
 
       const token = getToken()
+      
+      // Only send editable fields (exclude email, firstName, lastName, employee_id, role, status, position, department)
+      const updateData = {
+        phone: editedProfile.phone,
+        avatar: editedProfile.avatar,
+      }
+      
       const response = await fetch(`${API_URL}/api/users/${user.userId || user._id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(editedProfile),
+        body: JSON.stringify(updateData),
       })
 
       if (response.ok) {
         const data = await response.json()
         setProfile(data.data || data)
+        setEditedProfile(data.data || data)
         setIsEditing(false)
       }
     } catch (error) {
@@ -178,34 +186,20 @@ export default function ProfilePage() {
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="firstName">First Name</Label>
-                {isEditing ? (
-                  <Input
-                    id="firstName"
-                    value={editedProfile.firstName || ""}
-                    onChange={(e) => setEditedProfile({ ...editedProfile, firstName: e.target.value })}
-                  />
-                ) : (
-                  <div className="flex items-center space-x-2 rounded-md border p-2">
-                    <User className="h-4 w-4 text-muted-foreground" />
-                    <span>{profile.firstName}</span>
-                  </div>
-                )}
+                <div className="flex items-center space-x-2 rounded-md border p-2 bg-muted">
+                  <User className="h-4 w-4 text-muted-foreground" />
+                  <span>{profile.firstName}</span>
+                </div>
+                <p className="text-xs text-muted-foreground">Contact admin to change name</p>
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="lastName">Last Name</Label>
-                {isEditing ? (
-                  <Input
-                    id="lastName"
-                    value={editedProfile.lastName || ""}
-                    onChange={(e) => setEditedProfile({ ...editedProfile, lastName: e.target.value })}
-                  />
-                ) : (
-                  <div className="flex items-center space-x-2 rounded-md border p-2">
-                    <User className="h-4 w-4 text-muted-foreground" />
-                    <span>{profile.lastName}</span>
-                  </div>
-                )}
+                <div className="flex items-center space-x-2 rounded-md border p-2 bg-muted">
+                  <User className="h-4 w-4 text-muted-foreground" />
+                  <span>{profile.lastName}</span>
+                </div>
+                <p className="text-xs text-muted-foreground">Contact admin to change name</p>
               </div>
 
               <div className="space-y-2">
@@ -214,6 +208,7 @@ export default function ProfilePage() {
                   <Mail className="h-4 w-4 text-muted-foreground" />
                   <span className="text-sm">{profile.email}</span>
                 </div>
+                <p className="text-xs text-muted-foreground">Contact admin to change email</p>
               </div>
 
               <div className="space-y-2">

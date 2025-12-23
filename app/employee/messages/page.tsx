@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
-import { Mail, MailOpen, Send, Reply, Trash2 } from "lucide-react"
+import { Mail, MailOpen, Send, Reply, Trash2, Search } from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -17,6 +17,18 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+} from "@/components/ui/command"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5010"
 
@@ -42,20 +54,34 @@ interface Message {
   }
 }
 
+interface Employee {
+  _id: string
+  firstName: string
+  lastName: string
+  email: string
+  employee_id?: string
+  department?: string
+  position?: string
+}
+
 export default function EmployeeMessagesPage() {
   const [inboxMessages, setInboxMessages] = useState<Message[]>([])
   const [sentMessages, setSentMessages] = useState<Message[]>([])
+  const [employees, setEmployees] = useState<Employee[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedMessage, setSelectedMessage] = useState<Message | null>(null)
   const [composeOpen, setComposeOpen] = useState(false)
+  const [open, setOpen] = useState(false)
   
   // Compose form state
   const [recipientId, setRecipientId] = useState("")
+  const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null)
   const [subject, setSubject] = useState("")
   const [body, setBody] = useState("")
 
   useEffect(() => {
     fetchMessages()
+    fetchEmployees()
   }, [])
 
   const fetchMessages = async () => {
@@ -83,6 +109,23 @@ export default function EmployeeMessagesPage() {
     }
   }
 
+  const fetchEmployees = async () => {
+    try {
+      const token = localStorage.getItem("token")
+      
+      const response = await fetch(`${API_URL}/api/users/`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+
+      const data = await response.json()
+      if (data.success) {
+        setEmployees(data.data || [])
+      }
+    } catch (error) {
+      console.error("Failed to fetch employees:", error)
+    }
+  }
+
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault()
     
@@ -106,6 +149,7 @@ export default function EmployeeMessagesPage() {
       if (data.success) {
         setComposeOpen(false)
         setRecipientId("")
+        setSelectedEmployee(null)
         setSubject("")
         setBody("")
         fetchMessages()
@@ -177,14 +221,51 @@ export default function EmployeeMessagesPage() {
                   </DialogHeader>
                   <form onSubmit={handleSendMessage} className="space-y-4">
                     <div>
-                      <Label htmlFor="recipient">Recipient ID</Label>
-                      <Input
-                        id="recipient"
-                        placeholder="Enter recipient user ID"
-                        value={recipientId}
-                        onChange={(e) => setRecipientId(e.target.value)}
-                        required
-                      />
+                      <Label htmlFor="recipient">Recipient</Label>
+                      <Popover open={open} onOpenChange={setOpen}>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            role="combobox"
+                            aria-expanded={open}
+                            className="w-full justify-between"
+                          >
+                            {selectedEmployee
+                              ? `${selectedEmployee.firstName} ${selectedEmployee.lastName} ${selectedEmployee.employee_id ? `(${selectedEmployee.employee_id})` : ''}`
+                              : "Select employee..."}
+                            <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-full p-0">
+                          <Command>
+                            <CommandInput placeholder="Search employee..." />
+                            <CommandEmpty>No employee found.</CommandEmpty>
+                            <CommandGroup className="max-h-64 overflow-auto">
+                              {employees.map((employee) => (
+                                <CommandItem
+                                  key={employee._id}
+                                  value={`${employee.firstName} ${employee.lastName} ${employee.employee_id || ''}`}
+                                  onSelect={() => {
+                                    setSelectedEmployee(employee)
+                                    setRecipientId(employee._id)
+                                    setOpen(false)
+                                  }}
+                                >
+                                  <div className="flex flex-col">
+                                    <span className="font-medium">
+                                      {employee.firstName} {employee.lastName}
+                                    </span>
+                                    <span className="text-xs text-gray-500">
+                                      {employee.employee_id && `${employee.employee_id} • `}
+                                      {employee.position || 'No position'} • {employee.department || 'No department'}
+                                    </span>
+                                  </div>
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
                     </div>
                     <div>
                       <Label htmlFor="subject">Subject</Label>

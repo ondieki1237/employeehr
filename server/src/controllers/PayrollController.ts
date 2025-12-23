@@ -91,8 +91,64 @@ export class PayrollController {
     static async getMyPayslips(req: AuthenticatedRequest, res: Response) {
         try {
             const user_id = req.user?.userId
-            const payslips = await Payroll.find({ user_id }).sort({ month: -1 })
-            res.status(200).json({ success: true, data: payslips })
+            const org_id = req.user?.org_id
+            
+            const payslips = await Payroll.find({ user_id, org_id })
+                .sort({ month: -1 })
+                .lean()
+            
+            // Populate user details for each payslip
+            const payslipsWithUser = await Promise.all(
+                payslips.map(async (payslip) => {
+                    const user = await User.findById(payslip.user_id).select('firstName lastName employee_id email position department')
+                    return {
+                        ...payslip,
+                        user
+                    }
+                })
+            )
+            
+            res.status(200).json({ success: true, data: payslipsWithUser })
+            return
+        } catch (error: any) {
+            res.status(500).json({ success: false, message: error.message })
+            return
+        }
+    }
+    
+    // Get Payslip Details with Company Info (for download/view)
+    static async getPayslipDetails(req: AuthenticatedRequest, res: Response) {
+        try {
+            const { id } = req.params
+            const user_id = req.user?.userId
+            const org_id = req.user?.org_id
+            
+            const payslip = await Payroll.findOne({ _id: id, org_id }).lean()
+            
+            if (!payslip) {
+                return res.status(404).json({ success: false, message: "Payslip not found" })
+            }
+            
+            // Verify user can only access their own payslip
+            if (payslip.user_id.toString() !== user_id) {
+                return res.status(403).json({ success: false, message: "Access denied" })
+            }
+            
+            // Get user details
+            const user = await User.findById(payslip.user_id).select('firstName lastName employee_id email position department')
+            
+            // Get company details
+            const Company = require('../models/Company').Company
+            const company = await Company.findOne({ _id: org_id }).lean()
+            
+            res.status(200).json({ 
+                success: true, 
+                data: {
+                    payslip,
+                    user,
+                    company
+                }
+            })
             return
         } catch (error: any) {
             res.status(500).json({ success: false, message: error.message })

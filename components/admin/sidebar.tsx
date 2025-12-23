@@ -25,7 +25,8 @@ import {
   UserCheck,
   TrendingUp,
   Mail,
-  Banknote
+  Banknote,
+  Video
 } from "lucide-react"
 import { logout } from "@/lib/auth"
 
@@ -86,6 +87,12 @@ const adminMenuItems = [
     label: "Payroll Management",
     icon: Banknote,
     href: "/admin/payroll",
+    section: "EMPLOYEE MANAGEMENT"
+  },
+  {
+    label: "Meetings",
+    icon: Video,
+    href: "/admin/meetings",
     section: "EMPLOYEE MANAGEMENT"
   },
   {

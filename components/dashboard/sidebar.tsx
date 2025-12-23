@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { LayoutDashboard, Settings, Users, Target, ChevronLeft, LogOut } from "lucide-react"
+import { LayoutDashboard, Settings, Users, Target, ChevronLeft, LogOut, Video } from "lucide-react"
 
 interface SidebarProps {
   isOpen: boolean
@@ -13,6 +13,7 @@ const menuItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/dashboard/team", label: "Team Members", icon: Users },
   { href: "/dashboard/kpis", label: "Performance KPIs", icon: Target },
+  { href: "/dashboard/meetings", label: "Meetings", icon: Video },
   { href: "/dashboard/organization", label: "Organization", icon: Settings },
 ]
 

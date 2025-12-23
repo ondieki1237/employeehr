@@ -15,6 +15,11 @@ export interface ITask {
   attachments?: string[]
   createdAt?: Date
   updatedAt?: Date
+  // AI Meeting Integration
+  is_ai_generated?: boolean // Set to true if created by AI from meeting
+  meeting_id?: string // Reference to meeting
+  is_ai_reminder?: boolean // Set to true for AI-generated reminders
+  ai_source?: string // Description of how task was created (e.g., "Meeting action item")
 }
 
 const taskSchema = new Schema<ITask>(
@@ -38,6 +43,10 @@ const taskSchema = new Schema<ITask>(
     completed_at: { type: Date },
     notes: { type: String },
     attachments: [{ type: String }],
+    is_ai_generated: { type: Boolean, default: false },
+    meeting_id: { type: String },
+    is_ai_reminder: { type: Boolean, default: false },
+    ai_source: { type: String },
   },
   { timestamps: true },
 )

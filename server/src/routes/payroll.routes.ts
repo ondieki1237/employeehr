@@ -8,6 +8,7 @@ const router: Router = Router()
 router.use(authMiddleware, tenantIsolation)
 
 router.get("/my-payslips", PayrollController.getMyPayslips)
+router.get("/payslip/:id", PayrollController.getPayslipDetails)
 
 // Admin/HR routes
 router.post("/generate", roleMiddleware("company_admin", "hr"), PayrollController.generate)
