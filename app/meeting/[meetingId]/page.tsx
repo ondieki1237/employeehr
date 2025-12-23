@@ -131,7 +131,7 @@ export default function MeetingPage({ params }: { params: { meetingId: string } 
       setLoading(true)
       setError(null)
 
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5010'
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://hrapi.codewithseth.co.ke'
       let url = `${baseUrl}/api/meetings/by-meeting-id/${params.meetingId}`
       if (pwd) {
         url += `?password=${encodeURIComponent(pwd)}`
@@ -171,7 +171,7 @@ export default function MeetingPage({ params }: { params: { meetingId: string } 
       setError(null)
       setPasswordError(false)
 
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5010'
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://hrapi.codewithseth.co.ke'
       let url = `${baseUrl}/api/meetings/by-meeting-id/${params.meetingId}`
       if (pwd) {
         url += `?password=${encodeURIComponent(pwd)}`
@@ -240,7 +240,7 @@ export default function MeetingPage({ params }: { params: { meetingId: string } 
 
     try {
       const token = localStorage.getItem('token')
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5010'
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://hrapi.codewithseth.co.ke'
       const response = await fetch(
         `${baseUrl}/api/meetings/${meetingId}/start`,
         {
@@ -271,7 +271,7 @@ export default function MeetingPage({ params }: { params: { meetingId: string } 
 
     try {
       const token = localStorage.getItem('token')
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5010'
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://hrapi.codewithseth.co.ke'
       const response = await fetch(
         `${baseUrl}/api/meetings/${meetingId}/end`,
         {

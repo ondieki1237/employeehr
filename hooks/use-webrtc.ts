@@ -106,7 +106,7 @@ export function useWebRTC(
   useEffect(() => {
     if (!enabled || !meetingId || !userId) return
 
-    const newSocket = io(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5010', {
+    const newSocket = io(process.env.NEXT_PUBLIC_API_URL || 'https://hrapi.codewithseth.co.ke', {
       transports: ['websocket', 'polling'],
     })
 
