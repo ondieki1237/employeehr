@@ -131,12 +131,13 @@ export default function MeetingPage({ params }: { params: { meetingId: string } 
       setLoading(true)
       setError(null)
 
-      const url = new URL(`${process.env.NEXT_PUBLIC_API_URL}/api/meetings/by-meeting-id/${params.meetingId}`)
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5010'
+      let url = `${baseUrl}/api/meetings/by-meeting-id/${params.meetingId}`
       if (pwd) {
-        url.searchParams.append('password', pwd)
+        url += `?password=${encodeURIComponent(pwd)}`
       }
 
-      const response = await fetch(url.toString(), {
+      const response = await fetch(url, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -170,12 +171,13 @@ export default function MeetingPage({ params }: { params: { meetingId: string } 
       setError(null)
       setPasswordError(false)
 
-      const url = new URL(`${process.env.NEXT_PUBLIC_API_URL}/api/meetings/by-meeting-id/${params.meetingId}`)
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5010'
+      let url = `${baseUrl}/api/meetings/by-meeting-id/${params.meetingId}`
       if (pwd) {
-        url.searchParams.append('password', pwd)
+        url += `?password=${encodeURIComponent(pwd)}`
       }
 
-      const response = await fetch(url.toString())
+      const response = await fetch(url)
       const data = await response.json()
 
       if (!response.ok) {
@@ -238,8 +240,9 @@ export default function MeetingPage({ params }: { params: { meetingId: string } 
 
     try {
       const token = localStorage.getItem('token')
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5010'
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/meetings/${meetingId}/start`,
+        `${baseUrl}/api/meetings/${meetingId}/start`,
         {
           method: 'POST',
           headers: {
@@ -268,8 +271,9 @@ export default function MeetingPage({ params }: { params: { meetingId: string } 
 
     try {
       const token = localStorage.getItem('token')
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5010'
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/meetings/${meetingId}/end`,
+        `${baseUrl}/api/meetings/${meetingId}/end`,
         {
           method: 'POST',
           headers: {
