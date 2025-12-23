@@ -5,6 +5,10 @@ import { tenantIsolation } from "../middleware/tenantIsolation.middleware"
 
 const router = Router()
 
+// Get meeting by meeting_id (public link - no auth required) - must come before auth middleware
+router.get("/by-meeting-id/:meetingId", MeetingController.getMeetingByMeetingIdPublic)
+
+// Apply auth middleware for protected routes
 router.use(authMiddleware, orgMiddleware, tenantIsolation)
 
 // Create new meeting
@@ -15,9 +19,6 @@ router.get("/", MeetingController.getMeetings)
 
 // Get upcoming meetings
 router.get("/upcoming", MeetingController.getUpcomingMeetings)
-
-// Get meeting by meeting_id (public link) - must come before /:id
-router.get("/by-meeting-id/:meetingId", MeetingController.getMeetingByMeetingId)
 
 // Get meeting by ID
 router.get("/:id", MeetingController.getMeetingById)

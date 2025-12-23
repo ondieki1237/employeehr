@@ -238,7 +238,63 @@ export class MeetingController {
   }
 
   /**
-   * Get meeting by meeting_id (for public links)
+   * Get meeting by meeting_id (for public links - no auth required)
+   */
+  static async getMeetingByMeetingIdPublic(req: any, res: Response) {
+    try {
+      const { meetingId } = req.params
+      const { password } = req.query
+
+      const meeting = await Meeting.findOne({ meeting_id: meetingId }).lean()
+
+      if (!meeting) {
+        return res.status(404).json({ success: false, message: "Meeting not found" })
+      }
+
+      // Check password if required
+      if (meeting.require_password) {
+        if (!password || password !== meeting.password) {
+          return res.status(403).json({ 
+            success: false, 
+            message: "Invalid or missing password",
+            require_password: true
+          })
+        }
+      }
+
+      // Populate organizer and attendee details
+      const organizer = await User.findById(meeting.organizer_id).select(
+        "firstName lastName email employee_id position"
+      )
+
+      const attendeeDetails = await Promise.all(
+        meeting.attendees.map(async (attendee) => {
+          const user = await User.findById(attendee.user_id).select(
+            "firstName lastName email employee_id position department"
+          )
+          return {
+            ...attendee,
+            user,
+          }
+        })
+      )
+
+      res.status(200).json({
+        success: true,
+        data: {
+          ...meeting,
+          organizer,
+          attendees: attendeeDetails,
+        },
+      })
+    } catch (error: any) {
+      console.error("Get meeting by meeting_id error:", error)
+      res.status(500).json({ success: false, message: error.message })
+    }
+  }
+
+  /**
+   * Get meeting by meeting_id (for public links - authenticated)
    */
   static async getMeetingByMeetingId(req: AuthenticatedRequest, res: Response) {
     try {

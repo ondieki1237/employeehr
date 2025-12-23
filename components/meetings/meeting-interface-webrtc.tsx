@@ -49,11 +49,14 @@ interface Meeting {
   key_points?: string[]
   action_items?: any[]
   transcript?: string
+  meeting_id: string
 }
 
 interface MeetingInterfaceProps {
   meeting: Meeting
   currentUserId: string
+  currentUserName?: string
+  isGuest?: boolean
   onEndMeeting: (meetingId: string, transcript: string) => Promise<void>
   onStartMeeting: (meetingId: string) => Promise<void>
 }
@@ -61,6 +64,8 @@ interface MeetingInterfaceProps {
 export function MeetingInterface({
   meeting,
   currentUserId,
+  currentUserName,
+  isGuest = false,
   onEndMeeting,
   onStartMeeting,
 }: MeetingInterfaceProps) {
@@ -82,27 +87,33 @@ export function MeetingInterface({
   const [isConnecting, setIsConnecting] = useState(false)
   const [localStream, setLocalStream] = useState<MediaStream | null>(null)
   const [currentUser, setCurrentUser] = useState<any>(null)
+  const [userName, setUserName] = useState<string>('')
   
   const localVideoRef = useRef<HTMLVideoElement>(null)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const audioChunksRef = useRef<Blob[]>([])
   const remoteVideoRefs = useRef<Map<string, HTMLVideoElement>>(new Map())
 
-  const isOrganizer = meeting.organizer_id === currentUserId
+  const isOrganizer = !isGuest && meeting.organizer_id === currentUserId
 
   // Get current user details
   useEffect(() => {
-    const user = meeting.attendees.find(a => a.user_id === currentUserId)?.user
-    if (user) {
-      setCurrentUser(user)
+    if (isGuest && currentUserName) {
+      setUserName(currentUserName)
+    } else {
+      const user = meeting.attendees.find(a => a.user_id === currentUserId)?.user
+      if (user) {
+        setCurrentUser(user)
+        setUserName(`${user.firstName || ''} ${user.lastName || ''}`.trim() || 'User')
+      }
     }
-  }, [meeting, currentUserId])
+  }, [meeting, currentUserId, isGuest, currentUserName])
 
   // Initialize WebRTC
   const { remoteStreams, isConnected, participants } = useWebRTC(
-    meeting._id,
+    meeting.meeting_id,
     currentUserId,
-    currentUser ? `${currentUser.firstName} ${currentUser.lastName}` : 'User',
+    userName,
     localStream,
     isMeetingActive && permissionStatus === 'granted'
   )
@@ -136,11 +147,13 @@ export function MeetingInterface({
     if (isMeetingActive && !joinTime) {
       const now = new Date()
       setJoinTime(now)
-      trackJoinTime()
+      if (!isGuest) {
+        trackJoinTime()
+      }
     }
 
     return () => {
-      if (joinTime && isMeetingActive) {
+      if (joinTime && isMeetingActive && !isGuest) {
         trackLeaveTime()
       }
     }
@@ -311,6 +324,7 @@ export function MeetingInterface({
 
   const handleStartMeeting = async () => {
     try {
+      if (isGuest) return // Guests cannot start meetings
       await onStartMeeting(meeting._id)
       setIsMeetingActive(true)
     } catch (error) {
@@ -320,6 +334,12 @@ export function MeetingInterface({
 
   const handleEndMeeting = async () => {
     try {
+      if (isGuest) {
+        // Guests just leave
+        handleLeaveMeeting()
+        return
+      }
+      
       setRecordingActive(false)
       const audioBlob = await stopRecording()
       stopVideoStream()
@@ -333,6 +353,11 @@ export function MeetingInterface({
     } catch (error) {
       console.error('Error ending meeting:', error)
     }
+  }
+
+  const handleLeaveMeeting = () => {
+    stopVideoStream()
+    window.location.href = isGuest ? '/' : '/dashboard'
   }
 
   const toggleAudio = () => {
@@ -438,16 +463,29 @@ export function MeetingInterface({
                       ) : (
                         <div className="flex items-center justify-center h-full bg-gray-800">
                           <div className="text-center">
-                            <Users className="w-12 h-12 text-gray-500 mx-auto mb-2" />
-                            <p className="text-gray-400 text-sm">You (Video Off)</p>
+                            <div className="w-20 h-20 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-2">
+                              <span className="text-2xl font-bold text-white">
+                                {userName.charAt(0).toUpperCase()}
+                              </span>
+                            </div>
+                            <VideoOff className="w-8 h-8 text-gray-500 mx-auto mb-2" />
+                            <p className="text-gray-400 text-sm">{userName} (Video Off)</p>
                           </div>
                         </div>
                       )}
-                      <div className="absolute top-2 left-2 bg-black/70 px-2 py-1 rounded text-white text-xs">
-                        You {!isAudioOn && '🔇'}
+                      <div className="absolute bottom-2 left-2 bg-black/70 px-3 py-1 rounded-lg">
+                        <p className="text-white text-sm font-medium">
+                          {userName} (You)
+                          {isGuest && <Badge className="ml-2 text-xs" variant="secondary">Guest</Badge>}
+                        </p>
                       </div>
+                      {!isAudioOn && (
+                        <div className="absolute top-2 right-2 bg-red-600 p-2 rounded-full">
+                          <MicOff className="w-4 h-4 text-white" />
+                        </div>
+                      )}
                       {recordingActive && (
-                        <div className="absolute top-2 right-2 flex items-center gap-1 bg-red-600/90 px-2 py-1 rounded">
+                        <div className="absolute top-2 left-2 flex items-center gap-1 bg-red-600/90 px-2 py-1 rounded">
                           <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
                           <span className="text-white text-xs">REC</span>
                         </div>
@@ -562,10 +600,11 @@ export function MeetingInterface({
                   )}
 
                   <Button
-                    onClick={handleEndMeeting}
+                    onClick={isGuest ? handleLeaveMeeting : (isOrganizer ? handleEndMeeting : handleLeaveMeeting)}
                     size="lg"
                     variant="destructive"
                     className="rounded-full w-12 h-12 p-0"
+                    title={isOrganizer && !isGuest ? 'End meeting' : 'Leave meeting'}
                   >
                     <PhoneOff className="w-5 h-5" />
                   </Button>
