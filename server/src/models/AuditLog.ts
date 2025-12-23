@@ -25,7 +25,7 @@ const auditLogSchema = new Schema<IAuditLog>({
   userAgent: String,
   status: { type: String, enum: ["success", "failure"], default: "success" },
   details: String,
-  timestamp: { type: Date, default: Date.now, index: true },
+  timestamp: { type: Date, default: Date.now },
 })
 
 // TTL index - auto-delete audit logs after 1 year for compliance

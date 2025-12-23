@@ -37,7 +37,4 @@ const companySchema = new Schema<ICompany>(
   { timestamps: true },
 )
 
-// Index for faster slug lookups
-companySchema.index({ slug: 1 })
-
 export const Company = mongoose.model<ICompany>("Company", companySchema)

@@ -67,7 +67,6 @@ const JobSchema = new Schema<IJob>(
 
 // Compound index for org_id and position_index (unique per company)
 JobSchema.index({ org_id: 1, position_index: 1 }, { unique: true })
-JobSchema.index({ share_link: 1 }, { unique: true })
 JobSchema.index({ status: 1 })
 
 export default mongoose.model<IJob>("Job", JobSchema)

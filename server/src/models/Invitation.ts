@@ -14,7 +14,7 @@ export interface IInvitation extends Document {
 
 const invitationSchema = new Schema<IInvitation>(
   {
-    org_id: { type: String, required: true, index: true },
+    org_id: { type: String, required: true },
     email: { type: String, required: true, lowercase: true },
     role: { type: String, required: true, enum: ["company_admin", "hr", "manager", "employee"] },
     invite_token: { type: String, required: true, unique: true },
@@ -32,7 +32,8 @@ const invitationSchema = new Schema<IInvitation>(
 
 // Index for fast lookups
 invitationSchema.index({ org_id: 1, status: 1 })
-invitationSchema.index({ invite_token: 1 })
+// Note: invite_token is unique in schema definition, no need for separate index
+// Note: expires_at TTL index is defined below
 invitationSchema.index({ expires_at: 1 }, { expireAfterSeconds: 0 }) // TTL index for cleanup
 
 export default mongoose.model<IInvitation>("Invitation", invitationSchema)

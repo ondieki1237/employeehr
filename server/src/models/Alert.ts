@@ -5,12 +5,10 @@ const alertSchema = new mongoose.Schema(
     org_id: {
       type: String,
       required: true,
-      index: true,
     },
     user_id: {
       type: String,
       required: true,
-      index: true,
     },
     alert_type: {
       type: String,
@@ -25,13 +23,11 @@ const alertSchema = new mongoose.Schema(
         "feedback_pending",
       ],
       required: true,
-      index: true,
     },
     severity: {
       type: String,
       enum: ["low", "medium", "high", "critical"],
       default: "medium",
-      index: true,
     },
     title: {
       type: String,
@@ -48,12 +44,10 @@ const alertSchema = new mongoose.Schema(
     is_read: {
       type: Boolean,
       default: false,
-      index: true,
     },
     is_dismissed: {
       type: Boolean,
       default: false,
-      index: true,
     },
     metadata: {
       type: mongoose.Schema.Types.Mixed,
@@ -62,11 +56,9 @@ const alertSchema = new mongoose.Schema(
     created_at: {
       type: Date,
       default: Date.now,
-      index: true,
     },
     expires_at: {
       type: Date,
-      index: true,
       // Auto-delete alerts after 30 days
       default: () => new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
     },

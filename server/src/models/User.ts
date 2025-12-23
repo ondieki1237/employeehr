@@ -37,7 +37,5 @@ const userSchema = new Schema<IUser>(
 
 // Compound index for org_id and email
 userSchema.index({ org_id: 1, email: 1 })
-// Index for employee_id lookups
-userSchema.index({ employee_id: 1 })
 
 export const User = mongoose.model<IUser>("User", userSchema)
