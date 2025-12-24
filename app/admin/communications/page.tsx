@@ -432,10 +432,19 @@ Hiring Team"
 
             {/* Send Button */}
             <div className="flex gap-2 justify-end pt-4">
-              <Button variant="outline" onClick={() => setShowTemplateDialog(false)}>
+              <Button 
+                type="button"
+                variant="outline" 
+                onClick={() => setShowTemplateDialog(false)}
+              >
                 Cancel
               </Button>
-              <Button onClick={handleSendEmails} disabled={sendingEmails}>
+              <Button 
+                type="button"
+                onClick={handleSendEmails} 
+                disabled={sendingEmails}
+              >
+                <Send className="h-4 w-4 mr-2" />
                 {sendingEmails ? 'Sending...' : `Send to ${selectedApplicants.size} Applicant${selectedApplicants.size !== 1 ? 's' : ''}`}
               </Button>
             </div>

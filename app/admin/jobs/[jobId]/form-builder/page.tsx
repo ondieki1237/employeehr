@@ -232,15 +232,27 @@ export default function FormBuilderPage({ params }: { params: { jobId: string } 
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="text">Text</SelectItem>
+                                <SelectItem value="text">Short Text</SelectItem>
+                                <SelectItem value="textarea">Long Text (Paragraph)</SelectItem>
                                 <SelectItem value="email">Email</SelectItem>
                                 <SelectItem value="phone">Phone</SelectItem>
                                 <SelectItem value="number">Number</SelectItem>
-                                <SelectItem value="textarea">Textarea</SelectItem>
-                                <SelectItem value="select">Dropdown</SelectItem>
-                                <SelectItem value="checkbox">Checkbox</SelectItem>
-                                <SelectItem value="file">File Upload</SelectItem>
+                                <SelectItem value="url">Website URL</SelectItem>
                                 <SelectItem value="date">Date</SelectItem>
+                                <SelectItem value="time">Time</SelectItem>
+                                <SelectItem value="datetime-local">Date & Time</SelectItem>
+                                <SelectItem value="select">Dropdown (Single Choice)</SelectItem>
+                                <SelectItem value="radio">Radio Buttons (Single Choice)</SelectItem>
+                                <SelectItem value="checkbox">Checkboxes (Multiple Choice)</SelectItem>
+                                <SelectItem value="file">File Upload</SelectItem>
+                                <SelectItem value="rating">Rating Scale</SelectItem>
+                                <SelectItem value="slider">Slider</SelectItem>
+                                <SelectItem value="color">Color Picker</SelectItem>
+                                <SelectItem value="password">Password</SelectItem>
+                                <SelectItem value="range">Number Range</SelectItem>
+                                <SelectItem value="address">Address</SelectItem>
+                                <SelectItem value="currency">Currency</SelectItem>
+                                <SelectItem value="percentage">Percentage</SelectItem>
                               </SelectContent>
                             </Select>
                             <Input
@@ -250,8 +262,8 @@ export default function FormBuilderPage({ params }: { params: { jobId: string } 
                             />
                           </div>
                           
-                          {/* Options for select/checkbox */}
-                          {(field.type === 'select' || field.type === 'checkbox') && (
+                          {/* Options for select/radio/checkbox */}
+                          {(field.type === 'select' || field.type === 'radio' || field.type === 'checkbox') && (
                             <div>
                               <Label className="text-xs">Options (one per line)</Label>
                               <Textarea
@@ -259,6 +271,50 @@ export default function FormBuilderPage({ params }: { params: { jobId: string } 
                                 value={field.options?.join('\n') || ''}
                                 onChange={(e) => updateField(index, { options: e.target.value.split('\n').filter(o => o.trim()) })}
                                 rows={3}
+                              />
+                            </div>
+                          )}
+
+                          {/* Min/Max for rating and slider */}
+                          {(field.type === 'rating' || field.type === 'slider' || field.type === 'range') && (
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <Label className="text-xs">Min Value</Label>
+                                <Input
+                                  type="number"
+                                  placeholder="0"
+                                  value={field.options?.[0] || ''}
+                                  onChange={(e) => {
+                                    const newOptions = [...(field.options || ['', ''])];
+                                    newOptions[0] = e.target.value;
+                                    updateField(index, { options: newOptions });
+                                  }}
+                                />
+                              </div>
+                              <div>
+                                <Label className="text-xs">Max Value</Label>
+                                <Input
+                                  type="number"
+                                  placeholder="10"
+                                  value={field.options?.[1] || ''}
+                                  onChange={(e) => {
+                                    const newOptions = [...(field.options || ['', ''])];
+                                    newOptions[1] = e.target.value;
+                                    updateField(index, { options: newOptions });
+                                  }}
+                                />
+                              </div>
+                            </div>
+                          )}
+
+                          {/* File types for file upload */}
+                          {field.type === 'file' && (
+                            <div>
+                              <Label className="text-xs">Accepted File Types (optional)</Label>
+                              <Input
+                                placeholder="e.g., .pdf,.doc,.docx"
+                                value={field.options?.join(',') || ''}
+                                onChange={(e) => updateField(index, { options: e.target.value.split(',').map(t => t.trim()).filter(Boolean) })}
                               />
                             </div>
                           )}
@@ -308,17 +364,118 @@ export default function FormBuilderPage({ params }: { params: { jobId: string } 
                     {field.required && <span className="text-red-500 ml-1">*</span>}
                   </Label>
                   {field.type === 'textarea' ? (
-                    <Textarea placeholder={field.placeholder} disabled />
+                    <Textarea placeholder={field.placeholder} disabled rows={4} />
                   ) : field.type === 'select' ? (
                     <Select disabled>
                       <SelectTrigger>
-                        <SelectValue placeholder={field.placeholder || 'Select...'} />
+                        <SelectValue placeholder={field.placeholder || 'Select an option...'} />
                       </SelectTrigger>
+                      <SelectContent>
+                        {field.options?.map((opt, i) => (
+                          <SelectItem key={i} value={opt}>{opt}</SelectItem>
+                        ))}
+                      </SelectContent>
                     </Select>
+                  ) : field.type === 'radio' ? (
+                    <div className="space-y-2 mt-2">
+                      {field.options?.map((opt, i) => (
+                        <div key={i} className="flex items-center gap-2">
+                          <input type="radio" name={field.field_id} disabled className="w-4 h-4" />
+                          <span className="text-sm">{opt}</span>
+                        </div>
+                      ))}
+                    </div>
                   ) : field.type === 'checkbox' ? (
+                    <div className="space-y-2 mt-2">
+                      {field.options?.map((opt, i) => (
+                        <div key={i} className="flex items-center gap-2">
+                          <Checkbox disabled />
+                          <span className="text-sm">{opt}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : field.type === 'rating' ? (
                     <div className="flex items-center gap-2 mt-2">
-                      <Checkbox disabled />
-                      <span className="text-sm">{field.placeholder || 'Option'}</span>
+                      {Array.from({ length: parseInt(field.options?.[1] || '5') }, (_, i) => (
+                        <button key={i} className="text-2xl text-gray-300" disabled>★</button>
+                      ))}
+                      <span className="text-sm text-gray-500 ml-2">
+                        {field.options?.[0] || '0'} to {field.options?.[1] || '5'}
+                      </span>
+                    </div>
+                  ) : field.type === 'slider' ? (
+                    <div className="mt-2">
+                      <input 
+                        type="range" 
+                        min={field.options?.[0] || '0'} 
+                        max={field.options?.[1] || '100'} 
+                        disabled 
+                        className="w-full" 
+                      />
+                      <div className="flex justify-between text-xs text-gray-500">
+                        <span>{field.options?.[0] || '0'}</span>
+                        <span>{field.options?.[1] || '100'}</span>
+                      </div>
+                    </div>
+                  ) : field.type === 'file' ? (
+                    <div className="mt-2">
+                      <Input type="file" disabled accept={field.options?.join(',')} />
+                      {field.options && field.options.length > 0 && (
+                        <p className="text-xs text-gray-500 mt-1">Accepted: {field.options.join(', ')}</p>
+                      )}
+                    </div>
+                  ) : field.type === 'address' ? (
+                    <div className="space-y-2 mt-2">
+                      <Input placeholder="Street Address" disabled />
+                      <div className="grid grid-cols-2 gap-2">
+                        <Input placeholder="City" disabled />
+                        <Input placeholder="State/Province" disabled />
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <Input placeholder="Postal Code" disabled />
+                        <Input placeholder="Country" disabled />
+                      </div>
+                    </div>
+                  ) : field.type === 'currency' ? (
+                    <div className="relative mt-2">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                      <Input type="number" placeholder="0.00" disabled className="pl-8" />
+                    </div>
+                  ) : field.type === 'percentage' ? (
+                    <div className="relative mt-2">
+                      <Input type="number" placeholder="0" disabled className="pr-8" min="0" max="100" />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">%</span>
+                    </div>
+                  ) : field.type === 'color' ? (
+                    <div className="flex items-center gap-2 mt-2">
+                      <Input type="color" disabled className="w-20 h-10" />
+                      <Input type="text" placeholder="#000000" disabled />
+                    </div>
+                  ) : field.type === 'time' ? (
+                    <Input type="time" placeholder={field.placeholder} disabled />
+                  ) : field.type === 'datetime-local' ? (
+                    <Input type="datetime-local" placeholder={field.placeholder} disabled />
+                  ) : field.type === 'url' ? (
+                    <Input type="url" placeholder={field.placeholder || 'https://example.com'} disabled />
+                  ) : field.type === 'password' ? (
+                    <Input type="password" placeholder={field.placeholder || '••••••••'} disabled />
+                  ) : field.type === 'range' ? (
+                    <div className="flex items-center gap-2 mt-2">
+                      <Input 
+                        type="number" 
+                        placeholder="Min" 
+                        disabled 
+                        className="w-24"
+                        min={field.options?.[0]}
+                      />
+                      <span className="text-gray-500">to</span>
+                      <Input 
+                        type="number" 
+                        placeholder="Max" 
+                        disabled 
+                        className="w-24"
+                        max={field.options?.[1]}
+                      />
                     </div>
                   ) : (
                     <Input type={field.type} placeholder={field.placeholder} disabled />

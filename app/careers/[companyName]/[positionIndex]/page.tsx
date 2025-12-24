@@ -125,24 +125,38 @@ export default function PublicJobPage() {
 
     setSubmitting(true);
     try {
+      // Create FormData for file uploads
+      const submitData = new FormData();
+      
+      // Add basic fields
+      submitData.append('job_id', job._id);
+      submitData.append('form_id', applicationForm._id);
+      submitData.append('applicant_name', formData.full_name || formData.name || 'Unknown');
+      submitData.append('applicant_email', formData.email);
+      submitData.append('applicant_phone', formData.phone || '');
+      
+      // Prepare answers (excluding files)
+      const answers = (applicationForm.fields || []).map((field) => ({
+        field_id: field.field_id,
+        label: field.label,
+        value: field.type === 'file' ? 'File uploaded' : (formData[field.field_id] ?? null),
+      }));
+      submitData.append('answers', JSON.stringify(answers));
+      
+      if (formData.resume_url) submitData.append('resume_url', formData.resume_url);
+      if (formData.cover_letter) submitData.append('cover_letter', formData.cover_letter);
+      submitData.append('source', new URLSearchParams(window.location.search).get('source') || 'direct');
+
+      // Add file uploads
+      applicationForm.fields.forEach((field) => {
+        if (field.type === 'file' && formData[field.field_id] instanceof File) {
+          submitData.append(field.field_id, formData[field.field_id] as File);
+        }
+      });
+
       const response = await fetch(`${API_URL}/api/job-applications/submit`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          job_id: job._id,
-          form_id: applicationForm._id,
-          applicant_name: formData.full_name || formData.name || 'Unknown',
-          applicant_email: formData.email,
-          applicant_phone: formData.phone,
-          answers: (applicationForm.fields || []).map((field) => ({
-            field_id: field.field_id,
-            label: field.label,
-            value: formData[field.field_id] ?? null,
-          })),
-          resume_url: formData.resume_url,
-          cover_letter: formData.cover_letter,
-          source: new URLSearchParams(window.location.search).get('source') || 'direct',
-        }),
+        body: submitData, // No Content-Type header - browser sets it with boundary
       });
 
       const data = await response.json();
@@ -376,14 +390,63 @@ export default function PublicJobPage() {
                             ) : field.type === 'file' ? (
                               <Input
                                 type="file"
+                                accept={field.placeholder || '.pdf,.doc,.docx,.txt,image/*'}
                                 onChange={(e) => {
                                   const file = e.target.files?.[0];
                                   if (file) {
-                                    // In production, upload to cloud storage and store URL
-                                    setFormData({ ...formData, [field.field_id]: file.name });
+                                    setFormData({ ...formData, [field.field_id]: file });
                                   }
                                 }}
                               />
+                            ) : field.type === 'radio' ? (
+                              <div className="space-y-2 mt-2">
+                                {field.options?.map((option) => (
+                                  <div key={option} className="flex items-center gap-2">
+                                    <input
+                                      type="radio"
+                                      id={`${field.field_id}-${option}`}
+                                      name={field.field_id}
+                                      value={option}
+                                      checked={formData[field.field_id] === option}
+                                      onChange={(e) => setFormData({ ...formData, [field.field_id]: e.target.value })}
+                                      className="w-4 h-4"
+                                    />
+                                    <label htmlFor={`${field.field_id}-${option}`} className="text-sm">
+                                      {option}
+                                    </label>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : field.type === 'rating' ? (
+                              <div className="flex items-center gap-2 mt-2">
+                                {[1, 2, 3, 4, 5].map((star) => (
+                                  <button
+                                    key={star}
+                                    type="button"
+                                    onClick={() => setFormData({ ...formData, [field.field_id]: star })}
+                                    className={`text-2xl ${
+                                      (formData[field.field_id] || 0) >= star
+                                        ? 'text-yellow-400'
+                                        : 'text-gray-300'
+                                    }`}
+                                  >
+                                    ★
+                                  </button>
+                                ))}
+                              </div>
+                            ) : field.type === 'slider' || field.type === 'range' ? (
+                              <div className="space-y-2">
+                                <Input
+                                  type="range"
+                                  min={field.min_value || 0}
+                                  max={field.max_value || 100}
+                                  value={formData[field.field_id] || field.min_value || 0}
+                                  onChange={(e) => setFormData({ ...formData, [field.field_id]: parseInt(e.target.value) })}
+                                />
+                                <span className="text-sm text-gray-600">
+                                  Value: {formData[field.field_id] || field.min_value || 0}
+                                </span>
+                              </div>
                             ) : (
                               <Input
                                 type={field.type}

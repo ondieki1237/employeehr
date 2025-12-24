@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Search, Star, Eye, MessageSquare, Filter, Mail } from 'lucide-react';
+import { Search, Star, Eye, MessageSquare, Filter, Mail, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -24,6 +24,7 @@ interface Application {
   submitted_at: string;
   answers: Record<string, any>;
   notes: Array<{ note: string; type: string; created_at: string }>;
+  uploaded_files?: Record<string, string>;
 }
 
 export default function ApplicationsPage() {
@@ -318,6 +319,73 @@ export default function ApplicationsPage() {
                               )}
                             </div>
                           </div>
+
+                          {app.uploaded_files && Object.keys(app.uploaded_files).length > 0 && (
+                            <div>
+                              <h4 className="font-semibold mb-2">Uploaded Files</h4>
+                              <div className="space-y-2 bg-gray-50 p-4 rounded">
+                                {Object.entries(app.uploaded_files).map(([fieldId, filePath]) => {
+                                  const fileName = filePath.split('/').pop() || 'Download';
+                                  const fileExtension = fileName.split('.').pop()?.toLowerCase();
+                                  
+                                  return (
+                                    <div key={fieldId} className="flex items-center justify-between border-b pb-2 last:border-b-0">
+                                      <div className="flex items-center gap-2">
+                                        <div className={`w-8 h-8 rounded flex items-center justify-center text-xs font-bold ${
+                                          fileExtension === 'pdf' ? 'bg-red-100 text-red-700' :
+                                          ['doc', 'docx'].includes(fileExtension || '') ? 'bg-blue-100 text-blue-700' :
+                                          ['xls', 'xlsx'].includes(fileExtension || '') ? 'bg-green-100 text-green-700' :
+                                          ['jpg', 'jpeg', 'png', 'gif'].includes(fileExtension || '') ? 'bg-purple-100 text-purple-700' :
+                                          'bg-gray-100 text-gray-700'
+                                        }`}>
+                                          {fileExtension?.toUpperCase().slice(0, 3)}
+                                        </div>
+                                        <span className="text-sm font-medium text-gray-700">{fileName}</span>
+                                      </div>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={async () => {
+                                          try {
+                                            const response = await fetch(
+                                              `${API_URL}/api/job-applications/${app._id}/download/${fieldId}`,
+                                              {
+                                                headers: {
+                                                  Authorization: `Bearer ${getToken()}`,
+                                                },
+                                              }
+                                            );
+                                            
+                                            if (!response.ok) throw new Error('Download failed');
+                                            
+                                            const blob = await response.blob();
+                                            const url = window.URL.createObjectURL(blob);
+                                            const a = document.createElement('a');
+                                            a.href = url;
+                                            a.download = fileName;
+                                            document.body.appendChild(a);
+                                            a.click();
+                                            window.URL.revokeObjectURL(url);
+                                            document.body.removeChild(a);
+                                            
+                                            toast({ title: 'Success', description: 'File downloaded successfully' });
+                                          } catch (error) {
+                                            toast({
+                                              title: 'Error',
+                                              description: 'Failed to download file',
+                                              variant: 'destructive',
+                                            });
+                                          }
+                                        }}
+                                      >
+                                        Download
+                                      </Button>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
 
                           <div>
                             <h4 className="font-semibold mb-2">Update Status</h4>
