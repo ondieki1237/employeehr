@@ -386,6 +386,8 @@ export const leaveApi = {
 
 export const payrollApi = {
     getMyPayslips: () => client.get<any[]>('/api/payroll/my-payslips'),
+    
+    getPayslipDetails: (id: string) => client.get<any>(`/api/payroll/payslip/${id}`),
 
     generate: (data: {
         user_id: string;

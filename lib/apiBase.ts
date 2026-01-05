@@ -14,9 +14,18 @@ export const API_URL = (() => {
   if (typeof window !== "undefined") {
     const host = window.location.hostname
     const isLocal = host === "localhost" || host === "127.0.0.1"
-    const isProdHost = host.endsWith("codewithseth.co.ke")
-    if (isLocal) return DEFAULT_LOCAL
-    if (isProdHost) return DEFAULT_PROD
+    
+    // Production hostnames
+    if (host.endsWith("codewithseth.co.ke") || host.endsWith(".vercel.app")) {
+      return DEFAULT_PROD
+    }
+    
+    if (isLocal) {
+      return DEFAULT_LOCAL
+    }
+    
+    // Fallback for any other hostname - assume production
+    return DEFAULT_PROD
   }
 
   // In server-side rendering, use NODE_ENV as a hint
