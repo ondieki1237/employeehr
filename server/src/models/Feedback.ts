@@ -3,7 +3,7 @@ import type { IFeedback } from "../types/interfaces"
 
 const feedbackSchema = new Schema<IFeedback>(
   {
-    org_id: { type: String, required: true, index: true },
+    org_id: { type: String, required: true },
     from_user_id: { type: String, required: true },
     to_user_id: { type: String, required: true },
     rating: { type: Number, required: true, min: 1, max: 5 },

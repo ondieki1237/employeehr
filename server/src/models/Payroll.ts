@@ -18,7 +18,7 @@ export interface IPayroll extends Document {
 
 const payrollSchema = new Schema<IPayroll>(
     {
-        org_id: { type: String, required: true, index: true },
+        org_id: { type: String, required: true },
         user_id: { type: String, required: true, index: true },
         month: { type: String, required: true },
         base_salary: { type: Number, required: true },

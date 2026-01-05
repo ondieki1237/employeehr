@@ -3,7 +3,7 @@ import type { IAttendance } from "../types/interfaces"
 
 const attendanceSchema = new Schema<IAttendance>(
   {
-    org_id: { type: String, required: true, index: true },
+    org_id: { type: String, required: true },
     user_id: { type: String, required: true },
     date: { type: Date, required: true },
     status: {

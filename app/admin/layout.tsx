@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { getUser, isAdmin, logout } from "@/lib/auth"
+import { api } from "@/lib/api"
 import Sidebar from "@/components/admin/sidebar"
 import TopNav from "@/components/admin/top-nav"
 
@@ -34,8 +35,27 @@ export default function AdminLayout({
       return
     }
 
-    setLoading(false)
+    // Check setup completion
+    checkSetupStatus()
   }, [router])
+
+  const checkSetupStatus = async () => {
+    try {
+      const response = await api.setup.getProgress()
+
+      if (response.success && response.data) {
+        // If setup is not completed, redirect to setup page
+        if (!response.data.setupProgress?.completed) {
+          router.push("/setup")
+          return
+        }
+      }
+    } catch (error) {
+      console.error("Failed to check setup status:", error)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   if (loading) {
     return (

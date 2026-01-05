@@ -19,7 +19,7 @@ export interface ILeaveBalance extends Document {
 
 const leaveBalanceSchema = new Schema<ILeaveBalance>(
     {
-        org_id: { type: String, required: true, index: true },
+        org_id: { type: String, required: true },
         user_id: { type: String, required: true, index: true },
         year: { type: Number, required: true },
         annual_total: { type: Number, default: 21 },

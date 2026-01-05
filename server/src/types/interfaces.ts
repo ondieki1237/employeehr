@@ -48,6 +48,30 @@ export interface ICompany {
   fontFamily?: string
   buttonStyle?: string
   subscription: "starter" | "professional" | "enterprise"
+  emailConfig?: {
+    enabled: boolean // Tenant wants to use their own email
+    verified: boolean // SMTP credentials tested successfully
+    fromName?: string
+    fromEmail?: string
+    smtp?: {
+      host: string
+      port: number
+      secure: boolean
+      username: string
+      password: string // Encrypted
+    }
+  }
+  setupProgress?: {
+    completed: boolean
+    currentStep: string
+    steps: {
+      companyInfo: boolean
+      branding: boolean
+      emailConfig: boolean
+      employees: boolean
+      kpis: boolean
+    }
+  }
   status: "active" | "suspended" | "inactive"
   createdAt?: Date
   updatedAt?: Date

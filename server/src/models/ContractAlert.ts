@@ -3,7 +3,7 @@ import mongoose, { Schema } from "mongoose"
 // Contract Alert Schema
 const contractAlertSchema = new Schema(
   {
-    org_id: { type: String, required: true, index: true },
+    org_id: { type: String, required: true },
     user_id: { type: String, required: true },
     contract_type: {
       type: String,

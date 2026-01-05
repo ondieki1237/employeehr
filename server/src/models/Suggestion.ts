@@ -3,7 +3,7 @@ import mongoose, { Schema } from "mongoose"
 // Suggestion Schema
 const suggestionSchema = new Schema(
   {
-    org_id: { type: String, required: true, index: true },
+    org_id: { type: String, required: true },
     user_id: { type: String }, // Optional for anonymous suggestions
     is_anonymous: { type: Boolean, default: false },
     title: { type: String, required: true },

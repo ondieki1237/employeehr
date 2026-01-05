@@ -344,6 +344,23 @@ export const companyApi = {
             countryCode: data.countryCode
         })
     },
+
+    // Email configuration
+    getEmailConfig: () => client.get<any>('/api/company/email-config'),
+    
+    updateEmailConfig: (data: {
+        smtpHost?: string
+        smtpPort?: number
+        smtpUser?: string
+        smtpPassword?: string
+        fromEmail?: string
+        fromName?: string
+        enabled?: boolean
+    }) => client.post<any>('/api/company/email-config', data),
+    
+    verifyEmailConfig: () => client.post<any>('/api/company/email-config/verify', {}),
+    
+    disableEmailConfig: () => client.post<any>('/api/company/email-config/disable', {}),
 }
 
 export const holidayApi = {
@@ -440,6 +457,21 @@ export const meetingsApi = {
         client.get<any>('/api/meetings/stats/team'),
 }
 
+// Setup API for onboarding wizard
+const setupApi = {
+    getProgress: () => client.get<any>('/api/setup/progress'),
+    
+    updateStep: (data: { step: string; data: any; completed: boolean }) =>
+        client.post<any>('/api/setup/step', data),
+    
+    complete: () => client.post<any>('/api/setup/complete', {}),
+    
+    skip: (data: { step: string }) =>
+        client.post<any>('/api/setup/skip', data),
+    
+    reset: () => client.post<any>('/api/setup/reset', {}),
+}
+
 // Export all APIs
 export const api = {
     auth: authApi,
@@ -457,6 +489,7 @@ export const api = {
     leave: leaveApi,
     payroll: payrollApi,
     meetings: meetingsApi,
+    setup: setupApi,
 }
 
 export default api

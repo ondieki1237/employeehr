@@ -3,7 +3,7 @@ import mongoose, { Schema } from "mongoose"
 // Resource Booking Schema
 const resourceBookingSchema = new Schema(
   {
-    org_id: { type: String, required: true, index: true },
+    org_id: { type: String, required: true },
     user_id: { type: String, required: true },
     resource_type: {
       type: String,

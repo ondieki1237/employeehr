@@ -58,7 +58,7 @@ const FormFieldSchema = new Schema<IFormField>({
 
 const ApplicationFormSchema = new Schema<IApplicationForm>(
   {
-    org_id: { type: String, required: true, index: true },
+    org_id: { type: String, required: true },
     job_id: { type: String, required: true, index: true },
     title: { type: String, required: true },
     description: { type: String },

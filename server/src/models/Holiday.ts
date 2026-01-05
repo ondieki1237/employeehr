@@ -13,7 +13,7 @@ export interface IHoliday extends Document {
 
 const holidaySchema = new Schema<IHoliday>(
     {
-        org_id: { type: String, required: true, index: true },
+        org_id: { type: String, required: true },
         name: { type: String, required: true },
         date: { type: Date, required: true },
         countryCode: { type: String, required: true },

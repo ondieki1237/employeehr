@@ -3,7 +3,7 @@ import mongoose, { Schema } from "mongoose"
 // Poll/Voting Schema
 const pollSchema = new Schema(
   {
-    org_id: { type: String, required: true, index: true },
+    org_id: { type: String, required: true },
     created_by: { type: String, required: true },
     title: { type: String, required: true },
     description: { type: String },

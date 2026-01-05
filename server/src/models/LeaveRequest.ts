@@ -16,7 +16,7 @@ export interface ILeaveRequest extends Document {
 
 const leaveRequestSchema = new Schema<ILeaveRequest>(
     {
-        org_id: { type: String, required: true, index: true },
+        org_id: { type: String, required: true },
         user_id: { type: String, required: true, index: true },
         type: {
             type: String,

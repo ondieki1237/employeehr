@@ -95,7 +95,13 @@ export class CommunicationController {
           }
 
           // Send email via EmailService
-          await EmailService.sendBulkInterviewInviteEmail(applicant.applicant_email, applicant.applicant_name, subject, emailBody)
+          await EmailService.sendBulkInterviewInviteEmail(
+            applicant.applicant_email,
+            applicant.applicant_name,
+            subject,
+            emailBody,
+            req.org_id // Pass company ID for multi-tenant email support
+          )
           sentCount++
         } catch (error) {
           console.error(`Failed to send email to ${applicant.applicant_email}:`, error)

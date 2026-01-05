@@ -15,7 +15,7 @@ interface IAuditLog extends Document {
 }
 
 const auditLogSchema = new Schema<IAuditLog>({
-  org_id: { type: String, required: true, index: true },
+  org_id: { type: String, required: true },
   userId: { type: String, required: true, index: true },
   action: { type: String, required: true },
   resource: { type: String, required: true },

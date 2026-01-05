@@ -3,7 +3,7 @@ import type { IKPI } from "../types/interfaces"
 
 const kpiSchema = new Schema<IKPI>(
   {
-    org_id: { type: String, required: true, index: true },
+    org_id: { type: String, required: true },
     name: { type: String, required: true },
     description: { type: String },
     category: { type: String, required: true },

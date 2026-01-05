@@ -33,7 +33,7 @@ export interface IJobApplication extends Document {
 
 const JobApplicationSchema = new Schema<IJobApplication>(
   {
-    org_id: { type: String, required: true, index: true },
+    org_id: { type: String, required: true },
     job_id: { type: String, required: true, index: true },
     form_id: { type: String, required: true },
     applicant_name: { type: String, required: true },

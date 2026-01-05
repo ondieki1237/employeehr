@@ -3,7 +3,7 @@ import type { IPerformance } from "../types/interfaces"
 
 const performanceSchema = new Schema<IPerformance>(
   {
-    org_id: { type: String, required: true, index: true },
+    org_id: { type: String, required: true },
     user_id: { type: String, required: true },
     period: { type: String, required: true },
     kpi_scores: [

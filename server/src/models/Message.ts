@@ -17,7 +17,7 @@ export interface IMessage {
 
 const messageSchema = new Schema<IMessage>(
   {
-    org_id: { type: String, required: true, index: true },
+    org_id: { type: String, required: true },
     from_user_id: { type: String, required: true, index: true },
     to_user_id: { type: String, required: true, index: true },
     subject: { type: String, required: true },

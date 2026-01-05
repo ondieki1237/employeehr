@@ -1,17 +1,26 @@
 import nodemailer from "nodemailer"
+import { Company } from "../models/Company"
+import { emailTransportResolver } from "./emailTransportResolver"
+import type { ICompany } from "../types/interfaces"
 
 interface EmailOptions {
   to: string
   subject: string
   html: string
   text?: string
+  companyId?: string // Optional: specify which company is sending
 }
 
 class EmailService {
   private transporter: nodemailer.Transporter
 
   constructor() {
-    // Configure your email service here
+    console.log("Initializing EmailService...")
+    console.log("EMAIL_USER:", process.env.SMTP_USER)
+    console.log("EMAIL_PASSWORD length:", process.env.SMTP_PASS?.length)
+    console.log("EMAIL_HOST:", process.env.SMTP_HOST)
+
+    // Configure system default email
     this.transporter = nodemailer.createTransport({
       host: process.env.SMTP_HOST || "smtp.gmail.com",
       port: Number(process.env.SMTP_PORT) || 587,
@@ -23,20 +32,56 @@ class EmailService {
     })
   }
 
+  /**
+   * Send email with multi-tenant support
+   * Automatically resolves tenant email or falls back to system email
+   */
   async sendEmail(options: EmailOptions): Promise<boolean> {
     try {
-      const info = await this.transporter.sendMail({
-        from: process.env.SMTP_FROM || "noreply@codewithseth.co.ke",
+      let company: ICompany | null = null
+
+      // Fetch company if companyId provided
+      if (options.companyId) {
+        company = await Company.findById(options.companyId)
+      }
+
+      // Resolve appropriate transporter
+      const { transporter, fromAddress, fromName } = emailTransportResolver.resolveTransporter(company)
+
+      const info = await transporter.sendMail({
+        from: `"${fromName}" <${fromAddress}>`,
         to: options.to,
         subject: options.subject,
         html: options.html,
         text: options.text || "",
       })
 
-      console.log("Email sent:", info.messageId)
+      console.log("Email sent successfully:", info.messageId)
       return true
     } catch (error) {
       console.error("Email send error:", error)
+
+      // If tenant email failed, retry with system email as fallback
+      if (options.companyId) {
+        try {
+          console.log("Retrying with system email...")
+          const { transporter, fromAddress, fromName } = emailTransportResolver.resolveTransporter(null)
+
+          await transporter.sendMail({
+            from: `"${fromName}" <${fromAddress}>`,
+            to: options.to,
+            subject: options.subject,
+            html: options.html,
+            text: options.text || "",
+          })
+
+          console.log("Email sent successfully with system fallback")
+          return true
+        } catch (fallbackError) {
+          console.error("System email fallback also failed:", fallbackError)
+        }
+      }
+
       return false
     }
   }
@@ -45,7 +90,8 @@ class EmailService {
     applicantEmail: string,
     applicantName: string,
     jobTitle: string,
-    companyName: string
+    companyName: string,
+    companyId?: string
   ): Promise<boolean> {
     const html = `
       <!DOCTYPE html>
@@ -84,6 +130,7 @@ class EmailService {
       to: applicantEmail,
       subject: `Application Received - ${jobTitle} at ${companyName}`,
       html,
+      companyId,
     })
   }
 
@@ -91,7 +138,8 @@ class EmailService {
     hrEmail: string,
     applicantName: string,
     jobTitle: string,
-    applicationLink: string
+    applicationLink: string,
+    companyId?: string
   ): Promise<boolean> {
     const html = `
       <!DOCTYPE html>
@@ -181,7 +229,8 @@ class EmailService {
     applicantEmail: string,
     applicantName: string,
     subject: string,
-    body: string
+    body: string,
+    companyId?: string
   ): Promise<boolean> {
     const html = `
       <!DOCTYPE html>
@@ -213,6 +262,7 @@ class EmailService {
       to: applicantEmail,
       subject: subject,
       html,
+      companyId,
     })
   }
 

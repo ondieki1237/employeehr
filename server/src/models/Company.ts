@@ -33,6 +33,30 @@ const companySchema = new Schema<ICompany>(
       enum: ["active", "suspended", "inactive"],
       default: "active",
     },
+    emailConfig: {
+      enabled: { type: Boolean, default: false },
+      verified: { type: Boolean, default: false },
+      fromName: { type: String },
+      fromEmail: { type: String },
+      smtp: {
+        host: { type: String },
+        port: { type: Number },
+        secure: { type: Boolean, default: false },
+        username: { type: String },
+        password: { type: String }, // Should be encrypted
+      },
+    },
+    setupProgress: {
+      completed: { type: Boolean, default: false },
+      currentStep: { type: String, default: "companyInfo" },
+      steps: {
+        companyInfo: { type: Boolean, default: false },
+        branding: { type: Boolean, default: false },
+        emailConfig: { type: Boolean, default: false },
+        employees: { type: Boolean, default: false },
+        kpis: { type: Boolean, default: false },
+      },
+    },
   },
   { timestamps: true },
 )
