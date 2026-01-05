@@ -2,6 +2,7 @@ import type { Response } from "express"
 import type { AuthenticatedRequest } from "../middleware/auth"
 import { Payroll } from "../models/Payroll"
 import { User } from "../models/User"
+import { Company } from "../models/Company"
 
 export class PayrollController {
     // Generate Payroll (Admin)
@@ -138,8 +139,7 @@ export class PayrollController {
             const user = await User.findById(payslip.user_id).select('firstName lastName employee_id email position department')
             
             // Get company details
-            const Company = require('../models/Company').Company
-            const company = await Company.findOne({ _id: org_id }).lean()
+            const company = await Company.findById(org_id).select('name email phone address city state country logo').lean()
             
             res.status(200).json({ 
                 success: true, 
