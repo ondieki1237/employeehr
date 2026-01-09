@@ -69,7 +69,10 @@ export default function PublicFeedbackPage() {
     if (poolId && token) {
       fetchPoolData()
     } else {
-      setError('Inval
+      setError('Invalid feedback link')
+      setLoading(false)
+    }
+  }, [poolId, token])
 
   useEffect(() => {
     if (poolData && currentUser) {
@@ -77,10 +80,7 @@ export default function PublicFeedbackPage() {
       const others = poolData.members.filter(m => m._id !== currentUser)
       setAvailableMembers(others)
     }
-  }, [poolData, currentUser])id feedback link')
-      setLoading(false)
-    }
-  }, [poolId, token])
+  }, [poolData, currentUser])
 
   const fetchPoolData = async () => {
     try {
@@ -95,7 +95,13 @@ export default function PublicFeedbackPage() {
       setPoolData(data.data)
     } catch (err: any) {
       setError(err.message)
-    } finally { || !currentUser) return
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleSubmit = async () => {
+    if (!poolData || !currentUser) return
 
     // Validate member selection
     if (!selectedMember) {
@@ -155,14 +161,6 @@ export default function PublicFeedbackPage() {
       if (completedCount + 1 >= 4) {
         setSubmitted(true)
       }
-      const data = await res.json()
-
-      if (!res.ok) {
-        throw new Error(data.message || 'Failed to submit feedback')
-      }
-
-      setSubmitted(true)
-      toast.success('Feedback submitted successfully!')
     } catch (err: any) {
       setError(err.message)
       toast.error(err.message)
