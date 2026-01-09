@@ -73,7 +73,7 @@ export class FeedbackSurveyController {
                 surveys.map(async (survey) => {
                     const poolCount = await FeedbackPool.countDocuments({ survey_id: survey._id.toString() })
                     const responseCount = await FeedbackResponse.countDocuments({ survey_id: survey._id.toString() })
-                    
+
                     return {
                         ...survey.toObject(),
                         pool_count: poolCount,
@@ -125,7 +125,7 @@ export class FeedbackSurveyController {
                 pools.map(async (pool) => {
                     const totalMembers = await PoolMember.countDocuments({ pool_id: pool._id })
                     const totalResponses = await FeedbackResponse.countDocuments({ pool_id: pool._id })
-                    
+
                     return {
                         _id: pool._id,
                         name: pool.name,
@@ -134,7 +134,7 @@ export class FeedbackSurveyController {
                         created_at: pool.createdAt,
                         total_members: totalMembers,
                         total_responses: totalResponses,
-                        public_link: pool.public_link_token 
+                        public_link: pool.public_link_token
                             ? `${process.env.FRONTEND_URL}/feedback/${companySlug}/${pool._id}?token=${pool.public_link_token}`
                             : null,
                     }
@@ -262,7 +262,7 @@ export class FeedbackSurveyController {
             if (survey) {
                 console.log('Survey org_id:', survey.org_id, 'Request org_id:', org_id, 'Match:', survey.org_id.toString() === org_id.toString())
             }
-            
+
             if (!survey) {
                 return res.status(404).json({
                     success: false,
@@ -316,9 +316,9 @@ export class FeedbackSurveyController {
             const poolMembers = await Promise.all(
                 members.map(async (member: any) => {
                     // Generate unique employee_id if not provided
-                    const employee_id = member.employee_id || 
+                    const employee_id = member.employee_id ||
                         `member_${pool._id}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-                    
+
                     // Use the pool's public token hash for all members
                     const anonymous_token_hash = crypto
                         .createHash('sha256')
@@ -337,7 +337,7 @@ export class FeedbackSurveyController {
                     })
 
                     await poolMember.save()
-                    
+
                     return {
                         _id: poolMember._id,
                         name: member.name,
@@ -521,15 +521,15 @@ export class FeedbackSurveyController {
             const { token } = req.query
 
             let pool;
-            
+
             // Try to find by pool ID first
             pool = await FeedbackPool.findById(poolId)
-            
+
             // If not found and poolId looks like a token (64 hex chars), try finding by token
             if (!pool && poolId.length === 64) {
                 pool = await FeedbackPool.findOne({ public_link_token: poolId })
             }
-            
+
             if (!pool) {
                 return res.status(404).json({
                     success: false,
@@ -544,11 +544,11 @@ export class FeedbackSurveyController {
                     message: "Invalid access token",
                 })
             }
-            
+
             // If no token provided, verify that poolId IS the token (for simplified URLs)
             // This allows both patterns: /poolId?token=xyz OR /token
             const hasValidToken = token || poolId === pool.public_link_token
-            
+
             if (!hasValidToken) {
                 return res.status(401).json({
                     success: false,
@@ -599,6 +599,7 @@ export class FeedbackSurveyController {
                         description: survey.description,
                         form_config: survey.form_config,
                     },
+                    branding: await Company.findOne({ _id: pool.org_id }).select('name logo primaryColor secondaryColor accentColor backgroundColor textColor borderRadius fontFamily buttonStyle')
                 },
             })
         } catch (error: any) {
@@ -643,15 +644,15 @@ export class FeedbackSurveyController {
             }
 
             let pool;
-            
+
             // Try to find by pool ID first
             pool = await FeedbackPool.findById(poolId)
-            
+
             // If not found and poolId looks like a token (64 hex chars), try finding by token
             if (!pool && poolId.length === 64) {
                 pool = await FeedbackPool.findOne({ public_link_token: poolId })
             }
-            
+
             if (!pool) {
                 return res.status(404).json({
                     success: false,
@@ -666,17 +667,17 @@ export class FeedbackSurveyController {
                     message: "Invalid access token",
                 })
             }
-            
+
             // If no token provided, verify that poolId IS the token (for simplified URLs)
             const hasValidToken = token || poolId === pool.public_link_token
-            
+
             if (!hasValidToken) {
                 return res.status(401).json({
                     success: false,
                     message: "Access token required",
                 })
             }
-            
+
             // Use the actual pool ID for subsequent operations
             const actualPoolId = pool._id.toString()
 

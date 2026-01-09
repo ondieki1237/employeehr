@@ -133,7 +133,6 @@ app.use("/api/attendance", attendanceRoutes)
 app.use("/api/awards", awardRoutes)
 app.use("/api/tasks", taskRoutes)
 app.use("/api/messages", messageRoutes)
-app.use("/api", bookingRoutes)
 app.use("/api/suggestions", suggestionRoutes)
 app.use("/api/badges", badgeRoutes)
 app.use("/api/polls", pollRoutes)
@@ -154,6 +153,7 @@ app.use("/api/meetings", meetingRoutes)
 app.use("/api/setup", setupRoutes)
 app.use("/api/feedback-360", anonymousFeedbackRoutes)
 app.use("/api/feedback-surveys", feedbackSurveyRoutes)
+app.use("/api", bookingRoutes)
 
 // 404 handler
 app.use((req, res) => {
