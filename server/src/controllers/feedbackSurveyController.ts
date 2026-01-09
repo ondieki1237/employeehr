@@ -135,7 +135,7 @@ export class FeedbackSurveyController {
                         total_members: totalMembers,
                         total_responses: totalResponses,
                         public_link: pool.public_link_token 
-                            ? `${process.env.FRONTEND_URL}/feedback/${companySlug}/${pool.public_link_token}`
+                            ? `${process.env.FRONTEND_URL}/feedback/${companySlug}/${pool._id}?token=${pool.public_link_token}`
                             : null,
                     }
                 })
