@@ -545,14 +545,15 @@ export class FeedbackSurveyController {
                 })
             }
             
-            // If token was in URL path, no need to verify again
-            // If neither token param nor token in path, require token
-            if (!token && poolId !== pool.public_link_token) {
+            // If no token provided, verify that poolId IS the token (for simplified URLs)
+            // This allows both patterns: /poolId?token=xyz OR /token
+            const hasValidToken = token || poolId === pool.public_link_token
+            
+            if (!hasValidToken) {
                 return res.status(401).json({
                     success: false,
                     message: "Access token required",
                 })
-            }
             }
 
             // Check if pool is active
@@ -580,8 +581,8 @@ export class FeedbackSurveyController {
                 })
             }
 
-            // Get pool members
-            const members = await PoolMember.find({ pool_id: poolId }).select('_id employee_name role submission_count')
+            // Get pool members - use actual pool ID, not the URL param which might be a token
+            const members = await PoolMember.find({ pool_id: pool._id.toString() }).select('_id employee_name role submission_count')
 
             res.status(200).json({
                 success: true,
@@ -666,9 +667,10 @@ export class FeedbackSurveyController {
                 })
             }
             
-            // If token was in URL path, no need to verify again
-            // If neither token param nor token in path, require token
-            if (!token && poolId !== pool.public_link_token) {
+            // If no token provided, verify that poolId IS the token (for simplified URLs)
+            const hasValidToken = token || poolId === pool.public_link_token
+            
+            if (!hasValidToken) {
                 return res.status(401).json({
                     success: false,
                     message: "Access token required",
@@ -677,9 +679,8 @@ export class FeedbackSurveyController {
             
             // Use the actual pool ID for subsequent operations
             const actualPoolId = pool._id.toString()
-            }
 
-            // Check if pool is active
+            // Check if pool is active            // Check if pool is active
             if (pool.status !== "active") {
                 return res.status(400).json({
                     success: false,

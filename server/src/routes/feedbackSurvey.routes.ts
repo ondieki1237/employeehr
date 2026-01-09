@@ -4,6 +4,15 @@ import { authMiddleware, roleMiddleware, orgMiddleware } from "../middleware/aut
 
 const router = express.Router()
 
+// ==================== PUBLIC ROUTES (No Auth) ====================
+// IMPORTANT: Public routes MUST come before protected routes with similar patterns
+router.get("/public/:poolId", FeedbackSurveyController.getPublicPool)
+router.post("/public/:poolId/submit", FeedbackSurveyController.submitFeedback)
+
+// Public survey routes (direct survey access without pools)
+router.get("/survey/:surveyToken", FeedbackSurveyController.getPublicSurvey)
+router.post("/survey/:surveyToken/submit", FeedbackSurveyController.submitPublicSurvey)
+
 // ==================== ADMIN ROUTES (Protected) ====================
 router.post(
     "/",
@@ -70,14 +79,6 @@ router.delete(
     roleMiddleware("company_admin", "hr", "super_admin"),
     FeedbackSurveyController.deletePool
 )
-
-// ==================== PUBLIC ROUTES (No Auth) ====================
-router.get("/public/:poolId", FeedbackSurveyController.getPublicPool)
-router.post("/public/:poolId/submit", FeedbackSurveyController.submitFeedback)
-
-// Public survey routes (direct survey access without pools)
-router.get("/survey/:surveyToken", FeedbackSurveyController.getPublicSurvey)
-router.post("/survey/:surveyToken/submit", FeedbackSurveyController.submitPublicSurvey)
 
 // Generate public token for survey (protected)
 router.post(
