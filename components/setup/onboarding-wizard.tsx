@@ -375,7 +375,11 @@ export default function OnboardingWizard() {
     if (currentStep.optional) {
       await updateStepProgress(currentStep.id, true)
       toast.info(`${currentStep.title} skipped`)
-      setCurrentStepIndex(currentStepIndex + 1)
+      if (currentStepIndex < SETUP_STEPS.length - 1) {
+        setCurrentStepIndex(currentStepIndex + 1)
+      } else {
+        await completeSetup()
+      }
     }
   }
 
@@ -500,18 +504,16 @@ export default function OnboardingWizard() {
             return (
               <div
                 key={step.id}
-                className={`flex flex-col items-center gap-2 flex-1 ${
-                  index < SETUP_STEPS.length - 1 ? "border-r border-border" : ""
-                }`}
+                className={`flex flex-col items-center gap-2 flex-1 ${index < SETUP_STEPS.length - 1 ? "border-r border-border" : ""
+                  }`}
               >
                 <div
-                  className={`w-12 h-12 rounded-full flex items-center justify-center transition ${
-                    isActive
+                  className={`w-12 h-12 rounded-full flex items-center justify-center transition ${isActive
                       ? "bg-primary text-primary-foreground scale-110"
                       : isCompleted
                         ? "bg-green-600 text-white"
                         : "bg-muted text-muted-foreground"
-                  }`}
+                    }`}
                 >
                   {isCompleted ? <CheckCircle2 className="w-6 h-6" /> : <Icon className="w-6 h-6" />}
                 </div>
