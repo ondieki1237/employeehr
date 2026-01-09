@@ -179,6 +179,14 @@ export default function FeedbackSurveysPage() {
                                         <Button
                                             variant="outline"
                                             size="sm"
+                                            onClick={() => router.push(`/admin/feedback-360/surveys/${survey._id}/responses`)}
+                                        >
+                                            <FileText className="mr-2 h-4 w-4" />
+                                            Submissions
+                                        </Button>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
                                             className="text-destructive"
                                             onClick={() => handleDeleteSurvey(survey._id)}
                                         >

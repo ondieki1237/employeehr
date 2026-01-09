@@ -9,6 +9,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ArrowLeft, Loader2, AlertCircle, Download } from "lucide-react";
 import { getToken } from "@/lib/auth";
 import API_URL from "@/lib/apiBase";
+import { format } from "date-fns";
 
 interface Question {
   field_id: string;
@@ -22,8 +23,18 @@ interface Question {
 interface Response {
   _id: string;
   pool_id: string;
-  responses: Record<string, any>;
-  submitted_at: string;
+  submitter_id?: string;
+  member_id?: string;
+  submitter_name: string;
+  member_name: string;
+  submitter_role?: string;
+  member_role?: string;
+  answers: Array<{
+    question_id: string;
+    answer: any;
+  }>;
+  responses: Record<string, any>; // Derived for UI
+  createdAt: string;
 }
 
 interface Pool {
@@ -87,7 +98,18 @@ export default function PoolResponsesPage() {
       });
       if (responsesResponse.ok) {
         const responsesData = await responsesResponse.json();
-        setResponses(responsesData.data?.responses || responsesData.responses || []);
+        const rawResponses = responsesData.data?.responses || responsesData.responses || [];
+
+        // Transform answers array into responses object for easier lookup in UI
+        const transformedResponses = rawResponses.map((res: any) => ({
+          ...res,
+          responses: (res.answers || []).reduce((acc: any, ans: any) => {
+            acc[ans.question_id] = ans.answer;
+            return acc;
+          }, {})
+        }));
+
+        setResponses(transformedResponses);
       }
     } catch (err: any) {
       console.error("Error fetching data:", err);
@@ -116,12 +138,15 @@ export default function PoolResponsesPage() {
     if (!survey || responses.length === 0) return;
 
     const questions = survey.form_config.questions;
-    const headers = ["Response #", "Submitted At", ...questions.map((q) => q.label)];
+    const headers = ["Submitter", "Submitter Role", "Member Evaluated", "Member Role", "Submitted At", ...questions.map((q) => q.label)];
 
-    const rows = responses.map((response, index) => {
+    const rows = responses.map((response) => {
       const row = [
-        `Response ${index + 1}`,
-        new Date(response.submitted_at).toLocaleString(),
+        response.submitter_name,
+        response.submitter_role || "N/A",
+        response.member_name,
+        response.member_role || "N/A",
+        format(new Date(response.createdAt), "yyyy-MM-dd HH:mm:ss"),
       ];
       questions.forEach((q) => {
         const value = response.responses[q.field_id];
@@ -231,26 +256,43 @@ export default function PoolResponsesPage() {
           ) : (
             <div className="space-y-6">
               {responses.map((response, responseIndex) => (
-                <Card key={response._id} className="border-l-4 border-primary">
+                <Card key={response._id} className="border-l-4 border-primary overflow-hidden shadow-sm">
                   <CardContent className="pt-6">
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="font-semibold">Response #{responseIndex + 1}</h3>
-                      <span className="text-sm text-muted-foreground">
-                        {new Date(response.submitted_at).toLocaleString()}
-                      </span>
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 pb-4 border-b border-slate-100">
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                        <div className="flex flex-col">
+                          <span className="text-xs text-muted-foreground uppercase font-semibold tracking-wider">From</span>
+                          <span className="font-bold text-slate-900">{response.submitter_name}</span>
+                          <span className="text-xs text-slate-500">{response.submitter_role}</span>
+                        </div>
+                        <div className="hidden sm:block h-8 w-px bg-slate-200" />
+                        <div className="flex flex-col">
+                          <span className="text-xs text-muted-foreground uppercase font-semibold tracking-wider">For</span>
+                          <span className="font-bold text-blue-700">{response.member_name}</span>
+                          <span className="text-xs text-slate-500">{response.member_role}</span>
+                        </div>
+                      </div>
+                      <div className="flex flex-col md:items-end">
+                        <span className="text-xs text-muted-foreground uppercase font-semibold tracking-wider">Submitted At</span>
+                        <span className="text-sm font-medium">
+                          {format(new Date(response.createdAt), 'MMM dd, yyyy HH:mm')}
+                        </span>
+                      </div>
                     </div>
 
-                    <div className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       {survey.form_config.questions
                         .sort((a, b) => a.order - b.order)
                         .map((question) => {
                           const value = response.responses[question.field_id];
                           return (
-                            <div key={question.field_id} className="border-l-2 border-muted pl-4">
-                              <p className="font-medium text-sm mb-1">{question.label}</p>
-                              <p className="text-sm text-muted-foreground">
-                                {value ? formatResponseValue(value) : "No response"}
-                              </p>
+                            <div key={question.field_id} className="bg-slate-50/50 p-4 rounded-lg border border-slate-100">
+                              <p className="font-bold text-xs text-slate-500 uppercase mb-2">{question.label}</p>
+                              <div className="text-sm text-slate-900 font-medium">
+                                {value ? formatResponseValue(value) : (
+                                  <span className="text-slate-400 italic font-normal">No response</span>
+                                )}
+                              </div>
                             </div>
                           );
                         })}

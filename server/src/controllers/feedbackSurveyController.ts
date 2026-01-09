@@ -491,12 +491,26 @@ export class FeedbackSurveyController {
             }
 
             // Get responses
-            const responses = await FeedbackResponse.find({ pool_id: poolId }).sort({ createdAt: -1 })
+            const responses = await FeedbackResponse.find({ pool_id: poolId }).sort({ createdAt: -1 }).lean()
+
+            // Enrich 360 responses with names
+            const enrichedResponses = await Promise.all(responses.map(async (resp) => {
+                const sub = resp.submitter_id ? await PoolMember.findById(resp.submitter_id).select('employee_name role') : null
+                const mem = resp.member_id ? await PoolMember.findById(resp.member_id).select('employee_name role') : null
+
+                return {
+                    ...resp,
+                    submitter_name: sub?.employee_name || 'Anonymous',
+                    member_name: mem?.employee_name || 'N/A',
+                    submitter_role: sub?.role,
+                    member_role: mem?.role
+                }
+            }))
 
             res.status(200).json({
                 success: true,
                 data: {
-                    responses,
+                    responses: enrichedResponses,
                     total: responses.length,
                 },
             })
@@ -940,14 +954,41 @@ export class FeedbackSurveyController {
                 })
             }
 
-            const responses = await SurveyResponse.find({ survey_id: surveyId })
+            // Fetch generic survey responses
+            const surveyResponses = await SurveyResponse.find({ survey_id: surveyId })
                 .sort({ submitted_at: -1 })
+
+            // Fetch 360 feedback responses
+            const feedbackResponses = await FeedbackResponse.find({
+                survey_id: surveyId,
+                org_id
+            }).lean()
+
+            // Enrich 360 responses with names
+            const enrichedFeedback = await Promise.all(feedbackResponses.map(async (resp) => {
+                const sub = resp.submitter_id ? await PoolMember.findById(resp.submitter_id).select('employee_name role') : null
+                const mem = resp.member_id ? await PoolMember.findById(resp.member_id).select('employee_name role') : null
+
+                return {
+                    ...resp,
+                    submitter_name: sub?.employee_name || 'Anonymous',
+                    member_name: mem?.employee_name || 'N/A',
+                    submitter_role: sub?.role,
+                    member_role: mem?.role
+                }
+            }))
 
             res.status(200).json({
                 success: true,
                 data: {
-                    responses,
-                    total: responses.length,
+                    survey: {
+                        name: survey.name,
+                        description: survey.description,
+                        form_config: survey.form_config
+                    },
+                    surveyResponses,
+                    feedbackResponses: enrichedFeedback,
+                    total: surveyResponses.length + enrichedFeedback.length,
                 },
             })
         } catch (error: any) {
