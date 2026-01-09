@@ -66,7 +66,8 @@ export default function PublicFeedbackPage() {
   const [completedCount, setCompletedCount] = useState(0)
 
   useEffect(() => {
-    if (poolId && token) {
+    if (poolId) {
+      // poolId can be either the actual pool ID (with token query param) or the token itself
       fetchPoolData()
     } else {
       setError('Invalid feedback link')
@@ -84,7 +85,12 @@ export default function PublicFeedbackPage() {
 
   const fetchPoolData = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/feedback-surveys/public/${poolId}?token=${token}`)
+      // Build URL with token query param if it exists
+      const url = token 
+        ? `${API_URL}/api/feedback-surveys/public/${poolId}?token=${token}`
+        : `${API_URL}/api/feedback-surveys/public/${poolId}`
+      
+      const res = await fetch(url)
 
       if (!res.ok) {
         const data = await res.json()

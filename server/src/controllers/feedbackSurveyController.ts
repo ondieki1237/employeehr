@@ -513,13 +513,23 @@ export class FeedbackSurveyController {
     /**
      * PUBLIC: Get survey and pool for public form
      * GET /api/feedback-surveys/public/:poolId
+     * Accepts poolId or token - if token, looks up pool by token
      */
     static async getPublicPool(req: Request, res: Response) {
         try {
             const { poolId } = req.params
             const { token } = req.query
 
-            const pool = await FeedbackPool.findById(poolId)
+            let pool;
+            
+            // Try to find by pool ID first
+            pool = await FeedbackPool.findById(poolId)
+            
+            // If not found and poolId looks like a token (64 hex chars), try finding by token
+            if (!pool && poolId.length === 64) {
+                pool = await FeedbackPool.findOne({ public_link_token: poolId })
+            }
+            
             if (!pool) {
                 return res.status(404).json({
                     success: false,
@@ -527,12 +537,22 @@ export class FeedbackSurveyController {
                 })
             }
 
-            // Verify token
-            if (pool.public_link_token !== token) {
+            // Verify token if provided as query parameter
+            if (token && pool.public_link_token !== token) {
                 return res.status(401).json({
                     success: false,
                     message: "Invalid access token",
                 })
+            }
+            
+            // If token was in URL path, no need to verify again
+            // If neither token param nor token in path, require token
+            if (!token && poolId !== pool.public_link_token) {
+                return res.status(401).json({
+                    success: false,
+                    message: "Access token required",
+                })
+            }
             }
 
             // Check if pool is active
@@ -621,7 +641,16 @@ export class FeedbackSurveyController {
                 })
             }
 
-            const pool = await FeedbackPool.findById(poolId)
+            let pool;
+            
+            // Try to find by pool ID first
+            pool = await FeedbackPool.findById(poolId)
+            
+            // If not found and poolId looks like a token (64 hex chars), try finding by token
+            if (!pool && poolId.length === 64) {
+                pool = await FeedbackPool.findOne({ public_link_token: poolId })
+            }
+            
             if (!pool) {
                 return res.status(404).json({
                     success: false,
@@ -629,12 +658,25 @@ export class FeedbackSurveyController {
                 })
             }
 
-            // Verify token
-            if (pool.public_link_token !== token) {
+            // Verify token if provided
+            if (token && pool.public_link_token !== token) {
                 return res.status(401).json({
                     success: false,
                     message: "Invalid access token",
                 })
+            }
+            
+            // If token was in URL path, no need to verify again
+            // If neither token param nor token in path, require token
+            if (!token && poolId !== pool.public_link_token) {
+                return res.status(401).json({
+                    success: false,
+                    message: "Access token required",
+                })
+            }
+            
+            // Use the actual pool ID for subsequent operations
+            const actualPoolId = pool._id.toString()
             }
 
             // Check if pool is active
@@ -646,7 +688,7 @@ export class FeedbackSurveyController {
             }
 
             // Verify submitter exists in pool
-            const submitter = await PoolMember.findOne({ _id: submitter_id, pool_id: poolId })
+            const submitter = await PoolMember.findOne({ _id: submitter_id, pool_id: actualPoolId })
             if (!submitter) {
                 return res.status(404).json({
                     success: false,
@@ -663,7 +705,7 @@ export class FeedbackSurveyController {
             }
 
             // Verify member exists in pool
-            const member = await PoolMember.findOne({ _id: member_id, pool_id: poolId })
+            const member = await PoolMember.findOne({ _id: member_id, pool_id: actualPoolId })
             if (!member) {
                 return res.status(404).json({
                     success: false,
@@ -673,7 +715,7 @@ export class FeedbackSurveyController {
 
             // Check if already submitted feedback for this member
             const existingFeedback = await FeedbackResponse.findOne({
-                pool_id: poolId,
+                pool_id: actualPoolId,
                 submitter_id: submitter_id,
                 member_id: member_id,
             })
@@ -688,7 +730,7 @@ export class FeedbackSurveyController {
             // Create response
             const response = new FeedbackResponse({
                 org_id: pool.org_id,
-                pool_id: poolId,
+                pool_id: actualPoolId,
                 survey_id: pool.survey_id,
                 submitter_id: submitter_id,
                 member_id: member_id,
