@@ -140,6 +140,12 @@ const adminMenuItems = [
     section: "PERFORMANCE"
   },
   {
+    label: "360° Feedback",
+    icon: Users,
+    href: "/admin/feedback-360",
+    section: "PERFORMANCE"
+  },
+  {
     label: "Analytics & Reports",
     icon: BarChart3,
     href: "/admin/reports",

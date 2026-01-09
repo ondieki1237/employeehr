@@ -42,6 +42,8 @@ import leaveRoutes from "./routes/leave.routes"
 import payrollRoutes from "./routes/payroll.routes"
 import meetingRoutes from "./routes/meeting.routes"
 import setupRoutes from "./routes/setup.routes"
+import anonymousFeedbackRoutes from "./routes/anonymousFeedback.routes"
+import feedbackSurveyRoutes from "./routes/feedbackSurvey.routes"
 import { JobController } from "./controllers/jobController"
 import { JobApplicationController } from "./controllers/jobApplicationController"
 import { ApplicationFormController } from "./controllers/applicationFormController"
@@ -150,6 +152,8 @@ app.use("/api/leave", leaveRoutes)
 app.use("/api/payroll", payrollRoutes)
 app.use("/api/meetings", meetingRoutes)
 app.use("/api/setup", setupRoutes)
+app.use("/api/feedback-360", anonymousFeedbackRoutes)
+app.use("/api/feedback-surveys", feedbackSurveyRoutes)
 
 // 404 handler
 app.use((req, res) => {
