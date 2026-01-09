@@ -344,7 +344,29 @@ export default function PublicFeedbackPage() {
 
   if (error && !poolData) {
     return (
-      <div className="min-h-screen flex items-center jAll Feedback Submitted!</h2>
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+        <Card className="max-w-md">
+          <CardContent className="pt-6">
+            <div className="text-center">
+              <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
+              <h2 className="text-2xl font-bold mb-2">Error</h2>
+              <p className="text-gray-600">{error}</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  // Show completion screen when all 4 feedbacks are submitted
+  if (submitted) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+        <Card className="max-w-md">
+          <CardContent className="pt-6">
+            <div className="text-center">
+              <CheckCircle2 className="w-16 h-16 text-green-500 mx-auto mb-4" />
+              <h2 className="text-2xl font-bold mb-2">All Feedback Submitted!</h2>
               <p className="text-gray-600">
                 You have successfully provided feedback for all {completedCount} team members. Thank you for your participation!
               </p>
@@ -372,7 +394,48 @@ export default function PublicFeedbackPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-6">
-                <Alert> flex items-center justify-between">
+                <Alert>
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    Please identify yourself from the list below to begin providing feedback.
+                  </AlertDescription>
+                </Alert>
+
+                <div className="space-y-2">
+                  <Label htmlFor="user-select" className="text-base font-semibold">
+                    Who are you? *
+                  </Label>
+                  <Select value={currentUser} onValueChange={setCurrentUser} required>
+                    <SelectTrigger id="user-select" className="w-full">
+                      <SelectValue placeholder="Select your name..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {poolData.members.map((member) => (
+                        <SelectItem key={member._id} value={member._id}>
+                          <div className="flex flex-col">
+                            <span className="font-medium">{member.employee_name}</span>
+                            <span className="text-sm text-muted-foreground">{member.role}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    )
+  }
+
+  // Main feedback form
+  return (
+    <div className="min-h-screen bg-gray-50 py-12 px-4">
+      <div className="max-w-3xl mx-auto">
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-600">Pool: {poolData.pool.name}</p>
                 <p className="text-sm text-gray-500">
@@ -389,7 +452,7 @@ export default function PublicFeedbackPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-6">
+            <form onSubmit={(e) => { e.preventDefault(); handleSubmit(); }} className="space-y-6">
               {/* Member Selection */}
               <div className="border-b pb-6">
                 <Label htmlFor="member-select" className="text-base font-semibold">
@@ -440,95 +503,15 @@ export default function PublicFeedbackPage() {
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       Submitting...
-            <CardContent className="pt-6">
-            <div className="text-center">
-              <CheckCircle2 className="w-16 h-16 text-green-500 mx-auto mb-4" />
-              <h2 className="text-2xl font-bold mb-2">Thank You!</h2>
-              <p className="text-gray-600">Your feedback has been submitted successfully.</p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    )
-  }
-
-  if (!poolData) return null
-
-  return (
-    <div className="min-h-screen bg-gray-50 py-12 px-4">
-      <div className="max-w-3xl mx-auto">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-2xl">{poolData.survey.name}</CardTitle>
-            {poolData.survey.description && (
-              <CardDescription className="text-base">{poolData.survey.description}</CardDescription>
-            )}
-            <div className="pt-2">
-              <p className="text-sm text-gray-600">Pool: {poolData.pool.name}</p>
-              {poolData.pool.description && (
-                <p className="text-sm text-gray-500">{poolData.pool.description}</p>
-              )}
-            </div>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Member Selection */}
-              <div className="border-b pb-6">
-                <Label htmlFor="member-select" className="text-base font-semibold">
-                  Select Member to Provide Feedback For *
-                </Label>
-                <p className="text-sm text-muted-foreground mb-3">
-                  Choose which team member you are providing feedback about
-                </p>
-                <Select value={selectedMember} onValueChange={setSelectedMember} required>
-                  <SelectTrigger id="member-select" className="w-full">
-                    <SelectValue placeholder="Select a member..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {poolData.members?.map((member) => (
-                      <SelectItem key={member._id} value={member._id}>
-                        <div className="flex flex-col">
-                          <span className="font-medium">{member.employee_name}</span>
-                          <span className="text-sm text-muted-foreground">{member.role}</span>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                    </>
+                  ) : (
+                    <>
+                      <Send className="mr-2 h-4 w-4" />
+                      Submit Feedback
+                    </>
+                  )}
+                </Button>
               </div>
-
-              {error && (
-                <Alert variant="destructive">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>{error}</AlertDescription>
-                </Alert>
-              )}
-
-              {poolData.survey.form_config.questions
-                .sort((a, b) => a.order - b.order)
-                .map((question) => (
-                  <div key={question.field_id} className="space-y-2">
-                    <Label>
-                      {question.label}
-                      {question.required && <span className="text-red-500 ml-1">*</span>}
-                    </Label>
-                    {renderField(question)}
-                  </div>
-                ))}
-
-              <Button type="submit" className="w-full" size="lg" disabled={submitting}>
-                {submitting ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Submitting...
-                  </>
-                ) : (
-                  <>
-                    <Send className="mr-2 h-4 w-4" />
-                    Submit Feedback
-                  </>
-                )}
-              </Button>
             </form>
           </CardContent>
         </Card>
