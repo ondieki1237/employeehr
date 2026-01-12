@@ -364,6 +364,14 @@ export default function SurveyDetailsPage() {
                         <Button
                           variant="outline"
                           size="sm"
+                          onClick={() => router.push(`/admin/feedback-360/surveys/${surveyId}/pools/${pool._id}/edit`)}
+                        >
+                          <Edit className="mr-2 h-4 w-4" />
+                          Edit
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
                           onClick={() => router.push(`/admin/feedback-360/surveys/${surveyId}/pools/${pool._id}`)}
                         >
                           <Eye className="mr-2 h-4 w-4" />

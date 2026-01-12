@@ -431,6 +431,129 @@ export class FeedbackSurveyController {
     }
 
     /**
+     * Update pool
+     * PUT /api/feedback-surveys/:surveyId/pools/:poolId
+     */
+    static async updatePool(req: Request, res: Response) {
+        try {
+            const { surveyId, poolId } = req.params
+            const { name, description, status, expires_at, members } = req.body
+            const org_id = (req as any).org_id
+
+            // Verify pool exists and belongs to organization
+            const pool = await FeedbackPool.findOne({ _id: poolId, survey_id: surveyId, org_id })
+            if (!pool) {
+                return res.status(404).json({
+                    success: false,
+                    message: "Pool not found",
+                })
+            }
+
+            // Update pool basic information
+            if (name) pool.name = name
+            if (description !== undefined) pool.description = description
+            if (status) pool.status = status
+            if (expires_at !== undefined) pool.expires_at = expires_at ? new Date(expires_at) : undefined
+
+            await pool.save()
+
+            // Update members if provided
+            if (members && Array.isArray(members)) {
+                // Validate members count (should be 5 for 360 feedback)
+                if (members.length !== 5) {
+                    return res.status(400).json({
+                        success: false,
+                        message: "Pool must have exactly 5 members",
+                    })
+                }
+
+                // Check if pool has any responses
+                const responseCount = await FeedbackResponse.countDocuments({ pool_id: poolId })
+                if (responseCount > 0) {
+                    return res.status(400).json({
+                        success: false,
+                        message: "Cannot update members after responses have been submitted",
+                    })
+                }
+
+                // Get existing members
+                const existingMembers = await PoolMember.find({ pool_id: poolId })
+
+                // Update existing members or create new ones
+                for (let i = 0; i < members.length; i++) {
+                    const memberData = members[i]
+                    const existingMember = existingMembers[i]
+
+                    if (existingMember) {
+                        // Update existing member
+                        existingMember.employee_name = memberData.name
+                        existingMember.role = memberData.role
+                        if (memberData.email) existingMember.employee_email = memberData.email
+                        await existingMember.save()
+                    } else {
+                        // Create new member (shouldn't happen if validation is correct)
+                        const employee_id = memberData.employee_id ||
+                            `member_${pool._id}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+
+                        const anonymous_token_hash = crypto
+                            .createHash('sha256')
+                            .update(pool.public_link_token || '')
+                            .digest('hex')
+
+                        const newMember = new PoolMember({
+                            pool_id: pool._id.toString(),
+                            employee_id,
+                            employee_email: memberData.email,
+                            employee_name: memberData.name,
+                            role: memberData.role,
+                            submission_count: 0,
+                            anonymous_token_hash,
+                            token_generated_at: new Date(),
+                        })
+                        await newMember.save()
+                    }
+                }
+
+                // Delete extra members if any
+                if (existingMembers.length > members.length) {
+                    const membersToDelete = existingMembers.slice(members.length)
+                    await PoolMember.deleteMany({
+                        _id: { $in: membersToDelete.map(m => m._id) }
+                    })
+                }
+            }
+
+            // Get updated members
+            const updatedMembers = await PoolMember.find({ pool_id: poolId }).select('-anonymous_token_hash')
+
+            // Generate public link
+            const company = await Company.findOne({ _id: org_id })
+            const companySlug = company?.slug || 'company'
+            const baseUrl = process.env.FRONTEND_URL || 'http://localhost:3000'
+            const publicLink = pool.public_link_token
+                ? `${baseUrl}/feedback/${companySlug}/${poolId}?token=${pool.public_link_token}`
+                : null
+
+            res.status(200).json({
+                success: true,
+                message: "Pool updated successfully",
+                data: {
+                    pool,
+                    members: updatedMembers,
+                    public_link: publicLink,
+                },
+            })
+        } catch (error: any) {
+            console.error("Error updating pool:", error)
+            res.status(500).json({
+                success: false,
+                message: "Failed to update pool",
+                error: error.message,
+            })
+        }
+    }
+
+    /**
      * Delete pool
      * DELETE /api/feedback-surveys/:surveyId/pools/:poolId
      */
@@ -449,6 +572,7 @@ export class FeedbackSurveyController {
 
             // Delete pool and responses
             await FeedbackResponse.deleteMany({ pool_id: poolId })
+            await PoolMember.deleteMany({ pool_id: poolId })
             await FeedbackPool.findByIdAndDelete(poolId)
 
             res.status(200).json({

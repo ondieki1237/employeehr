@@ -65,6 +65,13 @@ router.get(
     roleMiddleware("company_admin", "hr", "super_admin"),
     FeedbackSurveyController.getPoolDetails
 )
+router.put(
+    "/:surveyId/pools/:poolId",
+    authMiddleware,
+    orgMiddleware,
+    roleMiddleware("company_admin", "hr", "super_admin"),
+    FeedbackSurveyController.updatePool
+)
 router.get(
     "/:surveyId/pools/:poolId/responses",
     authMiddleware,
