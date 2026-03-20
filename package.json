@@ -57,6 +57,7 @@
     "helmet": "latest",
     "input-otp": "1.4.1",
     "jsonwebtoken": "latest",
+    "jspdf": "^4.2.1",
     "lucide-react": "^0.454.0",
     "mongoose": "latest",
     "morgan": "latest",

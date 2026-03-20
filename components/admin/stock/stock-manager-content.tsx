@@ -44,6 +44,11 @@ interface Sale {
   quantitySold: number
   soldPrice: number
   remainingQuantity: number
+  receiptNumber?: string
+  buyerName?: string
+  buyerNumber?: string
+  buyerLocation?: string
+  isWalkInClient?: boolean
   createdAt: string
   product?: { _id: string; name: string }
   soldByUser?: { firstName: string; lastName: string; email: string }
@@ -85,6 +90,10 @@ export function StockManagerContent({ view }: { view: StockView }) {
     soldPrice: "",
     isSalesCompany: false,
     salesEmployeeId: "",
+    isWalkInClient: false,
+    buyerName: "",
+    buyerNumber: "",
+    buyerLocation: "",
   })
   const [salesSearch, setSalesSearch] = useState("")
   const [inventorySearch, setInventorySearch] = useState("")
@@ -271,6 +280,10 @@ export function StockManagerContent({ view }: { view: StockView }) {
         soldPrice: Number(saleForm.soldPrice),
         isSalesCompany: saleForm.isSalesCompany,
         salesEmployeeId: saleForm.isSalesCompany ? saleForm.salesEmployeeId : undefined,
+        isWalkInClient: saleForm.isWalkInClient,
+        buyerName: saleForm.isWalkInClient ? undefined : saleForm.buyerName,
+        buyerNumber: saleForm.isWalkInClient ? undefined : saleForm.buyerNumber,
+        buyerLocation: saleForm.isWalkInClient ? undefined : saleForm.buyerLocation,
       }),
     })
     const result = await response.json()
@@ -278,7 +291,17 @@ export function StockManagerContent({ view }: { view: StockView }) {
       toast({ title: "Sale Error", description: result.message || "Failed", variant: "destructive" })
       return
     }
-    setSaleForm({ productId: "", quantitySold: "", soldPrice: "", isSalesCompany: false, salesEmployeeId: "" })
+    setSaleForm({
+      productId: "",
+      quantitySold: "",
+      soldPrice: "",
+      isSalesCompany: false,
+      salesEmployeeId: "",
+      isWalkInClient: false,
+      buyerName: "",
+      buyerNumber: "",
+      buyerLocation: "",
+    })
     toast({ title: "Success", description: "Sale recorded" })
     fetchAll()
   }
@@ -422,7 +445,7 @@ export function StockManagerContent({ view }: { view: StockView }) {
                 onClick={() =>
                   exportAsCsv(
                     "sales-data.csv",
-                    ["Date", "Product", "Category", "Qty Sold", "Sold Price", "Sold By", "Sales Company Employee", "Remaining"],
+                    ["Date", "Receipt", "Product", "Category", "Qty Sold", "Sold Price", "Buyer", "Buyer Number", "Buyer Location", "Sold By", "Sales Company Employee", "Remaining"],
                     filteredSales.map((sale) => {
                       const categoryName =
                         (sale.product as any)?.categoryDetails?.name ||
@@ -430,10 +453,14 @@ export function StockManagerContent({ view }: { view: StockView }) {
                         ""
                       return [
                         new Date(sale.createdAt).toISOString(),
+                        sale.receiptNumber || "",
                         sale.product?.name || "",
                         categoryName,
                         sale.quantitySold,
                         sale.soldPrice,
+                        sale.isWalkInClient ? "Walk-in Client" : sale.buyerName || "",
+                        sale.buyerNumber || "",
+                        sale.buyerLocation || "",
                         sale.soldByUser ? `${sale.soldByUser.firstName} ${sale.soldByUser.lastName}` : "",
                         sale.salesEmployee ? `${sale.salesEmployee.firstName} ${sale.salesEmployee.lastName}` : "",
                         sale.remainingQuantity,
@@ -469,6 +496,26 @@ export function StockManagerContent({ view }: { view: StockView }) {
                 <Input type="number" min="0" value={saleForm.soldPrice} onChange={(event) => setSaleForm((prev) => ({ ...prev, soldPrice: event.target.value }))} />
               </div>
               <label className="flex items-center gap-2 text-sm md:col-span-2 lg:col-span-3">
+                <Checkbox checked={saleForm.isWalkInClient} onCheckedChange={(value) => setSaleForm((prev) => ({ ...prev, isWalkInClient: Boolean(value) }))} />
+                <span>Walk-in client (no buyer details)</span>
+              </label>
+              {!saleForm.isWalkInClient && (
+                <>
+                  <div>
+                    <Label>Buyer Name</Label>
+                    <Input value={saleForm.buyerName} onChange={(event) => setSaleForm((prev) => ({ ...prev, buyerName: event.target.value }))} />
+                  </div>
+                  <div>
+                    <Label>Buyer Number</Label>
+                    <Input value={saleForm.buyerNumber} onChange={(event) => setSaleForm((prev) => ({ ...prev, buyerNumber: event.target.value }))} />
+                  </div>
+                  <div>
+                    <Label>Buyer Location</Label>
+                    <Input value={saleForm.buyerLocation} onChange={(event) => setSaleForm((prev) => ({ ...prev, buyerLocation: event.target.value }))} />
+                  </div>
+                </>
+              )}
+              <label className="flex items-center gap-2 text-sm md:col-span-2 lg:col-span-3">
                 <Checkbox checked={saleForm.isSalesCompany} onCheckedChange={(value) => setSaleForm((prev) => ({ ...prev, isSalesCompany: Boolean(value) }))} />
                 <span>Is sales company?</span>
               </label>
@@ -499,9 +546,11 @@ export function StockManagerContent({ view }: { view: StockView }) {
                   <thead>
                     <tr className="text-left border-b">
                       <th className="py-2">Date</th>
+                      <th className="py-2">Receipt #</th>
                       <th className="py-2">Product</th>
                       <th className="py-2">Qty Sold</th>
                       <th className="py-2">Sold Price</th>
+                      <th className="py-2">Buyer</th>
                       <th className="py-2">Sold By</th>
                       <th className="py-2">Sales Company Employee</th>
                       <th className="py-2">Remaining</th>
@@ -511,9 +560,11 @@ export function StockManagerContent({ view }: { view: StockView }) {
                     {filteredSales.map((sale) => (
                       <tr key={sale._id} className="border-b">
                         <td className="py-2">{new Date(sale.createdAt).toLocaleString()}</td>
+                        <td className="py-2">{sale.receiptNumber || "-"}</td>
                         <td className="py-2">{sale.product?.name || "-"}</td>
                         <td className="py-2">{sale.quantitySold}</td>
                         <td className="py-2">{sale.soldPrice}</td>
+                        <td className="py-2">{sale.isWalkInClient ? "Walk-in Client" : sale.buyerName || "-"}</td>
                         <td className="py-2">{sale.soldByUser ? `${sale.soldByUser.firstName} ${sale.soldByUser.lastName}` : "-"}</td>
                         <td className="py-2">{sale.salesEmployee ? `${sale.salesEmployee.firstName} ${sale.salesEmployee.lastName}` : "-"}</td>
                         <td className="py-2">{sale.remainingQuantity}</td>
@@ -657,12 +708,14 @@ export function StockManagerContent({ view }: { view: StockView }) {
                 onClick={() =>
                   exportAsCsv(
                     "inventory-sales-history.csv",
-                    ["Date", "Product", "Qty Sold", "Sold Price", "Sold By", "Remaining"],
+                    ["Date", "Receipt", "Product", "Qty Sold", "Sold Price", "Buyer", "Sold By", "Remaining"],
                     filteredSales.map((sale) => [
                       new Date(sale.createdAt).toISOString(),
+                      sale.receiptNumber || "",
                       sale.product?.name || "",
                       sale.quantitySold,
                       sale.soldPrice,
+                      sale.isWalkInClient ? "Walk-in Client" : sale.buyerName || "",
                       sale.soldByUser ? `${sale.soldByUser.firstName} ${sale.soldByUser.lastName}` : "",
                       sale.remainingQuantity,
                     ]),
@@ -709,9 +762,11 @@ export function StockManagerContent({ view }: { view: StockView }) {
                   <thead>
                     <tr className="text-left border-b">
                       <th className="py-2">Date</th>
+                      <th className="py-2">Receipt #</th>
                       <th className="py-2">Product</th>
                       <th className="py-2">Qty Sold</th>
                       <th className="py-2">Sold Price</th>
+                      <th className="py-2">Buyer</th>
                       <th className="py-2">Sold By</th>
                       <th className="py-2">Remaining</th>
                     </tr>
@@ -720,9 +775,11 @@ export function StockManagerContent({ view }: { view: StockView }) {
                     {filteredSales.map((sale) => (
                       <tr key={sale._id} className="border-b">
                         <td className="py-2">{new Date(sale.createdAt).toLocaleString()}</td>
+                        <td className="py-2">{sale.receiptNumber || "-"}</td>
                         <td className="py-2">{sale.product?.name || "-"}</td>
                         <td className="py-2">{sale.quantitySold}</td>
                         <td className="py-2">{sale.soldPrice}</td>
+                        <td className="py-2">{sale.isWalkInClient ? "Walk-in Client" : sale.buyerName || "-"}</td>
                         <td className="py-2">{sale.soldByUser ? `${sale.soldByUser.firstName} ${sale.soldByUser.lastName}` : "-"}</td>
                         <td className="py-2">{sale.remainingQuantity}</td>
                       </tr>

@@ -4,6 +4,8 @@ import { StockCategory } from "../models/StockCategory"
 import { StockProduct } from "../models/StockProduct"
 import { StockEntry } from "../models/StockEntry"
 import { StockSale } from "../models/StockSale"
+import { StockQuotation } from "../models/StockQuotation"
+import { StockInvoice } from "../models/StockInvoice"
 import { User } from "../models/User"
 import emailService from "../services/email.service"
 
@@ -11,6 +13,53 @@ const ADMIN_ROLES = ["company_admin", "hr"]
 
 function isAdminRole(role?: string) {
   return !!role && ADMIN_ROLES.includes(role)
+}
+
+function generateDocumentNumber(prefix: string) {
+  const ts = Date.now().toString().slice(-8)
+  const rand = Math.floor(Math.random() * 9000 + 1000)
+  return `${prefix}-${ts}-${rand}`
+}
+
+async function buildQuotationItems(
+  orgId: string,
+  items: Array<{ productId: string; quantity: number; unitPrice?: number }>,
+) {
+  if (!Array.isArray(items) || items.length === 0) {
+    throw new Error("At least one item is required")
+  }
+
+  const productIds = [...new Set(items.map((item) => item.productId).filter(Boolean))]
+  const products = await StockProduct.find({ _id: { $in: productIds }, org_id: orgId }).lean()
+  const productMap = new Map(products.map((product) => [String(product._id), product]))
+
+  return items.map((item) => {
+    const product = productMap.get(String(item.productId))
+    if (!product) {
+      throw new Error(`Product not found: ${item.productId}`)
+    }
+
+    const quantity = Number(item.quantity)
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      throw new Error(`Invalid quantity for ${product.name}`)
+    }
+
+    const unitPrice = item.unitPrice !== undefined && item.unitPrice !== null
+      ? Number(item.unitPrice)
+      : Number(product.sellingPrice)
+
+    if (!Number.isFinite(unitPrice) || unitPrice < 0) {
+      throw new Error(`Invalid unit price for ${product.name}`)
+    }
+
+    return {
+      productId: String(product._id),
+      productName: product.name,
+      quantity,
+      unitPrice,
+      lineTotal: Number((quantity * unitPrice).toFixed(2)),
+    }
+  })
 }
 
 async function sendLowStockAlert(product: any, orgId: string) {
@@ -48,6 +97,149 @@ async function sendLowStockAlert(product: any, orgId: string) {
 }
 
 export class StockController {
+  static async createQuotation(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = req.user?.org_id
+      const createdBy = req.user?.userId
+      if (!org_id || !createdBy) return res.status(401).json({ success: false, message: "Unauthorized" })
+
+      const { clientName, clientNumber, clientLocation, items } = req.body
+      if (!clientName || !clientNumber || !clientLocation) {
+        return res.status(400).json({ success: false, message: "Client name, number, and location are required" })
+      }
+
+      const normalizedItems = await buildQuotationItems(org_id, items || [])
+      const subTotal = Number(normalizedItems.reduce((sum, item) => sum + item.lineTotal, 0).toFixed(2))
+
+      const quotation = await StockQuotation.create({
+        org_id,
+        quotationNumber: generateDocumentNumber("QTN"),
+        client: {
+          name: String(clientName).trim(),
+          number: String(clientNumber).trim(),
+          location: String(clientLocation).trim(),
+        },
+        items: normalizedItems,
+        subTotal,
+        status: "draft",
+        createdBy,
+      })
+
+      return res.status(201).json({ success: true, data: quotation })
+    } catch (error: any) {
+      return res.status(500).json({ success: false, message: error.message || "Failed to create quotation" })
+    }
+  }
+
+  static async getQuotations(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = req.user?.org_id
+      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+
+      const quotations = await StockQuotation.find({ org_id }).sort({ createdAt: -1 }).lean()
+      return res.status(200).json({ success: true, data: quotations })
+    } catch (error: any) {
+      return res.status(500).json({ success: false, message: error.message || "Failed to fetch quotations" })
+    }
+  }
+
+  static async convertQuotationToInvoice(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = req.user?.org_id
+      const actorId = req.user?.userId
+      if (!org_id || !actorId) return res.status(401).json({ success: false, message: "Unauthorized" })
+
+      const { quotationId } = req.params
+      const quotation = await StockQuotation.findOne({ _id: quotationId, org_id })
+      if (!quotation) {
+        return res.status(404).json({ success: false, message: "Quotation not found" })
+      }
+
+      if (quotation.status === "converted" && quotation.convertedInvoiceId) {
+        const existingInvoice = await StockInvoice.findById(quotation.convertedInvoiceId).lean()
+        return res.status(200).json({ success: true, data: existingInvoice })
+      }
+
+      const productIds = [...new Set(quotation.items.map((item) => item.productId).filter(Boolean))]
+      const products = await StockProduct.find({ _id: { $in: productIds }, org_id })
+      const productMap = new Map(products.map((product) => [String(product._id), product]))
+
+      for (const item of quotation.items) {
+        const product = productMap.get(String(item.productId))
+        if (!product) {
+          return res.status(400).json({ success: false, message: `Product not found for quotation item: ${item.productName}` })
+        }
+        if (product.currentQuantity < item.quantity) {
+          return res.status(400).json({
+            success: false,
+            message: `Insufficient stock for ${item.productName}. Available: ${product.currentQuantity}, requested: ${item.quantity}`,
+          })
+        }
+      }
+
+      const invoice = await StockInvoice.create({
+        org_id,
+        invoiceNumber: generateDocumentNumber("INV"),
+        deliveryNoteNumber: generateDocumentNumber("DN"),
+        quotationId: String(quotation._id),
+        quotationNumber: quotation.quotationNumber,
+        client: quotation.client,
+        items: quotation.items,
+        subTotal: quotation.subTotal,
+        status: "issued",
+        createdBy: actorId,
+      })
+
+      const receiptNumber = generateDocumentNumber("RCP")
+
+      const salesToCreate = quotation.items.map((item) => {
+        const product = productMap.get(String(item.productId))!
+        product.currentQuantity -= item.quantity
+
+        return {
+          org_id,
+          productId: item.productId,
+          quantitySold: item.quantity,
+          soldPrice: item.unitPrice,
+          soldBy: actorId,
+          buyerName: quotation.client.name,
+          buyerNumber: quotation.client.number,
+          buyerLocation: quotation.client.location,
+          isWalkInClient: false,
+          isSalesCompany: false,
+          quotationId: String(quotation._id),
+          invoiceId: String(invoice._id),
+          receiptNumber,
+          remainingQuantity: product.currentQuantity,
+        }
+      })
+
+      await Promise.all(products.map((product) => product.save()))
+      await StockSale.insertMany(salesToCreate)
+      await Promise.all(products.map((product) => sendLowStockAlert(product, org_id)))
+
+      quotation.status = "converted"
+      quotation.convertedInvoiceId = String(invoice._id)
+      await quotation.save()
+
+      return res.status(201).json({ success: true, data: invoice })
+    } catch (error: any) {
+      return res.status(500).json({ success: false, message: error.message || "Failed to convert quotation" })
+    }
+  }
+
+  static async getInvoices(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = req.user?.org_id
+      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+
+      const invoices = await StockInvoice.find({ org_id }).sort({ createdAt: -1 }).lean()
+      return res.status(200).json({ success: true, data: invoices })
+    } catch (error: any) {
+      return res.status(500).json({ success: false, message: error.message || "Failed to fetch invoices" })
+    }
+  }
+
   static async createCategory(req: AuthenticatedRequest, res: Response) {
     try {
       const org_id = req.user?.org_id
@@ -280,7 +472,19 @@ export class StockController {
       const actorId = req.user?.userId
       if (!org_id || !actorId) return res.status(401).json({ success: false, message: "Unauthorized" })
 
-      const { productId, quantitySold, soldPrice, isSalesCompany = false, salesEmployeeId } = req.body
+      const {
+        productId,
+        quantitySold,
+        soldPrice,
+        isSalesCompany = false,
+        salesEmployeeId,
+        isWalkInClient = false,
+        buyerName,
+        buyerNumber,
+        buyerLocation,
+        quotationId,
+        invoiceId,
+      } = req.body
 
       if (!productId || Number(quantitySold) <= 0 || Number(soldPrice) < 0) {
         return res.status(400).json({ success: false, message: "productId, positive quantitySold and soldPrice are required" })
@@ -288,6 +492,10 @@ export class StockController {
 
       if (isSalesCompany && !salesEmployeeId) {
         return res.status(400).json({ success: false, message: "salesEmployeeId is required when isSalesCompany is true" })
+      }
+
+      if (!isWalkInClient && (!buyerName || !buyerNumber || !buyerLocation)) {
+        return res.status(400).json({ success: false, message: "Buyer details are required unless walk-in client is selected" })
       }
 
       const product = await StockProduct.findOne({ _id: productId, org_id })
@@ -314,8 +522,15 @@ export class StockController {
         quantitySold: Number(quantitySold),
         soldPrice: Number(soldPrice),
         soldBy: actorId,
+        buyerName: isWalkInClient ? "Walk-in Client" : String(buyerName || "").trim(),
+        buyerNumber: isWalkInClient ? undefined : String(buyerNumber || "").trim(),
+        buyerLocation: isWalkInClient ? undefined : String(buyerLocation || "").trim(),
+        isWalkInClient: Boolean(isWalkInClient),
         isSalesCompany: Boolean(isSalesCompany),
         salesEmployeeId: isSalesCompany ? String(salesEmployeeId) : undefined,
+        quotationId: quotationId ? String(quotationId) : undefined,
+        invoiceId: invoiceId ? String(invoiceId) : undefined,
+        receiptNumber: generateDocumentNumber("RCP"),
         remainingQuantity: product.currentQuantity,
       })
 

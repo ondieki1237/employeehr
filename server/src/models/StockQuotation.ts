@@ -1,0 +1,66 @@
+import mongoose, { Schema } from "mongoose"
+
+interface IQuotationItem {
+  productId: string
+  productName: string
+  quantity: number
+  unitPrice: number
+  lineTotal: number
+}
+
+interface IQuotationClient {
+  name: string
+  number: string
+  location: string
+}
+
+export interface IStockQuotation {
+  _id?: string
+  org_id: string
+  quotationNumber: string
+  client: IQuotationClient
+  items: IQuotationItem[]
+  subTotal: number
+  status: "draft" | "converted" | "cancelled"
+  createdBy: string
+  convertedInvoiceId?: string
+  createdAt?: Date
+  updatedAt?: Date
+}
+
+const quotationItemSchema = new Schema<IQuotationItem>(
+  {
+    productId: { type: String, required: true },
+    productName: { type: String, required: true },
+    quantity: { type: Number, required: true, min: 1 },
+    unitPrice: { type: Number, required: true, min: 0 },
+    lineTotal: { type: Number, required: true, min: 0 },
+  },
+  { _id: false },
+)
+
+const stockQuotationSchema = new Schema<IStockQuotation>(
+  {
+    org_id: { type: String, required: true, index: true },
+    quotationNumber: { type: String, required: true, index: true },
+    client: {
+      name: { type: String, required: true },
+      number: { type: String, required: true },
+      location: { type: String, required: true },
+    },
+    items: { type: [quotationItemSchema], required: true },
+    subTotal: { type: Number, required: true, min: 0 },
+    status: {
+      type: String,
+      enum: ["draft", "converted", "cancelled"],
+      default: "draft",
+    },
+    createdBy: { type: String, required: true },
+    convertedInvoiceId: { type: String },
+  },
+  { timestamps: true },
+)
+
+stockQuotationSchema.index({ org_id: 1, quotationNumber: 1 }, { unique: true })
+
+export const StockQuotation = mongoose.model<IStockQuotation>("StockQuotation", stockQuotationSchema)
