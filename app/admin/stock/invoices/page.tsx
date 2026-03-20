@@ -1,13 +1,17 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { jsPDF } from "jspdf"
 import API_URL from "@/lib/apiBase"
-import { getToken } from "@/lib/auth"
+import { getToken, getUser } from "@/lib/auth"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import {
+  generateDeliveryNotePdf,
+  generateInvoicePdf,
+  type TenantBranding,
+} from "@/lib/stock-document-pdf"
 
 interface InvoiceItem {
   productId: string
@@ -68,96 +72,10 @@ function exportInvoiceCsv(invoices: Invoice[]) {
   URL.revokeObjectURL(url)
 }
 
-function downloadInvoicePdf(invoice: Invoice) {
-  const doc = new jsPDF()
-  let y = 15
-  doc.setFontSize(16)
-  doc.text("Invoice", 14, y)
-  y += 8
-
-  doc.setFontSize(11)
-  doc.text(`Invoice No: ${invoice.invoiceNumber}`, 14, y)
-  y += 6
-  doc.text(`Delivery Note: ${invoice.deliveryNoteNumber}`, 14, y)
-  y += 6
-  doc.text(`Quotation No: ${invoice.quotationNumber || "N/A"}`, 14, y)
-  y += 6
-  doc.text(`Date: ${new Date(invoice.createdAt).toLocaleString()}`, 14, y)
-  y += 8
-
-  doc.text(`Client: ${invoice.client.name}`, 14, y)
-  y += 6
-  doc.text(`Number: ${invoice.client.number}`, 14, y)
-  y += 6
-  doc.text(`Location: ${invoice.client.location}`, 14, y)
-  y += 10
-
-  doc.text("Items:", 14, y)
-  y += 6
-  invoice.items.forEach((item, index) => {
-    doc.text(
-      `${index + 1}. ${item.productName} | Qty: ${item.quantity} | Price: ${item.unitPrice.toFixed(2)} | Total: ${item.lineTotal.toFixed(2)}`,
-      14,
-      y,
-    )
-    y += 6
-    if (y > 275) {
-      doc.addPage()
-      y = 15
-    }
-  })
-
-  y += 4
-  doc.setFontSize(12)
-  doc.text(`Total: ${invoice.subTotal.toFixed(2)}`, 14, y)
-
-  doc.save(`invoice-${invoice.invoiceNumber}.pdf`)
-}
-
-function downloadDeliveryNotePdf(invoice: Invoice) {
-  const doc = new jsPDF()
-  let y = 15
-  doc.setFontSize(16)
-  doc.text("Delivery Note", 14, y)
-  y += 8
-
-  doc.setFontSize(11)
-  doc.text(`Delivery Note No: ${invoice.deliveryNoteNumber}`, 14, y)
-  y += 6
-  doc.text(`Invoice No: ${invoice.invoiceNumber}`, 14, y)
-  y += 6
-  doc.text(`Date: ${new Date(invoice.createdAt).toLocaleString()}`, 14, y)
-  y += 8
-
-  doc.text(`Deliver To: ${invoice.client.name}`, 14, y)
-  y += 6
-  doc.text(`Phone: ${invoice.client.number}`, 14, y)
-  y += 6
-  doc.text(`Location: ${invoice.client.location}`, 14, y)
-  y += 10
-
-  doc.text("Products for Delivery:", 14, y)
-  y += 6
-  invoice.items.forEach((item, index) => {
-    doc.text(`${index + 1}. ${item.productName} | Qty: ${item.quantity}`, 14, y)
-    y += 6
-    if (y > 275) {
-      doc.addPage()
-      y = 15
-    }
-  })
-
-  y += 10
-  doc.text("Received By: __________________________", 14, y)
-  y += 8
-  doc.text("Signature: _____________________________", 14, y)
-
-  doc.save(`delivery-note-${invoice.deliveryNoteNumber}.pdf`)
-}
-
 export default function InvoicesPage() {
   const [loading, setLoading] = useState(true)
   const [invoices, setInvoices] = useState<Invoice[]>([])
+  const [branding, setBranding] = useState<TenantBranding>({})
   const [searchInput, setSearchInput] = useState("")
   const [search, setSearch] = useState("")
 
@@ -172,12 +90,48 @@ export default function InvoicesPage() {
   const loadInvoices = async () => {
     try {
       setLoading(true)
-      const response = await fetch(`${API_URL}/api/stock/invoices`, { headers })
-      const data = await response.json()
-      setInvoices(data.data || [])
+      const [invoicesResponse, brandingResponse] = await Promise.all([
+        fetch(`${API_URL}/api/stock/invoices`, { headers }),
+        fetch(`${API_URL}/api/company/branding`, { headers }),
+      ])
+      const [invoicesData, brandingData] = await Promise.all([invoicesResponse.json(), brandingResponse.json()])
+      setInvoices(invoicesData.data || [])
+      setBranding(brandingData.data || {})
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleDownloadInvoicePdf = (invoice: Invoice) => {
+    const currentUser = getUser()
+    const preparedBy = [currentUser?.first_name, currentUser?.last_name].filter(Boolean).join(" ") || "System User"
+    generateInvoicePdf({
+      invoiceNumber: invoice.invoiceNumber,
+      deliveryNoteNumber: invoice.deliveryNoteNumber,
+      quotationNumber: invoice.quotationNumber,
+      createdAt: invoice.createdAt,
+      client: invoice.client,
+      items: invoice.items,
+      subTotal: invoice.subTotal,
+      branding,
+      preparedBy,
+      watermarkText: invoice.status === "paid" ? "PAID" : invoice.status === "cancelled" ? "CANCELLED" : undefined,
+    })
+  }
+
+  const handleDownloadDeliveryNotePdf = (invoice: Invoice) => {
+    const currentUser = getUser()
+    const preparedBy = [currentUser?.first_name, currentUser?.last_name].filter(Boolean).join(" ") || "System User"
+    generateDeliveryNotePdf({
+      invoiceNumber: invoice.invoiceNumber,
+      deliveryNoteNumber: invoice.deliveryNoteNumber,
+      createdAt: invoice.createdAt,
+      client: invoice.client,
+      items: invoice.items,
+      branding,
+      preparedBy,
+      watermarkText: invoice.status === "paid" ? "PAID" : invoice.status === "cancelled" ? "CANCELLED" : undefined,
+    })
   }
 
   useEffect(() => {
@@ -259,8 +213,8 @@ export default function InvoicesPage() {
                     <td className="py-2">{new Date(invoice.createdAt).toLocaleString()}</td>
                     <td className="py-2">
                       <div className="flex flex-wrap gap-2">
-                        <Button size="sm" variant="outline" onClick={() => downloadInvoicePdf(invoice)}>Invoice PDF</Button>
-                        <Button size="sm" variant="outline" onClick={() => downloadDeliveryNotePdf(invoice)}>Delivery Note PDF</Button>
+                        <Button size="sm" variant="outline" onClick={() => handleDownloadInvoicePdf(invoice)}>Invoice PDF</Button>
+                        <Button size="sm" variant="outline" onClick={() => handleDownloadDeliveryNotePdf(invoice)}>Delivery Note PDF</Button>
                       </div>
                     </td>
                   </tr>

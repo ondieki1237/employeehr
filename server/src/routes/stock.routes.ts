@@ -12,7 +12,9 @@ router.get("/categories", StockController.getCategories)
 
 router.post("/quotations", StockController.createQuotation)
 router.get("/quotations", StockController.getQuotations)
+router.put("/quotations/:quotationId", StockController.updateQuotation)
 router.post("/quotations/:quotationId/convert", StockController.convertQuotationToInvoice)
+router.get("/clients", StockController.getClients)
 
 router.get("/invoices", StockController.getInvoices)
 

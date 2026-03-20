@@ -16,7 +16,7 @@ export class CompanyController {
       if (!req.org_id) {
         return res.status(400).json({ success: false, message: "Organization context required" })
       }
-      const company = await Company.findById(req.org_id).select("logo primaryColor secondaryColor accentColor backgroundColor textColor borderRadius fontFamily buttonStyle name slug")
+      const company = await Company.findById(req.org_id).select("logo primaryColor secondaryColor accentColor backgroundColor textColor borderRadius fontFamily buttonStyle name slug email phone website city state country")
       if (!company) return res.status(404).json({ success: false, message: "Company not found" })
       
       // Build full logo URL if it's a file path
@@ -62,7 +62,7 @@ export class CompanyController {
         req.org_id,
         { $set: updateFields },
         { new: true, runValidators: true }
-      ).select("logo primaryColor secondaryColor accentColor backgroundColor textColor borderRadius fontFamily buttonStyle name slug")
+      ).select("logo primaryColor secondaryColor accentColor backgroundColor textColor borderRadius fontFamily buttonStyle name slug email phone website city state country")
       
       if (!company) {
         return res.status(404).json({ success: false, message: "Company not found" })

@@ -143,6 +143,103 @@ export class StockController {
     }
   }
 
+  static async updateQuotation(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = req.user?.org_id
+      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+
+      const { quotationId } = req.params
+      const quotation = await StockQuotation.findOne({ _id: quotationId, org_id })
+      if (!quotation) {
+        return res.status(404).json({ success: false, message: "Quotation not found" })
+      }
+
+      if (quotation.status !== "draft") {
+        return res.status(400).json({ success: false, message: "Only draft quotations can be edited" })
+      }
+
+      const { clientName, clientNumber, clientLocation, items } = req.body
+      if (!clientName || !clientNumber || !clientLocation) {
+        return res.status(400).json({ success: false, message: "Client name, number, and location are required" })
+      }
+
+      const normalizedItems = await buildQuotationItems(org_id, items || [])
+      const subTotal = Number(normalizedItems.reduce((sum, item) => sum + item.lineTotal, 0).toFixed(2))
+
+      quotation.client = {
+        name: String(clientName).trim(),
+        number: String(clientNumber).trim(),
+        location: String(clientLocation).trim(),
+      }
+      quotation.items = normalizedItems as any
+      quotation.subTotal = subTotal
+
+      await quotation.save()
+
+      return res.status(200).json({ success: true, data: quotation })
+    } catch (error: any) {
+      return res.status(500).json({ success: false, message: error.message || "Failed to update quotation" })
+    }
+  }
+
+  static async getClients(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = req.user?.org_id
+      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+
+      const [quotations, invoices, sales] = await Promise.all([
+        StockQuotation.find({ org_id }).select("client").lean(),
+        StockInvoice.find({ org_id }).select("client").lean(),
+        StockSale.find({ org_id, isWalkInClient: { $ne: true } })
+          .select("buyerName buyerNumber buyerLocation")
+          .lean(),
+      ])
+
+      const clientMap = new Map<string, { name: string; number: string; location: string }>()
+
+      for (const quotation of quotations) {
+        const client = (quotation as any).client
+        if (!client?.name || !client?.number || !client?.location) continue
+        const key = `${client.name}|${client.number}|${client.location}`.toLowerCase()
+        if (!clientMap.has(key)) {
+          clientMap.set(key, {
+            name: client.name,
+            number: client.number,
+            location: client.location,
+          })
+        }
+      }
+
+      for (const invoice of invoices) {
+        const client = (invoice as any).client
+        if (!client?.name || !client?.number || !client?.location) continue
+        const key = `${client.name}|${client.number}|${client.location}`.toLowerCase()
+        if (!clientMap.has(key)) {
+          clientMap.set(key, {
+            name: client.name,
+            number: client.number,
+            location: client.location,
+          })
+        }
+      }
+
+      for (const sale of sales) {
+        const name = (sale as any).buyerName
+        const number = (sale as any).buyerNumber
+        const location = (sale as any).buyerLocation
+        if (!name || !number || !location) continue
+        const key = `${name}|${number}|${location}`.toLowerCase()
+        if (!clientMap.has(key)) {
+          clientMap.set(key, { name, number, location })
+        }
+      }
+
+      return res.status(200).json({ success: true, data: Array.from(clientMap.values()) })
+    } catch (error: any) {
+      return res.status(500).json({ success: false, message: error.message || "Failed to fetch clients" })
+    }
+  }
+
   static async convertQuotationToInvoice(req: AuthenticatedRequest, res: Response) {
     try {
       const org_id = req.user?.org_id
