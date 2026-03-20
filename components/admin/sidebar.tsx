@@ -26,7 +26,8 @@ import {
   TrendingUp,
   Mail,
   Banknote,
-  Video
+  Video,
+  Package
 } from "lucide-react"
 import { logout } from "@/lib/auth"
 
@@ -94,6 +95,36 @@ const adminMenuItems = [
     icon: Video,
     href: "/admin/meetings",
     section: "EMPLOYEE MANAGEMENT"
+  },
+  {
+    label: "Add Inventory",
+    icon: Package,
+    href: "/admin/stock/add-inventory",
+    section: "INVENTORY MANAGER"
+  },
+  {
+    label: "Sales",
+    icon: Package,
+    href: "/admin/stock/sales",
+    section: "INVENTORY MANAGER"
+  },
+  {
+    label: "Inventory Status",
+    icon: Package,
+    href: "/admin/stock/status",
+    section: "INVENTORY MANAGER"
+  },
+  {
+    label: "Analytics",
+    icon: Package,
+    href: "/admin/stock/analytics",
+    section: "INVENTORY MANAGER"
+  },
+  {
+    label: "Inventory History",
+    icon: Package,
+    href: "/admin/stock/history",
+    section: "INVENTORY MANAGER"
   },
   {
     label: "Resource Booking",
@@ -191,7 +222,7 @@ export default function AdminSidebar({ isOpen, onToggle }: SidebarProps) {
 
       <aside
         className={`
-        fixed lg:static top-0 left-0 h-screen bg-card border-r border-border z-50
+        fixed lg:static top-0 left-0 h-screen bg-card border-r border-border z-50 flex flex-col
         transition-transform duration-300 w-64
         ${isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
       `}
@@ -206,7 +237,7 @@ export default function AdminSidebar({ isOpen, onToggle }: SidebarProps) {
           </button>
         </div>
 
-        <nav className="px-4 py-6 space-y-6 flex-1 overflow-y-auto">
+        <nav className="px-4 py-6 space-y-6 flex-1 min-h-0 overflow-y-auto">
           {Object.entries(sections).map(([sectionName, items]) => (
             <div key={sectionName}>
               <h3 className="px-4 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">

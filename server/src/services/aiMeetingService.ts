@@ -19,12 +19,22 @@ interface MeetingAnalysis {
 }
 
 export class AIMeetingService {
-  private openaiClient: OpenAI
+  private openaiClient: OpenAI | null
 
   constructor() {
-    this.openaiClient = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
-    })
+    const apiKey = process.env.OPENAI_API_KEY
+    this.openaiClient = apiKey
+      ? new OpenAI({
+          apiKey,
+        })
+      : null
+  }
+
+  private requireOpenAIClient(): OpenAI {
+    if (!this.openaiClient) {
+      throw new Error("OPENAI_API_KEY is not configured")
+    }
+    return this.openaiClient
   }
 
   /**
@@ -34,8 +44,9 @@ export class AIMeetingService {
    */
   async transcribeAudio(audioUrl: string): Promise<string> {
     try {
+      const openaiClient = this.requireOpenAIClient()
       // If using a file path or buffer, you would handle it differently
-      const response = await this.openaiClient.audio.transcriptions.create({
+      const response = await openaiClient.audio.transcriptions.create({
         file: audioUrl as any,
         model: "whisper-1",
       })
@@ -58,6 +69,7 @@ export class AIMeetingService {
     attendeeEmails: string[],
   ): Promise<MeetingAnalysis> {
     try {
+      const openaiClient = this.requireOpenAIClient()
       const prompt = `You are an expert meeting analyst. Analyze the following meeting transcript and provide:
 1. A concise summary (2-3 sentences)
 2. Key points discussed (list 3-5 key points)
@@ -90,7 +102,7 @@ Respond in JSON format like this:
 
 Only respond with valid JSON, no additional text.`
 
-      const response = await this.openaiClient.chat.completions.create({
+      const response = await openaiClient.chat.completions.create({
         model: "gpt-4o",
         messages: [
           {
@@ -151,6 +163,7 @@ Only respond with valid JSON, no additional text.`
     meetingTitle: string,
   ): Promise<string> {
     try {
+      const openaiClient = this.requireOpenAIClient()
       const prompt = `Generate a professional meeting report in HTML format based on the following:
 
 Meeting Title: ${meetingTitle}
@@ -169,7 +182,7 @@ Create an HTML report that includes:
 
 Return only the HTML content, properly formatted with CSS styles.`
 
-      const response = await this.openaiClient.chat.completions.create({
+      const response = await openaiClient.chat.completions.create({
         model: "gpt-4o",
         messages: [
           {

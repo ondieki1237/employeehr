@@ -44,6 +44,7 @@ import meetingRoutes from "./routes/meeting.routes"
 import setupRoutes from "./routes/setup.routes"
 import anonymousFeedbackRoutes from "./routes/anonymousFeedback.routes"
 import feedbackSurveyRoutes from "./routes/feedbackSurvey.routes"
+import stockRoutes from "./routes/stock.routes"
 import { JobController } from "./controllers/jobController"
 import { JobApplicationController } from "./controllers/jobApplicationController"
 import { ApplicationFormController } from "./controllers/applicationFormController"
@@ -153,6 +154,7 @@ app.use("/api/meetings", meetingRoutes)
 app.use("/api/setup", setupRoutes)
 app.use("/api/feedback-360", anonymousFeedbackRoutes)
 app.use("/api/feedback-surveys", feedbackSurveyRoutes)
+app.use("/api/stock", stockRoutes)
 app.use("/api", bookingRoutes)
 
 // 404 handler
