@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
+  applyStampToPdf,
   generateDeliveryNotePdf,
   generateInvoicePdf,
   type TenantBranding,
@@ -31,6 +32,11 @@ interface Invoice {
   subTotal: number
   status: "issued" | "paid" | "cancelled"
   createdAt: string
+}
+
+interface StampOption {
+  _id: string
+  name: string
 }
 
 function exportInvoiceCsv(invoices: Invoice[]) {
@@ -102,10 +108,42 @@ export default function InvoicesPage() {
     }
   }
 
-  const handleDownloadInvoicePdf = (invoice: Invoice) => {
+  const promptStampSelection = async (): Promise<{ stampId: string; date: string } | null> => {
+    const addStamp = window.confirm("Add a stamp to this PDF?")
+    if (!addStamp) return null
+
+    const defaultDate = new Date().toLocaleDateString("en-GB")
+    const selectedDate = window.prompt("Enter stamp date (DD/MM/YYYY)", defaultDate)
+    if (selectedDate === null) return null
+
+    const stampsRes = await fetch(`${API_URL}/api/stamps`, { headers })
+    const stampsJson = await stampsRes.json()
+    const stamps: StampOption[] = stampsJson.data || stampsJson || []
+
+    if (!stamps.length) {
+      window.alert("No stamps found. Create one first in System > Stamps.")
+      return null
+    }
+
+    const stampList = stamps.map((stamp, index) => `${index + 1}. ${stamp.name}`).join("\n")
+    const selected = window.prompt(`Select stamp number:\n${stampList}`, "1")
+    if (!selected) return null
+
+    const index = Number(selected) - 1
+    if (Number.isNaN(index) || index < 0 || index >= stamps.length) {
+      window.alert("Invalid stamp selection")
+      return null
+    }
+
+    return { stampId: stamps[index]._id, date: selectedDate || defaultDate }
+  }
+
+  const handleDownloadInvoicePdf = async (invoice: Invoice) => {
     const currentUser = getUser()
     const preparedBy = [currentUser?.first_name, currentUser?.last_name].filter(Boolean).join(" ") || "System User"
-    generateInvoicePdf({
+    const stampSelection = await promptStampSelection()
+
+    const doc = generateInvoicePdf({
       invoiceNumber: invoice.invoiceNumber,
       deliveryNoteNumber: invoice.deliveryNoteNumber,
       quotationNumber: invoice.quotationNumber,
@@ -116,13 +154,31 @@ export default function InvoicesPage() {
       branding,
       preparedBy,
       watermarkText: invoice.status === "paid" ? "PAID" : invoice.status === "cancelled" ? "CANCELLED" : undefined,
+      autoSave: false,
     })
+
+    if (stampSelection) {
+      try {
+        const query = new URLSearchParams({ date: stampSelection.date }).toString()
+        const stampRes = await fetch(`${API_URL}/api/stamps/${stampSelection.stampId}/svg?${query}`, { headers })
+        if (stampRes.ok) {
+          const stampSvg = await stampRes.text()
+          await applyStampToPdf(doc, stampSvg, 140, 255, 55, 33)
+        }
+      } catch {
+        window.alert("Failed to apply stamp. PDF will be downloaded without stamp.")
+      }
+    }
+
+    doc.save(`invoice-${invoice.invoiceNumber}.pdf`)
   }
 
-  const handleDownloadDeliveryNotePdf = (invoice: Invoice) => {
+  const handleDownloadDeliveryNotePdf = async (invoice: Invoice) => {
     const currentUser = getUser()
     const preparedBy = [currentUser?.first_name, currentUser?.last_name].filter(Boolean).join(" ") || "System User"
-    generateDeliveryNotePdf({
+    const stampSelection = await promptStampSelection()
+
+    const doc = generateDeliveryNotePdf({
       invoiceNumber: invoice.invoiceNumber,
       deliveryNoteNumber: invoice.deliveryNoteNumber,
       createdAt: invoice.createdAt,
@@ -131,7 +187,23 @@ export default function InvoicesPage() {
       branding,
       preparedBy,
       watermarkText: invoice.status === "paid" ? "PAID" : invoice.status === "cancelled" ? "CANCELLED" : undefined,
+      autoSave: false,
     })
+
+    if (stampSelection) {
+      try {
+        const query = new URLSearchParams({ date: stampSelection.date }).toString()
+        const stampRes = await fetch(`${API_URL}/api/stamps/${stampSelection.stampId}/svg?${query}`, { headers })
+        if (stampRes.ok) {
+          const stampSvg = await stampRes.text()
+          await applyStampToPdf(doc, stampSvg, 140, 255, 55, 33)
+        }
+      } catch {
+        window.alert("Failed to apply stamp. PDF will be downloaded without stamp.")
+      }
+    }
+
+    doc.save(`delivery-note-${invoice.deliveryNoteNumber}.pdf`)
   }
 
   useEffect(() => {

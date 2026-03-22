@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast"
-import { generateQuotationPdf, type TenantBranding } from "@/lib/stock-document-pdf"
+import { applyStampToPdf, generateQuotationPdf, type TenantBranding } from "@/lib/stock-document-pdf"
 
 interface Product {
   _id: string
@@ -46,6 +46,11 @@ interface DraftItem {
   productId: string
   quantity: number
   unitPrice: number
+}
+
+interface StampOption {
+  _id: string
+  name: string
 }
 
 export default function QuotationsPage() {
@@ -260,11 +265,43 @@ export default function QuotationsPage() {
     loadData()
   }
 
-  const downloadQuotationPdf = (quotation: Quotation) => {
+  const promptStampSelection = async (): Promise<{ stampId: string; date: string } | null> => {
+    const addStamp = window.confirm("Add a stamp to this PDF?")
+    if (!addStamp) return null
+
+    const defaultDate = new Date().toLocaleDateString("en-GB")
+    const selectedDate = window.prompt("Enter stamp date (DD/MM/YYYY)", defaultDate)
+    if (selectedDate === null) return null
+
+    const stampsRes = await fetch(`${API_URL}/api/stamps`, { headers })
+    const stampsJson = await stampsRes.json()
+    const stamps: StampOption[] = stampsJson.data || stampsJson || []
+
+    if (!stamps.length) {
+      toast({ title: "No stamps", description: "Create a stamp first in System > Stamps", variant: "destructive" })
+      return null
+    }
+
+    const stampList = stamps.map((stamp, index) => `${index + 1}. ${stamp.name}`).join("\n")
+    const selected = window.prompt(`Select stamp number:\n${stampList}`, "1")
+    if (!selected) return null
+
+    const index = Number(selected) - 1
+    if (Number.isNaN(index) || index < 0 || index >= stamps.length) {
+      toast({ title: "Invalid stamp", description: "Please choose a valid stamp number", variant: "destructive" })
+      return null
+    }
+
+    return { stampId: stamps[index]._id, date: selectedDate || defaultDate }
+  }
+
+  const downloadQuotationPdf = async (quotation: Quotation) => {
     const currentUser = getUser()
     const preparedBy = [currentUser?.first_name, currentUser?.last_name].filter(Boolean).join(" ") || "System User"
 
-    generateQuotationPdf({
+    const stampSelection = await promptStampSelection()
+
+    const doc = generateQuotationPdf({
       quotationNumber: quotation.quotationNumber,
       createdAt: quotation.createdAt,
       client: quotation.client,
@@ -273,7 +310,23 @@ export default function QuotationsPage() {
       branding,
       preparedBy,
       watermarkText: quotation.status === "draft" ? "DRAFT" : quotation.status === "cancelled" ? "CANCELLED" : undefined,
+      autoSave: false,
     })
+
+    if (stampSelection) {
+      try {
+        const query = new URLSearchParams({ date: stampSelection.date }).toString()
+        const stampRes = await fetch(`${API_URL}/api/stamps/${stampSelection.stampId}/svg?${query}`, { headers })
+        if (stampRes.ok) {
+          const stampSvg = await stampRes.text()
+          await applyStampToPdf(doc, stampSvg, 140, 255, 55, 33)
+        }
+      } catch {
+        toast({ title: "Stamp skipped", description: "Failed to apply stamp, downloading PDF without stamp", variant: "destructive" })
+      }
+    }
+
+    doc.save(`quotation-${quotation.quotationNumber}.pdf`)
   }
 
   if (loading) return <div className="p-6">Loading quotations...</div>

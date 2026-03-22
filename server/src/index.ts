@@ -45,10 +45,12 @@ import setupRoutes from "./routes/setup.routes"
 import anonymousFeedbackRoutes from "./routes/anonymousFeedback.routes"
 import feedbackSurveyRoutes from "./routes/feedbackSurvey.routes"
 import stockRoutes from "./routes/stock.routes"
+import stampRoutes from "./routes/stamp.routes"
 import { JobController } from "./controllers/jobController"
 import { JobApplicationController } from "./controllers/jobApplicationController"
 import { ApplicationFormController } from "./controllers/applicationFormController"
 import { MeetingController } from "./controllers/meetingController"
+import { StockController } from "./controllers/stockController"
 
 const app = express()
 const server = createServer(app)
@@ -155,6 +157,7 @@ app.use("/api/setup", setupRoutes)
 app.use("/api/feedback-360", anonymousFeedbackRoutes)
 app.use("/api/feedback-surveys", feedbackSurveyRoutes)
 app.use("/api/stock", stockRoutes)
+app.use("/api/stamps", stampRoutes)
 app.use("/api", bookingRoutes)
 
 // 404 handler
@@ -171,4 +174,17 @@ app.use(errorHandler)
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`)
   console.log(`WebRTC signaling service initialized`)
+
+  const expiryCheckIntervalMs = Number(process.env.STOCK_EXPIRY_CHECK_INTERVAL_MS || 6 * 60 * 60 * 1000)
+
+  setInterval(async () => {
+    try {
+      const result = await StockController.runExpiryReminderCheck()
+      if (result.remindersSent > 0) {
+        console.log(`[stock-expiry] checked=${result.checked}, remindersSent=${result.remindersSent}`)
+      }
+    } catch (error) {
+      console.error("[stock-expiry] automated check failed:", error)
+    }
+  }, expiryCheckIntervalMs)
 })

@@ -474,6 +474,28 @@ const setupApi = {
     reset: () => client.post<any>('/api/setup/reset', {}),
 }
 
+// Stamps API for document stamping
+const stampsApi = {
+    getAll: () => client.get<any>('/api/stamps'),
+    
+    getById: (id: string) => client.get<any>(`/api/stamps/${id}`),
+    
+    getDefault: () => client.get<any>('/api/stamps/default'),
+    
+    create: (data: any) => client.post<any>('/api/stamps', data),
+    
+    update: (id: string, data: any) => client.put<any>(`/api/stamps/${id}`, data),
+    
+    delete: (id: string) => client.delete<any>(`/api/stamps/${id}`),
+    
+    generatePreview: (config: any) => client.post<any>('/api/stamps/preview', config),
+    
+    getSvg: (id: string, params?: Record<string, string>) => {
+        const queryString = params ? `?${new URLSearchParams(params).toString()}` : ''
+        return client.get<any>(`/api/stamps/${id}/svg${queryString}`)
+    },
+}
+
 // Export all APIs
 export const api = {
     auth: authApi,
@@ -492,6 +514,7 @@ export const api = {
     payroll: payrollApi,
     meetings: meetingsApi,
     setup: setupApi,
+    stamps: stampsApi,
 }
 
 export default api

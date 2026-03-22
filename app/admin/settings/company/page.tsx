@@ -98,6 +98,8 @@ export default function CompanySettingsPage() {
     root.style.setProperty("--accent", ac)
     root.style.setProperty("--brand-background", bgc)
     root.style.setProperty("--brand-text", tc)
+    root.style.setProperty("--background", bgc)
+    root.style.setProperty("--foreground", tc)
     root.style.setProperty("--brand-radius", br)
     root.style.setProperty("--radius", br)
     root.style.backgroundColor = bgc
@@ -124,6 +126,8 @@ export default function CompanySettingsPage() {
     root.style.setProperty("--accent", accentColor)
     root.style.setProperty("--brand-background", backgroundColor)
     root.style.setProperty("--brand-text", textColor)
+    root.style.setProperty("--background", backgroundColor)
+    root.style.setProperty("--foreground", textColor)
     root.style.setProperty("--brand-radius", borderRadius)
     root.style.setProperty("--radius", borderRadius)
     root.style.setProperty("--brand-font", fontFamily)

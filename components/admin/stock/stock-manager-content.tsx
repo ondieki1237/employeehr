@@ -28,6 +28,9 @@ interface Product {
   minAlertQuantity: number
   currentQuantity: number
   assignedUsers: string[]
+  expiryEnabled?: boolean
+  expiryDate?: string | null
+  expiryReminderDays?: number
   categoryDetails?: { _id: string; name: string }
 }
 
@@ -82,8 +85,18 @@ export function StockManagerContent({ view }: { view: StockView }) {
     minAlertQuantity: "",
     currentQuantity: "0",
     assignedUsers: [] as string[],
+    expiryEnabled: false,
+    expiryDate: "",
+    expiryReminderDays: "7",
   })
-  const [stockForm, setStockForm] = useState({ productId: "", quantityAdded: "", note: "" })
+  const [stockForm, setStockForm] = useState({
+    productId: "",
+    quantityAdded: "",
+    note: "",
+    expiryEnabled: false,
+    expiryDate: "",
+    expiryReminderDays: "7",
+  })
   const [saleForm, setSaleForm] = useState({
     productId: "",
     quantitySold: "",
@@ -230,6 +243,8 @@ export function StockManagerContent({ view }: { view: StockView }) {
         sellingPrice: Number(productForm.sellingPrice),
         minAlertQuantity: Number(productForm.minAlertQuantity),
         currentQuantity: Number(productForm.currentQuantity || 0),
+        expiryDate: productForm.expiryEnabled ? productForm.expiryDate : undefined,
+        expiryReminderDays: Number(productForm.expiryReminderDays || 0),
       }),
     })
     const result = await response.json()
@@ -245,6 +260,9 @@ export function StockManagerContent({ view }: { view: StockView }) {
       minAlertQuantity: "",
       currentQuantity: "0",
       assignedUsers: [],
+      expiryEnabled: false,
+      expiryDate: "",
+      expiryReminderDays: "7",
     })
     toast({ title: "Success", description: "Product created" })
     fetchAll()
@@ -258,6 +276,9 @@ export function StockManagerContent({ view }: { view: StockView }) {
         productId: stockForm.productId,
         quantityAdded: Number(stockForm.quantityAdded),
         note: stockForm.note,
+        expiryEnabled: stockForm.expiryEnabled,
+        expiryDate: stockForm.expiryEnabled ? stockForm.expiryDate : undefined,
+        expiryReminderDays: Number(stockForm.expiryReminderDays || 0),
       }),
     })
     const result = await response.json()
@@ -265,7 +286,14 @@ export function StockManagerContent({ view }: { view: StockView }) {
       toast({ title: "Stock Error", description: result.message || "Failed", variant: "destructive" })
       return
     }
-    setStockForm({ productId: "", quantityAdded: "", note: "" })
+    setStockForm({
+      productId: "",
+      quantityAdded: "",
+      note: "",
+      expiryEnabled: false,
+      expiryDate: "",
+      expiryReminderDays: "7",
+    })
     toast({ title: "Success", description: "Stock added" })
     fetchAll()
   }
@@ -353,6 +381,40 @@ export function StockManagerContent({ view }: { view: StockView }) {
                   <Label>Note</Label>
                   <Input value={stockForm.note} onChange={(event) => setStockForm((prev) => ({ ...prev, note: event.target.value }))} />
                 </div>
+                <label className="flex items-center gap-2 text-sm">
+                  <Checkbox
+                    checked={stockForm.expiryEnabled}
+                    onCheckedChange={(value) =>
+                      setStockForm((prev) => ({
+                        ...prev,
+                        expiryEnabled: Boolean(value),
+                        expiryDate: value ? prev.expiryDate : "",
+                      }))
+                    }
+                  />
+                  <span>Expiry checker for this stock entry</span>
+                </label>
+                {stockForm.expiryEnabled && (
+                  <>
+                    <div>
+                      <Label>Expiry Date</Label>
+                      <Input
+                        type="date"
+                        value={stockForm.expiryDate}
+                        onChange={(event) => setStockForm((prev) => ({ ...prev, expiryDate: event.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <Label>Reminder Days Before Expiry</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        value={stockForm.expiryReminderDays}
+                        onChange={(event) => setStockForm((prev) => ({ ...prev, expiryReminderDays: event.target.value }))}
+                      />
+                    </div>
+                  </>
+                )}
                 <Button onClick={addStock}>Add Stock Entry</Button>
               </CardContent>
             </Card>
@@ -393,6 +455,44 @@ export function StockManagerContent({ view }: { view: StockView }) {
                   <Label>Initial Stock</Label>
                   <Input type="number" min="0" value={productForm.currentQuantity} onChange={(event) => setProductForm((prev) => ({ ...prev, currentQuantity: event.target.value }))} />
                 </div>
+              </div>
+
+              <div className="space-y-3 border rounded-md p-3">
+                <label className="flex items-center gap-2 text-sm">
+                  <Checkbox
+                    checked={productForm.expiryEnabled}
+                    onCheckedChange={(value) =>
+                      setProductForm((prev) => ({
+                        ...prev,
+                        expiryEnabled: Boolean(value),
+                        expiryDate: value ? prev.expiryDate : "",
+                      }))
+                    }
+                  />
+                  <span>Enable expiry checker for this product</span>
+                </label>
+
+                {productForm.expiryEnabled && (
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div>
+                      <Label>Expiry Date</Label>
+                      <Input
+                        type="date"
+                        value={productForm.expiryDate}
+                        onChange={(event) => setProductForm((prev) => ({ ...prev, expiryDate: event.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <Label>Reminder Days Before Expiry</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        value={productForm.expiryReminderDays}
+                        onChange={(event) => setProductForm((prev) => ({ ...prev, expiryReminderDays: event.target.value }))}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div>

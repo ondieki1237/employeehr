@@ -96,7 +96,120 @@ async function sendLowStockAlert(product: any, orgId: string) {
   )
 }
 
+function toDateKey(date: Date) {
+  return date.toISOString().slice(0, 10)
+}
+
+async function sendExpiryReminderEmail(product: any, orgId: string) {
+  if (!product.expiryEnabled || !product.expiryDate) return false
+  if (Number(product.currentQuantity) <= 0) return false
+
+  const reminderDays = Number.isFinite(Number(product.expiryReminderDays))
+    ? Number(product.expiryReminderDays)
+    : 7
+
+  const today = new Date()
+  const todayKey = toDateKey(today)
+  const expiryDate = new Date(product.expiryDate)
+
+  const reminderDate = new Date(expiryDate)
+  reminderDate.setDate(reminderDate.getDate() - Math.max(0, reminderDays))
+
+  if (today < reminderDate) return false
+  if (product.expiryLastReminderOn === todayKey) return false
+
+  const recipients = await User.find({
+    org_id: orgId,
+    role: { $in: ADMIN_ROLES },
+    status: "active",
+  })
+    .select("email firstName")
+    .lean()
+
+  if (!recipients.length) return false
+
+  const isExpired = today > expiryDate
+  const daysLeft = Math.ceil((expiryDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+  const subject = isExpired
+    ? `Expired Stock Alert: ${product.name}`
+    : `Expiry Reminder: ${product.name} (${Math.max(daysLeft, 0)} day(s) left)`
+
+  const html = `
+    <h2>${isExpired ? "Expired Product In Stock" : "Product Expiry Reminder"}</h2>
+    <p><strong>Product:</strong> ${product.name}</p>
+    <p><strong>Current Quantity:</strong> ${product.currentQuantity}</p>
+    <p><strong>Expiry Date:</strong> ${expiryDate.toDateString()}</p>
+    <p><strong>Reminder Window:</strong> ${reminderDays} day(s) before expiry</p>
+    <p>${isExpired ? "This product is expired and still available in stock." : "This product is nearing expiry and still in stock."}</p>
+  `
+
+  await Promise.all(
+    recipients.map((recipient) =>
+      emailService.sendEmail({
+        to: recipient.email,
+        subject,
+        html,
+        companyId: orgId,
+      }),
+    ),
+  )
+
+  product.expiryLastReminderOn = todayKey
+  await product.save()
+  return true
+}
+
 export class StockController {
+  static async runExpiryReminderCheck() {
+    const products = await StockProduct.find({
+      expiryEnabled: true,
+      expiryDate: { $ne: null },
+      currentQuantity: { $gt: 0 },
+      isActive: true,
+    })
+
+    let remindersSent = 0
+    for (const product of products) {
+      const sent = await sendExpiryReminderEmail(product, product.org_id)
+      if (sent) remindersSent += 1
+    }
+
+    return { checked: products.length, remindersSent }
+  }
+
+  static async checkExpiringProducts(req: AuthenticatedRequest, res: Response) {
+    try {
+      if (!isAdminRole(req.user?.role)) {
+        return res.status(403).json({ success: false, message: "Only admin/HR can run expiry checks" })
+      }
+
+      const org_id = req.user?.org_id
+      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+
+      const products = await StockProduct.find({
+        org_id,
+        expiryEnabled: true,
+        expiryDate: { $ne: null },
+        currentQuantity: { $gt: 0 },
+        isActive: true,
+      })
+
+      let remindersSent = 0
+      for (const product of products) {
+        const sent = await sendExpiryReminderEmail(product, org_id)
+        if (sent) remindersSent += 1
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: "Expiry check completed",
+        data: { checked: products.length, remindersSent },
+      })
+    } catch (error: any) {
+      return res.status(500).json({ success: false, message: error.message || "Failed to run expiry checks" })
+    }
+  }
+
   static async createQuotation(req: AuthenticatedRequest, res: Response) {
     try {
       const org_id = req.user?.org_id
@@ -406,6 +519,9 @@ export class StockController {
         minAlertQuantity,
         currentQuantity = 0,
         assignedUsers = [],
+        expiryEnabled = false,
+        expiryDate,
+        expiryReminderDays = 7,
       } = req.body
 
       if (!name || !category) {
@@ -414,6 +530,14 @@ export class StockController {
 
       if (Number(startingPrice) < 0 || Number(sellingPrice) < 0 || Number(minAlertQuantity) < 0 || Number(currentQuantity) < 0) {
         return res.status(400).json({ success: false, message: "Price and quantity values must be positive" })
+      }
+
+      if (expiryEnabled && !expiryDate) {
+        return res.status(400).json({ success: false, message: "Expiry date is required when expiry checker is enabled" })
+      }
+
+      if (Number(expiryReminderDays) < 0) {
+        return res.status(400).json({ success: false, message: "Expiry reminder days must be zero or positive" })
       }
 
       const categoryExists = await StockCategory.findOne({ _id: category, org_id })
@@ -430,6 +554,10 @@ export class StockController {
         minAlertQuantity: Number(minAlertQuantity),
         currentQuantity: Number(currentQuantity),
         assignedUsers: Array.isArray(assignedUsers) ? assignedUsers : [],
+        expiryEnabled: Boolean(expiryEnabled),
+        expiryDate: expiryEnabled && expiryDate ? new Date(expiryDate) : null,
+        expiryReminderDays: Number(expiryReminderDays),
+        expiryLastReminderOn: null,
         createdBy,
       })
 
@@ -482,6 +610,9 @@ export class StockController {
         currentQuantity,
         assignedUsers,
         isActive,
+        expiryEnabled,
+        expiryDate,
+        expiryReminderDays,
       } = req.body
 
       const payload: any = {}
@@ -493,12 +624,20 @@ export class StockController {
       if (currentQuantity !== undefined) payload.currentQuantity = Number(currentQuantity)
       if (assignedUsers !== undefined) payload.assignedUsers = Array.isArray(assignedUsers) ? assignedUsers : []
       if (isActive !== undefined) payload.isActive = Boolean(isActive)
+      if (expiryEnabled !== undefined) payload.expiryEnabled = Boolean(expiryEnabled)
+      if (expiryDate !== undefined) payload.expiryDate = expiryDate ? new Date(expiryDate) : null
+      if (expiryReminderDays !== undefined) payload.expiryReminderDays = Number(expiryReminderDays)
+
+      if (payload.expiryEnabled === true && !payload.expiryDate) {
+        return res.status(400).json({ success: false, message: "Expiry date is required when expiry checker is enabled" })
+      }
 
       if (
         payload.startingPrice < 0 ||
         payload.sellingPrice < 0 ||
         payload.minAlertQuantity < 0 ||
-        payload.currentQuantity < 0
+        payload.currentQuantity < 0 ||
+        payload.expiryReminderDays < 0
       ) {
         return res.status(400).json({ success: false, message: "Price and quantity values must be positive" })
       }
@@ -521,7 +660,14 @@ export class StockController {
 
       if (!org_id || !actorId) return res.status(401).json({ success: false, message: "Unauthorized" })
 
-      const { productId, quantityAdded, note } = req.body
+      const {
+        productId,
+        quantityAdded,
+        note,
+        expiryEnabled,
+        expiryDate,
+        expiryReminderDays,
+      } = req.body
 
       if (!productId || Number(quantityAdded) <= 0) {
         return res.status(400).json({ success: false, message: "productId and positive quantityAdded are required" })
@@ -539,17 +685,41 @@ export class StockController {
       }
 
       product.currentQuantity += Number(quantityAdded)
+
+      if (expiryEnabled !== undefined) {
+        product.expiryEnabled = Boolean(expiryEnabled)
+      }
+      if (expiryDate !== undefined) {
+        product.expiryDate = expiryDate ? new Date(expiryDate) : null
+        product.expiryLastReminderOn = null
+      }
+      if (expiryReminderDays !== undefined) {
+        product.expiryReminderDays = Number(expiryReminderDays)
+      }
+
+      if (product.expiryEnabled && !product.expiryDate) {
+        return res.status(400).json({ success: false, message: "Expiry date is required when expiry checker is enabled" })
+      }
+
+      if (Number(product.expiryReminderDays || 0) < 0) {
+        return res.status(400).json({ success: false, message: "Expiry reminder days must be zero or positive" })
+      }
+
       await product.save()
 
       const stockEntry = await StockEntry.create({
         org_id,
         productId,
         quantityAdded: Number(quantityAdded),
+        expiryEnabled: product.expiryEnabled,
+        expiryDate: product.expiryDate || null,
+        expiryReminderDays: Number(product.expiryReminderDays || 7),
         addedBy: actorId,
         note: note ? String(note) : undefined,
       })
 
       await sendLowStockAlert(product, org_id)
+      await sendExpiryReminderEmail(product, org_id)
 
       return res.status(201).json({
         success: true,

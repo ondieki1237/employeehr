@@ -27,7 +27,8 @@ import {
   Mail,
   Banknote,
   Video,
-  Package
+  Package,
+  Stamp
 } from "lucide-react"
 import { logout } from "@/lib/auth"
 
@@ -137,6 +138,12 @@ const adminMenuItems = [
     icon: Package,
     href: "/admin/stock/history",
     section: "INVENTORY MANAGER"
+  },
+  {
+    label: "Stamps",
+    icon: Stamp,
+    href: "/admin/stamps",
+    section: "SYSTEM"
   },
   {
     label: "Resource Booking",

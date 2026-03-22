@@ -24,6 +24,7 @@ router.put("/products/:id", StockController.updateProduct)
 
 router.post("/add", StockController.addStock)
 router.get("/entries", StockController.getStockEntries)
+router.post("/check-expiry", StockController.checkExpiringProducts)
 
 router.post("/sales", StockController.createSale)
 router.get("/sales", StockController.getSales)

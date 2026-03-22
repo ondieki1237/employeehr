@@ -10,6 +10,10 @@ export interface IStockProduct {
   minAlertQuantity: number
   currentQuantity: number
   assignedUsers: string[]
+  expiryEnabled?: boolean
+  expiryDate?: Date | null
+  expiryReminderDays?: number
+  expiryLastReminderOn?: string | null
   createdBy: string
   isActive: boolean
   createdAt?: Date
@@ -26,6 +30,10 @@ const stockProductSchema = new Schema<IStockProduct>(
     minAlertQuantity: { type: Number, required: true, min: 0, default: 0 },
     currentQuantity: { type: Number, required: true, min: 0, default: 0 },
     assignedUsers: [{ type: String }],
+    expiryEnabled: { type: Boolean, default: false },
+    expiryDate: { type: Date, default: null },
+    expiryReminderDays: { type: Number, min: 0, default: 7 },
+    expiryLastReminderOn: { type: String, default: null },
     createdBy: { type: String, required: true },
     isActive: { type: Boolean, default: true },
   },
@@ -34,5 +42,6 @@ const stockProductSchema = new Schema<IStockProduct>(
 
 stockProductSchema.index({ org_id: 1, category: 1 })
 stockProductSchema.index({ org_id: 1, name: 1 })
+stockProductSchema.index({ org_id: 1, expiryEnabled: 1, expiryDate: 1 })
 
 export const StockProduct = mongoose.model<IStockProduct>("StockProduct", stockProductSchema)

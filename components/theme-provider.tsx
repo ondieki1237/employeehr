@@ -38,6 +38,7 @@ export function ThemeProvider({ children, ...props }: ThemeProviderProps) {
           }
           if (backgroundColor) {
             root.style.setProperty('--brand-background', backgroundColor)
+            root.style.setProperty('--background', backgroundColor)
             // Apply to actual page background in light mode
             if (!document.documentElement.classList.contains('dark')) {
               root.style.backgroundColor = backgroundColor
@@ -45,6 +46,7 @@ export function ThemeProvider({ children, ...props }: ThemeProviderProps) {
           }
           if (textColor) {
             root.style.setProperty('--brand-text', textColor)
+            root.style.setProperty('--foreground', textColor)
           }
           if (borderRadius) {
             root.style.setProperty('--brand-radius', borderRadius)

@@ -348,6 +348,7 @@ export function generateQuotationPdf(params: {
   branding?: TenantBranding;
   preparedBy: string;
   watermarkText?: string;
+  autoSave?: boolean;
 }) {
   const doc = new jsPDF({ unit: "mm", format: "a4" });
 
@@ -367,7 +368,11 @@ export function generateQuotationPdf(params: {
 
   drawTotalsSection(doc, params.subTotal, endY, params.branding);
 
-  doc.save(`quotation-${params.quotationNumber}.pdf`);
+  if (params.autoSave !== false) {
+    doc.save(`quotation-${params.quotationNumber}.pdf`);
+  }
+
+  return doc;
 }
 
 export function generateInvoicePdf(params: {
@@ -381,6 +386,7 @@ export function generateInvoicePdf(params: {
   branding?: TenantBranding;
   preparedBy: string;
   watermarkText?: string;
+  autoSave?: boolean;
 }) {
   const doc = new jsPDF({ unit: "mm", format: "a4" });
 
@@ -406,7 +412,11 @@ export function generateInvoicePdf(params: {
 
   drawTotalsSection(doc, params.subTotal, endY, params.branding);
 
-  doc.save(`invoice-${params.invoiceNumber}.pdf`);
+  if (params.autoSave !== false) {
+    doc.save(`invoice-${params.invoiceNumber}.pdf`);
+  }
+
+  return doc;
 }
 
 export function generateDeliveryNotePdf(params: {
@@ -418,6 +428,7 @@ export function generateDeliveryNotePdf(params: {
   branding?: TenantBranding;
   preparedBy: string;
   watermarkText?: string;
+  autoSave?: boolean;
 }) {
   const doc = new jsPDF({ unit: "mm", format: "a4" });
 
@@ -442,5 +453,119 @@ export function generateDeliveryNotePdf(params: {
 
   drawDeliverySignatures(doc, endY, params.preparedBy);
 
-  doc.save(`delivery-note-${params.deliveryNoteNumber}.pdf`);
+  if (params.autoSave !== false) {
+    doc.save(`delivery-note-${params.deliveryNoteNumber}.pdf`);
+  }
+
+  return doc;
+}
+
+/**
+ * Apply a stamp to an existing PDF document
+ * @param doc - jsPDF document instance
+ * @param stampData - SVG stamp data or URL
+ * @param x - X coordinate in mm
+ * @param y - Y coordinate in mm
+ * @param width - Width of stamp in mm (default 30)
+ * @param height - Height of stamp in mm (default 30)
+ */
+export async function applyStampToPdf(
+  doc: jsPDF,
+  stampData: string,
+  x: number,
+  y: number,
+  width: number = 30,
+  height: number = 30
+): Promise<void> {
+  try {
+    // If stampData is a URL, fetch it
+    let svgContent = stampData;
+    if (stampData.startsWith("http")) {
+      const response = await fetch(stampData);
+      svgContent = await response.text();
+    }
+
+    // Convert SVG to canvas then to image data
+    const canvas = document.createElement("canvas");
+    canvas.width = 200;
+    canvas.height = 200;
+    const ctx = canvas.getContext("2d");
+
+    if (!ctx) return;
+
+    // Create SVG blob
+    const blob = new Blob([svgContent], { type: "image/svg+xml" });
+    const url = URL.createObjectURL(blob);
+
+    await new Promise<void>((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          ctx.drawImage(img, 0, 0);
+          const imgData = canvas.toDataURL("image/png");
+          doc.addImage(imgData, "PNG", x, y, width, height);
+          URL.revokeObjectURL(url);
+          resolve();
+        } catch (err) {
+          URL.revokeObjectURL(url);
+          reject(err);
+        }
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error("Failed to load stamp SVG image"));
+      };
+      img.src = url;
+    });
+  } catch (error) {
+    console.error("Error applying stamp to PDF:", error);
+  }
+}
+
+/**
+ * Apply predesigned stamp text overlay to PDF (for simple text-based stamps)
+ * @param doc - jsPDF document instance
+ * @param text - Stamp text (e.g., "APPROVED")
+ * @param x - X coordinate in mm
+ * @param y - Y coordinate in mm
+ * @param color - Hex color code
+ * @param opacity - Opacity 0-1
+ * @param rotation - Rotation in degrees
+ * @param fontSize - Font size in pt
+ */
+export function applyTextStampToPdf(
+  doc: jsPDF,
+  text: string,
+  x: number,
+  y: number,
+  color: string = "#8B0000",
+  opacity: number = 0.2,
+  rotation: number = 12,
+  fontSize: number = 48
+): void {
+  const rgb = hexToRgb(color);
+
+  // Save current state
+  const currentPage = doc.getNumberOfPages();
+
+  // Apply stamp
+  setColorFromHex(doc, color, "text");
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(fontSize);
+
+  // Use GState for opacity (if supported)
+  try {
+    const pdfWithGState = doc as any;
+    if (pdfWithGState.setGState) {
+      pdfWithGState.setGState(new pdfWithGState.GState({ opacity }));
+    }
+  } catch (e) {
+    // Fallback if GState not available
+  }
+
+  // Rotate and draw text
+  doc.text(text, x, y, {
+    align: "center",
+    angle: rotation,
+  });
 }
