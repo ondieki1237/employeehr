@@ -428,10 +428,10 @@ export const meetingsApi = {
     delete: (id: string) => client.delete(`/api/meetings/${id}`),
 
     start: (id: string) =>
-        client.put<Meeting>(`/api/meetings/${id}/start`, {}),
+        client.post<Meeting>(`/api/meetings/${id}/start`, {}),
 
     end: (id: string) =>
-        client.put<Meeting>(`/api/meetings/${id}/end`, {}),
+        client.post<Meeting>(`/api/meetings/${id}/end`, {}),
 
     join: (id: string) =>
         client.post<Meeting>(`/api/meetings/${id}/join`, {}),
