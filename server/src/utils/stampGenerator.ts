@@ -9,15 +9,74 @@ interface StampValues {
 }
 
 /**
+ * Sanitize SVG: fix malformed attributes and ensure proper XML structure
+ */
+function sanitizeSVG(svg: string): string {
+  // Remove XML declaration
+  svg = svg.replace(/^\s*<\?xml[^?]*\?>\s*/i, "");
+  
+  // Fix partially quoted attributes: attribute="value1" value2 value3 -> attribute="value1 value2 value3"
+  // This handles SVGs where viewBox or other multi-value attributes are broken
+  svg = svg.replace(/(\s[a-zA-Z\-:]+)="([^"]*)"(\s+[^=\s>][^=]*?)(?=\s+[a-zA-Z\-:]+\s*=|\s*>)/g, '$1="$2$3"');
+  
+  // Fix unquoted attribute values: attribute=value -> attribute="value"
+  // Only fix simple alphanumeric values
+  svg = svg.replace(/\s([a-zA-Z\-:]+)=([a-zA-Z0-9#:\-._\/]+)(?=\s|>)/g, ' $1="$2"');
+  
+  // Remove any xmlns:xlink if present (not needed for canvas rendering)
+  svg = svg.replace(/\s+xmlns:xlink="[^"]*"/g, "");
+  
+  // Remove zoomAndPan if present (not applicable in canvas context)
+  svg = svg.replace(/\s+zoomAndPan="[^"]*"/g, "");
+  
+  // Ensure SVG has xmlns if missing
+  if (!svg.includes('xmlns="')) {
+    svg = svg.replace(/<svg\s+/, '<svg xmlns="http://www.w3.org/2000/svg" ');
+  }
+  
+  // Extract and fix viewBox if malformed
+  const viewBoxMatch = svg.match(/viewBox="([^"]*)"/);
+  if (viewBoxMatch) {
+    const viewBoxValue = viewBoxMatch[1];
+    // Check if viewBox is valid (should have 4 numbers)
+    const boxParts = viewBoxValue.trim().split(/\s+/);
+    if (boxParts.length !== 4 || boxParts.some(p => isNaN(parseFloat(p)))) {
+      // Invalid viewBox, replace with default
+      svg = svg.replace(/viewBox="[^"]*"/, 'viewBox="0 0 200 200"');
+    }
+  } else if (!svg.includes('viewBox=')) {
+    // No viewBox at all, add it
+    svg = svg.replace(/<svg\s+/, '<svg viewBox="0 0 200 200" ');
+  }
+  
+  return svg.trim();
+}
+
+/**
  * Generate SVG stamp from config and dynamic values
  */
 export function generateStampSVG(
   stamp: IStamp,
   values: StampValues = {}
 ): string {
-  const { shape, text, fields, style, template = "standard" } = stamp;
+  const { shape, text, fields, style, template = "standard", svgTemplate = "" } = stamp;
   const { color, opacity, rotation, fontSize = 18, wordPadding = 0 } = style;
   const smallFontSize = Math.max(fontSize - 4, 8);
+
+  if (template === "uploaded-svg" && svgTemplate) {
+    const resolvedDate = values.date || new Date().toLocaleDateString("en-GB");
+    const resolvedEmail = values.email || "info@company.com";
+    const resolvedPoBox = values.poBox || "P.O. Box 123-00100";
+    const resolvedUser = values.user || "Admin User";
+
+    const substituted = svgTemplate
+      .replace(/\{\{\s*date\s*\}\}|\{\{\s*DATE\s*\}\}|__DATE__|\[DATE\]/g, resolvedDate)
+      .replace(/\{\{\s*email\s*\}\}|\{\{\s*EMAIL\s*\}\}|__EMAIL__|\[EMAIL\]/g, resolvedEmail)
+      .replace(/\{\{\s*poBox\s*\}\}|\{\{\s*PO_BOX\s*\}\}|__PO_BOX__|\[PO_BOX\]/g, resolvedPoBox)
+      .replace(/\{\{\s*user\s*\}\}|\{\{\s*USER\s*\}\}|__USER__|\[USER\]/g, resolvedUser);
+    
+    return sanitizeSVG(substituted);
+  }
 
   if (template === "sample-classic") {
     const topLine = text || "COMPANY STAMP";
@@ -189,11 +248,6 @@ export function generateStampSVG(
       width="200"
       height="200"
     >
-      <defs>
-        <style>
-          @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap');
-        </style>
-      </defs>
       <g 
         opacity="${opacity}" 
         transform="rotate(${rotation} 100 100)"
@@ -264,41 +318,53 @@ export function generateStampPreviewSVG(
 export function validateStampConfig(stamp: Partial<IStamp>): string[] {
   const errors: string[] = [];
 
+  const template = stamp.template || "standard";
+
   if (!stamp.name || stamp.name.trim().length === 0) {
     errors.push("Stamp name is required");
   }
 
-  if (!stamp.text || stamp.text.trim().length === 0) {
+  if (template !== "uploaded-svg" && (!stamp.text || stamp.text.trim().length === 0)) {
     errors.push("Stamp text is required");
   }
 
-  if (stamp.text && stamp.text.length > 50) {
+  if (template !== "uploaded-svg" && stamp.text && stamp.text.length > 50) {
     errors.push("Stamp text cannot exceed 50 characters");
   }
 
-  if (!stamp.shape || !["circle", "rectangle", "badge"].includes(stamp.shape)) {
+  if (template !== "uploaded-svg" && (!stamp.shape || !["circle", "rectangle", "badge"].includes(stamp.shape))) {
     errors.push("Invalid shape");
   }
 
-  if (!stamp.style) {
-    errors.push("Style configuration is required");
-  } else {
-    const { color, opacity, rotation, wordPadding = 0 } = stamp.style;
-
-    if (!color || !/^#[0-9A-F]{6}$/i.test(color)) {
-      errors.push("Invalid color format (use hex: #RRGGBB)");
+  if (template === "uploaded-svg") {
+    const svgContent = (stamp.svgTemplate || "").trim().toLowerCase();
+    if (!svgContent || !svgContent.includes("<svg")) {
+      errors.push("Uploaded SVG template is required and must be a valid SVG");
     }
+  }
 
-    if (opacity < 0 || opacity > 1) {
-      errors.push("Opacity must be between 0 and 1");
-    }
+  if (template !== "uploaded-svg") {
+    const style = stamp.style;
+    if (!style) {
+      errors.push("Style configuration is required");
+    } else {
+      const { color, opacity, rotation, wordPadding = 0 } = style;
 
-    if (rotation < 0 || rotation > 20) {
-      errors.push("Rotation must be between 0 and 20 degrees");
-    }
+      if (!color || !/^#[0-9A-F]{6}$/i.test(color)) {
+        errors.push("Invalid color format (use hex: #RRGGBB)");
+      }
 
-    if (wordPadding < 0 || wordPadding > 20) {
-      errors.push("Word padding must be between 0 and 20");
+      if (opacity < 0 || opacity > 1) {
+        errors.push("Opacity must be between 0 and 1");
+      }
+
+      if (rotation < 0 || rotation > 20) {
+        errors.push("Rotation must be between 0 and 20 degrees");
+      }
+
+      if (wordPadding < 0 || wordPadding > 20) {
+        errors.push("Word padding must be between 0 and 20");
+      }
     }
   }
 

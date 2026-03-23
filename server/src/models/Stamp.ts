@@ -4,7 +4,8 @@ export interface IStamp extends Document {
   org_id: string;
   name: string;
   description?: string;
-  template?: "standard" | "sample-classic";
+  template?: "standard" | "sample-classic" | "uploaded-svg";
+  svgTemplate?: string;
   shape: "circle" | "rectangle" | "badge";
   text: string;
   fields: {
@@ -45,8 +46,12 @@ const StampSchema: Schema = new Schema(
     },
     template: {
       type: String,
-      enum: ["standard", "sample-classic"],
+      enum: ["standard", "sample-classic", "uploaded-svg"],
       default: "standard",
+    },
+    svgTemplate: {
+      type: String,
+      default: "",
     },
     shape: {
       type: String,

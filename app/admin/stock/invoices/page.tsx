@@ -159,11 +159,19 @@ export default function InvoicesPage() {
 
     if (stampSelection) {
       try {
-        const query = new URLSearchParams({ date: stampSelection.date }).toString()
+        const query = new URLSearchParams({
+          date: stampSelection.date,
+          user: preparedBy,
+          email: branding?.email || "",
+          poBox: "",
+        }).toString()
         const stampRes = await fetch(`${API_URL}/api/stamps/${stampSelection.stampId}/svg?${query}`, { headers })
         if (stampRes.ok) {
           const stampSvg = await stampRes.text()
           await applyStampToPdf(doc, stampSvg, 140, 255, 55, 33)
+        } else {
+          const errorText = await stampRes.text()
+          window.alert(errorText || "Failed to load selected stamp. PDF will be downloaded without stamp.")
         }
       } catch {
         window.alert("Failed to apply stamp. PDF will be downloaded without stamp.")
@@ -192,11 +200,19 @@ export default function InvoicesPage() {
 
     if (stampSelection) {
       try {
-        const query = new URLSearchParams({ date: stampSelection.date }).toString()
+        const query = new URLSearchParams({
+          date: stampSelection.date,
+          user: preparedBy,
+          email: branding?.email || "",
+          poBox: "",
+        }).toString()
         const stampRes = await fetch(`${API_URL}/api/stamps/${stampSelection.stampId}/svg?${query}`, { headers })
         if (stampRes.ok) {
           const stampSvg = await stampRes.text()
           await applyStampToPdf(doc, stampSvg, 140, 255, 55, 33)
+        } else {
+          const errorText = await stampRes.text()
+          window.alert(errorText || "Failed to load selected stamp. PDF will be downloaded without stamp.")
         }
       } catch {
         window.alert("Failed to apply stamp. PDF will be downloaded without stamp.")

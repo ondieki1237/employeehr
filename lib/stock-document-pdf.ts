@@ -482,7 +482,42 @@ export async function applyStampToPdf(
     let svgContent = stampData;
     if (stampData.startsWith("http")) {
       const response = await fetch(stampData);
+      if (!response.ok) throw new Error(`Failed to fetch SVG: ${response.statusText}`);
       svgContent = await response.text();
+    }
+
+    // Clean SVG content: remove XML declarations and trim
+    svgContent = svgContent
+      .replace(/^\s*<\?xml[^?]*\?>\s*/i, "") // Remove XML declaration
+      .trim();
+
+    // Fix partially quoted attributes: attribute="value1" value2 value3 -> attribute="value1 value2 value3"
+    svgContent = svgContent.replace(/(\s[a-zA-Z\-:]+)="([^"]*)"(\s+[^=\s>][^=]*?)(?=\s+[a-zA-Z\-:]+\s*=|\s*>)/g, '$1="$2$3"');
+
+    // Fix simple unquoted attributes: attribute=value -> attribute="value"
+    svgContent = svgContent.replace(/\s([a-zA-Z\-:]+)=([a-zA-Z0-9#:\-._\/]+)(?=\s|>)/g, ' $1="$2"');
+
+    // Remove xmlns:xlink (not needed for canvas rendering)
+    svgContent = svgContent.replace(/\s+xmlns:xlink="[^"]*"/g, "");
+
+    // Remove zoomAndPan (not applicable in canvas context)
+    svgContent = svgContent.replace(/\s+zoomAndPan="[^"]*"/g, "");
+
+    // Ensure SVG has xmlns if missing (required for proper rendering)
+    if (!svgContent.includes('xmlns="')) {
+      svgContent = svgContent.replace(/<svg\s+/, '<svg xmlns="http://www.w3.org/2000/svg" ');
+    }
+
+    // Fix or validate viewBox
+    const viewBoxMatch = svgContent.match(/viewBox="([^"]*)"/);
+    if (viewBoxMatch) {
+      const viewBoxValue = viewBoxMatch[1];
+      const boxParts = viewBoxValue.trim().split(/\s+/);
+      if (boxParts.length !== 4 || boxParts.some(p => isNaN(parseFloat(p)))) {
+        svgContent = svgContent.replace(/viewBox="[^"]*"/, 'viewBox="0 0 200 200"');
+      }
+    } else if (!svgContent.includes("viewBox=")) {
+      svgContent = svgContent.replace(/<svg/, '<svg viewBox="0 0 200 200"');
     }
 
     // Convert SVG to canvas then to image data
@@ -493,29 +528,28 @@ export async function applyStampToPdf(
 
     if (!ctx) return;
 
-    // Create SVG blob
-    const blob = new Blob([svgContent], { type: "image/svg+xml" });
-    const url = URL.createObjectURL(blob);
+    // Use data URL approach with proper encoding (more reliable than blob URLs)
+    const encodedSvg = encodeURIComponent(svgContent);
+    const dataUrl = `data:image/svg+xml;charset=utf-8,${encodedSvg}`;
 
     await new Promise<void>((resolve, reject) => {
       const img = new Image();
+      img.crossOrigin = "anonymous";
       img.onload = () => {
         try {
           ctx.drawImage(img, 0, 0);
           const imgData = canvas.toDataURL("image/png");
           doc.addImage(imgData, "PNG", x, y, width, height);
-          URL.revokeObjectURL(url);
           resolve();
         } catch (err) {
-          URL.revokeObjectURL(url);
           reject(err);
         }
       };
       img.onerror = () => {
-        URL.revokeObjectURL(url);
-        reject(new Error("Failed to load stamp SVG image"));
+        console.error("Failed to load SVG image. SVG content preview:", svgContent.substring(0, 150));
+        reject(new Error("Failed to load stamp SVG image - ensure SVG is valid"));
       };
-      img.src = url;
+      img.src = dataUrl;
     });
   } catch (error) {
     console.error("Error applying stamp to PDF:", error);

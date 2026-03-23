@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input"
 import { useState } from "react"
 import { ArrowLeft, Mail, Lock } from "lucide-react"
 import { api } from "@/lib/api"
-import { setToken, setUser } from "@/lib/auth"
+import { removeToken, removeUser, setToken, setUser } from "@/lib/auth"
 import InvitationForm from "@/components/auth/invitation-form"
 
 function LoginContent() {
@@ -55,6 +55,10 @@ function LoginContent() {
     console.log('Starting login...')
 
     try {
+      // Ensure stale session data doesn't interfere with a fresh login
+      removeToken()
+      removeUser()
+
       const response = await api.auth.login({ email, password })
 
       if (response.success && response.data) {

@@ -4,7 +4,8 @@
  */
 
 export interface StampConfig {
-  template?: "standard" | "sample-classic";
+  template?: "standard" | "sample-classic" | "uploaded-svg";
+  svgTemplate?: string;
   shape: "circle" | "rectangle" | "badge";
   text: string;
   fields: {
@@ -27,13 +28,21 @@ export interface StampConfig {
  * Generate stamp SVG on the client side
  */
 export function generateClientStampSVG(config: StampConfig): string {
-  const { shape, text, fields, style, template = "standard" } = config;
+  const { shape, text, fields, style, template = "standard", svgTemplate = "" } = config;
   const { color, opacity, rotation, fontSize = 18, wordPadding = 0 } = style;
   const smallFontSize = Math.max(fontSize - 4, 8);
 
   // Get current date
   const today = new Date().toLocaleDateString("en-GB");
   const currentUser = "Admin User";
+
+  if (template === "uploaded-svg" && svgTemplate) {
+    return svgTemplate
+      .replace(/\{\{\s*date\s*\}\}|\{\{\s*DATE\s*\}\}|__DATE__|\[DATE\]/g, today)
+      .replace(/\{\{\s*email\s*\}\}|\{\{\s*EMAIL\s*\}\}|__EMAIL__|\[EMAIL\]/g, "info@company.com")
+      .replace(/\{\{\s*poBox\s*\}\}|\{\{\s*PO_BOX\s*\}\}|__PO_BOX__|\[PO_BOX\]/g, "P.O. Box 123-00100")
+      .replace(/\{\{\s*user\s*\}\}|\{\{\s*USER\s*\}\}|__USER__|\[USER\]/g, currentUser);
+  }
 
   if (template === "sample-classic") {
     const topLine = text || "COMPANY STAMP";

@@ -10,29 +10,33 @@ export default function Navigation() {
   const [isOpen, setIsOpen] = useState(false)
 
   return (
-    <nav className="sticky top-0 z-50 bg-background/80 backdrop-blur-md border-b border-border">
+    <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-xl border-b border-slate-200" style={{
+      boxShadow: "inset 0 1px 0 rgba(255,255,255,0.5), 0 2px 8px rgba(0,0,0,0.08)"
+    }}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           <div className="flex items-center gap-8">
+            {/* Logo */}
             <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-              <Link href="/" className="flex items-center gap-2">
+              <Link href="/" className="flex items-center gap-3">
                 <motion.div
-                  className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center"
+                  className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-green-600 flex items-center justify-center shadow-lg"
                   animate={{ rotate: [0, 360] }}
                   transition={{ duration: 20, repeat: Number.POSITIVE_INFINITY, ease: "linear" }}
                 >
-                  <span className="text-primary-foreground font-bold">E</span>
+                  <span className="text-white font-bold text-lg">E</span>
                 </motion.div>
-                <span className="font-bold text-lg hidden sm:inline">Elevate</span>
+                <span className="font-bold text-lg hidden sm:inline text-slate-900">Elevate</span>
               </Link>
             </motion.div>
 
-            <div className="hidden md:flex gap-6">
+            {/* Nav links */}
+            <div className="hidden md:flex gap-8">
               {["Features", "How it Works", "Pricing"].map((item, idx) => (
                 <motion.div key={idx} whileHover={{ y: -2 }} transition={{ duration: 0.2 }}>
                   <Link
                     href={`#${item.toLowerCase().replace(/\s+/g, "-")}`}
-                    className="text-sm text-muted-foreground hover:text-foreground transition"
+                    className="text-sm font-medium text-slate-600 hover:text-blue-600 transition-colors"
                   >
                     {item}
                   </Link>
@@ -41,24 +45,28 @@ export default function Navigation() {
             </div>
           </div>
 
+          {/* Auth buttons */}
           <div className="hidden md:flex gap-3">
             <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
               <Link href="/auth/login">
-                <Button variant="ghost" size="sm">
+                <Button variant="ghost" size="sm" className="text-slate-700 hover:text-blue-600 hover:bg-blue-50/50">
                   Log in
                 </Button>
               </Link>
             </motion.div>
             <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
               <Link href="/auth/signup">
-                <Button size="sm" className="bg-primary hover:bg-primary/90">
+                <Button size="sm" className="bg-gradient-to-r from-blue-600 to-green-600 hover:from-blue-700 hover:to-green-700 text-white shadow-lg" style={{
+                  boxShadow: "0 4px 12px rgba(37,99,235,0.3)"
+                }}>
                   Get Started
                 </Button>
               </Link>
             </motion.div>
           </div>
 
-          <motion.button className="md:hidden p-2" onClick={() => setIsOpen(!isOpen)} whileTap={{ scale: 0.95 }}>
+          {/* Mobile menu button */}
+          <motion.button className="md:hidden p-2 text-slate-600" onClick={() => setIsOpen(!isOpen)} whileTap={{ scale: 0.95 }}>
             <AnimatePresence mode="wait">
               {isOpen ? (
                 <motion.div
@@ -85,6 +93,7 @@ export default function Navigation() {
           </motion.button>
         </div>
 
+        {/* Mobile menu */}
         <AnimatePresence>
           {isOpen && (
             <motion.div
@@ -99,26 +108,28 @@ export default function Navigation() {
                   key={idx}
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: idx * 0.1 }}
+                  transition={{ delay: idx * 0.05 }}
                 >
                   <Link
                     href={`#${item.toLowerCase().replace(/\s+/g, "-")}`}
-                    className="text-sm text-muted-foreground hover:text-foreground"
+                    className="text-sm text-slate-600 hover:text-blue-600 block py-2"
                   >
                     {item}
                   </Link>
                 </motion.div>
               ))}
-              <Link href="/auth/login">
-                <Button variant="ghost" size="sm" className="justify-start">
-                  Log in
-                </Button>
-              </Link>
-              <Link href="/auth/signup">
-                <Button size="sm" className="bg-primary hover:bg-primary/90 justify-start">
-                  Get Started
-                </Button>
-              </Link>
+              <div className="border-t border-slate-200 pt-3 mt-3 space-y-2">
+                <Link href="/auth/login" className="block">
+                  <Button variant="ghost" className="w-full justify-start text-slate-700">
+                    Log in
+                  </Button>
+                </Link>
+                <Link href="/auth/signup" className="block">
+                  <Button className="w-full bg-gradient-to-r from-blue-600 to-green-600 hover:from-blue-700 hover:to-green-700">
+                    Get Started
+                  </Button>
+                </Link>
+              </div>
             </motion.div>
           )}
         </AnimatePresence>

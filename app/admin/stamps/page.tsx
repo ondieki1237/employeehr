@@ -13,6 +13,7 @@ export default function StampsPage() {
   const [editingStamp, setEditingStamp] = useState<IStamp | null>(null);
   const [stampConfig, setStampConfig] = useState<StampConfig>({
     template: "standard",
+    svgTemplate: "",
     shape: "circle",
     text: "APPROVED",
     fields: { date: true, user: true, stampId: false, poBox: false, email: false },
@@ -59,10 +60,21 @@ export default function StampsPage() {
         return;
       }
 
+      if (stampConfig.template === "uploaded-svg" && !stampConfig.svgTemplate?.trim()) {
+        setErrorMessage("Please upload or paste an SVG template before saving.");
+        return;
+      }
+
+      if (stampConfig.template === "uploaded-svg" && !stampConfig.svgTemplate?.toLowerCase().includes("<svg")) {
+        setErrorMessage("The uploaded template must contain valid SVG content.");
+        return;
+      }
+
       const payload = {
         name: stampName.trim(),
         description: stampDescription.trim(),
         template: stampConfig.template || "standard",
+        svgTemplate: stampConfig.svgTemplate || "",
         shape: stampConfig.shape,
         text: stampConfig.text,
         fields: stampConfig.fields,
@@ -84,6 +96,7 @@ export default function StampsPage() {
       setStampDescription("");
       setStampConfig({
         template: "standard",
+        svgTemplate: "",
         shape: "circle",
         text: "APPROVED",
         fields: { date: true, user: true, stampId: false, poBox: false, email: false },
@@ -106,6 +119,8 @@ export default function StampsPage() {
     setStampName(stamp.name);
     setStampDescription(stamp.description || "");
     setStampConfig({
+      template: (stamp as any).template || "standard",
+      svgTemplate: (stamp as any).svgTemplate || "",
       shape: stamp.shape,
       text: stamp.text,
       fields: stamp.fields,
@@ -135,6 +150,7 @@ export default function StampsPage() {
     setStampDescription("");
     setStampConfig({
       template: "standard",
+      svgTemplate: "",
       shape: "circle",
       text: "APPROVED",
       fields: { date: true, user: true, stampId: false, poBox: false, email: false },

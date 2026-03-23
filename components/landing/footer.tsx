@@ -12,9 +12,11 @@ const footerLinks = [
 
 export default function Footer() {
   return (
-    <footer className="bg-secondary/50 border-t border-border py-12 md:py-16">
+    <footer className="bg-gradient-to-b from-white via-slate-50/50 to-slate-100/50 border-t border-slate-200 py-20 md:py-24" style={{
+      boxShadow: "inset 0 1px 3px rgba(255,255,255,0.5)"
+    }}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="grid md:grid-cols-5 gap-8 mb-12">
+        <div className="grid md:grid-cols-5 gap-12 mb-16">
           <motion.div
             className="md:col-span-1"
             initial={{ opacity: 0, y: 20 }}

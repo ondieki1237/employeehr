@@ -7,21 +7,24 @@ import { motion } from "framer-motion"
 
 export default function CTA() {
   return (
-    <section className="py-20 md:py-28">
+    <section className="py-28 md:py-40 bg-white">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         <motion.div
-          className="bg-gradient-to-br from-primary to-primary/80 rounded-2xl p-12 md:p-16 text-center relative overflow-hidden"
+          className="relative rounded-3xl p-12 md:p-20 text-center overflow-hidden bg-gradient-to-br from-blue-600 via-blue-500 to-green-600"
           initial={{ opacity: 0, scale: 0.95 }}
           whileInView={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.6 }}
           viewport={{ once: true }}
+          style={{
+            boxShadow: "0 25px 60px rgba(37, 99, 235, 0.3), inset 0 1px 3px rgba(255,255,255,0.2)"
+          }}
         >
           {/* Animated background decorations */}
           <motion.div
-            className="absolute top-0 right-0 w-72 h-72 bg-primary-foreground/10 rounded-full -mr-36 -mt-36"
+            className="absolute top-0 right-0 w-80 h-80 bg-white/10 rounded-full -mr-40 -mt-40 blur-2xl"
             animate={{
               rotate: [0, 360],
-              opacity: [0.3, 0.5, 0.3],
+              opacity: [0.2, 0.4, 0.2],
             }}
             transition={{
               duration: 20,
@@ -30,10 +33,10 @@ export default function CTA() {
             }}
           ></motion.div>
           <motion.div
-            className="absolute bottom-0 left-0 w-72 h-72 bg-primary-foreground/10 rounded-full -ml-36 -mb-36"
+            className="absolute bottom-0 left-0 w-80 h-80 bg-white/10 rounded-full -ml-40 -mb-40 blur-2xl"
             animate={{
               rotate: [360, 0],
-              opacity: [0.3, 0.5, 0.3],
+              opacity: [0.2, 0.4, 0.2],
             }}
             transition={{
               duration: 25,
@@ -43,30 +46,32 @@ export default function CTA() {
           ></motion.div>
 
           <motion.div
-            className="relative"
+            className="relative z-10"
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.2 }}
             viewport={{ once: true }}
           >
-            <h2 className="text-4xl md:text-5xl font-bold text-primary-foreground mb-4 text-balance">
+            <h2 className="text-5xl md:text-6xl font-bold text-white mb-6 text-balance">
               Ready to Transform Performance?
             </h2>
-            <p className="text-lg text-primary-foreground/90 max-w-2xl mx-auto mb-8">
+            <p className="text-xl text-white/95 max-w-2xl mx-auto mb-12">
               Join hundreds of companies using Elevate to drive employee growth, increase engagement, and achieve better
               business outcomes.
             </p>
 
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <div className="flex flex-col sm:flex-row gap-5 justify-center">
               <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                <Link href="/auth/signup" className="flex items-center gap-2">
+                <Link href="/auth/signup">
                   <Button
                     size="lg"
-                    variant="secondary"
-                    className="bg-primary-foreground hover:bg-primary-foreground/90 text-primary w-full sm:w-auto"
+                    className="bg-white hover:bg-slate-50 text-blue-600 h-14 px-8 text-base font-semibold shadow-lg hover:shadow-xl transition-all"
+                    style={{
+                      boxShadow: "0 8px 16px rgba(0,0,0,0.15)"
+                    }}
                   >
                     Start Your Free Trial
-                    <ArrowRight size={18} />
+                    <ArrowRight size={20} className="ml-2" />
                   </Button>
                 </Link>
               </motion.div>
@@ -74,8 +79,10 @@ export default function CTA() {
                 <Link href="#demo">
                   <Button
                     size="lg"
-                    variant="outline"
-                    className="border-primary-foreground text-primary-foreground hover:bg-primary-foreground/10 bg-transparent w-full sm:w-auto"
+                    className="border-2 border-white bg-transparent hover:bg-white/10 text-white h-14 px-8 text-base font-semibold transition-all"
+                    style={{
+                      boxShadow: "inset 0 1px 3px rgba(255,255,255,0.2)"
+                    }}
                   >
                     Schedule a Demo
                   </Button>
@@ -83,8 +90,8 @@ export default function CTA() {
               </motion.div>
             </div>
 
-            <p className="text-sm text-primary-foreground/80 mt-6">
-              No credit card required • 14-day free trial • Full feature access
+            <p className="text-sm text-white/80 mt-10 tracking-wide">
+              ✓ No credit card required • ✓ 14-day free trial • ✓ Full feature access
             </p>
           </motion.div>
         </motion.div>

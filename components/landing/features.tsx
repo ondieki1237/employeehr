@@ -50,25 +50,36 @@ const features = [
 
 export default function Features() {
   return (
-    <section id="features" className="py-20 md:py-28 bg-secondary/30">
+    <section id="features" className="py-28 md:py-40 bg-gradient-to-b from-white via-slate-50/50 to-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Section Header */}
         <motion.div
-          className="text-center mb-16"
+          className="text-center mb-20"
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6 }}
           viewport={{ once: true }}
         >
-          <h2 className="text-4xl md:text-5xl font-bold mb-4 text-balance">
+          <motion.div
+            className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-full mb-6 shadow-sm"
+            style={{
+              boxShadow: "inset 0 1px 2px rgba(255,255,255,0.5), 0 2px 4px rgba(0,0,0,0.05)"
+            }}
+          >
+            <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+            <span className="text-sm font-medium text-slate-700">Powerful Features</span>
+          </motion.div>
+          <h2 className="text-5xl md:text-6xl font-bold mb-6 text-balance text-slate-900">
             Everything You Need to Elevate Performance
           </h2>
-          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+          <p className="text-xl text-slate-600 max-w-3xl mx-auto">
             A comprehensive platform that covers every aspect of employee performance management and development.
           </p>
         </motion.div>
 
+        {/* Features Grid */}
         <motion.div
-          className="grid md:grid-cols-2 lg:grid-cols-4 gap-6"
+          className="grid md:grid-cols-2 lg:grid-cols-4 gap-8"
           variants={staggerContainer}
           initial="hidden"
           whileInView="visible"
@@ -81,21 +92,38 @@ export default function Features() {
                 key={index}
                 variants={scaleIn}
                 whileHover={{
-                  y: -8,
-                  boxShadow: "0 20px 40px rgba(0, 0, 0, 0.1)",
+                  y: -12,
+                  transition: { duration: 0.3 }
                 }}
-                transition={{ duration: 0.3 }}
               >
-                <Card className="p-6 border-border hover:border-primary/50 group cursor-pointer h-full">
+                <div 
+                  className="relative h-full p-8 rounded-2xl bg-white border border-slate-200 hover:border-blue-300 transition-all duration-300 group cursor-pointer"
+                  style={{
+                    boxShadow: "inset 0 1px 3px rgba(255,255,255,0.7), 0 8px 20px rgba(0,0,0,0.08)"
+                  }}
+                >
+                  {/* Icon Container */}
                   <motion.div
-                    className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4 group-hover:bg-primary/20 transition"
-                    whileHover={{ rotate: 10, scale: 1.1 }}
+                    className="w-14 h-14 rounded-xl bg-gradient-to-br from-blue-100 to-green-100 flex items-center justify-center mb-6 group-hover:from-blue-200 group-hover:to-green-200 transition-all"
+                    whileHover={{ scale: 1.1, rotate: 5 }}
+                    style={{
+                      boxShadow: "inset 0 2px 4px rgba(255,255,255,0.5)"
+                    }}
                   >
-                    <Icon className="w-6 h-6 text-primary" />
+                    <Icon className="w-7 h-7 text-blue-600" />
                   </motion.div>
-                  <h3 className="font-semibold text-lg mb-2">{feature.title}</h3>
-                  <p className="text-sm text-muted-foreground leading-relaxed">{feature.description}</p>
-                </Card>
+                  
+                  {/* Content */}
+                  <h3 className="font-semibold text-lg mb-3 text-slate-900">{feature.title}</h3>
+                  <p className="text-slate-600 leading-relaxed">{feature.description}</p>
+                  
+                  {/* Hover indicator */}
+                  <motion.div 
+                    className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-blue-500 to-green-500 rounded-l-2xl opacity-0 group-hover:opacity-100 transition-opacity"
+                    initial={{ opacity: 0 }}
+                    whileHover={{ opacity: 1 }}
+                  />
+                </div>
               </motion.div>
             )
           })}

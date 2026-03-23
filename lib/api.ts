@@ -54,13 +54,22 @@ class ApiClient {
                 headers,
             })
 
-            // Handle 401 Unauthorized
-            if (response.status === 401) {
-                logout()
-                throw new Error('Session expired. Please login again.')
+            let data: any = null
+            try {
+                data = await response.json()
+            } catch {
+                data = null
             }
 
-            const data = await response.json()
+            // Handle 401 Unauthorized
+            if (response.status === 401) {
+                const isAuthEndpoint = endpoint.startsWith('/api/auth/')
+                if (!isAuthEndpoint && token) {
+                    logout()
+                    throw new Error('Session expired. Please login again.')
+                }
+                throw new Error(data?.message || data?.error || 'Unauthorized')
+            }
 
             if (!response.ok) {
                 throw new Error(data.message || data.error || 'Request failed')

@@ -60,6 +60,7 @@ class StampController {
         name,
         description,
         template,
+        svgTemplate,
         shape,
         text,
         fields,
@@ -83,7 +84,7 @@ class StampController {
 
       const validationErrors = validateStampConfig(stampData);
       if (validationErrors.length > 0) {
-        return res.status(400).json({ errors: validationErrors });
+        return res.status(400).json({ message: validationErrors[0], errors: validationErrors });
       }
 
       // If setting as default, unset other defaults
@@ -96,6 +97,7 @@ class StampController {
         name,
         description: description || "",
         template: template || "standard",
+        svgTemplate: svgTemplate || "",
         shape,
         text,
         fields,
@@ -130,6 +132,7 @@ class StampController {
         name,
         description,
         template,
+        svgTemplate,
         shape,
         text,
         fields,
@@ -153,7 +156,7 @@ class StampController {
 
       const validationErrors = validateStampConfig(stampData);
       if (validationErrors.length > 0) {
-        return res.status(400).json({ errors: validationErrors });
+        return res.status(400).json({ message: validationErrors[0], errors: validationErrors });
       }
 
       // If setting as default, unset other defaults
@@ -167,6 +170,7 @@ class StampController {
           name,
           description: description || "",
           template: template || "standard",
+          svgTemplate: svgTemplate || "",
           shape,
           text,
           fields,

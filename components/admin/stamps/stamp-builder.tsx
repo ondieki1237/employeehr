@@ -4,7 +4,8 @@ import React, { useState, useEffect } from "react";
 import { generateClientStampSVG } from "@/lib/stampSvgGenerator";
 
 export interface StampConfig {
-  template?: "standard" | "sample-classic";
+  template?: "standard" | "sample-classic" | "uploaded-svg";
+  svgTemplate?: string;
   shape: "circle" | "rectangle" | "badge";
   text: string;
   fields: {
@@ -31,6 +32,7 @@ interface StampBuilderProps {
 
 const DEFAULT_CONFIG: StampConfig = {
   template: "standard",
+  svgTemplate: "",
   shape: "circle",
   text: "APPROVED",
   fields: {
@@ -100,6 +102,26 @@ export const StampBuilder: React.FC<StampBuilderProps> = ({
     onChange?.(newConfig);
   };
 
+  const handleSvgUpload = async (file: File | null) => {
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith(".svg")) {
+      return;
+    }
+
+    const content = await file.text();
+    if (!content.trim().startsWith("<svg")) {
+      return;
+    }
+
+    const newConfig = {
+      ...config,
+      svgTemplate: content,
+      template: "uploaded-svg" as const,
+    };
+    setConfig(newConfig);
+    onChange?.(newConfig);
+  };
+
   return (
     <div className="w-full">
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
@@ -113,7 +135,7 @@ export const StampBuilder: React.FC<StampBuilderProps> = ({
             <select
               value={config.template || "standard"}
               onChange={(e) => {
-                const template = e.target.value as "standard" | "sample-classic";
+                const template = e.target.value as "standard" | "sample-classic" | "uploaded-svg";
                 if (template === "sample-classic") {
                   handleChange({
                     template,
@@ -129,112 +151,151 @@ export const StampBuilder: React.FC<StampBuilderProps> = ({
                   });
                   return;
                 }
+                if (template === "uploaded-svg") {
+                  handleChange({
+                    template,
+                    text: config.text || "COMPANY STAMP",
+                    fields: {
+                      ...config.fields,
+                      date: true,
+                    },
+                  });
+                  return;
+                }
                 handleChange({ template });
               }}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="standard">Standard</option>
               <option value="sample-classic">Sample Classic (like uploaded SVG)</option>
+              <option value="uploaded-svg">Uploaded SVG (direct use)</option>
             </select>
           </div>
 
-          {/* Stamp Text */}
-          <div>
-            <label className="block text-sm font-medium mb-2">
-              {config.template === "sample-classic" ? "Header Text (e.g. COMPANY STAMP)" : "Stamp Text"}
-            </label>
-            <input
-              type="text"
-              maxLength={50}
-              value={config.text}
-              onChange={(e) => handleChange({ text: e.target.value })}
-              placeholder={config.template === "sample-classic" ? "COMPANY STAMP" : "APPROVED"}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              {config.text.length}/50 characters
-            </p>
-          </div>
+          {config.template === "uploaded-svg" && (
+            <div className="rounded-lg border border-gray-300 p-4 space-y-3 bg-gray-50">
+              <label className="block text-sm font-medium">Upload SVG Template</label>
+              <input
+                type="file"
+                accept=".svg,image/svg+xml"
+                onChange={(e) => handleSvgUpload(e.target.files?.[0] || null)}
+                className="w-full text-sm"
+              />
+              <p className="text-xs text-gray-600">
+                Use placeholders in your SVG: {"{{date}}"}, {"{{email}}"}, {"{{poBox}}"}, {"{{user}}"}
+              </p>
+              <p className="text-xs text-gray-600">
+                In uploaded mode, shape/style/text controls are hidden and the SVG is used directly.
+              </p>
+              <textarea
+                value={config.svgTemplate || ""}
+                onChange={(e) => handleChange({ svgTemplate: e.target.value })}
+                placeholder="Paste SVG content here..."
+                rows={8}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg font-mono text-xs"
+              />
+            </div>
+          )}
 
-          {/* Shape Selection */}
-          <div>
-            <label className="block text-sm font-medium mb-2">Shape</label>
-            <div className="space-y-2">
-              {["circle", "rectangle", "badge"].map((shape) => (
-                <label key={shape} className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="shape"
-                    value={shape}
-                    checked={config.shape === shape}
-                    onChange={() =>
-                      handleChange({ shape: shape as StampConfig["shape"] })
-                    }
-                    className="w-4 h-4"
-                  />
-                  <span className="text-sm capitalize">{shape}</span>
+          {config.template !== "uploaded-svg" && (
+            <>
+              {/* Stamp Text */}
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  {config.template === "sample-classic" ? "Header Text (e.g. COMPANY STAMP)" : "Stamp Text"}
                 </label>
-              ))}
-            </div>
-          </div>
+                <input
+                  type="text"
+                  maxLength={50}
+                  value={config.text}
+                  onChange={(e) => handleChange({ text: e.target.value })}
+                  placeholder={config.template === "sample-classic" ? "COMPANY STAMP" : "APPROVED"}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  {config.text.length}/50 characters
+                </p>
+              </div>
 
-          {/* Dynamic Fields */}
-          <div>
-            <label className="block text-sm font-medium mb-3">
-              Include Dynamic Fields
-            </label>
-            <div className="space-y-2">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={config.fields.date}
-                  onChange={() => handleFieldChange("date")}
-                  className="w-4 h-4 rounded"
-                />
-                <span className="text-sm">Date</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={config.fields.user}
-                  onChange={() => handleFieldChange("user")}
-                  className="w-4 h-4 rounded"
-                />
-                <span className="text-sm">User</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={config.fields.stampId}
-                  onChange={() => handleFieldChange("stampId")}
-                  className="w-4 h-4 rounded"
-                />
-                <span className="text-sm">Stamp ID</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={config.fields.poBox}
-                  onChange={() => handleFieldChange("poBox")}
-                  className="w-4 h-4 rounded"
-                />
-                <span className="text-sm">PO Box</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={config.fields.email}
-                  onChange={() => handleFieldChange("email")}
-                  className="w-4 h-4 rounded"
-                />
-                <span className="text-sm">Email</span>
-              </label>
-            </div>
-          </div>
+              {/* Shape Selection */}
+              <div>
+                <label className="block text-sm font-medium mb-2">Shape</label>
+                <div className="space-y-2">
+                  {["circle", "rectangle", "badge"].map((shape) => (
+                    <label key={shape} className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="shape"
+                        value={shape}
+                        checked={config.shape === shape}
+                        onChange={() =>
+                          handleChange({ shape: shape as StampConfig["shape"] })
+                        }
+                        className="w-4 h-4"
+                      />
+                      <span className="text-sm capitalize">{shape}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
 
-          {/* Style Controls */}
-          <div className="border-t pt-6">
-            <h4 className="text-sm font-medium mb-4">Style</h4>
+              {/* Dynamic Fields */}
+              <div>
+                <label className="block text-sm font-medium mb-3">
+                  Include Dynamic Fields
+                </label>
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={config.fields.date}
+                      onChange={() => handleFieldChange("date")}
+                      className="w-4 h-4 rounded"
+                    />
+                    <span className="text-sm">Date</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={config.fields.user}
+                      onChange={() => handleFieldChange("user")}
+                      className="w-4 h-4 rounded"
+                    />
+                    <span className="text-sm">User</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={config.fields.stampId}
+                      onChange={() => handleFieldChange("stampId")}
+                      className="w-4 h-4 rounded"
+                    />
+                    <span className="text-sm">Stamp ID</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={config.fields.poBox}
+                      onChange={() => handleFieldChange("poBox")}
+                      className="w-4 h-4 rounded"
+                    />
+                    <span className="text-sm">PO Box</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={config.fields.email}
+                      onChange={() => handleFieldChange("email")}
+                      className="w-4 h-4 rounded"
+                    />
+                    <span className="text-sm">Email</span>
+                  </label>
+                </div>
+              </div>
+
+              {/* Style Controls */}
+              <div className="border-t pt-6">
+                <h4 className="text-sm font-medium mb-4">Style</h4>
 
             {/* Color */}
             <div className="mb-4">
@@ -331,7 +392,9 @@ export const StampBuilder: React.FC<StampBuilderProps> = ({
                 className="w-full"
               />
             </div>
-          </div>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Preview */}
