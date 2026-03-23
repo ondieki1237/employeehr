@@ -17,6 +17,12 @@ router.get("/", MeetingController.getMeetings)
 // Get upcoming meetings
 router.get("/upcoming", MeetingController.getUpcomingMeetings)
 
+// Get user meeting stats (KPI tracking)
+router.get("/stats/user", MeetingController.getUserMeetingStats)
+
+// Get team meeting stats (Admin/Manager KPI tracking)
+router.get("/stats/team", MeetingController.getTeamMeetingStats)
+
 // Get meeting by ID
 router.get("/:id", MeetingController.getMeetingById)
 
@@ -25,12 +31,6 @@ router.post("/:id/join", MeetingController.joinMeeting)
 
 // Leave meeting (track leave time and duration)
 router.post("/:id/leave", MeetingController.leaveMeeting)
-
-// Get user meeting stats (KPI tracking)
-router.get("/stats/user", MeetingController.getUserMeetingStats)
-
-// Get team meeting stats (Admin/Manager KPI tracking)
-router.get("/stats/team", MeetingController.getTeamMeetingStats)
 
 // Update meeting status
 router.put("/:id/status", MeetingController.updateMeetingStatus)
