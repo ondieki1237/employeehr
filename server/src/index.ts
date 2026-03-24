@@ -124,6 +124,7 @@ app.get("/api/jobs/public/:companyName/:positionIndex", JobController.getPublicJ
 app.get("/api/application-forms/job/:jobId", ApplicationFormController.getFormByJobId)
 app.post("/api/job-applications/submit", JobApplicationController.submitApplication)
 app.get("/api/meetings/by-meeting-id/:meetingId", MeetingController.getMeetingByMeetingIdPublic)
+app.post("/api/meetings/by-meeting-id/:meetingId/join", MeetingController.joinMeetingByMeetingIdPublic)
 
 // API Routes
 app.use("/api/auth", authRoutes)

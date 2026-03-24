@@ -89,6 +89,10 @@ export function MeetingInterface({
 
   const isOrganizer = meeting.organizer_id === currentUserId
 
+  useEffect(() => {
+    setIsMeetingActive(meeting.status === 'in-progress')
+  }, [meeting.status])
+
   // Request media permissions when meeting becomes active
   useEffect(() => {
     if (isMeetingActive && permissionStatus === 'pending') {

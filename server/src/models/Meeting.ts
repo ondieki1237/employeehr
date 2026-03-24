@@ -15,6 +15,8 @@ export interface IMeeting extends Document {
   organizer_id: string
   attendees: Array<{
     user_id: string
+    display_name?: string
+    is_guest?: boolean
     status: "invited" | "accepted" | "declined" | "tentative"
     attended: boolean
     joined_at?: Date // Track when user joined the meeting
@@ -67,6 +69,8 @@ const MeetingSchema = new Schema<IMeeting>(
     attendees: [
       {
         user_id: { type: String, required: true },
+        display_name: { type: String },
+        is_guest: { type: Boolean, default: false },
         status: {
           type: String,
           enum: ["invited", "accepted", "declined", "tentative"],

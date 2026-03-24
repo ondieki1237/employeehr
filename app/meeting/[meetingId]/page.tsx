@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { MeetingInterface } from '@/components/meetings/meeting-interface-webrtc'
+import { getToken, getUser } from '@/lib/auth'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -22,6 +23,8 @@ interface Meeting {
   organizer_id: string
   attendees: Array<{
     user_id: string
+    display_name?: string
+    is_guest?: boolean
     status: 'invited' | 'accepted' | 'declined' | 'tentative'
     attended: boolean
     user?: any
@@ -63,6 +66,25 @@ export default function MeetingPage({ params }: { params: { meetingId: string } 
   useEffect(() => {
     checkAuthAndFetchMeeting()
   }, [params.meetingId])
+
+  useEffect(() => {
+    if (!meeting || showGuestForm) return
+    if (meeting.status === 'completed' || meeting.status === 'cancelled') return
+
+    const interval = setInterval(() => {
+      if (isGuest) {
+        fetchMeetingPublic(guestInfo.password || undefined)
+        return
+      }
+
+      const token = localStorage.getItem('token')
+      if (token) {
+        fetchMeetingAuthenticated(token)
+      }
+    }, 10000)
+
+    return () => clearInterval(interval)
+  }, [meeting?._id, meeting?.status, showGuestForm, isGuest, guestInfo.password])
 
   // Countdown timer for scheduled meetings
   useEffect(() => {
@@ -108,14 +130,15 @@ export default function MeetingPage({ params }: { params: { meetingId: string } 
   }, [meeting])
 
   const checkAuthAndFetchMeeting = async () => {
-    const token = localStorage.getItem('token')
-    const userId = localStorage.getItem('userId')
+    const token = getToken()
+    const user = getUser()
 
-    if (token && userId) {
+    if (token && user) {
       // User is logged in - fetch with auth
       setIsGuest(false)
+      const userId = user._id || user.userId || ''
       setCurrentUserId(userId)
-      const userName = localStorage.getItem('userName') || 'User'
+      const userName = `${(user as any).first_name || (user as any).firstName || ''} ${(user as any).last_name || (user as any).lastName || ''}`.trim() || 'User'
       setCurrentUserName(userName)
       fetchMeetingAuthenticated(token)
     } else {
@@ -205,7 +228,7 @@ export default function MeetingPage({ params }: { params: { meetingId: string } 
     }
   }
 
-  const handleGuestJoin = (e: React.FormEvent) => {
+  const handleGuestJoin = async (e: React.FormEvent) => {
     e.preventDefault()
 
     if (!guestInfo.firstName.trim() || !guestInfo.lastName.trim()) {
@@ -218,17 +241,47 @@ export default function MeetingPage({ params }: { params: { meetingId: string } 
       return
     }
 
-    // If meeting requires password, verify it first
-    if (meeting?.require_password) {
-      fetchMeetingPublic(guestInfo.password)
-    } else {
-      // Generate guest user ID and set up guest
+    try {
       const guestId = `guest_${Date.now()}_${Math.random().toString(36).substring(7)}`
-      const guestName = `${guestInfo.firstName} ${guestInfo.lastName}`
-      
-      setCurrentUserId(guestId)
+      const guestName = `${guestInfo.firstName.trim()} ${guestInfo.lastName.trim()}`
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://hrapi.codewithseth.co.ke'
+
+      const response = await fetch(
+        `${baseUrl}/api/meetings/by-meeting-id/${params.meetingId}/join`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            firstName: guestInfo.firstName,
+            lastName: guestInfo.lastName,
+            password: meeting?.require_password ? guestInfo.password : undefined,
+            guest_id: guestId,
+          }),
+        }
+      )
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        if (response.status === 403 && data.require_password) {
+          setPasswordError(true)
+          return
+        }
+        throw new Error(data.message || 'Failed to join meeting')
+      }
+
+      setCurrentUserId(data?.data?.guest_user_id || guestId)
       setCurrentUserName(guestName)
+      if (data?.data?.meeting) {
+        setMeeting(data.data.meeting)
+      }
+      setPasswordError(false)
       setShowGuestForm(false)
+    } catch (joinError: any) {
+      console.error('Error joining as guest:', joinError)
+      setError(joinError.message || 'Failed to join meeting')
     }
   }
 
@@ -239,7 +292,10 @@ export default function MeetingPage({ params }: { params: { meetingId: string } 
     }
 
     try {
-      const token = localStorage.getItem('token')
+      const token = getToken()
+      if (!token) {
+        throw new Error('Authentication required to start a meeting')
+      }
       const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://hrapi.codewithseth.co.ke'
       const response = await fetch(
         `${baseUrl}/api/meetings/${meetingId}/start`,
@@ -270,7 +326,10 @@ export default function MeetingPage({ params }: { params: { meetingId: string } 
     }
 
     try {
-      const token = localStorage.getItem('token')
+      const token = getToken()
+      if (!token) {
+        throw new Error('Authentication required to end a meeting')
+      }
       const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://hrapi.codewithseth.co.ke'
       const response = await fetch(
         `${baseUrl}/api/meetings/${meetingId}/end`,

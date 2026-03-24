@@ -22,7 +22,15 @@ function generateMeetingId(): string {
  * Generate meeting link
  */
 function generateMeetingLink(meetingId: string, baseUrl?: string): string {
-  const base = baseUrl || process.env.FRONTEND_URL || "https://hr.codewithseth.co.ke"
+  const configuredBase = baseUrl || process.env.FRONTEND_URL || "https://hr.codewithseth.co.ke"
+  const shouldForceProductionUrl =
+    process.env.NODE_ENV === "production" &&
+    /localhost|127\.0\.0\.1/i.test(configuredBase)
+
+  const base = shouldForceProductionUrl
+    ? "https://hr.codewithseth.co.ke"
+    : configuredBase
+
   return `${base}/meeting/${meetingId}`
 }
 
@@ -290,6 +298,102 @@ export class MeetingController {
     } catch (error: any) {
       console.error("Get meeting by meeting_id error:", error)
       res.status(500).json({ success: false, message: error.message })
+    }
+  }
+
+  /**
+   * Public guest join by meeting_id (no auth required)
+   */
+  static async joinMeetingByMeetingIdPublic(req: any, res: Response) {
+    try {
+      const { meetingId } = req.params
+      const { firstName, lastName, password, guest_id } = req.body || {}
+
+      const normalizedFirstName = String(firstName || "").trim()
+      const normalizedLastName = String(lastName || "").trim()
+
+      if (!normalizedFirstName || !normalizedLastName) {
+        return res.status(400).json({
+          success: false,
+          message: "First name and last name are required",
+        })
+      }
+
+      const meeting = await Meeting.findOne({ meeting_id: meetingId })
+
+      if (!meeting) {
+        return res.status(404).json({ success: false, message: "Meeting not found" })
+      }
+
+      if (meeting.require_password) {
+        if (!password || password !== meeting.password) {
+          return res.status(403).json({
+            success: false,
+            message: "Invalid or missing password",
+            require_password: true,
+          })
+        }
+      }
+
+      const displayName = `${normalizedFirstName} ${normalizedLastName}`.trim()
+      const generatedGuestId = `guest_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+      const guestUserId =
+        typeof guest_id === "string" && guest_id.trim().startsWith("guest_")
+          ? guest_id.trim()
+          : generatedGuestId
+
+      const attendeeIndex = meeting.attendees.findIndex((attendee) => attendee.user_id === guestUserId)
+
+      if (attendeeIndex >= 0) {
+        meeting.attendees[attendeeIndex].attended = true
+        meeting.attendees[attendeeIndex].joined_at = new Date()
+        meeting.attendees[attendeeIndex].status = "accepted"
+        ;(meeting.attendees[attendeeIndex] as any).display_name = displayName
+        ;(meeting.attendees[attendeeIndex] as any).is_guest = true
+      } else {
+        meeting.attendees.push({
+          user_id: guestUserId,
+          display_name: displayName,
+          is_guest: true,
+          status: "accepted",
+          attended: true,
+          joined_at: new Date(),
+        } as any)
+      }
+
+      await meeting.save()
+
+      const organizer = await User.findById(meeting.organizer_id).select(
+        "firstName lastName email employee_id position"
+      )
+
+      const attendeeDetails = await Promise.all(
+        meeting.attendees.map(async (attendee: any) => {
+          const user = await User.findById(attendee.user_id).select(
+            "firstName lastName email employee_id position department"
+          )
+          return {
+            ...attendee.toObject(),
+            user,
+          }
+        })
+      )
+
+      return res.status(200).json({
+        success: true,
+        message: "Joined meeting successfully",
+        data: {
+          guest_user_id: guestUserId,
+          meeting: {
+            ...meeting.toObject(),
+            organizer,
+            attendees: attendeeDetails,
+          },
+        },
+      })
+    } catch (error: any) {
+      console.error("Public join meeting error:", error)
+      return res.status(500).json({ success: false, message: error.message })
     }
   }
 
@@ -769,16 +873,36 @@ export class MeetingController {
     try {
       const { id } = req.params
       const org_id = req.user?.org_id
+      const user_id = req.user?.userId
 
-      const meeting = await Meeting.findOneAndUpdate(
-        { _id: id, org_id },
-        { status: "in-progress" },
-        { new: true },
-      )
+      const meeting = await Meeting.findOne({ _id: id, org_id })
 
       if (!meeting) {
         return res.status(404).json({ success: false, message: "Meeting not found" })
       }
+
+      meeting.status = "in-progress"
+      if (!meeting.actual_start_time) {
+        meeting.actual_start_time = new Date()
+      }
+
+      if (user_id) {
+        const attendeeIndex = meeting.attendees.findIndex((a: any) => a.user_id === user_id)
+        if (attendeeIndex >= 0) {
+          meeting.attendees[attendeeIndex].attended = true
+          meeting.attendees[attendeeIndex].status = "accepted"
+          meeting.attendees[attendeeIndex].joined_at = new Date()
+        } else {
+          meeting.attendees.push({
+            user_id,
+            status: "accepted",
+            attended: true,
+            joined_at: new Date(),
+          } as any)
+        }
+      }
+
+      await meeting.save()
 
       res.status(200).json({
         success: true,
@@ -855,9 +979,37 @@ export class MeetingController {
       )
 
       if (attendeeIndex === -1) {
-        return res.status(403).json({ 
-          success: false, 
-          message: "You are not invited to this meeting" 
+        const organizerCanJoin = meeting.organizer_id === user_id
+
+        if (!organizerCanJoin) {
+          return res.status(403).json({ 
+            success: false, 
+            message: "You are not invited to this meeting" 
+          })
+        }
+
+        meeting.attendees.push({
+          user_id: user_id as string,
+          status: "accepted",
+          attended: true,
+          joined_at: new Date(),
+        } as any)
+
+        if (!meeting.actual_start_time) {
+          meeting.actual_start_time = new Date()
+          meeting.status = "in-progress"
+        }
+
+        await meeting.save()
+
+        const newlyAdded = meeting.attendees[meeting.attendees.length - 1]
+        return res.status(200).json({
+          success: true,
+          message: "Joined meeting successfully",
+          data: {
+            joined_at: newlyAdded.joined_at,
+            meeting_status: meeting.status,
+          },
         })
       }
 

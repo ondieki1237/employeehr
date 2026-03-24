@@ -39,6 +39,8 @@ interface Meeting {
   organizer_id: string
   attendees: Array<{
     user_id: string
+    display_name?: string
+    is_guest?: boolean
     status: 'invited' | 'accepted' | 'declined' | 'tentative'
     attended: boolean
     user?: any
@@ -95,6 +97,10 @@ export function MeetingInterface({
   const remoteVideoRefs = useRef<Map<string, HTMLVideoElement>>(new Map())
 
   const isOrganizer = !isGuest && meeting.organizer_id === currentUserId
+
+  useEffect(() => {
+    setIsMeetingActive(meeting.status === 'in-progress')
+  }, [meeting.status])
 
   // Get current user details
   useEffect(() => {
@@ -368,6 +374,26 @@ export function MeetingInterface({
     setIsVideoOn(!isVideoOn)
   }
 
+  const joinedMemberNames = Array.from(
+    new Set(
+      [
+        ...meeting.attendees
+          .filter((attendee) => attendee.attended)
+          .map((attendee) => {
+            if (attendee.display_name) return attendee.display_name
+            if (attendee.user) {
+              const fullName = `${attendee.user.firstName || ''} ${attendee.user.lastName || ''}`.trim()
+              if (fullName) return fullName
+              if (attendee.user.email) return attendee.user.email
+            }
+            return attendee.user_id
+          }),
+        ...participants.map((participant) => participant.userName).filter(Boolean),
+        isMeetingActive && userName ? userName : '',
+      ].filter(Boolean)
+    )
+  )
+
   return (
     <div className="w-full h-screen bg-black flex flex-col">
       {/* Minimized Floating Window */}
@@ -620,6 +646,22 @@ export function MeetingInterface({
                     ↓
                   </Button>
                 </div>
+              </div>
+
+              <div className="max-w-7xl mx-auto mt-3 flex flex-wrap gap-2">
+                {joinedMemberNames.length > 0 ? (
+                  joinedMemberNames.map((name, index) => (
+                    <Badge
+                      key={`${name}-${index}`}
+                      variant="outline"
+                      className="text-white border-gray-500"
+                    >
+                      {name}
+                    </Badge>
+                  ))
+                ) : (
+                  <span className="text-xs text-gray-400">No joined members yet</span>
+                )}
               </div>
             </div>
           )}
