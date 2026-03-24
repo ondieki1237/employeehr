@@ -72,6 +72,15 @@ export interface ICompany {
       kpis: boolean
     }
   }
+  pageAccessSettings?: {
+    adminSectionsByRole: {
+      company_admin: string[]
+      hr: string[]
+      manager: string[]
+      employee: string[]
+    }
+    adminSectionsByUser?: Record<string, string[]>
+  }
   status: "active" | "suspended" | "inactive"
   createdAt?: Date
   updatedAt?: Date

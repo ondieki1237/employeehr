@@ -1,11 +1,25 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { getUser, isAdmin, logout } from "@/lib/auth"
 import { api } from "@/lib/api"
 import Sidebar from "@/components/admin/sidebar"
 import TopNav from "@/components/admin/top-nav"
+
+const ADMIN_SECTION_PATHS: Array<{ section: string; match: (path: string) => boolean }> = [
+  { section: "CORE", match: (path) => path === "/admin" || path.startsWith("/admin/users") },
+  { section: "RECRUITMENT", match: (path) => ["/admin/jobs", "/admin/applications", "/admin/analytics", "/admin/communications"].some((prefix) => path.startsWith(prefix)) },
+  { section: "EMPLOYEE MANAGEMENT", match: (path) => ["/admin/leave", "/admin/payroll", "/admin/meetings", "/admin/bookings", "/admin/suggestions", "/admin/badges", "/admin/polls", "/admin/contracts", "/admin/alerts"].some((prefix) => path.startsWith(prefix)) },
+  { section: "INVENTORY MANAGER", match: (path) => path.startsWith("/admin/stock") },
+  { section: "PERFORMANCE", match: (path) => ["/admin/kpis", "/admin/feedback-360", "/admin/reports"].some((prefix) => path.startsWith(prefix)) },
+  { section: "SYSTEM", match: (path) => ["/admin/settings", "/admin/stamps"].some((prefix) => path.startsWith(prefix)) },
+]
+
+const getSectionForPath = (path: string): string | null => {
+  const rule = ADMIN_SECTION_PATHS.find((entry) => entry.match(path))
+  return rule?.section || null
+}
 
 export default function AdminLayout({
   children,
@@ -13,6 +27,7 @@ export default function AdminLayout({
   children: React.ReactNode
 }) {
   const router = useRouter()
+  const pathname = usePathname()
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [loading, setLoading] = useState(true)
 
@@ -56,6 +71,35 @@ export default function AdminLayout({
       setLoading(false)
     }
   }
+
+  useEffect(() => {
+    const enforcePageAccess = async () => {
+      const user = getUser()
+      if (!user || user.role === "company_admin") return
+
+      if (!isAdmin()) return
+
+      const currentSection = getSectionForPath(pathname)
+      if (!currentSection) return
+
+      try {
+        const response = await api.company.getPageAccess()
+        if (!response.success) return
+
+        const userId = user._id || user.userId
+        const userSections: string[] | undefined = userId ? response.data?.adminSectionsByUser?.[userId] : undefined
+        const roleSections: string[] = response.data?.adminSectionsByRole?.[user.role] || []
+        const allowedSections: string[] = Array.isArray(userSections) && userSections.length > 0 ? userSections : roleSections
+        if (!allowedSections.includes(currentSection)) {
+          router.push("/admin")
+        }
+      } catch {
+        // fail open to avoid blocking admin area when settings API is unavailable
+      }
+    }
+
+    enforcePageAccess()
+  }, [pathname, router])
 
   if (loading) {
     return (

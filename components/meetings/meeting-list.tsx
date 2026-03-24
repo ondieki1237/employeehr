@@ -38,6 +38,8 @@ import {
   Lock,
   Copy,
   Check,
+  Play,
+  Square,
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { usersApi } from '@/lib/api'
@@ -47,6 +49,8 @@ interface Meeting {
   title: string
   description?: string
   scheduled_at: string
+  actual_start_time?: string
+  actual_end_time?: string
   duration_minutes: number
   meeting_type: 'video' | 'audio' | 'in-person'
   status: 'scheduled' | 'in-progress' | 'completed' | 'cancelled'
@@ -205,13 +209,18 @@ export function MeetingList({
   )
 
   const completedMeetings = meetings.filter((m) => m.status === 'completed')
+  const meetingHistory = [...completedMeetings].sort((a, b) => {
+    const aTime = new Date(a.actual_end_time || a.updated_at || a.scheduled_at).getTime()
+    const bTime = new Date(b.actual_end_time || b.updated_at || b.scheduled_at).getTime()
+    return bTime - aTime
+  })
 
   return (
     <div className="space-y-6">
       {/* Create Meeting Button */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
         <h2 className="text-2xl font-bold">Meetings</h2>
-        <Button onClick={() => setIsCreateDialogOpen(true)} className="gap-2">
+        <Button onClick={() => setIsCreateDialogOpen(true)} className="gap-2 w-full sm:w-auto">
           <Plus className="w-4 h-4" />
           Schedule Meeting
         </Button>
@@ -232,9 +241,9 @@ export function MeetingList({
           <div className="grid gap-4">
             {upcomingMeetings.map((meeting) => (
               <Card key={meeting._id} className="p-4 hover:shadow-lg transition">
-                <div className="flex items-start justify-between">
+                <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
                   <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2">
+                    <div className="flex flex-wrap items-center gap-2 mb-2">
                       <Video className="w-5 h-5 text-blue-600" />
                       <h4 className="font-semibold">{meeting.title}</h4>
                       {getStatusBadge(meeting.status)}
@@ -303,12 +312,14 @@ export function MeetingList({
                       </div>
                     )}
                   </div>
-                  <Button
-                    onClick={() => onSelectMeeting(meeting)}
-                    className="ml-4"
-                  >
-                    {meeting.status === 'in-progress' ? 'Join' : 'Details'}
-                  </Button>
+                  <div className="w-full lg:w-auto">
+                    <Button
+                      onClick={() => onSelectMeeting(meeting)}
+                      className="w-full lg:w-auto"
+                    >
+                      {meeting.status === 'in-progress' ? 'Join' : 'Details'}
+                    </Button>
+                  </div>
                 </div>
               </Card>
             ))}
@@ -320,20 +331,20 @@ export function MeetingList({
       <div>
         <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
           <BarChart3 className="w-5 h-5" />
-          Completed Meetings
+          Meeting History
         </h3>
 
-        {completedMeetings.length === 0 ? (
+        {meetingHistory.length === 0 ? (
           <Card className="p-8 text-center">
             <p className="text-gray-500">No completed meetings</p>
           </Card>
         ) : (
           <div className="grid gap-4">
-            {completedMeetings.map((meeting) => (
+            {meetingHistory.map((meeting) => (
               <Card key={meeting._id} className="p-4 hover:shadow-lg transition">
-                <div className="flex items-start justify-between">
+                <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
                   <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2">
+                    <div className="flex flex-wrap items-center gap-2 mb-2">
                       <CheckCircle className="w-5 h-5 text-green-600" />
                       <h4 className="font-semibold">{meeting.title}</h4>
                       {getProcessingStatus(meeting)}
@@ -352,17 +363,30 @@ export function MeetingList({
                         )}
                       </div>
                       <div className="flex items-center gap-1">
+                        <Play className="w-4 h-4" />
+                        {meeting.actual_start_time
+                          ? `Started ${format(new Date(meeting.actual_start_time), 'MMM dd, HH:mm')}`
+                          : 'Start time not recorded'}
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Square className="w-4 h-4" />
+                        {meeting.actual_end_time
+                          ? `Ended ${format(new Date(meeting.actual_end_time), 'MMM dd, HH:mm')}`
+                          : 'End time not recorded'}
+                      </div>
+                      <div className="flex items-center gap-1">
                         <Users className="w-4 h-4" />
                         {meeting.attendees.filter((a) => a.attended)
                           .length}/{meeting.attendees.length} attended
                       </div>
                     </div>
                   </div>
-                  <div className="flex gap-2 ml-4">
+                  <div className="flex flex-col sm:flex-row gap-2 w-full lg:w-auto lg:ml-4">
                     <Button
                       onClick={() => onSelectMeeting(meeting)}
                       variant="outline"
                       size="sm"
+                      className="w-full sm:w-auto"
                     >
                       View Report
                     </Button>
@@ -371,7 +395,7 @@ export function MeetingList({
                         onClick={() => onDownloadReport(meeting._id)}
                         variant="outline"
                         size="sm"
-                        className="gap-1"
+                        className="gap-1 w-full sm:w-auto"
                       >
                         <Download className="w-4 h-4" />
                         Export
@@ -421,7 +445,7 @@ export function MeetingList({
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium mb-1">Date & Time</label>
                 <Input

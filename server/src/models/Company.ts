@@ -1,6 +1,15 @@
 import mongoose, { Schema, type Document } from "mongoose"
 import type { ICompany } from "../types/interfaces"
 
+const DEFAULT_ADMIN_SECTIONS = [
+  "CORE",
+  "RECRUITMENT",
+  "EMPLOYEE MANAGEMENT",
+  "INVENTORY MANAGER",
+  "PERFORMANCE",
+  "SYSTEM",
+]
+
 const companySchema = new Schema<ICompany>(
   {
     name: { type: String, required: true },
@@ -55,6 +64,19 @@ const companySchema = new Schema<ICompany>(
         emailConfig: { type: Boolean, default: false },
         employees: { type: Boolean, default: false },
         kpis: { type: Boolean, default: false },
+      },
+    },
+    pageAccessSettings: {
+      adminSectionsByRole: {
+        company_admin: { type: [String], default: DEFAULT_ADMIN_SECTIONS },
+        hr: { type: [String], default: DEFAULT_ADMIN_SECTIONS },
+        manager: { type: [String], default: [] },
+        employee: { type: [String], default: [] },
+      },
+      adminSectionsByUser: {
+        type: Map,
+        of: [String],
+        default: {},
       },
     },
   },

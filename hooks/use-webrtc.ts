@@ -8,6 +8,27 @@ interface Participant {
   meetingId: string
 }
 
+interface RaisedHandEvent {
+  userId: string
+  userName: string
+  isRaised: boolean
+  timestamp: number
+}
+
+interface MeetingReaction {
+  userId: string
+  userName: string
+  reaction: string
+  timestamp: number
+}
+
+interface ChatMessage {
+  userId: string
+  userName: string
+  message: string
+  timestamp: number
+}
+
 interface PeerConnection {
   connection: RTCPeerConnection
   stream?: MediaStream
@@ -19,13 +40,17 @@ export function useWebRTC(
   userId: string,
   userName: string,
   localStream: MediaStream | null,
-  enabled: boolean
+  enabled: boolean,
+  allowDelayedAudio = true
 ) {
   const [socket, setSocket] = useState<Socket | null>(null)
   const [peers, setPeers] = useState<Map<string, PeerConnection>>(new Map())
   const [remoteStreams, setRemoteStreams] = useState<Map<string, MediaStream>>(new Map())
   const [isConnected, setIsConnected] = useState(false)
   const [participants, setParticipants] = useState<Participant[]>([])
+  const [raisedHands, setRaisedHands] = useState<Record<string, { userName: string; isRaised: boolean; timestamp: number }>>({})
+  const [reactions, setReactions] = useState<MeetingReaction[]>([])
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
 
   const peerConnectionsRef = useRef<Map<string, PeerConnection>>(new Map())
   const socketRef = useRef<Socket | null>(null)
@@ -57,6 +82,19 @@ export function useWebRTC(
       peerConnection.ontrack = (event) => {
         console.log('Received remote track from', participant.userName)
         const [stream] = event.streams
+
+        if (allowDelayedAudio) {
+          try {
+            peerConnection.getReceivers().forEach((receiver: any) => {
+              if (receiver.track?.kind === 'audio' && 'playoutDelayHint' in receiver) {
+                receiver.playoutDelayHint = 0.6
+              }
+            })
+          } catch (error) {
+            console.warn('Unable to set playoutDelayHint:', error)
+          }
+        }
+
         setRemoteStreams((prev) => {
           const newMap = new Map(prev)
           newMap.set(participant.socketId, stream)
@@ -170,6 +208,11 @@ export function useWebRTC(
     newSocket.on('participant-left', (participant: Participant) => {
       console.log('Participant left:', participant.userName)
       setParticipants((prev) => prev.filter((p) => p.socketId !== participant.socketId))
+      setRaisedHands((prev) => {
+        const next = { ...prev }
+        delete next[participant.userId]
+        return next
+      })
 
       // Close peer connection
       const peerData = peerConnectionsRef.current.get(participant.socketId)
@@ -278,6 +321,31 @@ export function useWebRTC(
       }
     )
 
+    newSocket.on('raise-hand-updated', (payload: RaisedHandEvent) => {
+      setRaisedHands((prev) => ({
+        ...prev,
+        [payload.userId]: {
+          userName: payload.userName,
+          isRaised: payload.isRaised,
+          timestamp: payload.timestamp,
+        },
+      }))
+    })
+
+    newSocket.on('meeting-reaction', (payload: MeetingReaction) => {
+      setReactions((prev) => {
+        const next = [...prev, payload]
+        return next.slice(-30)
+      })
+    })
+
+    newSocket.on('meeting-chat', (payload: ChatMessage) => {
+      setChatMessages((prev) => {
+        const next = [...prev, payload]
+        return next.slice(-200)
+      })
+    })
+
     return () => {
       // Cleanup
       console.log('Cleaning up WebRTC connections')
@@ -292,7 +360,7 @@ export function useWebRTC(
       setPeers(new Map())
       setRemoteStreams(new Map())
     }
-  }, [enabled, meetingId, userId, userName])
+  }, [enabled, meetingId, userId, userName, allowDelayedAudio])
 
   // Update local stream tracks when stream changes
   useEffect(() => {
@@ -312,11 +380,51 @@ export function useWebRTC(
     }
   }, [localStream])
 
+  const toggleRaiseHand = (isRaised: boolean) => {
+    if (!socketRef.current) return
+    socketRef.current.emit('raise-hand', {
+      meetingId,
+      userId,
+      userName,
+      isRaised,
+      timestamp: Date.now(),
+    })
+  }
+
+  const sendReaction = (reaction: string) => {
+    if (!socketRef.current || !reaction) return
+    socketRef.current.emit('meeting-reaction', {
+      meetingId,
+      userId,
+      userName,
+      reaction,
+      timestamp: Date.now(),
+    })
+  }
+
+  const sendChatMessage = (message: string) => {
+    const trimmed = message.trim()
+    if (!socketRef.current || !trimmed) return
+    socketRef.current.emit('meeting-chat', {
+      meetingId,
+      userId,
+      userName,
+      message: trimmed,
+      timestamp: Date.now(),
+    })
+  }
+
   return {
     socket,
     peers,
     remoteStreams,
     isConnected,
     participants,
+    raisedHands,
+    reactions,
+    chatMessages,
+    toggleRaiseHand,
+    sendReaction,
+    sendChatMessage,
   }
 }

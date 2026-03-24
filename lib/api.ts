@@ -285,6 +285,15 @@ export const reportsApi = {
 
 export const companyApi = {
     getBranding: () => client.get<any>('/api/company/branding'),
+    getPageAccess: () => client.get<any>('/api/company/page-access'),
+    updatePageAccess: (data: {
+        adminSectionsByRole: {
+            hr: string[]
+            manager: string[]
+            employee: string[]
+        }
+        adminSectionsByUser?: Record<string, string[]>
+    }) => client.post<any>('/api/company/page-access', data),
     updateBranding: async (data: {
         primaryColor?: string
         secondaryColor?: string

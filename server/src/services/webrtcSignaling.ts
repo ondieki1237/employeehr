@@ -100,6 +100,45 @@ export class WebRTCSignalingService {
         })
       })
 
+      // Raise hand interaction
+      socket.on("raise-hand", ({ meetingId, userId, userName, isRaised, timestamp }) => {
+        const participant = this.participants.get(socket.id)
+        if (!participant || participant.meetingId !== meetingId) return
+
+        this.io.to(meetingId).emit("raise-hand-updated", {
+          userId,
+          userName,
+          isRaised: Boolean(isRaised),
+          timestamp: timestamp || Date.now(),
+        })
+      })
+
+      // Reactions interaction
+      socket.on("meeting-reaction", ({ meetingId, userId, userName, reaction, timestamp }) => {
+        const participant = this.participants.get(socket.id)
+        if (!participant || participant.meetingId !== meetingId || !reaction) return
+
+        this.io.to(meetingId).emit("meeting-reaction", {
+          userId,
+          userName,
+          reaction,
+          timestamp: timestamp || Date.now(),
+        })
+      })
+
+      // Chat interaction
+      socket.on("meeting-chat", ({ meetingId, userId, userName, message, timestamp }) => {
+        const participant = this.participants.get(socket.id)
+        if (!participant || participant.meetingId !== meetingId || !message) return
+
+        this.io.to(meetingId).emit("meeting-chat", {
+          userId,
+          userName,
+          message,
+          timestamp: timestamp || Date.now(),
+        })
+      })
+
       // Leave meeting
       socket.on("leave-meeting", () => {
         this.handleDisconnect(socket.id)

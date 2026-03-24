@@ -3,7 +3,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { useRouter } from "next/navigation"
-import { Settings } from "lucide-react"
+import { Settings, ShieldCheck } from "lucide-react"
 
 export default function SystemSettingsPage() {
   const router = useRouter()
@@ -29,6 +29,19 @@ export default function SystemSettingsPage() {
           <CardContent className="space-y-2 text-sm text-muted-foreground">
             <p>Use Company Branding to control primary/secondary colors and logo. These apply across all users in your organization.</p>
             <Button className="mt-2" onClick={() => router.push("/admin/settings/company")}>Go to Company Branding</Button>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Page Access Control</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm text-muted-foreground">
+            <p>Assign which admin page categories are visible for HR, Managers, and Employees.</p>
+            <Button onClick={() => router.push("/admin/settings/system/page-access")} className="gap-2">
+              <ShieldCheck className="w-4 h-4" />
+              Manage Page Access
+            </Button>
           </CardContent>
         </Card>
 

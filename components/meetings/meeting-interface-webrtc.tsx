@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Dialog,
@@ -15,9 +16,14 @@ import {
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   Video,
+  Volume2,
+  VolumeX,
   Mic,
   MicOff,
   PhoneOff,
+  Hand,
+  Send,
+  Smile,
   Users,
   Clock,
   AlertCircle,
@@ -90,11 +96,18 @@ export function MeetingInterface({
   const [localStream, setLocalStream] = useState<MediaStream | null>(null)
   const [currentUser, setCurrentUser] = useState<any>(null)
   const [userName, setUserName] = useState<string>('')
+  const [speakerEnabled, setSpeakerEnabled] = useState(true)
+  const [remoteVolume, setRemoteVolume] = useState(1)
+  const [allowDelayedAudio, setAllowDelayedAudio] = useState(true)
+  const [isHandRaised, setIsHandRaised] = useState(false)
+  const [chatOpen, setChatOpen] = useState(false)
+  const [chatMessage, setChatMessage] = useState('')
   
   const localVideoRef = useRef<HTMLVideoElement>(null)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const audioChunksRef = useRef<Blob[]>([])
   const remoteVideoRefs = useRef<Map<string, HTMLVideoElement>>(new Map())
+  const remoteAudioRefs = useRef<Map<string, HTMLAudioElement>>(new Map())
 
   const isOrganizer = !isGuest && meeting.organizer_id === currentUserId
 
@@ -116,12 +129,23 @@ export function MeetingInterface({
   }, [meeting, currentUserId, isGuest, currentUserName])
 
   // Initialize WebRTC
-  const { remoteStreams, isConnected, participants } = useWebRTC(
+  const {
+    remoteStreams,
+    isConnected,
+    participants,
+    raisedHands,
+    reactions,
+    chatMessages,
+    toggleRaiseHand,
+    sendReaction,
+    sendChatMessage,
+  } = useWebRTC(
     meeting.meeting_id,
     currentUserId,
     userName,
     localStream,
-    isMeetingActive && permissionStatus === 'granted'
+    isMeetingActive && permissionStatus === 'granted',
+    allowDelayedAudio
   )
 
   // Request media permissions when meeting becomes active
@@ -145,8 +169,41 @@ export function MeetingInterface({
       if (videoElement && videoElement.srcObject !== stream) {
         videoElement.srcObject = stream
       }
+
+      const audioElement = remoteAudioRefs.current.get(socketId)
+      if (audioElement && audioElement.srcObject !== stream) {
+        audioElement.srcObject = stream
+      }
+
+      const mediaElements = [videoElement, audioElement].filter(Boolean) as HTMLMediaElement[]
+      mediaElements.forEach((element) => {
+        element.volume = remoteVolume
+        element.muted = !speakerEnabled
+        const playPromise = element.play()
+        if (playPromise && typeof playPromise.catch === 'function') {
+          playPromise.catch(() => {
+            setTimeout(() => {
+              element.play().catch(() => {
+                // Browser autoplay guard may still block until next user interaction.
+              })
+            }, 450)
+          })
+        }
+      })
     })
-  }, [remoteStreams])
+  }, [remoteStreams, speakerEnabled, remoteVolume])
+
+  useEffect(() => {
+    remoteAudioRefs.current.forEach((audioElement) => {
+      audioElement.muted = !speakerEnabled
+      audioElement.volume = remoteVolume
+      if (speakerEnabled) {
+        audioElement.play().catch(() => {
+          // Browser autoplay guard may still block until next user interaction.
+        })
+      }
+    })
+  }, [speakerEnabled, remoteVolume])
 
   // Track time in meeting for KPI
   useEffect(() => {
@@ -374,6 +431,18 @@ export function MeetingInterface({
     setIsVideoOn(!isVideoOn)
   }
 
+  const handleToggleRaiseHand = () => {
+    const next = !isHandRaised
+    setIsHandRaised(next)
+    toggleRaiseHand(next)
+  }
+
+  const handleSendChat = () => {
+    if (!chatMessage.trim()) return
+    sendChatMessage(chatMessage)
+    setChatMessage('')
+  }
+
   const joinedMemberNames = Array.from(
     new Set(
       [
@@ -393,6 +462,13 @@ export function MeetingInterface({
       ].filter(Boolean)
     )
   )
+
+  const raisedHandNames = Object.values(raisedHands)
+    .filter((entry) => entry.isRaised)
+    .sort((a, b) => b.timestamp - a.timestamp)
+    .map((entry) => entry.userName)
+
+  const latestReactions = reactions.slice(-6)
 
   return (
     <div className="w-full h-screen bg-black flex flex-col">
@@ -475,7 +551,20 @@ export function MeetingInterface({
                 )}
 
                 {permissionStatus === 'granted' && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 h-full auto-rows-fr">
+                  <div className="relative grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 h-full auto-rows-fr">
+                    {latestReactions.length > 0 && (
+                      <div className="absolute top-3 right-3 z-20 flex flex-wrap gap-2 max-w-[60%] justify-end">
+                        {latestReactions.map((reaction, index) => (
+                          <Badge
+                            key={`${reaction.userId}-${reaction.timestamp}-${index}`}
+                            variant="secondary"
+                            className="bg-black/70 text-white border-gray-600"
+                          >
+                            {reaction.reaction} {reaction.userName}
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
                     {/* Local video */}
                     <Card className="relative overflow-hidden bg-gray-900 border-gray-700">
                       {isVideoOn ? (
@@ -521,19 +610,43 @@ export function MeetingInterface({
                     {/* Remote participants */}
                     {Array.from(remoteStreams.entries()).map(([socketId, stream]) => {
                       const participant = participants.find(p => p.socketId === socketId)
+                      const hasVideo = stream.getVideoTracks().length > 0
                       return (
                         <Card key={socketId} className="relative overflow-hidden bg-gray-900 border-gray-700">
-                          <video
+                          {hasVideo ? (
+                            <video
+                              ref={(el) => {
+                                if (el) remoteVideoRefs.current.set(socketId, el)
+                              }}
+                              autoPlay
+                              playsInline
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center bg-gray-800">
+                              <div className="text-center">
+                                <div className="w-16 h-16 rounded-full bg-indigo-600/80 text-white flex items-center justify-center mx-auto mb-2 text-xl font-semibold">
+                                  {(participant?.userName || 'P').charAt(0).toUpperCase()}
+                                </div>
+                                <p className="text-sm text-gray-300">Audio participant</p>
+                              </div>
+                            </div>
+                          )}
+                          <audio
                             ref={(el) => {
-                              if (el) remoteVideoRefs.current.set(socketId, el)
+                              if (el) remoteAudioRefs.current.set(socketId, el)
                             }}
                             autoPlay
                             playsInline
-                            className="w-full h-full object-cover"
                           />
                           <div className="absolute top-2 left-2 bg-black/70 px-2 py-1 rounded text-white text-xs">
                             {participant?.userName || 'Participant'}
                           </div>
+                          {!speakerEnabled && (
+                            <div className="absolute top-2 right-2 bg-gray-900/80 px-2 py-1 rounded text-[10px] text-gray-200">
+                              Muted locally
+                            </div>
+                          )}
                         </Card>
                       )
                     })}
@@ -583,8 +696,8 @@ export function MeetingInterface({
 
           {/* Controls */}
           {isMeetingActive && !isMinimized && permissionStatus === 'granted' && (
-            <div className="bg-gray-900 border-t border-gray-700 p-4">
-              <div className="max-w-7xl mx-auto flex items-center justify-between">
+            <div className="bg-gray-900 border-t border-gray-700 p-4 space-y-3">
+              <div className="max-w-7xl mx-auto flex items-center justify-between gap-4 flex-wrap">
                 <div className="flex items-center gap-4 text-white">
                   <div className="flex items-center gap-2">
                     <Clock className="w-4 h-4" />
@@ -602,17 +715,45 @@ export function MeetingInterface({
                       Connected
                     </Badge>
                   )}
+                  {raisedHandNames.length > 0 && (
+                    <Badge variant="outline" className="text-yellow-400 border-yellow-500">
+                      {raisedHandNames.length} hand{raisedHandNames.length > 1 ? 's' : ''} raised
+                    </Badge>
+                  )}
                 </div>
 
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 flex-wrap">
                   <Button
                     onClick={toggleAudio}
                     size="lg"
                     variant={isAudioOn ? 'default' : 'destructive'}
                     className="rounded-full w-12 h-12 p-0"
+                    title={isAudioOn ? 'Mute microphone' : 'Unmute microphone'}
                   >
                     {isAudioOn ? <Mic className="w-5 h-5" /> : <MicOff className="w-5 h-5" />}
                   </Button>
+
+                  <Button
+                    onClick={() => setSpeakerEnabled((prev) => !prev)}
+                    size="lg"
+                    variant={speakerEnabled ? 'default' : 'secondary'}
+                    className="rounded-full w-12 h-12 p-0"
+                    title={speakerEnabled ? 'Mute speakers' : 'Unmute speakers'}
+                  >
+                    {speakerEnabled ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
+                  </Button>
+
+                  <div className="hidden md:flex items-center gap-2 text-xs text-gray-300 px-2 py-1 border border-gray-700 rounded-md">
+                    <span>Vol</span>
+                    <input
+                      type="range"
+                      min={0}
+                      max={1}
+                      step={0.05}
+                      value={remoteVolume}
+                      onChange={(e) => setRemoteVolume(Number(e.target.value))}
+                    />
+                  </div>
 
                   {meeting.meeting_type !== 'audio' && (
                     <Button
@@ -626,6 +767,46 @@ export function MeetingInterface({
                   )}
 
                   <Button
+                    onClick={handleToggleRaiseHand}
+                    size="lg"
+                    variant={isHandRaised ? 'secondary' : 'outline'}
+                    className="rounded-full w-12 h-12 p-0"
+                    title={isHandRaised ? 'Lower hand' : 'Raise hand'}
+                  >
+                    <Hand className="w-5 h-5" />
+                  </Button>
+
+                  <Button
+                    onClick={() => sendReaction('👏')}
+                    size="lg"
+                    variant="outline"
+                    className="rounded-full w-12 h-12 p-0"
+                    title="Clap"
+                  >
+                    👏
+                  </Button>
+
+                  <Button
+                    onClick={() => sendReaction('👍')}
+                    size="lg"
+                    variant="outline"
+                    className="rounded-full w-12 h-12 p-0"
+                    title="Thumbs up"
+                  >
+                    👍
+                  </Button>
+
+                  <Button
+                    onClick={() => sendReaction('🎉')}
+                    size="lg"
+                    variant="outline"
+                    className="rounded-full w-12 h-12 p-0"
+                    title="Celebrate"
+                  >
+                    🎉
+                  </Button>
+
+                  <Button
                     onClick={isGuest ? handleLeaveMeeting : (isOrganizer ? handleEndMeeting : handleLeaveMeeting)}
                     size="lg"
                     variant="destructive"
@@ -636,7 +817,27 @@ export function MeetingInterface({
                   </Button>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Button
+                    onClick={() => setAllowDelayedAudio((prev) => !prev)}
+                    variant="outline"
+                    size="sm"
+                    className="text-white border-gray-600"
+                    title="Stabilize audio on slower connections"
+                  >
+                    {allowDelayedAudio ? 'Delayed Audio: On' : 'Delayed Audio: Off'}
+                  </Button>
+
+                  <Button
+                    onClick={() => setChatOpen((prev) => !prev)}
+                    variant="outline"
+                    size="sm"
+                    className="text-white border-gray-600"
+                  >
+                    <Smile className="w-4 h-4 mr-1" />
+                    Chat
+                  </Button>
+
                   <Button
                     onClick={() => setIsMinimized(true)}
                     variant="ghost"
@@ -663,6 +864,46 @@ export function MeetingInterface({
                   <span className="text-xs text-gray-400">No joined members yet</span>
                 )}
               </div>
+
+              {raisedHandNames.length > 0 && (
+                <div className="max-w-7xl mx-auto text-xs text-yellow-300">
+                  Raised hands: {raisedHandNames.join(', ')}
+                </div>
+              )}
+
+              {chatOpen && (
+                <div className="max-w-7xl mx-auto bg-gray-800 border border-gray-700 rounded-lg p-3 space-y-3">
+                  <div className="max-h-36 overflow-y-auto space-y-2">
+                    {chatMessages.length === 0 ? (
+                      <p className="text-xs text-gray-400">No messages yet. Say hello 👋</p>
+                    ) : (
+                      chatMessages.slice(-30).map((message, index) => (
+                        <div key={`${message.userId}-${message.timestamp}-${index}`} className="text-sm">
+                          <span className="text-blue-300 font-medium">{message.userName}: </span>
+                          <span className="text-gray-200">{message.message}</span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={chatMessage}
+                      onChange={(e) => setChatMessage(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          handleSendChat()
+                        }
+                      }}
+                      placeholder="Type a message..."
+                      className="bg-gray-900 border-gray-600 text-white"
+                    />
+                    <Button onClick={handleSendChat} size="sm">
+                      <Send className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </>

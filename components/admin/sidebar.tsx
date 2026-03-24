@@ -28,9 +28,12 @@ import {
   Banknote,
   Video,
   Package,
-  Stamp
+  Stamp,
+  ShieldCheck
 } from "lucide-react"
-import { logout } from "@/lib/auth"
+import { getUser, logout } from "@/lib/auth"
+import { companyApi } from "@/lib/api"
+import { useEffect, useMemo, useState } from "react"
 
 interface SidebarProps {
   isOpen: boolean
@@ -215,10 +218,44 @@ const adminMenuItems = [
     href: "/admin/settings/system",
     section: "SYSTEM"
   },
+  {
+    label: "Page Access Control",
+    icon: ShieldCheck,
+    href: "/admin/settings/system/page-access",
+    section: "SYSTEM"
+  },
 ]
 
 export default function AdminSidebar({ isOpen, onToggle }: SidebarProps) {
   const pathname = usePathname()
+  const [allowedSections, setAllowedSections] = useState<Set<string> | null>(null)
+
+  const currentUser = useMemo(() => getUser(), [])
+
+  useEffect(() => {
+    const loadSectionAccess = async () => {
+      const role = currentUser?.role
+      if (!role || role === "company_admin") {
+        setAllowedSections(null)
+        return
+      }
+
+      try {
+        const response = await companyApi.getPageAccess()
+        if (response.success) {
+          const userId = currentUser?._id || (currentUser as any)?.userId
+          const userSections = userId ? response.data?.adminSectionsByUser?.[userId] : undefined
+          const roleSections = response.data?.adminSectionsByRole?.[role] || []
+          const effectiveSections = Array.isArray(userSections) && userSections.length > 0 ? userSections : roleSections
+          setAllowedSections(new Set(effectiveSections))
+        }
+      } catch {
+        setAllowedSections(null)
+      }
+    }
+
+    loadSectionAccess()
+  }, [currentUser?.role])
 
   const handleLogout = () => {
     logout()
@@ -232,6 +269,11 @@ export default function AdminSidebar({ isOpen, onToggle }: SidebarProps) {
       sections[section] = []
     }
     sections[section].push(item)
+  })
+
+  const sectionEntries = Object.entries(sections).filter(([sectionName]) => {
+    if (!allowedSections) return true
+    return allowedSections.has(sectionName)
   })
 
   return (
@@ -257,7 +299,7 @@ export default function AdminSidebar({ isOpen, onToggle }: SidebarProps) {
         </div>
 
         <nav className="px-4 py-6 space-y-6 flex-1 min-h-0 overflow-y-auto">
-          {Object.entries(sections).map(([sectionName, items]) => (
+          {sectionEntries.map(([sectionName, items]) => (
             <div key={sectionName}>
               <h3 className="px-4 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                 {sectionName}
