@@ -17,6 +17,18 @@ router.post("/quotations/:quotationId/convert", StockController.convertQuotation
 router.get("/clients", StockController.getClients)
 
 router.get("/invoices", StockController.getInvoices)
+router.get("/invoices/:invoiceId", StockController.getInvoiceById)
+router.post("/invoices/:invoiceId/dispatch/assign", StockController.assignInvoiceToDispatch)
+router.put("/invoices/:invoiceId/dispatch/packing", StockController.updateDispatchPacking)
+router.post("/invoices/:invoiceId/dispatch/dispatch", StockController.markInvoiceDispatched)
+router.post("/invoices/:invoiceId/dispatch/inquiry", StockController.addDispatchInquiry)
+router.post("/invoices/:invoiceId/dispatch/delivery", StockController.confirmInvoiceDelivery)
+
+router.get("/dispatch/my", StockController.getMyDispatchInvoices)
+router.get("/dispatch/analytics", StockController.getDispatchAnalytics)
+
+router.get("/couriers", StockController.getCouriers)
+router.post("/couriers", StockController.createCourier)
 
 router.post("/products", StockController.createProduct)
 router.get("/products", StockController.getProducts)

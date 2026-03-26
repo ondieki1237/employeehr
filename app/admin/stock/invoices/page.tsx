@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import Link from "next/link"
 import API_URL from "@/lib/apiBase"
 import { getToken, getUser } from "@/lib/auth"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -32,6 +33,20 @@ interface Invoice {
   subTotal: number
   status: "issued" | "paid" | "cancelled"
   createdAt: string
+  dispatch?: {
+    status: "not_assigned" | "assigned" | "packing" | "packed" | "dispatched" | "delivered"
+    assignedToUserId?: string
+    packingItems?: Array<{ requiredQuantity: number; packedQuantity: number }>
+  }
+}
+
+interface DispatchUser {
+  _id: string
+  firstName?: string
+  lastName?: string
+  first_name?: string
+  last_name?: string
+  role?: string
 }
 
 interface StampOption {
@@ -84,6 +99,9 @@ export default function InvoicesPage() {
   const [branding, setBranding] = useState<TenantBranding>({})
   const [searchInput, setSearchInput] = useState("")
   const [search, setSearch] = useState("")
+  const [dispatchUsers, setDispatchUsers] = useState<DispatchUser[]>([])
+  const [selectedDispatchByInvoice, setSelectedDispatchByInvoice] = useState<Record<string, string>>({})
+  const [assigningInvoiceId, setAssigningInvoiceId] = useState<string | null>(null)
 
   const headers = useMemo(
     () => ({
@@ -103,8 +121,37 @@ export default function InvoicesPage() {
       const [invoicesData, brandingData] = await Promise.all([invoicesResponse.json(), brandingResponse.json()])
       setInvoices(invoicesData.data || [])
       setBranding(brandingData.data || {})
+
+      const usersResponse = await fetch(`${API_URL}/api/users`, { headers })
+      const usersData = await usersResponse.json()
+      setDispatchUsers(usersData.data || [])
     } finally {
       setLoading(false)
+    }
+  }
+
+  const assignToDispatch = async (invoiceId: string) => {
+    try {
+      const assignedToUserId = selectedDispatchByInvoice[invoiceId]
+      if (!assignedToUserId) {
+        window.alert("Select a dispatch user first")
+        return
+      }
+
+      setAssigningInvoiceId(invoiceId)
+      const response = await fetch(`${API_URL}/api/stock/invoices/${invoiceId}/dispatch/assign`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ assignedToUserId }),
+      })
+      const json = await response.json()
+      if (!response.ok) {
+        window.alert(json.message || "Failed to assign dispatch")
+        return
+      }
+      await loadInvoices()
+    } finally {
+      setAssigningInvoiceId(null)
     }
   }
 
@@ -274,12 +321,11 @@ export default function InvoicesPage() {
               <thead>
                 <tr className="text-left border-b">
                   <th className="py-2">Invoice #</th>
-                  <th className="py-2">Delivery Note #</th>
-                  <th className="py-2">Quotation #</th>
                   <th className="py-2">Client</th>
                   <th className="py-2">Items</th>
                   <th className="py-2">Amount</th>
                   <th className="py-2">Status</th>
+                  <th className="py-2">Dispatch</th>
                   <th className="py-2">Date</th>
                   <th className="py-2">Downloads</th>
                 </tr>
@@ -288,8 +334,6 @@ export default function InvoicesPage() {
                 {filteredInvoices.map((invoice) => (
                   <tr key={invoice._id} className="border-b align-top">
                     <td className="py-2">{invoice.invoiceNumber}</td>
-                    <td className="py-2">{invoice.deliveryNoteNumber}</td>
-                    <td className="py-2">{invoice.quotationNumber || "-"}</td>
                     <td className="py-2">
                       <div className="font-medium">{invoice.client.name}</div>
                       <div className="text-xs text-muted-foreground">{invoice.client.number}</div>
@@ -298,6 +342,81 @@ export default function InvoicesPage() {
                     <td className="py-2">{invoice.items.length}</td>
                     <td className="py-2">{invoice.subTotal.toFixed(2)}</td>
                     <td className="py-2 capitalize">{invoice.status}</td>
+                    <td className="py-2">
+                      {(() => {
+                        const packingItems = invoice.dispatch?.packingItems || []
+                        const required = packingItems.reduce((sum, item) => sum + Number(item.requiredQuantity || 0), 0)
+                        const packed = packingItems.reduce((sum, item) => sum + Number(item.packedQuantity || 0), 0)
+                        const isFullyPacked = required > 0 && packed >= required
+                        const hasProgress = packed > 0
+
+                        const statusLabel = isFullyPacked
+                          ? `Packed ${packed}/${required}`
+                          : hasProgress
+                            ? `Partial ${packed}/${required}`
+                            : "Not packed"
+
+                        const statusClass = isFullyPacked
+                          ? "text-green-700 bg-green-50 border-green-200"
+                          : hasProgress
+                            ? "text-red-700 bg-red-50 border-red-200"
+                            : "text-gray-600 bg-gray-50 border-gray-200"
+
+                        const canDispatch = isFullyPacked && invoice.status === "issued"
+
+                        if (!canDispatch) {
+                          return (
+                            <div className="flex items-center gap-2">
+                              <span className={`inline-flex items-center rounded border px-2 py-1 text-xs font-medium ${statusClass}`}>
+                                {statusLabel}
+                              </span>
+                              <span className="text-xs text-gray-500">✓ Fill items to dispatch</span>
+                            </div>
+                          )
+                        }
+
+                        return (
+                          <div className="min-w-[620px] flex items-center gap-2">
+                            <span className={`inline-flex items-center rounded border px-2 py-1 text-xs font-medium whitespace-nowrap ${statusClass}`}>
+                              {statusLabel}
+                            </span>
+                            <span className="text-xs capitalize whitespace-nowrap">{invoice.dispatch?.status || "not_assigned"}</span>
+                            <select
+                              className="w-[220px] rounded border px-2 py-1 text-xs"
+                              value={selectedDispatchByInvoice[invoice._id] || ""}
+                              onChange={(event) =>
+                                setSelectedDispatchByInvoice((prev) => ({
+                                  ...prev,
+                                  [invoice._id]: event.target.value,
+                                }))
+                              }
+                            >
+                              <option value="">Assign dispatch user</option>
+                              {dispatchUsers.map((user) => {
+                                const fullName = `${user.firstName || user.first_name || ""} ${user.lastName || user.last_name || ""}`.trim() || user._id
+                                return (
+                                  <option key={user._id} value={user._id}>
+                                    {fullName} {user.role ? `(${user.role})` : ""}
+                                  </option>
+                                )
+                              })}
+                            </select>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => assignToDispatch(invoice._id)}
+                              disabled={assigningInvoiceId === invoice._id}
+                              className="whitespace-nowrap"
+                            >
+                              To Dispatch
+                            </Button>
+                            <Button size="sm" variant="outline" asChild className="whitespace-nowrap">
+                              <Link href={`/admin/stock/dispatch/${invoice._id}`}>Open Dispatch Form</Link>
+                            </Button>
+                          </div>
+                        )
+                      })()}
+                    </td>
                     <td className="py-2">{new Date(invoice.createdAt).toLocaleString()}</td>
                     <td className="py-2">
                       <div className="flex flex-wrap gap-2">

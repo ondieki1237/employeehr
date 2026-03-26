@@ -6,6 +6,7 @@ import { StockEntry } from "../models/StockEntry"
 import { StockSale } from "../models/StockSale"
 import { StockQuotation } from "../models/StockQuotation"
 import { StockInvoice } from "../models/StockInvoice"
+import { StockCourier } from "../models/StockCourier"
 import { User } from "../models/User"
 import emailService from "../services/email.service"
 
@@ -19,6 +20,30 @@ function generateDocumentNumber(prefix: string) {
   const ts = Date.now().toString().slice(-8)
   const rand = Math.floor(Math.random() * 9000 + 1000)
   return `${prefix}-${ts}-${rand}`
+}
+
+function canManageDispatchForInvoice(req: AuthenticatedRequest, invoice: any) {
+  const userId = String(req.user?.userId || "")
+  if (!userId) return false
+  if (isAdminRole(req.user?.role)) return true
+  return String(invoice?.dispatch?.assignedToUserId || "") === userId
+}
+
+function computePackingCompletion(
+  packingItems: Array<{ requiredQuantity: number; packedQuantity: number }>,
+) {
+  if (!packingItems.length) return false
+  return packingItems.every((item) => Number(item.packedQuantity || 0) >= Number(item.requiredQuantity || 0))
+}
+
+function withOptionalDispatchObjects(baseDispatch: any, sourceDispatch: any) {
+  const nextDispatch: any = { ...baseDispatch }
+  if (sourceDispatch?.courier) nextDispatch.courier = sourceDispatch.courier
+  if (sourceDispatch?.delivery) nextDispatch.delivery = sourceDispatch.delivery
+  if (sourceDispatch?.transportMeans) nextDispatch.transportMeans = sourceDispatch.transportMeans
+  if (sourceDispatch?.dispatchedAt) nextDispatch.dispatchedAt = sourceDispatch.dispatchedAt
+  if (sourceDispatch?.dispatchedByUserId) nextDispatch.dispatchedByUserId = sourceDispatch.dispatchedByUserId
+  return nextDispatch
 }
 
 async function buildQuotationItems(
@@ -397,6 +422,17 @@ export class StockController {
         items: quotation.items,
         subTotal: quotation.subTotal,
         status: "issued",
+        dispatch: {
+          status: "not_assigned",
+          packingItems: quotation.items.map((item) => ({
+            productId: item.productId,
+            productName: item.productName,
+            requiredQuantity: item.quantity,
+            packedQuantity: 0,
+          })),
+          packingCompleted: false,
+          inquiries: [],
+        },
         createdBy: actorId,
       })
 
@@ -447,6 +483,431 @@ export class StockController {
       return res.status(200).json({ success: true, data: invoices })
     } catch (error: any) {
       return res.status(500).json({ success: false, message: error.message || "Failed to fetch invoices" })
+    }
+  }
+
+  static async getInvoiceById(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = req.user?.org_id
+      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+
+      const { invoiceId } = req.params
+      const invoice = await StockInvoice.findOne({ _id: invoiceId, org_id }).lean()
+      if (!invoice) return res.status(404).json({ success: false, message: "Invoice not found" })
+
+      return res.status(200).json({ success: true, data: invoice })
+    } catch (error: any) {
+      return res.status(500).json({ success: false, message: error.message || "Failed to fetch invoice" })
+    }
+  }
+
+  static async assignInvoiceToDispatch(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = req.user?.org_id
+      const actorId = req.user?.userId
+      if (!org_id || !actorId) return res.status(401).json({ success: false, message: "Unauthorized" })
+
+      if (!isAdminRole(req.user?.role)) {
+        return res.status(403).json({ success: false, message: "Only admin/HR can assign dispatch" })
+      }
+
+      const { invoiceId } = req.params
+      const { assignedToUserId } = req.body
+      if (!assignedToUserId) {
+        return res.status(400).json({ success: false, message: "assignedToUserId is required" })
+      }
+
+      const [invoice, user] = await Promise.all([
+        StockInvoice.findOne({ _id: invoiceId, org_id }).lean(),
+        User.findOne({ _id: assignedToUserId, org_id }).select("_id role firstName lastName"),
+      ])
+
+      if (!invoice) return res.status(404).json({ success: false, message: "Invoice not found" })
+      if (!user) return res.status(404).json({ success: false, message: "Assigned user not found" })
+
+      const packingItems =
+        invoice.dispatch?.packingItems?.length > 0
+          ? invoice.dispatch.packingItems
+          : invoice.items.map((item: any) => ({
+              productId: item.productId,
+              productName: item.productName,
+              requiredQuantity: item.quantity,
+              packedQuantity: 0,
+            }))
+
+      const updatedInvoice = await StockInvoice.findOneAndUpdate(
+        { _id: invoiceId, org_id },
+        {
+          $set: {
+            "dispatch.status": "assigned",
+            "dispatch.assignedToUserId": String(assignedToUserId),
+            "dispatch.assignedByUserId": String(actorId),
+            "dispatch.assignedAt": new Date(),
+            "dispatch.packingItems": packingItems,
+            "dispatch.packingCompleted": false,
+            "dispatch.inquiries": invoice.dispatch?.inquiries || [],
+          },
+          $unset: {
+            "dispatch.courier": 1,
+            "dispatch.delivery": 1,
+            "dispatch.transportMeans": 1,
+            "dispatch.dispatchedAt": 1,
+            "dispatch.dispatchedByUserId": 1,
+          },
+        },
+        { new: true },
+      )
+
+      return res.status(200).json({ success: true, data: updatedInvoice })
+    } catch (error: any) {
+      return res.status(500).json({ success: false, message: error.message || "Failed to assign dispatch" })
+    }
+  }
+
+  static async getMyDispatchInvoices(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = req.user?.org_id
+      const userId = req.user?.userId
+      if (!org_id || !userId) return res.status(401).json({ success: false, message: "Unauthorized" })
+
+      const query: any = { org_id }
+      if (!isAdminRole(req.user?.role)) {
+        query["dispatch.assignedToUserId"] = String(userId)
+      }
+
+      const invoices = await StockInvoice.find(query).sort({ createdAt: -1 }).lean()
+      return res.status(200).json({ success: true, data: invoices })
+    } catch (error: any) {
+      return res.status(500).json({ success: false, message: error.message || "Failed to fetch dispatch invoices" })
+    }
+  }
+
+  static async updateDispatchPacking(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = req.user?.org_id
+      const userId = req.user?.userId
+      if (!org_id || !userId) return res.status(401).json({ success: false, message: "Unauthorized" })
+
+      const { invoiceId } = req.params
+      const { items } = req.body
+
+      const invoice = await StockInvoice.findOne({ _id: invoiceId, org_id }).lean()
+      if (!invoice) return res.status(404).json({ success: false, message: "Invoice not found" })
+
+      if (!canManageDispatchForInvoice(req, invoice)) {
+        return res.status(403).json({ success: false, message: "Not allowed to update this dispatch" })
+      }
+
+      const currentPacking = invoice.dispatch?.packingItems || []
+      const packedMap = new Map<string, number>()
+      if (Array.isArray(items)) {
+        for (const item of items) {
+          packedMap.set(String(item.productId), Math.max(0, Number(item.packedQuantity || 0)))
+        }
+      }
+
+      const nextPacking = currentPacking.map((item: any) => ({
+        productId: item.productId,
+        productName: item.productName,
+        requiredQuantity: Number(item.requiredQuantity),
+        packedQuantity: packedMap.has(String(item.productId))
+          ? Math.min(Number(item.requiredQuantity), Number(packedMap.get(String(item.productId))))
+          : Number(item.packedQuantity || 0),
+      }))
+
+      const packingCompleted = computePackingCompletion(nextPacking)
+
+      const updatedInvoice = await StockInvoice.findOneAndUpdate(
+        { _id: invoiceId, org_id },
+        {
+          $set: {
+            "dispatch.status": packingCompleted ? "packed" : "packing",
+            "dispatch.packingItems": nextPacking,
+            "dispatch.packingCompleted": packingCompleted,
+            ...(packingCompleted && { "dispatch.packingCompletedAt": new Date() }),
+          },
+        },
+        { new: true },
+      )
+
+      return res.status(200).json({ success: true, data: updatedInvoice })
+    } catch (error: any) {
+      return res.status(500).json({ success: false, message: error.message || "Failed to update packing" })
+    }
+  }
+
+  static async getCouriers(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = req.user?.org_id
+      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+      const couriers = await StockCourier.find({ org_id, isActive: true }).sort({ createdAt: -1 }).lean()
+      return res.status(200).json({ success: true, data: couriers })
+    } catch (error: any) {
+      return res.status(500).json({ success: false, message: error.message || "Failed to fetch couriers" })
+    }
+  }
+
+  static async createCourier(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = req.user?.org_id
+      const actorId = req.user?.userId
+      if (!org_id || !actorId) return res.status(401).json({ success: false, message: "Unauthorized" })
+
+      const { name, contactName, contactNumber } = req.body
+      if (!name || !contactName || !contactNumber) {
+        return res.status(400).json({ success: false, message: "Courier name, contact name and contact number are required" })
+      }
+
+      const courier = await StockCourier.create({
+        org_id,
+        name: String(name).trim(),
+        contactName: String(contactName).trim(),
+        contactNumber: String(contactNumber).trim(),
+        createdBy: String(actorId),
+      })
+
+      return res.status(201).json({ success: true, data: courier })
+    } catch (error: any) {
+      return res.status(500).json({ success: false, message: error.message || "Failed to create courier" })
+    }
+  }
+
+  static async markInvoiceDispatched(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = req.user?.org_id
+      const userId = req.user?.userId
+      if (!org_id || !userId) return res.status(401).json({ success: false, message: "Unauthorized" })
+
+      const { invoiceId } = req.params
+      const {
+        transportMeans,
+        courierId,
+        courierName,
+        courierContactName,
+        courierContactNumber,
+      } = req.body
+
+      const invoice = await StockInvoice.findOne({ _id: invoiceId, org_id })
+      if (!invoice) return res.status(404).json({ success: false, message: "Invoice not found" })
+
+      if (!canManageDispatchForInvoice(req, invoice)) {
+        return res.status(403).json({ success: false, message: "Not allowed to dispatch this invoice" })
+      }
+
+      const packingItems = invoice.dispatch?.packingItems || []
+      if (!computePackingCompletion(packingItems)) {
+        return res.status(400).json({ success: false, message: "All items must be fully packed before dispatch" })
+      }
+
+      if (!transportMeans) {
+        return res.status(400).json({ success: false, message: "transportMeans is required" })
+      }
+
+      let courierPayload: any
+      if (courierId) {
+        const courier = await StockCourier.findOne({ _id: courierId, org_id })
+        if (!courier) {
+          return res.status(404).json({ success: false, message: "Courier not found" })
+        }
+        courierPayload = {
+          courierId: String(courier._id),
+          name: courier.name,
+          contactName: courier.contactName,
+          contactNumber: courier.contactNumber,
+          isNewCourier: false,
+        }
+      } else {
+        if (!courierName || !courierContactName || !courierContactNumber) {
+          return res.status(400).json({ success: false, message: "Provide courier details or select an existing courier" })
+        }
+        const newCourier = await StockCourier.create({
+          org_id,
+          name: String(courierName).trim(),
+          contactName: String(courierContactName).trim(),
+          contactNumber: String(courierContactNumber).trim(),
+          createdBy: String(userId),
+        })
+        courierPayload = {
+          courierId: String(newCourier._id),
+          name: newCourier.name,
+          contactName: newCourier.contactName,
+          contactNumber: newCourier.contactNumber,
+          isNewCourier: true,
+        }
+      }
+
+      const updatedInvoice = await StockInvoice.findOneAndUpdate(
+        { _id: invoiceId, org_id },
+        {
+          $set: {
+            "dispatch.status": "dispatched",
+            "dispatch.packingItems": packingItems,
+            "dispatch.packingCompleted": true,
+            "dispatch.packingCompletedAt": invoice.dispatch?.packingCompletedAt || new Date(),
+            "dispatch.dispatchedAt": new Date(),
+            "dispatch.dispatchedByUserId": String(userId),
+            "dispatch.transportMeans": String(transportMeans).trim(),
+            "dispatch.courier": courierPayload,
+            "dispatch.inquiries": invoice.dispatch?.inquiries || [],
+          },
+        },
+        { new: true },
+      )
+
+      return res.status(200).json({ success: true, data: updatedInvoice })
+    } catch (error: any) {
+      return res.status(500).json({ success: false, message: error.message || "Failed to dispatch invoice" })
+    }
+  }
+
+  static async addDispatchInquiry(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = req.user?.org_id
+      const userId = req.user?.userId
+      if (!org_id || !userId) return res.status(401).json({ success: false, message: "Unauthorized" })
+
+      const { invoiceId } = req.params
+      const { mode, note } = req.body
+
+      const invoice = await StockInvoice.findOne({ _id: invoiceId, org_id })
+      if (!invoice) return res.status(404).json({ success: false, message: "Invoice not found" })
+      if (!canManageDispatchForInvoice(req, invoice)) {
+        return res.status(403).json({ success: false, message: "Not allowed to add inquiry" })
+      }
+
+      if (!["client", "courier"].includes(String(mode))) {
+        return res.status(400).json({ success: false, message: "mode must be client or courier" })
+      }
+
+      const inquiries = (invoice.dispatch?.inquiries || []).map((i: any) => ({
+        mode: i.mode,
+        method: i.method,
+        note: i.note,
+        createdBy: i.createdBy,
+        createdAt: new Date(i.createdAt),
+      }))
+      inquiries.push({
+        mode: mode,
+        method: "call",
+        note: note ? String(note).trim() : undefined,
+        createdBy: String(userId),
+        createdAt: new Date(),
+      })
+
+      const updatedInvoice = await StockInvoice.findOneAndUpdate(
+        { _id: invoiceId, org_id },
+        {
+          $set: {
+            "dispatch.inquiries": inquiries,
+          },
+        },
+        { new: true },
+      )
+
+      return res.status(200).json({ success: true, data: updatedInvoice.dispatch?.inquiries || [] })
+    } catch (error: any) {
+      return res.status(500).json({ success: false, message: error.message || "Failed to add inquiry" })
+    }
+  }
+
+  static async confirmInvoiceDelivery(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = req.user?.org_id
+      const userId = req.user?.userId
+      if (!org_id || !userId) return res.status(401).json({ success: false, message: "Unauthorized" })
+
+      const { invoiceId } = req.params
+      const { condition, arrivalTime, everythingPacked, note } = req.body
+
+      const invoice = await StockInvoice.findOne({ _id: invoiceId, org_id })
+      if (!invoice) return res.status(404).json({ success: false, message: "Invoice not found" })
+      if (!canManageDispatchForInvoice(req, invoice)) {
+        return res.status(403).json({ success: false, message: "Not allowed to confirm delivery" })
+      }
+
+      if (!invoice.dispatch || invoice.dispatch.status !== "dispatched") {
+        return res.status(400).json({ success: false, message: "Invoice must be dispatched before delivery confirmation" })
+      }
+
+      if (!["good", "not_good"].includes(String(condition))) {
+        return res.status(400).json({ success: false, message: "condition must be good or not_good" })
+      }
+
+      const updatedInvoice = await StockInvoice.findOneAndUpdate(
+        { _id: invoiceId, org_id },
+        {
+          $set: {
+            "dispatch.status": "delivered",
+            "dispatch.delivery": {
+              received: true,
+              condition,
+              arrivalTime: arrivalTime ? new Date(arrivalTime) : new Date(),
+              everythingPacked: Boolean(everythingPacked),
+              note: note ? String(note).trim() : undefined,
+              confirmedBy: String(userId),
+              confirmedAt: new Date(),
+            },
+          },
+        },
+        { new: true },
+      )
+
+      return res.status(200).json({ success: true, data: updatedInvoice })
+    } catch (error: any) {
+      return res.status(500).json({ success: false, message: error.message || "Failed to confirm delivery" })
+    }
+  }
+
+  static async getDispatchAnalytics(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = req.user?.org_id
+      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+      if (!isAdminRole(req.user?.role)) {
+        return res.status(403).json({ success: false, message: "Only admin/HR can view dispatch analytics" })
+      }
+
+      const invoices = await StockInvoice.find({ org_id }).lean()
+      const counts = {
+        total: invoices.length,
+        not_assigned: 0,
+        assigned: 0,
+        packing: 0,
+        packed: 0,
+        dispatched: 0,
+        delivered: 0,
+      } as Record<string, number>
+
+      let totalPackingRatio = 0
+      let packingSamples = 0
+
+      invoices.forEach((invoice: any) => {
+        const status = String(invoice.dispatch?.status || "not_assigned")
+        if (counts[status] !== undefined) counts[status] += 1
+
+        const packingItems = invoice.dispatch?.packingItems || []
+        if (packingItems.length > 0) {
+          const required = packingItems.reduce((sum: number, item: any) => sum + Number(item.requiredQuantity || 0), 0)
+          const packed = packingItems.reduce((sum: number, item: any) => sum + Number(item.packedQuantity || 0), 0)
+          if (required > 0) {
+            totalPackingRatio += Math.min(1, packed / required)
+            packingSamples += 1
+          }
+        }
+      })
+
+      const completionRate = counts.total > 0 ? Number(((counts.delivered / counts.total) * 100).toFixed(2)) : 0
+      const averagePackingProgress = packingSamples > 0 ? Number(((totalPackingRatio / packingSamples) * 100).toFixed(2)) : 0
+
+      return res.status(200).json({
+        success: true,
+        data: {
+          counts,
+          completionRate,
+          averagePackingProgress,
+        },
+      })
+    } catch (error: any) {
+      return res.status(500).json({ success: false, message: error.message || "Failed to fetch dispatch analytics" })
     }
   }
 
