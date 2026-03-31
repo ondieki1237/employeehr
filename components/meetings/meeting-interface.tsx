@@ -13,6 +13,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { MeetingReport } from '@/components/meetings/meeting-report'
 import {
   Video,
   Mic,
@@ -74,9 +75,62 @@ export function MeetingInterface({
   const [showTranscript, setShowTranscript] = useState(false)
   const [transcript, setTranscript] = useState<string>('')
   const [showReport, setShowReport] = useState(false)
-  const [aiProcessing, setAiProcessing] = useState(
-    meeting.ai_processing_status === 'processing'
-  )
+  const [reportState, setReportState] = useState<{
+    summary: string
+    keyPoints: string[]
+    actionItems: any[]
+    transcript: string
+    processingStatus: 'pending' | 'processing' | 'completed' | 'failed'
+    processingError: string
+    sentiment: 'positive' | 'neutral' | 'negative'
+  }>(() => {
+    const status = meeting.ai_processing_status
+    if (status === 'failed') {
+      return {
+        summary: meeting.ai_summary || '',
+        keyPoints: meeting.key_points || [],
+        actionItems: meeting.action_items || [],
+        transcript: meeting.transcript || '',
+        processingStatus: 'failed',
+        processingError: '',
+        sentiment: 'neutral',
+      }
+    }
+
+    if (meeting.ai_processed || status === 'completed') {
+      return {
+        summary: meeting.ai_summary || '',
+        keyPoints: meeting.key_points || [],
+        actionItems: meeting.action_items || [],
+        transcript: meeting.transcript || '',
+        processingStatus: 'completed',
+        processingError: '',
+        sentiment: 'neutral',
+      }
+    }
+
+    if (status === 'processing') {
+      return {
+        summary: meeting.ai_summary || '',
+        keyPoints: meeting.key_points || [],
+        actionItems: meeting.action_items || [],
+        transcript: meeting.transcript || '',
+        processingStatus: 'processing',
+        processingError: '',
+        sentiment: 'neutral',
+      }
+    }
+
+    return {
+      summary: meeting.ai_summary || '',
+      keyPoints: meeting.key_points || [],
+      actionItems: meeting.action_items || [],
+      transcript: meeting.transcript || '',
+      processingStatus: 'pending',
+      processingError: '',
+      sentiment: 'neutral',
+    }
+  })
   const [joinTime, setJoinTime] = useState<Date | null>(null)
   const [isMinimized, setIsMinimized] = useState(false)
   const [permissionStatus, setPermissionStatus] = useState<'pending' | 'granted' | 'denied'>('pending')
@@ -84,14 +138,27 @@ export function MeetingInterface({
   const [isConnecting, setIsConnecting] = useState(false)
   const [localStream, setLocalStream] = useState<MediaStream | null>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
-  const audioChunksRef = useRef<Blob[]>([])
 
   const isOrganizer = meeting.organizer_id === currentUserId
+
+  const speechRecognitionRef = useRef<any>(null)
+  const transcriptFinalRef = useRef<string>('')
+  const transcriptInterimRef = useRef<string>('')
+  const transcriptCaptureEnabledRef = useRef<boolean>(false)
+  const isMeetingActiveRef = useRef<boolean>(isMeetingActive)
+  const isOrganizerRef = useRef<boolean>(isOrganizer)
 
   useEffect(() => {
     setIsMeetingActive(meeting.status === 'in-progress')
   }, [meeting.status])
+
+  useEffect(() => {
+    isMeetingActiveRef.current = isMeetingActive
+  }, [isMeetingActive])
+
+  useEffect(() => {
+    isOrganizerRef.current = isOrganizer
+  }, [isOrganizer])
 
   // Request media permissions when meeting becomes active
   useEffect(() => {
@@ -124,12 +191,94 @@ export function MeetingInterface({
     }
   }, [isMeetingActive])
 
+  // Poll meeting AI report until it's ready.
+  useEffect(() => {
+    if (!showReport) return
+
+    let cancelled = false
+    const baseUrl =
+      process.env.NEXT_PUBLIC_API_URL || 'https://hrapi.codewithseth.co.ke'
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
+
+    setReportState((prev) => ({
+      ...prev,
+      processingStatus: prev.processingStatus === 'completed' ? 'completed' : 'processing',
+      processingError: '',
+    }))
+
+    if (!token) {
+      setReportState((prev) => ({
+        ...prev,
+        processingStatus: 'failed',
+        processingError: 'You must be logged in to view the report.',
+      }))
+      return
+    }
+
+    let attempt = 0
+    const maxAttempts = 36 // ~3 minutes @ 5s intervals
+
+    const poll = async () => {
+      attempt += 1
+      try {
+        const res = await fetch(`${baseUrl}/api/meetings/${meeting._id}/report`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        const data = await res.json().catch(() => null)
+
+        if (cancelled) return
+
+        if (res.ok && data?.success) {
+          setReportState({
+            summary: data.data.summary || '',
+            keyPoints: data.data.keyPoints || [],
+            actionItems: data.data.actionItems || [],
+            transcript: data.data.transcript || '',
+            processingStatus: 'completed',
+            processingError: '',
+            sentiment: data.data.sentiment || 'neutral',
+          })
+          return
+        }
+      } catch {
+        // ignore and retry
+      }
+
+      if (cancelled) return
+
+      if (attempt >= maxAttempts) {
+        setReportState((prev) => ({
+          ...prev,
+          processingStatus: 'failed',
+          processingError: 'Timed out waiting for AI report generation.',
+        }))
+        return
+      }
+
+      setTimeout(() => {
+        if (!cancelled) poll()
+      }, 5000)
+    }
+
+    poll()
+
+    return () => {
+      cancelled = true
+    }
+  }, [showReport, meeting._id])
+
   // Cleanup media streams on unmount
   useEffect(() => {
     return () => {
       stopVideoStream()
-      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-        mediaRecorderRef.current.stop()
+      transcriptCaptureEnabledRef.current = false
+      try {
+        speechRecognitionRef.current?.stop?.()
+      } catch {
+        // ignore
+      } finally {
+        speechRecognitionRef.current = null
+        setRecordingActive(false)
       }
     }
   }, [])
@@ -193,9 +342,9 @@ export function MeetingInterface({
         videoRef.current.srcObject = stream
       }
 
-      // Start recording if meeting is active
-      if (isMeetingActive) {
-        startRecording(stream)
+      // Start transcript capture only for the organizer.
+      if (isMeetingActive && isOrganizerRef.current) {
+        startTranscriptRecognition()
       }
     } catch (error: any) {
       console.error('Error requesting media permissions:', error)
@@ -249,57 +398,103 @@ export function MeetingInterface({
     }
   }
 
-  const startRecording = (stream: MediaStream) => {
-    try {
-      audioChunksRef.current = []
-      
-      const options: MediaRecorderOptions = {
-        mimeType: 'audio/webm;codecs=opus',
-      }
-      
-      // Fallback for browsers that don't support webm
-      if (!MediaRecorder.isTypeSupported(options.mimeType!)) {
-        options.mimeType = 'audio/mp4'
-      }
-      
-      const mediaRecorder = new MediaRecorder(stream, options)
-      mediaRecorderRef.current = mediaRecorder
+  const getCurrentTranscriptText = () => {
+    const finalText = transcriptFinalRef.current || ''
+    const interimText = transcriptInterimRef.current || ''
+    return `${finalText}${interimText ? ` ${interimText}` : ''}`.trim()
+  }
 
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          audioChunksRef.current.push(event.data)
-          console.log('Recording chunk received:', event.data.size, 'bytes')
+  const startTranscriptRecognition = () => {
+    if (!isOrganizerRef.current && !isOrganizer) return
+
+    const SpeechRecognitionCtor =
+      typeof window !== 'undefined'
+        ? (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+        : null
+
+    if (!SpeechRecognitionCtor) {
+      console.warn('SpeechRecognition is not supported in this browser.')
+      return
+    }
+
+    try {
+      transcriptFinalRef.current = ''
+      transcriptInterimRef.current = ''
+      transcriptCaptureEnabledRef.current = true
+      setTranscript('')
+
+      try {
+        speechRecognitionRef.current?.stop?.()
+      } catch {
+        // ignore
+      }
+
+      const recognition = new SpeechRecognitionCtor()
+      recognition.continuous = true
+      recognition.interimResults = true
+      recognition.lang = 'en-US'
+
+      recognition.onresult = (event: any) => {
+        const resultIndex = typeof event.resultIndex === 'number' ? event.resultIndex : 0
+
+        let didAppendFinal = false
+        for (let i = resultIndex; i < event.results.length; i++) {
+          const result = event.results[i]
+          const text = result?.[0]?.transcript ? String(result[0].transcript) : ''
+          if (!text) continue
+
+          if (result.isFinal) {
+            didAppendFinal = true
+            transcriptFinalRef.current = transcriptFinalRef.current
+              ? `${transcriptFinalRef.current} ${text.trim()}`
+              : text.trim()
+            transcriptInterimRef.current = ''
+          } else {
+            transcriptInterimRef.current = text.trim()
+          }
+        }
+
+        if (didAppendFinal || transcriptInterimRef.current) {
+          setTranscript(getCurrentTranscriptText())
         }
       }
 
-      mediaRecorder.onerror = (event: any) => {
-        console.error('MediaRecorder error:', event.error)
+      recognition.onerror = (event: any) => {
+        console.warn('Speech recognition error:', event?.error || event)
       }
 
-      mediaRecorder.start(1000) // Collect data every second
+      recognition.onend = () => {
+        if (transcriptCaptureEnabledRef.current && isMeetingActiveRef.current && isOrganizerRef.current) {
+          try {
+            recognition.start()
+          } catch {
+            // ignore
+          }
+        }
+      }
+
+      speechRecognitionRef.current = recognition
       setRecordingActive(true)
-      console.log('Recording started')
+      recognition.start()
     } catch (error) {
-      console.error('Error starting recording:', error)
+      console.error('Error starting speech recognition:', error)
+      setRecordingActive(false)
+      transcriptCaptureEnabledRef.current = false
     }
   }
 
-  const stopRecording = (): Promise<Blob> => {
-    return new Promise((resolve) => {
-      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-        mediaRecorderRef.current.onstop = () => {
-          const audioBlob = new Blob(audioChunksRef.current, { 
-            type: audioChunksRef.current[0]?.type || 'audio/webm' 
-          })
-          console.log('Recording stopped. Total size:', audioBlob.size, 'bytes')
-          resolve(audioBlob)
-        }
-        mediaRecorderRef.current.stop()
-        setRecordingActive(false)
-      } else {
-        resolve(new Blob([], { type: 'audio/webm' }))
-      }
-    })
+  const stopTranscriptRecognition = () => {
+    try {
+      transcriptCaptureEnabledRef.current = false
+      speechRecognitionRef.current?.stop?.()
+    } catch {
+      // ignore
+    } finally {
+      speechRecognitionRef.current = null
+      transcriptInterimRef.current = ''
+      setRecordingActive(false)
+      setTranscript(getCurrentTranscriptText())
+    }
   }
 
   const handleStartMeeting = async () => {
@@ -314,14 +509,17 @@ export function MeetingInterface({
 
   const handleEndMeeting = async () => {
     try {
-      setRecordingActive(false)
-      const audioBlob = await stopRecording()
+      stopTranscriptRecognition()
       stopVideoStream()
 
-      setAiProcessing(true)
+      setReportState((prev) => ({
+        ...prev,
+        processingStatus: 'processing',
+        processingError: '',
+      }))
 
-      // In a real app, upload the audio and transcript
-      await onEndMeeting(meeting._id, transcript)
+      const transcriptToSubmit = getCurrentTranscriptText() || transcript.trim()
+      await onEndMeeting(meeting._id, transcriptToSubmit)
 
       setIsMeetingActive(false)
       setShowReport(true)
@@ -518,7 +716,7 @@ export function MeetingInterface({
               {recordingActive && (
                 <div className="flex items-center gap-2 text-red-500">
                   <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
-                  <span className="text-sm font-medium">REC</span>
+                  <span className="text-sm font-medium">CAPT</span>
                 </div>
               )}
             </div>
@@ -561,6 +759,16 @@ export function MeetingInterface({
             {/* Right side - Additional controls */}
             <div className="flex items-center gap-2">
               <Button
+                onClick={() => setShowTranscript((prev) => !prev)}
+                variant="outline"
+                size="sm"
+                className="text-white border-gray-600"
+                title="Live transcript"
+              >
+                <MessageSquare className="w-4 h-4 mr-1" />
+                Transcript
+              </Button>
+              <Button
                 onClick={() => setIsMinimized(true)}
                 variant="ghost"
                 size="sm"
@@ -601,72 +809,16 @@ export function MeetingInterface({
               </DialogDescription>
             </DialogHeader>
 
-            {aiProcessing ? (
-              <div className="flex items-center justify-center py-8">
-                <div className="text-center">
-                  <Loader className="w-8 h-8 animate-spin mx-auto mb-2" />
-                  <p className="text-sm text-gray-600">
-                    Processing meeting with AI...
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <Tabs defaultValue="summary" className="w-full">
-                <TabsList className="grid w-full grid-cols-3">
-                  <TabsTrigger value="summary">Summary</TabsTrigger>
-                  <TabsTrigger value="points">Key Points</TabsTrigger>
-                  <TabsTrigger value="actions">Actions</TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="summary" className="space-y-4">
-                  {meeting.ai_processing_status === 'completed' ? (
-                    <Alert>
-                      <CheckCircle className="h-4 w-4" />
-                      <AlertDescription>{meeting.ai_summary}</AlertDescription>
-                    </Alert>
-                  ) : (
-                    <Alert>
-                      <AlertCircle className="h-4 w-4" />
-                      <AlertDescription>
-                        Report not yet available
-                      </AlertDescription>
-                    </Alert>
-                  )}
-                </TabsContent>
-
-                <TabsContent value="points" className="space-y-2">
-                  {meeting.key_points?.map((point, idx) => (
-                    <div
-                      key={idx}
-                      className="flex items-start gap-2 p-2 rounded bg-gray-50"
-                    >
-                      <CheckCircle className="w-4 h-4 text-green-600 mt-0.5" />
-                      <p className="text-sm">{point}</p>
-                    </div>
-                  ))}
-                </TabsContent>
-
-                <TabsContent value="actions" className="space-y-2">
-                  {meeting.action_items?.map((item, idx) => (
-                    <Card key={idx} className="p-3">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <p className="font-medium text-sm">
-                            {item.description}
-                          </p>
-                          <p className="text-xs text-gray-600 mt-1">
-                            Assigned to: {item.assigned_to}
-                          </p>
-                        </div>
-                        {item.task_id && (
-                          <Badge variant="secondary">Task Created</Badge>
-                        )}
-                      </div>
-                    </Card>
-                  ))}
-                </TabsContent>
-              </Tabs>
-            )}
+            <MeetingReport
+              title={meeting.title}
+              summary={reportState.summary}
+              keyPoints={reportState.keyPoints}
+              actionItems={reportState.actionItems}
+              transcript={reportState.transcript}
+              processingStatus={reportState.processingStatus}
+              processingError={reportState.processingError}
+              sentiment={reportState.sentiment}
+            />
           </DialogContent>
         </Dialog>
       )}

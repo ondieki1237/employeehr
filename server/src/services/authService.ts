@@ -192,7 +192,7 @@ export class AuthService {
 
       // Send invitation email
       try {
-        const loginUrl = process.env.FRONTEND_URL || "http://localhost:3000"
+                const loginUrl = process.env.FRONTEND_URL || "https://hr.codewithseth.co.ke"
         await emailService.sendInvitationEmail({
           recipientEmail: savedUser.email,
           recipientName: `${savedUser.firstName} ${savedUser.lastName}`,

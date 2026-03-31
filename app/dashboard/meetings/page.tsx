@@ -65,7 +65,7 @@ export default function MeetingsPage() {
 
   const endMeeting = async (meetingId: string, transcript: string) => {
     try {
-      await meetingsApi.end(meetingId)
+      await meetingsApi.end(meetingId, transcript)
       await fetchMeetings()
     } catch (error) {
       console.error('Error ending meeting:', error)

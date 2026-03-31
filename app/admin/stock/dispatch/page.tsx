@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge"
 interface DispatchInvoice {
   _id: string
   invoiceNumber: string
-  client: { name: string }
+  client: { name: string; number: string; location: string }
   dispatch?: { status: string; assignedToUserId?: string }
   createdAt: string
 }
@@ -66,20 +66,36 @@ export default function AdminDispatchManagementPage() {
       <Card>
         <CardHeader><CardTitle>Invoices Dispatch Overview</CardTitle></CardHeader>
         <CardContent className="space-y-3">
-          {invoices.map((invoice) => (
-            <div key={invoice._id} className="border rounded-lg p-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-              <div>
-                <p className="font-semibold">{invoice.invoiceNumber}</p>
-                <p className="text-sm text-muted-foreground">{invoice.client.name}</p>
+          {invoices.map((invoice) => {
+            const statusColors = 
+              invoice.dispatch?.status === "delivered" ? "bg-green-100 text-green-700" :
+              invoice.dispatch?.status === "dispatched" ? "bg-blue-100 text-blue-700" :
+              invoice.dispatch?.status === "packed" ? "bg-purple-100 text-purple-700" :
+              invoice.dispatch?.status === "packing" ? "bg-yellow-100 text-yellow-700" :
+              "bg-gray-100 text-gray-700"
+            
+            return (
+              <div key={invoice._id} className="border rounded-lg p-3 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                <div className="flex-1">
+                  <p className="font-semibold">{invoice.invoiceNumber}</p>
+                  <p className="text-sm font-medium">{invoice.client.name}</p>
+                  <p className="text-xs text-muted-foreground">{invoice.client.number} • {invoice.client.location}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge className={statusColors}>
+                    {invoice.dispatch?.status === "delivered" ? "✓ Delivered" :
+                     invoice.dispatch?.status === "dispatched" ? "📦 Dispatched" :
+                     invoice.dispatch?.status === "packed" ? "✓ Packed" :
+                     invoice.dispatch?.status === "packing" ? "📝 Packing" :
+                     "Not assigned"}
+                  </Badge>
+                  <Button size="sm" asChild>
+                    <Link href={`/admin/stock/dispatch/${invoice._id}`}>Open</Link>
+                  </Button>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <Badge>{invoice.dispatch?.status || "not_assigned"}</Badge>
-                <Button size="sm" asChild>
-                  <Link href={`/admin/stock/dispatch/${invoice._id}`}>Open</Link>
-                </Button>
-              </div>
-            </div>
-          ))}
+            )
+          })}
         </CardContent>
       </Card>
     </div>

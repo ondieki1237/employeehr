@@ -6,9 +6,17 @@ import { MeetingInterface } from '@/components/meetings/meeting-interface'
 import { MeetingReport } from '@/components/meetings/meeting-report'
 import { Button } from '@/components/ui/button'
 import { ArrowLeft } from 'lucide-react'
-import { meetingsApi } from '@/lib/api'
+import { meetingsApi, companyApi } from '@/lib/api'
 import { getUser } from '@/lib/auth'
 import type { Meeting } from '@/lib/types'
+
+interface Branding {
+  primaryColor?: string
+  secondaryColor?: string
+  accentColor?: string
+  backgroundColor?: string
+  textColor?: string
+}
 
 export default function MeetingsPage() {
   const [meetings, setMeetings] = useState<Meeting[]>([])
@@ -16,6 +24,7 @@ export default function MeetingsPage() {
   const [view, setView] = useState<'list' | 'meeting' | 'report'>('list')
   const [currentUserId, setCurrentUserId] = useState<string>('')
   const [isLoading, setIsLoading] = useState(true)
+  const [branding, setBranding] = useState<Branding>({})
 
   useEffect(() => {
     // Get current user from auth
@@ -24,8 +33,26 @@ export default function MeetingsPage() {
       setCurrentUserId(user._id || user.userId || '')
     }
 
-    fetchMeetings()
+    // Load branding and meetings
+    loadBrandingAndMeetings()
   }, [])
+
+  const loadBrandingAndMeetings = async () => {
+    try {
+      setIsLoading(true)
+      // Fetch branding
+      const brandingRes = await companyApi.getBranding()
+      if (brandingRes.success) {
+        setBranding(brandingRes.data || {})
+      }
+      // Fetch meetings
+      await fetchMeetings()
+    } catch (error) {
+      console.error('Error loading page:', error)
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   const fetchMeetings = async () => {
     try {
@@ -65,7 +92,7 @@ export default function MeetingsPage() {
 
   const endMeeting = async (meetingId: string, transcript: string) => {
     try {
-      await meetingsApi.end(meetingId)
+      await meetingsApi.end(meetingId, transcript)
       await fetchMeetings()
     } catch (error) {
       console.error('Error ending meeting:', error)
@@ -111,17 +138,28 @@ export default function MeetingsPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-screen">
+      <div className="flex items-center justify-center h-screen" style={{ backgroundColor: branding.backgroundColor || '#f9fafb' }}>
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading meetings...</p>
+          <div
+            className="animate-spin rounded-full h-12 w-12 border-b-2 mx-auto mb-4"
+            style={{ borderBottomColor: branding.primaryColor || '#2563eb' }}
+          ></div>
+          <p style={{ color: branding.textColor || '#4b5563' }}>Loading meetings...</p>
         </div>
       </div>
     )
   }
 
+  const primaryColor = branding.primaryColor || '#2563eb'
+  const secondaryColor = branding.secondaryColor || '#059669'
+  const backgroundColor = branding.backgroundColor || '#f9fafb'
+  const textColor = branding.textColor || '#1f2937'
+
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div
+      className="min-h-screen"
+      style={{ backgroundColor }}
+    >
       {view === 'list' ? (
         <div className="container mx-auto p-6">
           <MeetingList
@@ -130,28 +168,51 @@ export default function MeetingsPage() {
             onCreateMeeting={createMeeting}
             onSelectMeeting={handleSelectMeeting}
             onDownloadReport={downloadReport}
+            brandingColors={{
+              primary: primaryColor,
+              secondary: secondaryColor,
+              background: backgroundColor,
+              text: textColor,
+            }}
           />
         </div>
       ) : view === 'meeting' && selectedMeeting ? (
-        <div className="relative">
+        <div
+          className="inset-0 fixed z-50 min-h-screen flex flex-col"
+          style={{ backgroundColor }}
+        >
           <Button
             onClick={handleBack}
-            variant="ghost"
-            className="absolute top-4 left-4 z-10"
+            style={{
+              color: primaryColor,
+              borderColor: primaryColor,
+              marginTop: '1rem',
+              marginLeft: '1rem',
+            }}
+            className="w-fit border-2 hover:bg-opacity-10 hover:bg-blue-500"
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
-            Back
+            Back to Meetings
           </Button>
-          <MeetingInterface
-            meeting={selectedMeeting}
-            currentUserId={currentUserId}
-            onStartMeeting={startMeeting}
-            onEndMeeting={endMeeting}
-          />
+          <div className="flex-1 overflow-auto">
+            <MeetingInterface
+              meeting={selectedMeeting}
+              currentUserId={currentUserId}
+              onStartMeeting={startMeeting}
+              onEndMeeting={endMeeting}
+            />
+          </div>
         </div>
       ) : view === 'report' && selectedMeeting ? (
         <div className="container mx-auto p-6">
-          <Button onClick={handleBack} variant="ghost" className="mb-4">
+          <Button
+            onClick={handleBack}
+            style={{
+              color: primaryColor,
+              borderColor: primaryColor,
+            }}
+            className="mb-4 border-2 hover:bg-opacity-10 hover:bg-blue-500"
+          >
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Meetings
           </Button>

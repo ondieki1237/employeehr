@@ -72,7 +72,10 @@ export function MeetingReport({
     return (
       <Card className="p-8">
         <div className="flex flex-col items-center justify-center">
-          <Loader className="w-8 h-8 animate-spin mb-4 text-blue-600" />
+          <Loader
+            className="w-8 h-8 animate-spin mb-4"
+            style={{ color: 'var(--brand-primary, #2563eb)' }}
+          />
           <h3 className="text-lg font-semibold mb-2">Processing Meeting</h3>
           <p className="text-gray-600 text-center">
             Our AI is analyzing the meeting transcript and generating insights.
@@ -113,24 +116,42 @@ export function MeetingReport({
   }
 
   return (
-    <div className="space-y-6">
+    <div
+      className="space-y-6"
+      style={{
+        fontFamily: 'var(--brand-font, inherit)',
+        color: 'var(--brand-text, inherit)',
+      }}
+    >
       {/* Header */}
-      <div className="flex items-start justify-between">
-        <div>
-          <h2 className="text-3xl font-bold mb-2">{title}</h2>
-          <div className="flex items-center gap-2">
-            <span className="text-2xl">{getSentimentIcon(sentiment)}</span>
-            <Badge
-              variant={
-                sentiment === 'positive'
-                  ? 'default'
-                  : sentiment === 'negative'
-                    ? 'destructive'
-                    : 'secondary'
-              }
-            >
-              {sentiment.charAt(0).toUpperCase() + sentiment.slice(1)} Sentiment
-            </Badge>
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-start gap-4">
+          <div
+            className="h-12 w-12 rounded-md bg-no-repeat bg-contain bg-center border"
+            style={{
+              backgroundImage: "var(--company-logo-url)",
+              borderColor: 'var(--brand-primary, rgba(59, 130, 246, 0.35))',
+            }}
+            aria-hidden="true"
+          />
+          <div>
+            <h2 className="text-3xl font-bold mb-2" style={{ color: 'var(--brand-primary, #2563eb)' }}>
+              {title}
+            </h2>
+            <div className="flex items-center gap-2">
+              <span className="text-2xl">{getSentimentIcon(sentiment)}</span>
+              <Badge
+                variant={
+                  sentiment === 'positive'
+                    ? 'default'
+                    : sentiment === 'negative'
+                      ? 'destructive'
+                      : 'secondary'
+                }
+              >
+                {sentiment.charAt(0).toUpperCase() + sentiment.slice(1)} Sentiment
+              </Badge>
+            </div>
           </div>
         </div>
       </div>
@@ -165,7 +186,10 @@ export function MeetingReport({
             <div className="grid gap-3">
               {keyPoints.map((point, idx) => (
                 <Card key={idx} className="p-4 flex gap-3">
-                  <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                  <CheckCircle
+                    className="w-5 h-5 flex-shrink-0 mt-0.5"
+                    style={{ color: 'var(--brand-secondary, #059669)' }}
+                  />
                   <p className="text-gray-700">{point}</p>
                 </Card>
               ))}
@@ -208,7 +232,7 @@ export function MeetingReport({
                       </div>
                     </div>
                     {item.task_id && (
-                      <Badge className="bg-green-600">Task Created</Badge>
+                      <Badge variant="secondary">Task Created</Badge>
                     )}
                   </div>
                 </Card>
@@ -243,19 +267,19 @@ export function MeetingReport({
       {/* Summary Stats */}
       <div className="grid grid-cols-3 gap-4">
         <Card className="p-4 text-center">
-          <div className="text-2xl font-bold text-blue-600 mb-1">
+          <div className="text-2xl font-bold mb-1" style={{ color: 'var(--brand-primary, #2563eb)' }}>
             {keyPoints.length}
           </div>
           <p className="text-sm text-gray-600">Key Points</p>
         </Card>
         <Card className="p-4 text-center">
-          <div className="text-2xl font-bold text-green-600 mb-1">
+          <div className="text-2xl font-bold mb-1" style={{ color: 'var(--brand-secondary, #059669)' }}>
             {actionItems.length}
           </div>
           <p className="text-sm text-gray-600">Action Items</p>
         </Card>
         <Card className="p-4 text-center">
-          <div className="text-2xl font-bold text-purple-600 mb-1">
+          <div className="text-2xl font-bold mb-1" style={{ color: 'var(--brand-accent, #7c3aed)' }}>
             {actionItems.filter((a) => a.task_id).length}
           </div>
           <p className="text-sm text-gray-600">Tasks Created</p>

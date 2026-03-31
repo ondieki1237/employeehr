@@ -40,6 +40,12 @@ import {
   Check,
   Play,
   Square,
+  ExternalLink,
+  Share2,
+  Zap,
+  Shield,
+  Headphones,
+  MapPin,
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { usersApi } from '@/lib/api'
@@ -73,6 +79,12 @@ interface MeetingListProps {
   onCreateMeeting: (data: any) => Promise<void>
   onSelectMeeting: (meeting: Meeting) => void
   onDownloadReport: (meetingId: string) => Promise<void>
+  brandingColors?: {
+    primary?: string
+    secondary?: string
+    background?: string
+    text?: string
+  }
 }
 
 export function MeetingList({
@@ -81,6 +93,7 @@ export function MeetingList({
   onCreateMeeting,
   onSelectMeeting,
   onDownloadReport,
+  brandingColors,
 }: MeetingListProps) {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [formData, setFormData] = useState({
@@ -110,7 +123,7 @@ export function MeetingList({
     try {
       setLoadingUsers(true)
       const response = await usersApi.getAll()
-      if (response.success) {
+      if (response.success && response.data) {
         // Filter out current user
         const users = response.data.filter((u: any) => u._id !== currentUserId)
         setAvailableUsers(users)
@@ -154,6 +167,32 @@ export function MeetingList({
       console.error('Error creating meeting:', error)
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const getMeetingTypeIcon = (type: string) => {
+    switch (type) {
+      case 'video':
+        return <Video className="w-4 h-4" />
+      case 'audio':
+        return <Headphones className="w-4 h-4" />
+      case 'in-person':
+        return <MapPin className="w-4 h-4" />
+      default:
+        return <Video className="w-4 h-4" />
+    }
+  }
+
+  const getMeetingTypeColor = (type: string) => {
+    switch (type) {
+      case 'video':
+        return 'bg-blue-100 text-blue-800 border-blue-300'
+      case 'audio':
+        return 'bg-purple-100 text-purple-800 border-purple-300'
+      case 'in-person':
+        return 'bg-orange-100 text-orange-800 border-orange-300'
+      default:
+        return 'bg-gray-100 text-gray-800 border-gray-300'
     }
   }
 
@@ -210,8 +249,8 @@ export function MeetingList({
 
   const completedMeetings = meetings.filter((m) => m.status === 'completed')
   const meetingHistory = [...completedMeetings].sort((a, b) => {
-    const aTime = new Date(a.actual_end_time || a.updated_at || a.scheduled_at).getTime()
-    const bTime = new Date(b.actual_end_time || b.updated_at || b.scheduled_at).getTime()
+    const aTime = new Date(a.actual_end_time || a.scheduled_at).getTime()
+    const bTime = new Date(b.actual_end_time || b.scheduled_at).getTime()
     return bTime - aTime
   })
 
@@ -240,48 +279,82 @@ export function MeetingList({
         ) : (
           <div className="grid gap-4">
             {upcomingMeetings.map((meeting) => (
-              <Card key={meeting._id} className="p-4 hover:shadow-lg transition">
-                <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+              <Card key={meeting._id} className="p-5 hover:shadow-lg transition border-l-4 border-l-blue-500 bg-gradient-to-r from-blue-50/50 to-transparent">
+                <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5">
                   <div className="flex-1">
-                    <div className="flex flex-wrap items-center gap-2 mb-2">
-                      <Video className="w-5 h-5 text-blue-600" />
-                      <h4 className="font-semibold">{meeting.title}</h4>
-                      {getStatusBadge(meeting.status)}
+                    {/* Title and Status */}
+                    <div className="flex flex-wrap items-start gap-3 mb-3">
+                      <div className="flex items-center gap-2">
+                        <div className="p-2 bg-blue-100 rounded-lg">
+                          {getMeetingTypeIcon(meeting.meeting_type)}
+                        </div>
+                        <div>
+                          <h4 className="font-bold text-lg">{meeting.title}</h4>
+                          <div className="flex flex-wrap gap-2 mt-1">
+                            <Badge className={`${getMeetingTypeColor(meeting.meeting_type)} border`}>
+                              {meeting.meeting_type.charAt(0).toUpperCase() + meeting.meeting_type.slice(1)}
+                            </Badge>
+                            {getStatusBadge(meeting.status)}
+                          </div>
+                        </div>
+                      </div>
                     </div>
+
+                    {/* Description */}
                     {meeting.description && (
-                      <p className="text-sm text-gray-600 mb-2">
+                      <p className="text-sm text-gray-700 mb-3 leading-relaxed">
                         {meeting.description}
                       </p>
                     )}
-                    <div className="flex flex-wrap gap-4 text-sm text-gray-600">
-                      <div className="flex items-center gap-1">
-                        <Clock className="w-4 h-4" />
-                        {format(
-                          new Date(meeting.scheduled_at),
-                          'MMM dd, yyyy HH:mm'
-                        )}
+
+                    {/* Meeting Info Grid */}
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-4 p-3 bg-white rounded-lg border border-gray-200">
+                      <div className="flex items-center gap-2">
+                        <Clock className="w-4 h-4 text-gray-500" />
+                        <div>
+                          <p className="text-xs text-gray-600 font-medium">Date & Time</p>
+                          <p className="text-sm font-semibold">
+                            {format(new Date(meeting.scheduled_at), 'MMM dd, HH:mm')}
+                          </p>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-1">
-                        <Users className="w-4 h-4" />
-                        {meeting.attendees.length} attendees
+                      <div className="flex items-center gap-2">
+                        <Zap className="w-4 h-4 text-gray-500" />
+                        <div>
+                          <p className="text-xs text-gray-600 font-medium">Duration</p>
+                          <p className="text-sm font-semibold">{meeting.duration_minutes || 60} min</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Users className="w-4 h-4 text-gray-500" />
+                        <div>
+                          <p className="text-xs text-gray-600 font-medium">Attendees</p>
+                          <p className="text-sm font-semibold">{meeting.attendees.length}</p>
+                        </div>
                       </div>
                     </div>
                     
-                    {/* Meeting Link and Password */}
+                    {/* Meeting Link and Security */}
                     {(meeting as any).meeting_link && (
-                      <div className="mt-3 space-y-2 p-3 bg-muted/50 rounded-lg">
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs font-medium text-muted-foreground mb-1">
-                              Meeting Link
-                            </p>
-                            <p className="text-sm font-mono truncate">
-                              {(meeting as any).meeting_link}
-                            </p>
+                      <div className="space-y-3 p-4 bg-gradient-to-r from-indigo-50 to-blue-50 rounded-lg border border-indigo-200">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Share2 className="w-4 h-4 text-indigo-600" />
+                            <p className="text-sm font-semibold text-gray-900">Meeting Link</p>
                           </div>
+                        </div>
+                        
+                        <div className="flex items-center gap-2 bg-white rounded-lg p-3 border border-indigo-200">
+                          <input
+                            type="text"
+                            value={(meeting as any).meeting_link}
+                            readOnly
+                            className="flex-1 text-sm font-mono text-gray-700 bg-transparent outline-none truncate"
+                          />
                           <Button
                             size="sm"
                             variant="ghost"
+                            className="hover:bg-indigo-100"
                             onClick={() => {
                               navigator.clipboard.writeText((meeting as any).meeting_link)
                               setCopiedLink(true)
@@ -291,33 +364,42 @@ export function MeetingList({
                             {copiedLink ? (
                               <Check className="w-4 h-4 text-green-600" />
                             ) : (
-                              <Copy className="w-4 h-4" />
+                              <Copy className="w-4 h-4 text-indigo-600" />
                             )}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="hover:bg-indigo-100"
+                            onClick={() => window.open((meeting as any).meeting_link, '_blank')}
+                          >
+                            <ExternalLink className="w-4 h-4 text-indigo-600" />
                           </Button>
                         </div>
                         
                         {(meeting as any).require_password && (meeting as any).password && (
-                          <div className="flex items-center gap-2">
-                            <Lock className="w-4 h-4 text-muted-foreground" />
-                            <div>
-                              <p className="text-xs font-medium text-muted-foreground">
-                                Password
-                              </p>
-                              <p className="text-sm font-mono">
+                          <div className="flex items-center gap-3 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+                            <Shield className="w-5 h-5 text-yellow-700" />
+                            <div className="flex-1">
+                              <p className="text-xs font-medium text-yellow-900 mb-1">Password Protected</p>
+                              <code className="text-sm font-mono bg-yellow-100 px-2 py-1 rounded text-yellow-900">
                                 {(meeting as any).password}
-                              </p>
+                              </code>
                             </div>
                           </div>
                         )}
                       </div>
                     )}
                   </div>
-                  <div className="w-full lg:w-auto">
+
+                  {/* Action Button */}
+                  <div className="w-full lg:w-auto flex flex-col gap-2">
                     <Button
                       onClick={() => onSelectMeeting(meeting)}
-                      className="w-full lg:w-auto"
+                      className="w-full lg:w-auto gap-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800"
                     >
-                      {meeting.status === 'in-progress' ? 'Join' : 'Details'}
+                      <ExternalLink className="w-4 h-4" />
+                      {meeting.status === 'in-progress' ? 'Join Now' : 'View Details'}
                     </Button>
                   </div>
                 </div>
@@ -341,61 +423,85 @@ export function MeetingList({
         ) : (
           <div className="grid gap-4">
             {meetingHistory.map((meeting) => (
-              <Card key={meeting._id} className="p-4 hover:shadow-lg transition">
-                <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+              <Card key={meeting._id} className="p-5 hover:shadow-lg transition border-l-4 border-l-green-500 bg-gradient-to-r from-green-50/50 to-transparent">
+                <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5">
                   <div className="flex-1">
-                    <div className="flex flex-wrap items-center gap-2 mb-2">
-                      <CheckCircle className="w-5 h-5 text-green-600" />
-                      <h4 className="font-semibold">{meeting.title}</h4>
-                      {getProcessingStatus(meeting)}
+                    {/* Title and Status */}
+                    <div className="flex flex-wrap items-start gap-3 mb-3">
+                      <div className="flex items-center gap-2">
+                        <div className="p-2 bg-green-100 rounded-lg">
+                          <CheckCircle className="w-5 h-5 text-green-600" />
+                        </div>
+                        <div>
+                          <h4 className="font-bold text-lg">{meeting.title}</h4>
+                          <div className="flex flex-wrap gap-2 mt-1">
+                            {getProcessingStatus(meeting)}
+                            <Badge className="bg-green-600">Completed</Badge>
+                          </div>
+                        </div>
+                      </div>
                     </div>
+
+                    {/* AI Summary */}
                     {meeting.ai_summary && (
-                      <p className="text-sm text-gray-600 mb-2 line-clamp-2">
-                        {meeting.ai_summary}
-                      </p>
+                      <div className="p-3 bg-blue-50 rounded-lg border border-blue-200 mb-3">
+                        <p className="text-xs font-semibold text-blue-900 mb-1 flex items-center gap-1">
+                          <BarChart3 className="w-3 h-3" />
+                          AI Summary
+                        </p>
+                        <p className="text-sm text-blue-800 line-clamp-2">
+                          {meeting.ai_summary}
+                        </p>
+                      </div>
                     )}
-                    <div className="flex flex-wrap gap-4 text-sm text-gray-600">
-                      <div className="flex items-center gap-1">
-                        <Clock className="w-4 h-4" />
-                        {format(
-                          new Date(meeting.scheduled_at),
-                          'MMM dd, yyyy'
-                        )}
+
+                    {/* Meeting Stats Grid */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3 bg-white rounded-lg border border-gray-200">
+                      <div>
+                        <p className="text-xs text-gray-600 font-medium">Scheduled</p>
+                        <p className="text-sm font-semibold">
+                          {format(new Date(meeting.scheduled_at), 'MMM dd')}
+                        </p>
                       </div>
-                      <div className="flex items-center gap-1">
-                        <Play className="w-4 h-4" />
-                        {meeting.actual_start_time
-                          ? `Started ${format(new Date(meeting.actual_start_time), 'MMM dd, HH:mm')}`
-                          : 'Start time not recorded'}
+                      <div>
+                        <p className="text-xs text-gray-600 font-medium">Started</p>
+                        <p className="text-sm font-semibold">
+                          {meeting.actual_start_time
+                            ? format(new Date(meeting.actual_start_time), 'HH:mm')
+                            : 'N/A'}
+                        </p>
                       </div>
-                      <div className="flex items-center gap-1">
-                        <Square className="w-4 h-4" />
-                        {meeting.actual_end_time
-                          ? `Ended ${format(new Date(meeting.actual_end_time), 'MMM dd, HH:mm')}`
-                          : 'End time not recorded'}
+                      <div>
+                        <p className="text-xs text-gray-600 font-medium">Ended</p>
+                        <p className="text-sm font-semibold">
+                          {meeting.actual_end_time
+                            ? format(new Date(meeting.actual_end_time), 'HH:mm')
+                            : 'N/A'}
+                        </p>
                       </div>
-                      <div className="flex items-center gap-1">
-                        <Users className="w-4 h-4" />
-                        {meeting.attendees.filter((a) => a.attended)
-                          .length}/{meeting.attendees.length} attended
+                      <div>
+                        <p className="text-xs text-gray-600 font-medium">Attendance</p>
+                        <p className="text-sm font-semibold">
+                          {meeting.attendees.filter((a) => a.attended).length}/{meeting.attendees.length}
+                        </p>
                       </div>
                     </div>
                   </div>
-                  <div className="flex flex-col sm:flex-row gap-2 w-full lg:w-auto lg:ml-4">
+
+                  {/* Action Buttons */}
+                  <div className="flex flex-col sm:flex-row gap-2 w-full lg:w-auto">
                     <Button
                       onClick={() => onSelectMeeting(meeting)}
-                      variant="outline"
-                      size="sm"
-                      className="w-full sm:w-auto"
+                      className="w-full sm:w-auto gap-2 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800"
                     >
+                      <BarChart3 className="w-4 h-4" />
                       View Report
                     </Button>
                     {meeting.ai_processing_status === 'completed' && (
                       <Button
                         onClick={() => onDownloadReport(meeting._id)}
                         variant="outline"
-                        size="sm"
-                        className="gap-1 w-full sm:w-auto"
+                        className="gap-1"
                       >
                         <Download className="w-4 h-4" />
                         Export
@@ -411,94 +517,130 @@ export function MeetingList({
 
       {/* Create Meeting Dialog */}
       <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Schedule New Meeting</DialogTitle>
-            <DialogDescription>
-              Create a new meeting and invite attendees
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
+          <DialogHeader
+            style={{
+              background: `linear-gradient(135deg, ${brandingColors?.primary || '#2563eb'}, ${brandingColors?.secondary || '#059669'})`,
+            }}
+            className="-mx-6 -mt-6 px-6 pt-6 pb-4 rounded-t-lg"
+          >
+            <DialogTitle className="text-white text-xl flex items-center gap-2">
+              <Plus className="w-5 h-5" />
+              Schedule New Meeting
+            </DialogTitle>
+            <DialogDescription className="text-opacity-90" style={{ color: 'rgba(255,255,255,0.9)' }}>
+              Create a professional meeting and invite your team members
             </DialogDescription>
           </DialogHeader>
 
-          <form onSubmit={handleCreateMeeting} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium mb-1">Title</label>
-              <Input
-                required
-                value={formData.title}
-                onChange={(e) =>
-                  setFormData({ ...formData, title: e.target.value })
-                }
-                placeholder="Meeting title"
-              />
-            </div>
+          <form onSubmit={handleCreateMeeting} className="space-y-6 mt-4">
+            {/* Meeting Details Section */}
+            <div
+              className="space-y-4 p-4 rounded-lg border-2"
+              style={{
+                backgroundColor: `${brandingColors?.primary || '#2563eb'}15`,
+                borderColor: brandingColors?.primary || '#2563eb',
+              }}
+            >
+              <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                <Calendar className="w-4 h-4" style={{ color: brandingColors?.primary || '#2563eb' }} />
+                Meeting Details
+              </h3>
 
-            <div>
-              <label className="block text-sm font-medium mb-1">
-                Description
-              </label>
-              <Textarea
-                value={formData.description}
-                onChange={(e) =>
-                  setFormData({ ...formData, description: e.target.value })
-                }
-                placeholder="Meeting description (optional)"
-              />
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium mb-1">Date & Time</label>
+                <label className="block text-sm font-semibold mb-2">Meeting Title *</label>
                 <Input
                   required
-                  type="datetime-local"
-                  value={formData.scheduled_at}
+                  value={formData.title}
                   onChange={(e) =>
-                    setFormData({ ...formData, scheduled_at: e.target.value })
+                    setFormData({ ...formData, title: e.target.value })
                   }
+                  placeholder="e.g., Q1 Planning Session"
+                  className="border-blue-200 focus:border-blue-500"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">
-                  Duration (minutes)
-                </label>
-                <Input
-                  type="number"
-                  value={formData.duration_minutes}
+                <label className="block text-sm font-semibold mb-2">Description</label>
+                <Textarea
+                  value={formData.description}
                   onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      duration_minutes: parseInt(e.target.value),
-                    })
+                    setFormData({ ...formData, description: e.target.value })
                   }
+                  placeholder="Add agenda, notes, or context for this meeting"
+                  rows={3}
+                  className="border-blue-200 focus:border-blue-500"
                 />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold mb-2">Date & Time *</label>
+                  <Input
+                    required
+                    type="datetime-local"
+                    value={formData.scheduled_at}
+                    onChange={(e) =>
+                      setFormData({ ...formData, scheduled_at: e.target.value })
+                    }
+                    className="border-blue-200 focus:border-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold mb-2">Duration (minutes)</label>
+                  <Input
+                    type="number"
+                    min="15"
+                    max="480"
+                    value={formData.duration_minutes}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        duration_minutes: parseInt(e.target.value),
+                      })
+                    }
+                    className="border-blue-200 focus:border-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold mb-2">Meeting Type *</label>
+                  <select
+                    value={formData.meeting_type}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        meeting_type: e.target.value as any,
+                      })
+                    }
+                    className="w-full px-3 py-2 border border-blue-200 rounded-md focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                  >
+                    <option value="video">🎥 Video</option>
+                    <option value="audio">🎙️ Audio Only</option>
+                    <option value="in-person">📍 In Person</option>
+                  </select>
+                </div>
               </div>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium mb-1">Type</label>
-              <select
-                value={formData.meeting_type}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    meeting_type: e.target.value as any,
-                  })
-                }
-                className="w-full px-3 py-2 border rounded-md"
-              >
-                <option value="video">Video</option>
-                <option value="audio">Audio</option>
-                <option value="in-person">In Person</option>
-              </select>
-            </div>
+            {/* Security Section */}
+            <div
+              className="space-y-4 p-4 rounded-lg border-2"
+              style={{
+                backgroundColor: `${brandingColors?.secondary || '#059669'}15`,
+                borderColor: brandingColors?.secondary || '#059669',
+              }}
+            >
+              <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                <Shield className="w-4 h-4" style={{ color: brandingColors?.secondary || '#059669' }} />
+                Security Settings
+              </h3>
 
-            {/* Password Protection */}
-            <div className="space-y-3 border rounded-lg p-4 bg-muted/50">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between p-3 bg-white rounded-lg border-2" style={{ borderColor: brandingColors?.secondary || '#059669' }}>
                 <div className="flex items-center gap-2">
-                  <Lock className="w-4 h-4" />
-                  <Label htmlFor="require-password" className="cursor-pointer">
+                  <Lock className="w-4 h-4" style={{ color: brandingColors?.secondary || '#059669' }} />
+                  <Label htmlFor="require-password" className="cursor-pointer font-medium">
                     Require Password
                   </Label>
                 </div>
@@ -519,37 +661,49 @@ export function MeetingList({
                     onChange={(e) =>
                       setFormData({ ...formData, password: e.target.value })
                     }
-                    placeholder="Enter meeting password"
+                    placeholder="Create a strong password"
                     required={formData.require_password}
+                    className="border-2"
+                    style={{ borderColor: brandingColors?.secondary || '#059669' }}
                   />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Password will be sent to all attendees
+                  <p className="text-xs mt-2" style={{ color: brandingColors?.secondary || '#059669' }}>
+                    💡 Password will be automatically sent to all attendees
                   </p>
                 </div>
               )}
             </div>
 
-            {/* Invite Attendees */}
-            <div className="space-y-3 border rounded-lg p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <Users className="w-4 h-4" />
-                <Label>Invite Attendees ({selectedAttendees.length} selected)</Label>
-              </div>
+            {/* Attendees Section */}
+            <div
+              className="space-y-4 p-4 rounded-lg border-2"
+              style={{
+                backgroundColor: `${brandingColors?.primary || '#2563eb'}15`,
+                borderColor: brandingColors?.primary || '#2563eb',
+              }}
+            >
+              <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                <Users className="w-4 h-4" style={{ color: brandingColors?.primary || '#2563eb' }} />
+                Invite Attendees
+              </h3>
               
+              <div className="text-sm text-gray-600">
+                <span className="font-semibold" style={{ color: brandingColors?.primary || '#2563eb' }}>{selectedAttendees.length}</span> team member(s) selected
+              </div>
+
               {loadingUsers ? (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <div className="flex items-center gap-2 text-sm text-gray-600 p-3 bg-white rounded-lg">
                   <Loader className="w-4 h-4 animate-spin" />
-                  Loading users...
+                  Loading team members...
                 </div>
               ) : (
-                <div className="max-h-48 overflow-y-auto space-y-2">
+                <div className="max-h-48 overflow-y-auto space-y-2 p-2 bg-white rounded-lg border-2" style={{ borderColor: brandingColors?.primary || '#2563eb' }}>
                   {availableUsers.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No users available</p>
+                    <p className="text-sm text-gray-500 p-2">No team members available</p>
                   ) : (
                     availableUsers.map((user) => (
                       <div
                         key={user._id}
-                        className="flex items-center space-x-2 p-2 rounded hover:bg-muted"
+                        className="flex items-center space-x-2 p-2 rounded hover:bg-blue-50 transition"
                       >
                         <Checkbox
                           id={`attendee-${user._id}`}
@@ -560,30 +714,29 @@ export function MeetingList({
                           htmlFor={`attendee-${user._id}`}
                           className="flex-1 cursor-pointer text-sm"
                         >
-                          {user.first_name} {user.last_name}
-                          <span className="text-muted-foreground ml-2">
-                            {user.email}
-                          </span>
+                          <div className="font-medium">{user.first_name} {user.last_name}</div>
+                          <div className="text-xs text-gray-500">{user.email}</div>
                         </label>
                       </div>
                     ))
                   )}
                 </div>
               )}
-              <p className="text-xs text-muted-foreground">
-                Selected attendees will receive email invitations with meeting details
+              <p className="text-xs" style={{ color: brandingColors?.primary || '#2563eb' }}>
+                ✓ Selected attendees will receive email invitations with all meeting details and access links
               </p>
             </div>
 
-            <Alert>
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>
-                AI will automatically transcribe and analyze this meeting,
-                creating tasks from action items.
+            {/* AI Processing Alert */}
+            <Alert className="border-2" style={{ backgroundColor: `${brandingColors?.primary || '#2563eb'}10`, borderColor: brandingColors?.primary || '#2563eb' }}>
+              <Zap className="h-4 w-4" style={{ color: brandingColors?.primary || '#2563eb' }} />
+              <AlertDescription style={{ color: brandingColors?.text || '#1f2937' }} className="font-medium">
+                AI will automatically transcribe this meeting, create action items, and generate a comprehensive report.
               </AlertDescription>
             </Alert>
 
-            <div className="flex gap-2 justify-end">
+            {/* Action Buttons */}
+            <div className="flex gap-3 justify-end pt-4 border-t">
               <Button
                 type="button"
                 variant="outline"
@@ -591,8 +744,25 @@ export function MeetingList({
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={isLoading}>
-                {isLoading ? 'Creating...' : 'Create Meeting'}
+              <Button 
+                type="submit" 
+                disabled={isLoading}
+                className="gap-2 text-white"
+                style={{
+                  background: `linear-gradient(135deg, ${brandingColors?.primary || '#2563eb'}, ${brandingColors?.secondary || '#059669'})`,
+                }}
+              >
+                {isLoading ? (
+                  <>
+                    <Loader className="w-4 h-4 animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  <>
+                    <Plus className="w-4 h-4" />
+                    Create Meeting
+                  </>
+                )}
               </Button>
             </div>
           </form>

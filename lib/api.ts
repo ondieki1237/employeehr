@@ -439,8 +439,11 @@ export const meetingsApi = {
     start: (id: string) =>
         client.post<Meeting>(`/api/meetings/${id}/start`, {}),
 
-    end: (id: string) =>
-        client.post<Meeting>(`/api/meetings/${id}/end`, {}),
+    end: (id: string, transcript?: string) =>
+        client.post<Meeting>(
+            `/api/meetings/${id}/end`,
+            transcript ? { transcript } : {}
+        ),
 
     join: (id: string) =>
         client.post<Meeting>(`/api/meetings/${id}/join`, {}),

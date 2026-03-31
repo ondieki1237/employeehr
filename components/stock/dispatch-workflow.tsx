@@ -28,6 +28,8 @@ interface DispatchState {
   packingItems: PackingItem[]
   packingCompleted?: boolean
   transportMeans?: string
+  dispatchedAt?: string
+  dispatchedByUserId?: string
   courier?: {
     name: string
     contactName: string
@@ -143,13 +145,26 @@ export function DispatchWorkflow({ invoiceId, allowBackTo }: DispatchWorkflowPro
       setError("")
       setSuccess("")
 
-      const payload: any = { transportMeans }
+      // Validate required fields
+      if (!transportMeans || transportMeans.trim() === "") {
+        setError("Transport means/courier type is required")
+        setSaving(false)
+        return
+      }
+
+      if (!selectedCourierId && (!newCourier.name || !newCourier.contactName || !newCourier.contactNumber)) {
+        setError("Either select a courier or fill in all new courier details")
+        setSaving(false)
+        return
+      }
+
+      const payload: any = { transportMeans: transportMeans.trim() }
       if (selectedCourierId) {
         payload.courierId = selectedCourierId
       } else {
-        payload.courierName = newCourier.name
-        payload.courierContactName = newCourier.contactName
-        payload.courierContactNumber = newCourier.contactNumber
+        payload.courierName = newCourier.name.trim()
+        payload.courierContactName = newCourier.contactName.trim()
+        payload.courierContactNumber = newCourier.contactNumber.trim()
       }
 
       const response = await fetch(`${API_URL}/api/stock/invoices/${invoiceId}/dispatch/dispatch`, {
@@ -244,6 +259,25 @@ export function DispatchWorkflow({ invoiceId, allowBackTo }: DispatchWorkflowPro
         </CardContent>
       </Card>
 
+      <Card>
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between text-xs sm:text-sm font-semibold">
+            <div className={`flex items-center gap-2 ${dispatchStatus === "not_assigned" || dispatchStatus === "assigned" || dispatchStatus === "packing" || dispatchStatus === "packed" ? "text-blue-600" : "text-green-600"}`}>
+              <span>1️⃣ Packing</span>
+            </div>
+            <div className={`flex items-center gap-2 ${dispatchStatus === "packed" || dispatchStatus === "dispatched" || dispatchStatus === "delivered" ? "text-blue-600" : "text-gray-400"}`}>
+              <span>2️⃣ Dispatch</span>
+            </div>
+            <div className={`flex items-center gap-2 ${dispatchStatus === "dispatched" || dispatchStatus === "delivered" ? "text-blue-600" : "text-gray-400"}`}>
+              <span>3️⃣ Inquiries</span>
+            </div>
+            <div className={`flex items-center gap-2 ${dispatchStatus === "delivered" ? "text-green-600" : "text-gray-400"}`}>
+              <span>4️⃣ Delivery</span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {error && (
         <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>
       )}
@@ -251,138 +285,178 @@ export function DispatchWorkflow({ invoiceId, allowBackTo }: DispatchWorkflowPro
         <Alert><AlertDescription>{success}</AlertDescription></Alert>
       )}
 
-      <Card>
-        <CardHeader><CardTitle>Packing Checklist (Phone Optimized)</CardTitle></CardHeader>
-        <CardContent className="space-y-3">
-          {packingItems.map((item, index) => {
-            const complete = Number(item.packedQuantity) >= Number(item.requiredQuantity)
-            return (
-              <div key={item.productId} className="rounded-lg border p-3 space-y-2">
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <p className="font-semibold text-sm">{item.productName}</p>
-                    <p className="text-xs text-muted-foreground">Required: {item.requiredQuantity}</p>
+      {(dispatchStatus === "not_assigned" || dispatchStatus === "assigned" || dispatchStatus === "packing" || dispatchStatus === "packed") && (
+        <Card>
+          <CardHeader><CardTitle>Step 1: Packing Checklist</CardTitle></CardHeader>
+          <CardContent className="space-y-3">
+            {packingItems.map((item, index) => {
+              const complete = Number(item.packedQuantity) >= Number(item.requiredQuantity)
+              return (
+                <div key={item.productId} className="rounded-lg border p-3 space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="font-semibold text-sm">{item.productName}</p>
+                      <p className="text-xs text-muted-foreground">Required: {item.requiredQuantity}</p>
+                    </div>
+                    <Checkbox checked={complete} disabled />
                   </div>
-                  <Checkbox checked={complete} />
+                  <div className="grid grid-cols-2 gap-2 items-end">
+                    <div>
+                      <Label className="text-xs">Packed Qty</Label>
+                      <Input
+                        type="number"
+                        min={0}
+                        max={item.requiredQuantity}
+                        value={item.packedQuantity}
+                        onChange={(event) => {
+                          const next = Math.max(0, Number(event.target.value || 0))
+                          setPackingItems((prev) => prev.map((entry, i) => i === index ? { ...entry, packedQuantity: next } : entry))
+                        }}
+                      />
+                    </div>
+                    <div className="text-sm font-medium">
+                      {item.packedQuantity}/{item.requiredQuantity} packed
+                    </div>
+                  </div>
                 </div>
-                <div className="grid grid-cols-2 gap-2 items-end">
-                  <div>
-                    <Label className="text-xs">Packed Qty</Label>
-                    <Input
-                      type="number"
-                      min={0}
-                      max={item.requiredQuantity}
-                      value={item.packedQuantity}
-                      onChange={(event) => {
-                        const next = Math.max(0, Number(event.target.value || 0))
-                        setPackingItems((prev) => prev.map((entry, i) => i === index ? { ...entry, packedQuantity: next } : entry))
-                      }}
-                    />
-                  </div>
-                  <div className="text-sm font-medium">
-                    {item.packedQuantity}/{item.requiredQuantity} packed
-                  </div>
-                </div>
-              </div>
-            )
-          })}
-          <Button onClick={savePacking} disabled={saving} className="w-full">Save Packing Progress</Button>
-        </CardContent>
-      </Card>
+              )
+            })}
+            <Button onClick={savePacking} disabled={saving} className="w-full">
+              {dispatchStatus === "packed" ? "Packaging Complete ✓" : "Save & Continue"}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
-      <Card>
-        <CardHeader><CardTitle>Dispatch Action</CardTitle></CardHeader>
-        <CardContent className="space-y-3">
-          <div>
-            <Label>Courier Means / Transport</Label>
-            <Input value={transportMeans} onChange={(event) => setTransportMeans(event.target.value)} placeholder="Motorbike, Van, Bus, etc" />
-          </div>
-
-          <div className="space-y-2">
-            <Label>Select Existing Courier</Label>
-            <select
-              className="w-full rounded-md border bg-background px-3 py-2"
-              value={selectedCourierId}
-              onChange={(event) => setSelectedCourierId(event.target.value)}
-            >
-              <option value="">Use new courier details</option>
-              {couriers.map((courier) => (
-                <option key={courier._id} value={courier._id}>{courier.name} - {courier.contactName}</option>
-              ))}
-            </select>
-          </div>
-
-          {!selectedCourierId && (
-            <div className="grid grid-cols-1 gap-2">
-              <Input placeholder="Courier name" value={newCourier.name} onChange={(event) => setNewCourier((prev) => ({ ...prev, name: event.target.value }))} />
-              <Input placeholder="Contact person" value={newCourier.contactName} onChange={(event) => setNewCourier((prev) => ({ ...prev, contactName: event.target.value }))} />
-              <Input placeholder="Contact number" value={newCourier.contactNumber} onChange={(event) => setNewCourier((prev) => ({ ...prev, contactNumber: event.target.value }))} />
+      {(dispatchStatus === "packed" || dispatchStatus === "dispatched" || dispatchStatus === "delivered") && (
+        <Card>
+          <CardHeader><CardTitle>Step 2: Record Dispatch</CardTitle></CardHeader>
+          <CardContent className="space-y-3">
+            <div>
+              <Label>Courier Means / Transport</Label>
+              <Input value={transportMeans} onChange={(event) => setTransportMeans(event.target.value)} placeholder="Motorbike, Van, Bus, etc" />
             </div>
-          )}
 
-          <Button onClick={markDispatched} disabled={!isPacked || saving} className="w-full">
-            Dispatch Product
-          </Button>
-          {!isPacked && <p className="text-xs text-red-600">All products must be fully packed before dispatch.</p>}
-        </CardContent>
-      </Card>
+            <div className="space-y-2">
+              <Label>Select Existing Courier</Label>
+              <select
+                className="w-full rounded-md border bg-background px-3 py-2"
+                value={selectedCourierId}
+                onChange={(event) => setSelectedCourierId(event.target.value)}
+                disabled={dispatchStatus !== "packed"}
+              >
+                <option value="">Use new courier details</option>
+                {couriers.map((courier) => (
+                  <option key={courier._id} value={courier._id}>{courier.name} - {courier.contactName}</option>
+                ))}
+              </select>
+            </div>
 
-      <Card>
-        <CardHeader><CardTitle>Make Dispatch Inquiries</CardTitle></CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex gap-2">
-            <Button variant={inquiryMode === "client" ? "default" : "outline"} onClick={() => setInquiryMode("client")} className="flex-1">Call Client</Button>
-            <Button variant={inquiryMode === "courier" ? "default" : "outline"} onClick={() => setInquiryMode("courier")} className="flex-1">Call Courier</Button>
-          </div>
-
-          {inquiryMode === "client" ? (
-            <a href={`tel:${invoice.client.number}`} className="text-sm underline text-blue-600">Prompt Call Client: {invoice.client.number}</a>
-          ) : (
-            <a href={`tel:${invoice.dispatch?.courier?.contactNumber || ""}`} className="text-sm underline text-blue-600">Prompt Call Courier: {invoice.dispatch?.courier?.contactNumber || "No courier number"}</a>
-          )}
-
-          <Input placeholder="Inquiry note" value={inquiryNote} onChange={(event) => setInquiryNote(event.target.value)} />
-          <Button onClick={submitInquiry} disabled={saving} className="w-full">Save Inquiry</Button>
-
-          <div className="space-y-2">
-            {(invoice.dispatch?.inquiries || []).slice(-5).map((entry, idx) => (
-              <div key={`${entry.createdAt}-${idx}`} className="text-xs rounded border p-2">
-                <span className="font-semibold uppercase">{entry.mode}</span> - {entry.note || "No note"}
+            {!selectedCourierId && (
+              <div className="grid grid-cols-1 gap-2">
+                <Input placeholder="Courier name" value={newCourier.name} onChange={(event) => setNewCourier((prev) => ({ ...prev, name: event.target.value }))} disabled={dispatchStatus !== "packed"} />
+                <Input placeholder="Contact person" value={newCourier.contactName} onChange={(event) => setNewCourier((prev) => ({ ...prev, contactName: event.target.value }))} disabled={dispatchStatus !== "packed"} />
+                <Input placeholder="Contact number" value={newCourier.contactNumber} onChange={(event) => setNewCourier((prev) => ({ ...prev, contactNumber: event.target.value }))} disabled={dispatchStatus !== "packed"} />
               </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+            )}
 
-      <Card>
-        <CardHeader><CardTitle>Delivery Confirmation</CardTitle></CardHeader>
-        <CardContent className="space-y-3">
-          <div>
-            <Label>Condition on Arrival</Label>
-            <select
-              className="w-full rounded-md border bg-background px-3 py-2"
-              value={delivery.condition}
-              onChange={(event) => setDelivery((prev) => ({ ...prev, condition: event.target.value as "good" | "not_good" }))}
-            >
-              <option value="good">Good Condition</option>
-              <option value="not_good">Not Good</option>
-            </select>
-          </div>
+            {dispatchStatus === "packed" && (
+              <div className="space-y-2">
+                <Button 
+                  onClick={markDispatched} 
+                  disabled={saving || !transportMeans.trim() || (!selectedCourierId && (!newCourier.name || !newCourier.contactName || !newCourier.contactNumber))} 
+                  className="w-full"
+                >
+                  {saving ? "Processing..." : "Mark as Dispatched"}
+                </Button>
+                {(!transportMeans.trim() || (!selectedCourierId && (!newCourier.name || !newCourier.contactName || !newCourier.contactNumber))) && (
+                  <p className="text-xs text-amber-600 bg-amber-50 p-2 rounded">
+                    ⚠️ Fill in transport means and courier details to continue
+                  </p>
+                )}
+              </div>
+            )}
+            {dispatchStatus !== "packed" && dispatchStatus !== "delivered" && (
+              <div className="text-xs text-gray-600 p-2 bg-gray-50 rounded">
+                ✓ Dispatch recorded on {invoice.dispatch?.dispatchedAt ? new Date(invoice.dispatch.dispatchedAt).toLocaleString() : ""}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
-          <div>
-            <Label>Arrival Time</Label>
-            <Input type="datetime-local" value={delivery.arrivalTime} onChange={(event) => setDelivery((prev) => ({ ...prev, arrivalTime: event.target.value }))} />
-          </div>
+      {(dispatchStatus === "dispatched" || dispatchStatus === "delivered") && (
+        <Card>
+          <CardHeader><CardTitle>Step 3: Dispatch Inquiries</CardTitle></CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex gap-2">
+              <Button variant={inquiryMode === "client" ? "default" : "outline"} onClick={() => setInquiryMode("client")} className="flex-1">Call Client</Button>
+              <Button variant={inquiryMode === "courier" ? "default" : "outline"} onClick={() => setInquiryMode("courier")} className="flex-1">Call Courier</Button>
+            </div>
 
-          <label className="flex items-center gap-2 text-sm">
-            <Checkbox checked={delivery.everythingPacked} onCheckedChange={(checked) => setDelivery((prev) => ({ ...prev, everythingPacked: Boolean(checked) }))} />
-            <span>Everything packed in?</span>
-          </label>
+            {inquiryMode === "client" ? (
+              <a href={`tel:${invoice.client.number}`} className="text-sm underline text-blue-600">Prompt Call Client: {invoice.client.number}</a>
+            ) : (
+              <a href={`tel:${invoice.dispatch?.courier?.contactNumber || ""}`} className="text-sm underline text-blue-600">Prompt Call Courier: {invoice.dispatch?.courier?.contactNumber || "No courier number"}</a>
+            )}
 
-          <Input placeholder="Delivery note" value={delivery.note} onChange={(event) => setDelivery((prev) => ({ ...prev, note: event.target.value }))} />
-          <Button onClick={confirmDelivered} disabled={saving || dispatchStatus !== "dispatched"} className="w-full">Submit as Delivered</Button>
-        </CardContent>
-      </Card>
+            <Input placeholder="Inquiry note" value={inquiryNote} onChange={(event) => setInquiryNote(event.target.value)} disabled={dispatchStatus === "delivered"} />
+            <Button onClick={submitInquiry} disabled={saving || dispatchStatus === "delivered"} className="w-full">Log Inquiry</Button>
+
+            <div className="space-y-2">
+              {(invoice.dispatch?.inquiries || []).slice(-5).map((entry, idx) => (
+                <div key={`inquiry_${idx}`} className="text-xs rounded border p-2">
+                  <span className="font-semibold uppercase">{entry.mode}</span> - {entry.note || "No note"}
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {dispatchStatus === "dispatched" && (
+        <Card>
+          <CardHeader><CardTitle>Step 4: Delivery Confirmation</CardTitle></CardHeader>
+          <CardContent className="space-y-3">
+            <div>
+              <Label>Condition on Arrival</Label>
+              <select
+                className="w-full rounded-md border bg-background px-3 py-2"
+                value={delivery.condition}
+                onChange={(event) => setDelivery((prev) => ({ ...prev, condition: event.target.value as "good" | "not_good" }))}
+              >
+                <option value="good">Good Condition</option>
+                <option value="not_good">Not Good</option>
+              </select>
+            </div>
+
+            <div>
+              <Label>Arrival Time</Label>
+              <Input type="datetime-local" value={delivery.arrivalTime} onChange={(event) => setDelivery((prev) => ({ ...prev, arrivalTime: event.target.value }))} />
+            </div>
+
+            <label className="flex items-center gap-2 text-sm">
+              <Checkbox checked={delivery.everythingPacked} onCheckedChange={(checked) => setDelivery((prev) => ({ ...prev, everythingPacked: Boolean(checked) }))} />
+              <span>Everything packed in?</span>
+            </label>
+
+            <Input placeholder="Delivery note" value={delivery.note} onChange={(event) => setDelivery((prev) => ({ ...prev, note: event.target.value }))} />
+            <Button onClick={confirmDelivered} disabled={saving} className="w-full">Submit as Delivered ✓</Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {dispatchStatus === "delivered" && (
+        <Card>
+          <CardHeader><CardTitle>✓ Delivery Confirmed</CardTitle></CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            <p><strong>Condition:</strong> {invoice.dispatch?.delivery?.condition === "good" ? "Good" : "Not Good"}</p>
+            <p><strong>Arrival Time:</strong> {invoice.dispatch?.delivery?.arrivalTime ? new Date(invoice.dispatch.delivery.arrivalTime).toLocaleString() : ""}</p>
+            <p><strong>Note:</strong> {invoice.dispatch?.delivery?.note || "—"}</p>
+            <Button variant="outline" className="w-full" onClick={() => (window.location.href = allowBackTo || "/employee/dispatch")}>Back to Queue</Button>
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }

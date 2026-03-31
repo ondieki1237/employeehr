@@ -114,17 +114,42 @@ export default function InvoicesPage() {
   const loadInvoices = async () => {
     try {
       setLoading(true)
-      const [invoicesResponse, brandingResponse] = await Promise.all([
-        fetch(`${API_URL}/api/stock/invoices`, { headers }),
-        fetch(`${API_URL}/api/company/branding`, { headers }),
-      ])
-      const [invoicesData, brandingData] = await Promise.all([invoicesResponse.json(), brandingResponse.json()])
+      const invoicesResponse = await fetch(`${API_URL}/api/stock/invoices`, { headers })
+      const invoicesData = await invoicesResponse.json()
+      if (!invoicesResponse.ok) {
+        throw new Error(invoicesData.message || "Failed to load invoices")
+      }
       setInvoices(invoicesData.data || [])
-      setBranding(brandingData.data || {})
 
-      const usersResponse = await fetch(`${API_URL}/api/users`, { headers })
-      const usersData = await usersResponse.json()
-      setDispatchUsers(usersData.data || [])
+      const [brandingResult, usersResult] = await Promise.allSettled([
+        fetch(`${API_URL}/api/company/branding`, { headers }),
+        fetch(`${API_URL}/api/users`, { headers }),
+      ])
+
+      if (brandingResult.status === "fulfilled") {
+        try {
+          const brandingData = await brandingResult.value.json()
+          setBranding(brandingData.data || {})
+        } catch {
+          setBranding({})
+        }
+      } else {
+        setBranding({})
+      }
+
+      if (usersResult.status === "fulfilled") {
+        try {
+          const usersData = await usersResult.value.json()
+          setDispatchUsers(usersData.data || [])
+        } catch {
+          setDispatchUsers([])
+        }
+      } else {
+        setDispatchUsers([])
+      }
+    } catch (loadError: any) {
+      setInvoices([])
+      window.alert(loadError?.message || "Failed to load invoices")
     } finally {
       setLoading(false)
     }
@@ -349,12 +374,14 @@ export default function InvoicesPage() {
                         const packed = packingItems.reduce((sum, item) => sum + Number(item.packedQuantity || 0), 0)
                         const isFullyPacked = required > 0 && packed >= required
                         const hasProgress = packed > 0
+                        const dispatchState = invoice.dispatch?.status || "not_assigned"
+                        const isDelivered = dispatchState === "delivered"
 
                         const statusLabel = isFullyPacked
                           ? `Packed ${packed}/${required}`
                           : hasProgress
                             ? `Partial ${packed}/${required}`
-                            : "Not packed"
+                            : ""
 
                         const statusClass = isFullyPacked
                           ? "text-green-700 bg-green-50 border-green-200"
@@ -362,54 +389,49 @@ export default function InvoicesPage() {
                             ? "text-red-700 bg-red-50 border-red-200"
                             : "text-gray-600 bg-gray-50 border-gray-200"
 
-                        const canDispatch = isFullyPacked && invoice.status === "issued"
-
-                        if (!canDispatch) {
-                          return (
-                            <div className="flex items-center gap-2">
-                              <span className={`inline-flex items-center rounded border px-2 py-1 text-xs font-medium ${statusClass}`}>
-                                {statusLabel}
-                              </span>
-                              <span className="text-xs text-gray-500">✓ Fill items to dispatch</span>
-                            </div>
-                          )
-                        }
-
                         return (
                           <div className="min-w-[620px] flex items-center gap-2">
-                            <span className={`inline-flex items-center rounded border px-2 py-1 text-xs font-medium whitespace-nowrap ${statusClass}`}>
-                              {statusLabel}
-                            </span>
-                            <span className="text-xs capitalize whitespace-nowrap">{invoice.dispatch?.status || "not_assigned"}</span>
-                            <select
-                              className="w-[220px] rounded border px-2 py-1 text-xs"
-                              value={selectedDispatchByInvoice[invoice._id] || ""}
-                              onChange={(event) =>
-                                setSelectedDispatchByInvoice((prev) => ({
-                                  ...prev,
-                                  [invoice._id]: event.target.value,
-                                }))
-                              }
-                            >
-                              <option value="">Assign dispatch user</option>
-                              {dispatchUsers.map((user) => {
-                                const fullName = `${user.firstName || user.first_name || ""} ${user.lastName || user.last_name || ""}`.trim() || user._id
-                                return (
-                                  <option key={user._id} value={user._id}>
-                                    {fullName} {user.role ? `(${user.role})` : ""}
-                                  </option>
-                                )
-                              })}
-                            </select>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => assignToDispatch(invoice._id)}
-                              disabled={assigningInvoiceId === invoice._id}
-                              className="whitespace-nowrap"
-                            >
-                              To Dispatch
-                            </Button>
+                            {!!statusLabel && (
+                              <span className={`inline-flex items-center rounded border px-2 py-1 text-xs font-medium whitespace-nowrap ${statusClass}`}>
+                                {statusLabel}
+                              </span>
+                            )}
+                            {dispatchState !== "not_assigned" && (
+                              <span className="text-xs capitalize whitespace-nowrap">{dispatchState}</span>
+                            )}
+                            {!isDelivered && (
+                              <>
+                                <select
+                                  className="w-[220px] rounded border px-2 py-1 text-xs"
+                                  value={selectedDispatchByInvoice[invoice._id] || ""}
+                                  onChange={(event) =>
+                                    setSelectedDispatchByInvoice((prev) => ({
+                                      ...prev,
+                                      [invoice._id]: event.target.value,
+                                    }))
+                                  }
+                                >
+                                  <option value="">Assign dispatch user</option>
+                                  {dispatchUsers.map((user) => {
+                                    const fullName = `${user.firstName || user.first_name || ""} ${user.lastName || user.last_name || ""}`.trim() || user._id
+                                    return (
+                                      <option key={user._id} value={user._id}>
+                                        {fullName} {user.role ? `(${user.role})` : ""}
+                                      </option>
+                                    )
+                                  })}
+                                </select>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => assignToDispatch(invoice._id)}
+                                  disabled={assigningInvoiceId === invoice._id}
+                                  className="whitespace-nowrap"
+                                >
+                                  To Dispatch
+                                </Button>
+                              </>
+                            )}
                             <Button size="sm" variant="outline" asChild className="whitespace-nowrap">
                               <Link href={`/admin/stock/dispatch/${invoice._id}`}>Open Dispatch Form</Link>
                             </Button>

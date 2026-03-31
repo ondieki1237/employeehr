@@ -182,18 +182,4 @@ stockInvoiceSchema.pre("save", function (next) {
   next()
 })
 
-stockInvoiceSchema.post("validate", function (error: any, next: any) {
-  if (error && String(error.message).includes("Cast to Object failed")) {
-    const dispatch = (this as any).dispatch
-    if (dispatch) {
-      if (dispatch.courier === undefined) delete dispatch.courier
-      if (dispatch.delivery === undefined) delete dispatch.delivery
-      if (dispatch.transportMeans === undefined) delete dispatch.transportMeans
-      if (dispatch.dispatchedAt === undefined) delete dispatch.dispatchedAt
-      if (dispatch.dispatchedByUserId === undefined) delete dispatch.dispatchedByUserId
-    }
-  }
-  next(error)
-})
-
 export const StockInvoice = mongoose.model<IStockInvoice>("StockInvoice", stockInvoiceSchema)
