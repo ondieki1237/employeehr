@@ -99,6 +99,10 @@ export function MeetingInterface({
     processingStatus: 'pending' | 'processing' | 'completed' | 'failed'
     processingError: string
     sentiment: 'positive' | 'neutral' | 'negative'
+    attendees?: any[]
+    scheduled_start?: string
+    actual_start_time?: string
+    actual_end_time?: string
   }>(() => {
     const status = meeting.ai_processing_status
     if (status === 'failed') {
@@ -110,6 +114,10 @@ export function MeetingInterface({
         processingStatus: 'failed',
         processingError: meeting.ai_processing_error || '',
         sentiment: 'neutral',
+        attendees: meeting.attendees || [],
+        scheduled_start: meeting.scheduled_at,
+        actual_start_time: meeting.actual_start_time,
+        actual_end_time: meeting.actual_end_time,
       }
     }
 
@@ -122,6 +130,10 @@ export function MeetingInterface({
         processingStatus: 'completed',
         processingError: '',
         sentiment: 'neutral',
+        attendees: meeting.attendees || [],
+        scheduled_start: meeting.scheduled_at,
+        actual_start_time: meeting.actual_start_time,
+        actual_end_time: meeting.actual_end_time,
       }
     }
 
@@ -134,6 +146,10 @@ export function MeetingInterface({
         processingStatus: 'processing',
         processingError: '',
         sentiment: 'neutral',
+        attendees: meeting.attendees || [],
+        scheduled_start: meeting.scheduled_at,
+        actual_start_time: meeting.actual_start_time,
+        actual_end_time: meeting.actual_end_time,
       }
     }
 
@@ -145,6 +161,10 @@ export function MeetingInterface({
       processingStatus: 'pending',
       processingError: '',
       sentiment: 'neutral',
+      attendees: meeting.attendees || [],
+      scheduled_start: meeting.scheduled_at,
+      actual_start_time: meeting.actual_start_time,
+      actual_end_time: meeting.actual_end_time,
     }
   })
   const [joinTime, setJoinTime] = useState<Date | null>(null)
@@ -1221,6 +1241,12 @@ export function MeetingInterface({
               processingStatus={reportState.processingStatus}
               processingError={reportState.processingError}
               sentiment={reportState.sentiment}
+              attendees={reportState.attendees}
+              scheduled_start={reportState.scheduled_start}
+              actual_start_time={reportState.actual_start_time}
+              actual_end_time={reportState.actual_end_time}
+              meeting_type={meeting.meeting_type}
+              organizer={meeting.organizer}
             />
           </DialogContent>
         </Dialog>

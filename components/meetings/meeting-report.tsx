@@ -11,6 +11,11 @@ import {
   MessageSquare,
   Users,
   Target,
+  Clock,
+  LogIn,
+  LogOut,
+  Calendar,
+  FileText,
 } from 'lucide-react'
 
 interface ActionItem {
@@ -19,6 +24,17 @@ interface ActionItem {
   due_date?: string
   task_id?: string
   priority?: 'low' | 'medium' | 'high' | 'urgent'
+}
+
+interface Attendee {
+  user_id: string
+  display_name?: string
+  user?: any
+  joined_at?: string
+  left_at?: string
+  duration_minutes?: number
+  status: 'invited' | 'joined' | 'left'
+  attended?: boolean
 }
 
 interface MeetingReportProps {
@@ -30,6 +46,13 @@ interface MeetingReportProps {
   processingStatus?: 'pending' | 'processing' | 'completed' | 'failed'
   processingError?: string
   sentiment?: 'positive' | 'neutral' | 'negative'
+  attendees?: Attendee[]
+  scheduled_start?: string
+  scheduled_end?: string
+  actual_start_time?: string
+  actual_end_time?: string
+  meeting_type?: string
+  organizer?: any
 }
 
 export function MeetingReport({
@@ -41,6 +64,13 @@ export function MeetingReport({
   processingStatus = 'pending',
   processingError = '',
   sentiment = 'neutral',
+  attendees = [],
+  scheduled_start,
+  scheduled_end,
+  actual_start_time,
+  actual_end_time,
+  meeting_type = 'team',
+  organizer,
 }: MeetingReportProps) {
   const getPriorityColor = (priority?: string) => {
     switch (priority) {
@@ -66,6 +96,51 @@ export function MeetingReport({
       default:
         return '😐'
     }
+  }
+
+  // Calculate attendance metrics
+  const attendedCount = attendees?.filter((a) => a.attended || a.status === 'left').length ?? 0
+  const invitedCount = attendees?.length ?? 0
+  const attendanceRate = invitedCount > 0 ? Math.round((attendedCount / invitedCount) * 100) : 0
+
+  // Calculate meeting duration
+  const getMeetingDuration = () => {
+    if (actual_start_time && actual_end_time) {
+      const start = new Date(actual_start_time).getTime()
+      const end = new Date(actual_end_time).getTime()
+      return Math.round((end - start) / (1000 * 60)) // minutes
+    }
+    if (scheduled_start && scheduled_end) {
+      const start = new Date(scheduled_start).getTime()
+      const end = new Date(scheduled_end).getTime()
+      return Math.round((end - start) / (1000 * 60))
+    }
+    return 0
+  }
+
+  const meetingDuration = getMeetingDuration()
+
+  // Calculate average attendance duration
+  const getAverageDuration = () => {
+    const durations = attendees
+      ?.filter((a) => a.duration_minutes && a.duration_minutes > 0)
+      .map((a) => a.duration_minutes || 0) ?? []
+    
+    if (durations.length === 0) return 0
+    return Math.round(durations.reduce((a, b) => a + b, 0) / durations.length)
+  }
+
+  const avgDuration = getAverageDuration()
+
+  // Format attendance status
+  const formatAttendeeStatus = (attendee: Attendee) => {
+    if (attendee.status === 'left' || attendee.attended) {
+      return 'Attended'
+    }
+    if (attendee.status === 'joined') {
+      return 'Still in Meeting'
+    }
+    return 'Invited'
   }
 
   if (processingStatus === 'processing') {
@@ -158,8 +233,9 @@ export function MeetingReport({
 
       {/* Tabs */}
       <Tabs defaultValue="summary" className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="summary">Summary</TabsTrigger>
+          <TabsTrigger value="attendance">Attendance</TabsTrigger>
           <TabsTrigger value="points">Key Points</TabsTrigger>
           <TabsTrigger value="actions">Action Items</TabsTrigger>
           <TabsTrigger value="transcript">Transcript</TabsTrigger>
@@ -176,6 +252,147 @@ export function MeetingReport({
               <p className="text-gray-700 leading-relaxed">{summary}</p>
             ) : (
               <p className="text-gray-500">No summary available</p>
+            )}
+          </Card>
+        </TabsContent>
+
+        {/* Attendance Tab */}
+        <TabsContent value="attendance" className="space-y-4">
+          {/* Meeting Info */}
+          <Card className="p-6 bg-blue-50 border-blue-200">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              <div className="flex items-center gap-3">
+                <Calendar className="w-5 h-5 text-blue-600" />
+                <div>
+                  <p className="text-sm text-gray-600">Meeting Date</p>
+                  <p className="font-semibold">
+                    {actual_start_time
+                      ? new Date(actual_start_time).toLocaleString()
+                      : scheduled_start
+                        ? new Date(scheduled_start).toLocaleString()
+                        : 'N/A'}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <Clock className="w-5 h-5 text-blue-600" />
+                <div>
+                  <p className="text-sm text-gray-600">Meeting Duration</p>
+                  <p className="font-semibold">{meetingDuration} minutes</p>
+                </div>
+              </div>
+            </div>
+          </Card>
+
+          {/* Attendance Stats */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <Card className="p-4 text-center">
+              <div className="text-2xl font-bold text-green-600 mb-1">
+                {attendedCount}
+              </div>
+              <p className="text-sm text-gray-600">Attended</p>
+            </Card>
+            <Card className="p-4 text-center">
+              <div className="text-2xl font-bold text-blue-600 mb-1">
+                {invitedCount}
+              </div>
+              <p className="text-sm text-gray-600">Invited</p>
+            </Card>
+            <Card className="p-4 text-center">
+              <div className="text-2xl font-bold text-purple-600 mb-1">
+                {attendanceRate}%
+              </div>
+              <p className="text-sm text-gray-600">Attendance Rate</p>
+            </Card>
+            <Card className="p-4 text-center">
+              <div className="text-2xl font-bold text-orange-600 mb-1">
+                {avgDuration}m
+              </div>
+              <p className="text-sm text-gray-600">Avg Duration</p>
+            </Card>
+          </div>
+
+          {/* Attendee List */}
+          <Card className="p-6">
+            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+              <Users className="w-5 h-5" />
+              Attendee Details
+            </h3>
+            {attendees && attendees.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left py-2 px-3 font-semibold">Name</th>
+                      <th className="text-left py-2 px-3 font-semibold">Status</th>
+                      <th className="text-left py-2 px-3 font-semibold">Joined At</th>
+                      <th className="text-left py-2 px-3 font-semibold">Left At</th>
+                      <th className="text-left py-2 px-3 font-semibold">Duration</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {attendees.map((attendee, idx) => (
+                      <tr
+                        key={`${attendee.user_id}-${idx}`}
+                        className="border-b hover:bg-gray-50"
+                      >
+                        <td className="py-3 px-3 font-medium">
+                          {attendee.display_name ||
+                            attendee.user?.firstName ||
+                            attendee.user?.first_name ||
+                            'Unknown'}
+                        </td>
+                        <td className="py-3 px-3">
+                          <Badge
+                            variant={
+                              formatAttendeeStatus(attendee) === 'Attended'
+                                ? 'default'
+                                : 'secondary'
+                            }
+                          >
+                            {formatAttendeeStatus(attendee)}
+                          </Badge>
+                        </td>
+                        <td className="py-3 px-3">
+                          <div className="flex items-center gap-2">
+                            {attendee.joined_at ? (
+                              <>
+                                <LogIn className="w-4 h-4 text-green-600" />
+                                <span>
+                                  {new Date(attendee.joined_at).toLocaleTimeString()}
+                                </span>
+                              </>
+                            ) : (
+                              <span className="text-gray-400">—</span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-3 px-3">
+                          <div className="flex items-center gap-2">
+                            {attendee.left_at ? (
+                              <>
+                                <LogOut className="w-4 h-4 text-red-600" />
+                                <span>
+                                  {new Date(attendee.left_at).toLocaleTimeString()}
+                                </span>
+                              </>
+                            ) : (
+                              <span className="text-gray-400">Still present</span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-3 px-3 font-semibold">
+                          {attendee.duration_minutes
+                            ? `${attendee.duration_minutes}m`
+                            : '—'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="text-gray-500 text-center py-6">No attendee data available</p>
             )}
           </Card>
         </TabsContent>
@@ -265,7 +482,7 @@ export function MeetingReport({
       </Tabs>
 
       {/* Summary Stats */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <Card className="p-4 text-center">
           <div className="text-2xl font-bold mb-1" style={{ color: 'var(--brand-primary, #2563eb)' }}>
             {keyPoints.length}
@@ -274,9 +491,21 @@ export function MeetingReport({
         </Card>
         <Card className="p-4 text-center">
           <div className="text-2xl font-bold mb-1" style={{ color: 'var(--brand-secondary, #059669)' }}>
-            {actionItems.length}
+            {attendedCount}/{invitedCount}
           </div>
-          <p className="text-sm text-gray-600">Action Items</p>
+          <p className="text-sm text-gray-600">Attended</p>
+        </Card>
+        <Card className="p-4 text-center">
+          <div className="text-2xl font-bold mb-1 text-purple-600">
+            {attendanceRate}%
+          </div>
+          <p className="text-sm text-gray-600">Attendance Rate</p>
+        </Card>
+        <Card className="p-4 text-center">
+          <div className="text-2xl font-bold mb-1 text-orange-600">
+            {meetingDuration}m
+          </div>
+          <p className="text-sm text-gray-600">Duration</p>
         </Card>
         <Card className="p-4 text-center">
           <div className="text-2xl font-bold mb-1" style={{ color: 'var(--brand-accent, #7c3aed)' }}>

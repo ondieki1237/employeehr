@@ -94,7 +94,7 @@ export default function MeetingsPage() {
 
   const handleSelectMeeting = (meeting: Meeting) => {
     setSelectedMeeting(meeting)
-    if (meeting.status === 'completed' && meeting.ai_processed) {
+    if (meeting.status === 'completed' || meeting.status === 'cancelled') {
       setView('report')
     } else if (meeting.status === 'in-progress') {
       setView('meeting')
@@ -136,11 +136,10 @@ export default function MeetingsPage() {
         <div className="relative">
           <Button
             onClick={handleBack}
-            variant="ghost"
-            className="absolute top-4 left-4 z-10"
+            className="absolute top-4 left-4 z-10 bg-gray-900 text-white hover:bg-gray-800"
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
-            Back
+            Back to Meetings
           </Button>
           <MeetingInterface
             meeting={selectedMeeting}
@@ -151,7 +150,7 @@ export default function MeetingsPage() {
         </div>
       ) : view === 'report' && selectedMeeting ? (
         <div className="container mx-auto p-6">
-          <Button onClick={handleBack} variant="ghost" className="mb-4">
+          <Button onClick={handleBack} className="mb-4 bg-gray-900 text-white hover:bg-gray-800">
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Meetings
           </Button>
@@ -162,6 +161,12 @@ export default function MeetingsPage() {
             actionItems={selectedMeeting.action_items}
             transcript={selectedMeeting.transcript}
             processingStatus={selectedMeeting.ai_processing_status}
+            attendees={selectedMeeting.attendees}
+            scheduled_start={selectedMeeting.scheduled_at}
+            actual_start_time={selectedMeeting.actual_start_time}
+            actual_end_time={selectedMeeting.actual_end_time}
+            meeting_type={selectedMeeting.meeting_type}
+            organizer={selectedMeeting.organizer}
           />
         </div>
       ) : null}

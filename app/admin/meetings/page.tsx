@@ -121,11 +121,13 @@ export default function MeetingsPage() {
 
   const handleSelectMeeting = (meeting: Meeting) => {
     setSelectedMeeting(meeting)
-    if (meeting.status === 'completed' && meeting.ai_processed) {
+    // Show report for completed or cancelled meetings
+    if (meeting.status === 'completed' || meeting.status === 'cancelled') {
       setView('report')
     } else if (meeting.status === 'in-progress') {
       setView('meeting')
     } else {
+      // Default to meeting view for scheduled meetings
       setView('meeting')
     }
   }
@@ -184,12 +186,12 @@ export default function MeetingsPage() {
           <Button
             onClick={handleBack}
             style={{
-              color: primaryColor,
-              borderColor: primaryColor,
+              color: '#ffffff',
+              backgroundColor: primaryColor,
               marginTop: '1rem',
               marginLeft: '1rem',
             }}
-            className="w-fit border-2 hover:bg-opacity-10 hover:bg-blue-500"
+            className="w-fit border-0 hover:opacity-90"
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Meetings
@@ -208,10 +210,10 @@ export default function MeetingsPage() {
           <Button
             onClick={handleBack}
             style={{
-              color: primaryColor,
-              borderColor: primaryColor,
+              color: '#ffffff',
+              backgroundColor: primaryColor,
             }}
-            className="mb-4 border-2 hover:bg-opacity-10 hover:bg-blue-500"
+            className="mb-4 border-0 hover:opacity-90"
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Meetings
@@ -223,6 +225,12 @@ export default function MeetingsPage() {
             actionItems={selectedMeeting.action_items}
             transcript={selectedMeeting.transcript}
             processingStatus={selectedMeeting.ai_processing_status}
+            attendees={selectedMeeting.attendees}
+            scheduled_start={selectedMeeting.scheduled_at}
+            actual_start_time={selectedMeeting.actual_start_time}
+            actual_end_time={selectedMeeting.actual_end_time}
+            meeting_type={selectedMeeting.meeting_type}
+            organizer={selectedMeeting.organizer}
           />
         </div>
       ) : null}

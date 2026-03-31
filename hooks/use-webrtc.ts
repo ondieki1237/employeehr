@@ -6,6 +6,8 @@ interface Participant {
   userId: string
   userName: string
   meetingId: string
+  joined_at?: string
+  left_at?: string
 }
 
 interface RaisedHandEvent {
@@ -201,13 +203,28 @@ export function useWebRTC(
     // Handle new participant joining
     newSocket.on('participant-joined', (participant: Participant) => {
       console.log('New participant joined:', participant.userName)
-      setParticipants((prev) => [...prev, participant])
+      // Add join timestamp if not already present
+      const participantWithTimestamp = {
+        ...participant,
+        joined_at: participant.joined_at || new Date().toISOString(),
+      }
+      setParticipants((prev) => [...prev, participantWithTimestamp])
     })
 
     // Handle participant leaving
     newSocket.on('participant-left', (participant: Participant) => {
       console.log('Participant left:', participant.userName)
-      setParticipants((prev) => prev.filter((p) => p.socketId !== participant.socketId))
+      // Update participant with left timestamp
+      setParticipants((prev) =>
+        prev.map((p) =>
+          p.socketId === participant.socketId
+            ? {
+                ...p,
+                left_at: participant.left_at || new Date().toISOString(),
+              }
+            : p
+        )
+      )
       setRaisedHands((prev) => {
         const next = { ...prev }
         delete next[participant.userId]
