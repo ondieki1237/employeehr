@@ -32,6 +32,8 @@ import {
   CheckCircle,
   VideoOff,
   MessageSquare,
+  Menu,
+  X,
 } from 'lucide-react'
 import { useWebRTC } from '@/hooks/use-webrtc'
 import { MeetingReport } from '@/components/meetings/meeting-report'
@@ -1039,7 +1041,7 @@ export function MeetingInterface({
                     onClick={() => setAllowDelayedAudio((prev) => !prev)}
                     variant="outline"
                     size="sm"
-                    className="text-white border-gray-600"
+                    className="bg-white text-gray-900 border-gray-300 hover:bg-gray-100"
                     title="Stabilize audio on slower connections"
                   >
                     {allowDelayedAudio ? 'Delayed Audio: On' : 'Delayed Audio: Off'}
@@ -1049,17 +1051,17 @@ export function MeetingInterface({
                     onClick={() => setChatOpen((prev) => !prev)}
                     variant="outline"
                     size="sm"
-                    className="text-white border-gray-600"
+                    className="bg-white text-gray-900 border-gray-300 hover:bg-gray-100"
                   >
-                    <Smile className="w-4 h-4 mr-1" />
-                    Chat
+                    <Menu className="w-4 h-4 mr-1" />
+                    Chats
                   </Button>
 
                   <Button
                     onClick={() => setShowTranscript((prev) => !prev)}
                     variant="outline"
                     size="sm"
-                    className="text-white border-gray-600"
+                    className="bg-white text-gray-900 border-gray-300 hover:bg-gray-100"
                     title="Live transcript"
                   >
                     <MessageSquare className="w-4 h-4 mr-1" />
@@ -1070,7 +1072,7 @@ export function MeetingInterface({
                     onClick={() => setIsMinimized(true)}
                     variant="ghost"
                     size="sm"
-                    className="text-white"
+                    className="text-gray-200 hover:text-white"
                   >
                     ↓
                   </Button>
@@ -1099,41 +1101,69 @@ export function MeetingInterface({
                 </div>
               )}
 
-              {chatOpen && (
-                <div className="max-w-7xl mx-auto bg-gray-800 border border-gray-700 rounded-lg p-3 space-y-3">
-                  <div className="max-h-36 overflow-y-auto space-y-2">
-                    {chatMessages.length === 0 ? (
-                      <p className="text-xs text-gray-400">No messages yet. Say hello 👋</p>
-                    ) : (
-                      chatMessages.slice(-30).map((message, index) => (
-                        <div key={`${message.userId}-${message.timestamp}-${index}`} className="text-sm">
-                          <span className="text-blue-300 font-medium">{message.userName}: </span>
-                          <span className="text-gray-200">{message.message}</span>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      value={chatMessage}
-                      onChange={(e) => setChatMessage(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault()
-                          handleSendChat()
-                        }
-                      }}
-                      placeholder="Type a message..."
-                      className="bg-gray-900 border-gray-600 text-white"
-                    />
-                    <Button onClick={handleSendChat} size="sm">
-                      <Send className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </div>
-              )}
             </div>
           )}
+        </>
+      )}
+
+      {isMeetingActive && !isMinimized && chatOpen && (
+        <>
+          <div
+            className="fixed inset-0 bg-black/40 z-40 lg:hidden"
+            onClick={() => setChatOpen(false)}
+          />
+          <aside className="fixed right-0 top-0 h-full w-full sm:w-[360px] bg-gray-900 border-l border-gray-700 z-50 flex flex-col shadow-2xl">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700">
+              <h3 className="text-white font-semibold flex items-center gap-2">
+                <MessageSquare className="w-4 h-4" />
+                Meeting Chats
+              </h3>
+              <Button
+                onClick={() => setChatOpen(false)}
+                variant="ghost"
+                size="sm"
+                className="text-gray-300 hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4 space-y-2">
+              {chatMessages.length === 0 ? (
+                <p className="text-sm text-gray-400">No messages yet. Say hello 👋</p>
+              ) : (
+                chatMessages.slice(-100).map((message, index) => (
+                  <div
+                    key={`${message.userId}-${message.timestamp}-${index}`}
+                    className="bg-gray-800 border border-gray-700 rounded-md p-2"
+                  >
+                    <p className="text-xs text-blue-300 font-medium mb-1">{message.userName}</p>
+                    <p className="text-sm text-gray-200 break-words">{message.message}</p>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="p-4 border-t border-gray-700">
+              <div className="flex items-center gap-2">
+                <Input
+                  value={chatMessage}
+                  onChange={(e) => setChatMessage(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      handleSendChat()
+                    }
+                  }}
+                  placeholder="Type a message..."
+                  className="bg-gray-950 border-gray-700 text-white"
+                />
+                <Button onClick={handleSendChat} size="sm" className="bg-white text-gray-900 hover:bg-gray-100">
+                  <Send className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+          </aside>
         </>
       )}
 
