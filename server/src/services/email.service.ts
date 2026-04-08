@@ -270,7 +270,8 @@ class EmailService {
     inviteeEmail: string,
     companyName: string,
     inviteLink: string,
-    invitedByName: string
+    invitedByName: string,
+    companyId?: string
   ): Promise<boolean> {
     const html = `
       <!DOCTYPE html>
@@ -311,6 +312,7 @@ class EmailService {
       to: inviteeEmail,
       subject: `${invitedByName} invited you to join ${companyName} on Elevate`,
       html,
+      companyId,
     })
   }
 }

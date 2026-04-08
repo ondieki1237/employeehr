@@ -73,7 +73,8 @@ export class InvitationController {
             member.email,
             company.name,
             invite_link,
-            req.user.firstName || "Admin"
+            req.user.firstName || "Admin",
+            req.org_id
           )
           if (!emailSent) {
             failed.push(member.email)
@@ -251,7 +252,13 @@ export class InvitationController {
       const tenantDomain = `${TENANT_SUBDOMAIN}.${TENANT_BASE_DOMAIN}`
       const encodedCompanyName = encodeURIComponent(company.name)
       const invite_link = `https://${tenantDomain}/auth/login?invite=${invitation.invite_token}&org_id=${req.org_id}&company=${encodedCompanyName}&email=${encodeURIComponent(invitation.email)}`
-      await EmailService.sendInvitationEmail(invitation.email, company.name, invite_link, req.user?.firstName || "Admin")
+      await EmailService.sendInvitationEmail(
+        invitation.email,
+        company.name,
+        invite_link,
+        req.user?.firstName || "Admin",
+        req.org_id
+      )
 
       res.status(200).json({
         success: true,

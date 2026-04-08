@@ -98,6 +98,33 @@ export class UserController {
     }
   }
 
+  static async deleteUser(req: AuthenticatedRequest, res: Response) {
+    try {
+      if (!req.org_id || !req.user) {
+        return res.status(400).json({ success: false, message: "Missing required data" })
+      }
+
+      const { userId } = req.params
+
+      // Prevent deleting your own account
+      if (userId === req.user.userId) {
+        return res.status(400).json({
+          success: false,
+          message: "You cannot delete your own account",
+        })
+      }
+
+      const result = await UserService.deleteUser(req.org_id, userId)
+      res.status(result.success ? 200 : 404).json(result)
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: "Failed to delete user",
+        error: error instanceof Error ? error.message : "Unknown error",
+      })
+    }
+  }
+
   static async createEmployee(req: AuthenticatedRequest, res: Response) {
     try {
       if (!req.org_id) {

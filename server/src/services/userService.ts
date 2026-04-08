@@ -87,4 +87,38 @@ export class UserService {
       }
     }
   }
+
+  static async deleteUser(org_id: string, userId: string): Promise<IAPIResponse<null>> {
+    try {
+      const user = await User.findOne({ _id: userId, org_id })
+
+      if (!user) {
+        return {
+          success: false,
+          message: "User not found",
+        }
+      }
+
+      if (user.role === "company_admin") {
+        return {
+          success: false,
+          message: "Cannot delete company admin user",
+        }
+      }
+
+      await User.deleteOne({ _id: userId, org_id })
+
+      return {
+        success: true,
+        message: "User deleted successfully",
+        data: null,
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: "Failed to delete user",
+        error: error instanceof Error ? error.message : "Unknown error",
+      }
+    }
+  }
 }

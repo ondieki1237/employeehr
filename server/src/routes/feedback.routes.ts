@@ -1,11 +1,14 @@
 import { Router } from "express"
 import { FeedbackController } from "../controllers/feedbackController"
-import { authMiddleware, orgMiddleware } from "../middleware/auth"
+import { authMiddleware, orgMiddleware, roleMiddleware } from "../middleware/auth"
 import { tenantIsolation } from "../middleware/tenantIsolation.middleware"
 
 const router = Router()
 
 router.use(authMiddleware, orgMiddleware, tenantIsolation)
+
+// Get all feedback for organization (Admin/HR/Manager)
+router.get("/", roleMiddleware("company_admin", "hr", "manager"), FeedbackController.getAllFeedback)
 
 // Get feedback for user
 router.get("/:userId", FeedbackController.getFeedbackForUser)

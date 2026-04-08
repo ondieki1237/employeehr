@@ -37,7 +37,9 @@ import { useEffect, useMemo, useState } from "react"
 
 interface SidebarProps {
   isOpen: boolean
+  isCollapsed: boolean
   onToggle: () => void
+  onCollapseToggle: () => void
 }
 
 const adminMenuItems = [
@@ -232,7 +234,7 @@ const adminMenuItems = [
   },
 ]
 
-export default function AdminSidebar({ isOpen, onToggle }: SidebarProps) {
+export default function AdminSidebar({ isOpen, isCollapsed, onToggle, onCollapseToggle }: SidebarProps) {
   const pathname = usePathname()
   const [allowedSections, setAllowedSections] = useState<Set<string> | null>(null)
 
@@ -290,26 +292,30 @@ export default function AdminSidebar({ isOpen, onToggle }: SidebarProps) {
       <aside
         className={`
         fixed lg:static top-0 left-0 h-screen bg-card border-r border-border z-50 flex flex-col
-        transition-transform duration-300 w-64
+        transition-all duration-300 ${isCollapsed ? "lg:w-20" : "lg:w-64"} w-64
         ${isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
       `}
       >
-        <div className="p-6 flex items-center justify-between border-b border-border">
-          <Link href="/admin" className="flex items-center gap-3 font-bold text-lg">
+        <div className={`p-4 flex items-center border-b border-border ${isCollapsed ? "justify-center" : "justify-between"}`}>
+          <Link href="/admin" className={`flex items-center font-bold text-lg ${isCollapsed ? "justify-center" : "gap-3"}`}>
             <div className="w-8 h-8 bg-center bg-no-repeat bg-contain" style={{ backgroundImage: 'var(--company-logo-url)' }}></div>
-            <span className="" style={{ color: 'var(--brand-primary)' }}>Admin Panel</span>
+            {!isCollapsed && <span className="" style={{ color: 'var(--brand-primary)' }}>Admin Panel</span>}
           </Link>
-          <button onClick={onToggle} className="lg:hidden p-1 hover:bg-secondary rounded">
-            <ChevronLeft size={20} />
-          </button>
+          {!isCollapsed && (
+            <button onClick={onToggle} className="lg:hidden p-1 hover:bg-secondary rounded">
+              <ChevronLeft size={20} />
+            </button>
+          )}
         </div>
 
-        <nav className="px-4 py-6 space-y-6 flex-1 min-h-0 overflow-y-auto">
+        <nav className={`px-3 py-4 space-y-4 flex-1 min-h-0 overflow-y-auto ${isCollapsed ? "" : ""}`}>
           {sectionEntries.map(([sectionName, items]) => (
             <div key={sectionName}>
-              <h3 className="px-4 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                {sectionName}
-              </h3>
+              {!isCollapsed && (
+                <h3 className="px-4 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  {sectionName}
+                </h3>
+              )}
               <div className="space-y-2">
                 {items.map((item) => {
                   const Icon = item.icon
@@ -318,8 +324,10 @@ export default function AdminSidebar({ isOpen, onToggle }: SidebarProps) {
                     <Link
                       key={item.href}
                       href={item.href}
+                      title={isCollapsed ? item.label : undefined}
                       className={`
-                        flex items-center gap-3 px-4 py-2.5 rounded-lg transition text-sm
+                        flex items-center rounded-lg transition text-sm
+                        ${isCollapsed ? "justify-center px-2 py-2.5" : "gap-3 px-4 py-2.5"}
                         ${isActive
                           ? "bg-primary text-primary-foreground font-medium"
                           : "text-foreground hover:bg-secondary"
@@ -327,7 +335,7 @@ export default function AdminSidebar({ isOpen, onToggle }: SidebarProps) {
                       `}
                     >
                       <Icon size={18} />
-                      <span>{item.label}</span>
+                      {!isCollapsed && <span>{item.label}</span>}
                     </Link>
                   )
                 })}
@@ -336,13 +344,22 @@ export default function AdminSidebar({ isOpen, onToggle }: SidebarProps) {
           ))}
         </nav>
 
-        <div className="p-4 border-t border-border">
+        <div className="p-4 border-t border-border space-y-2">
+          <button
+            onClick={onCollapseToggle}
+            className={`w-full flex items-center px-3 py-2 text-muted-foreground hover:text-foreground hover:bg-secondary rounded-lg transition ${isCollapsed ? "justify-center" : "gap-3"}`}
+            title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            <ChevronLeft size={18} className={isCollapsed ? "rotate-180" : ""} />
+            {!isCollapsed && <span className="font-medium">Collapse</span>}
+          </button>
           <button
             onClick={handleLogout}
-            className="w-full flex items-center gap-3 px-4 py-3 text-muted-foreground hover:text-foreground hover:bg-destructive/10 rounded-lg transition"
+            className={`w-full flex items-center px-4 py-3 text-muted-foreground hover:text-foreground hover:bg-destructive/10 rounded-lg transition ${isCollapsed ? "justify-center" : "gap-3"}`}
+            title={isCollapsed ? "Log Out" : undefined}
           >
             <LogOut size={20} />
-            <span className="font-medium">Log Out</span>
+            {!isCollapsed && <span className="font-medium">Log Out</span>}
           </button>
         </div>
       </aside>

@@ -3,6 +3,37 @@ import { Attendance } from "../models/Attendance"
 import type { AuthenticatedRequest } from "../middleware/auth"
 
 export class AttendanceController {
+  static async getAllAttendance(req: AuthenticatedRequest, res: Response) {
+    try {
+      if (!req.org_id) {
+        return res.status(400).json({ success: false, message: "Organization ID required" })
+      }
+
+      const { startDate, endDate } = req.query
+      const query: any = { org_id: req.org_id }
+
+      if (startDate || endDate) {
+        query.date = {}
+        if (startDate) query.date.$gte = new Date(startDate as string)
+        if (endDate) query.date.$lte = new Date(endDate as string)
+      }
+
+      const records = await Attendance.find(query).sort({ date: -1 })
+
+      res.status(200).json({
+        success: true,
+        message: "Attendance records fetched successfully",
+        data: records,
+      })
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: "Failed to fetch attendance records",
+        error: error instanceof Error ? error.message : "Unknown error",
+      })
+    }
+  }
+
   static async markAttendance(req: AuthenticatedRequest, res: Response) {
     try {
       if (!req.org_id) {

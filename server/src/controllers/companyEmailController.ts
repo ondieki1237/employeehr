@@ -61,9 +61,16 @@ export class CompanyEmailController {
       }
 
       const { enabled, fromName, fromEmail, smtp } = req.body
+      const smtpPayload = {
+        host: smtp?.host || req.body.smtpHost,
+        port: smtp?.port || req.body.smtpPort,
+        secure: smtp?.secure ?? req.body.smtpSecure ?? false,
+        username: smtp?.username || req.body.smtpUsername || req.body.smtpUser,
+        password: smtp?.password || req.body.smtpPassword,
+      }
 
       // Validate required fields if enabled
-      if (enabled && (!smtp?.host || !smtp?.username || !smtp?.password)) {
+      if (enabled && (!smtpPayload.host || !smtpPayload.username || !smtpPayload.password)) {
         return res.status(400).json({
           success: false,
           message: "SMTP host, username, and password are required when email is enabled",
@@ -81,13 +88,13 @@ export class CompanyEmailController {
         verified: false, // Reset verification status on update
         fromName: fromName || company.name,
         fromEmail: fromEmail || company.email,
-        smtp: smtp
+        smtp: smtpPayload.host
           ? {
-              host: smtp.host,
-              port: smtp.port || 587,
-              secure: smtp.secure || false,
-              username: smtp.username,
-              password: smtp.password, // TODO: Encrypt this
+              host: smtpPayload.host,
+              port: smtpPayload.port || 587,
+              secure: smtpPayload.secure || false,
+              username: smtpPayload.username,
+              password: smtpPayload.password, // TODO: Encrypt this
             }
           : undefined,
       }

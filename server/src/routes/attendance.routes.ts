@@ -7,6 +7,9 @@ const router = Router()
 
 router.use(authMiddleware, orgMiddleware, tenantIsolation)
 
+// Get organization attendance records (Admin/HR/Manager)
+router.get("/", roleMiddleware("company_admin", "hr", "manager"), AttendanceController.getAllAttendance)
+
 // Get attendance records
 router.get("/:userId", AttendanceController.getAttendanceRecords)
 

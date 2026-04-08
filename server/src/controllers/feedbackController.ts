@@ -3,6 +3,28 @@ import { Feedback } from "../models/Feedback"
 import type { AuthenticatedRequest } from "../middleware/auth"
 
 export class FeedbackController {
+  static async getAllFeedback(req: AuthenticatedRequest, res: Response) {
+    try {
+      if (!req.org_id) {
+        return res.status(400).json({ success: false, message: "Organization ID required" })
+      }
+
+      const feedbacks = await Feedback.find({ org_id: req.org_id }).sort({ createdAt: -1 })
+
+      res.status(200).json({
+        success: true,
+        message: "All feedback fetched successfully",
+        data: feedbacks,
+      })
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: "Failed to fetch feedback",
+        error: error instanceof Error ? error.message : "Unknown error",
+      })
+    }
+  }
+
   static async submitFeedback(req: AuthenticatedRequest, res: Response) {
     try {
       if (!req.org_id || !req.user) {

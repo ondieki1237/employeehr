@@ -29,7 +29,23 @@ export default function AdminLayout({
   const router = useRouter()
   const pathname = usePathname()
   const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const saved = typeof window !== "undefined" ? localStorage.getItem("admin_sidebar_collapsed") : null
+    if (saved === "1") setSidebarCollapsed(true)
+  }, [])
+
+  const toggleSidebarCollapsed = () => {
+    setSidebarCollapsed((prev) => {
+      const next = !prev
+      if (typeof window !== "undefined") {
+        localStorage.setItem("admin_sidebar_collapsed", next ? "1" : "0")
+      }
+      return next
+    })
+  }
 
   useEffect(() => {
     const user = getUser()
@@ -111,9 +127,18 @@ export default function AdminLayout({
 
   return (
     <div className="flex h-screen bg-background">
-      <Sidebar isOpen={sidebarOpen} onToggle={() => setSidebarOpen(!sidebarOpen)} />
+      <Sidebar
+        isOpen={sidebarOpen}
+        isCollapsed={sidebarCollapsed}
+        onToggle={() => setSidebarOpen(!sidebarOpen)}
+        onCollapseToggle={toggleSidebarCollapsed}
+      />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <TopNav onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
+        <TopNav
+          onMenuClick={() => setSidebarOpen(!sidebarOpen)}
+          onSidebarCollapseToggle={toggleSidebarCollapsed}
+          isSidebarCollapsed={sidebarCollapsed}
+        />
         <main className="flex-1 overflow-auto">{children}</main>
       </div>
     </div>

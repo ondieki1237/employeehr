@@ -1,14 +1,16 @@
 "use client"
 
-import { Menu, Bell } from "lucide-react"
+import { Menu, Bell, PanelLeftClose, PanelLeftOpen } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { getUser } from "@/lib/auth"
 
 interface TopNavProps {
   onMenuClick: () => void
+  onSidebarCollapseToggle: () => void
+  isSidebarCollapsed: boolean
 }
 
-export default function AdminTopNav({ onMenuClick }: TopNavProps) {
+export default function AdminTopNav({ onMenuClick, onSidebarCollapseToggle, isSidebarCollapsed }: TopNavProps) {
   const user = getUser()
 
   return (
@@ -21,6 +23,15 @@ export default function AdminTopNav({ onMenuClick }: TopNavProps) {
           className="lg:hidden"
         >
           <Menu size={20} />
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onSidebarCollapseToggle}
+          className="hidden lg:inline-flex"
+          title={isSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+        >
+          {isSidebarCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
         </Button>
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 bg-center bg-no-repeat bg-contain" style={{ backgroundImage: 'var(--company-logo-url)' }}></div>

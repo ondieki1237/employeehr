@@ -200,6 +200,7 @@ export class AuthService {
           role: savedUser.role,
           temporaryPassword: tempPassword,
           loginUrl: `${loginUrl}/auth/login`,
+          companyId: org_id,
         })
         console.log(`Invitation email sent to ${savedUser.email}`)
       } catch (emailError) {

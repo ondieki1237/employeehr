@@ -1,9 +1,13 @@
 import nodemailer from "nodemailer"
+import { Company } from "../models/Company"
+import { emailTransportResolver } from "./emailTransportResolver"
+import type { ICompany } from "../types/interfaces"
 
 interface EmailOptions {
   to: string
   subject: string
   html: string
+  companyId?: string
 }
 
 class EmailService {
@@ -43,9 +47,16 @@ class EmailService {
     try {
       console.log(`Attempting to send email to: ${options.to}`)
       console.log(`Email subject: ${options.subject}`)
-      
-      const info = await this.transporter.sendMail({
-        from: `"Elevate HR" <${process.env.EMAIL_USER}>`,
+
+      let company: ICompany | null = null
+      if (options.companyId) {
+        company = await Company.findById(options.companyId)
+      }
+
+      const { transporter, fromAddress, fromName } = emailTransportResolver.resolveTransporter(company)
+
+      const info = await transporter.sendMail({
+        from: `"${fromName}" <${fromAddress}>`,
         to: options.to,
         subject: options.subject,
         html: options.html,
@@ -61,6 +72,24 @@ class EmailService {
         console.error("Error message:", error.message)
         console.error("Error stack:", error.stack)
       }
+
+      if (options.companyId) {
+        try {
+          console.log("Retrying with system email fallback...")
+          const { transporter, fromAddress, fromName } = emailTransportResolver.resolveTransporter(null)
+          await transporter.sendMail({
+            from: `"${fromName}" <${fromAddress}>`,
+            to: options.to,
+            subject: options.subject,
+            html: options.html,
+          })
+          console.log("✅ Email sent successfully with system fallback")
+          return true
+        } catch (fallbackError) {
+          console.error("❌ System fallback failed:", fallbackError)
+        }
+      }
+
       return false
     }
   }
@@ -72,6 +101,7 @@ class EmailService {
     role: string
     temporaryPassword: string
     loginUrl: string
+    companyId?: string
   }): Promise<boolean> {
     const html = `
       <!DOCTYPE html>
@@ -216,6 +246,7 @@ class EmailService {
       to: data.recipientEmail,
       subject: `Welcome to Elevate - You've been invited by ${data.inviterName}`,
       html,
+      companyId: data.companyId,
     })
   }
 }

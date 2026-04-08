@@ -89,7 +89,7 @@ export class JobApplicationController {
       }
 
       // Send confirmation email to applicant
-      EmailService.sendApplicationReceivedEmail(applicant_email, applicant_name, job.title, job.company_name).catch(
+      EmailService.sendApplicationReceivedEmail(applicant_email, applicant_name, job.title, job.company_name, req.org_id).catch(
         console.error
       )
 
@@ -102,7 +102,8 @@ export class JobApplicationController {
             hr.email,
             applicant_name,
             job.title,
-            applicationLink
+            applicationLink,
+            req.org_id
           ).catch(console.error)
         })
       }
@@ -214,7 +215,8 @@ export class JobApplicationController {
           application.applicant_name,
           job.title,
           status,
-          comment
+          comment,
+          req.org_id
         ).catch(console.error)
       }
 

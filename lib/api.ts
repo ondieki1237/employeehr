@@ -370,11 +370,34 @@ export const companyApi = {
         smtpHost?: string
         smtpPort?: number
         smtpUser?: string
+        smtpUsername?: string
         smtpPassword?: string
         fromEmail?: string
         fromName?: string
         enabled?: boolean
-    }) => client.post<any>('/api/company/email-config', data),
+        smtp?: {
+            host?: string
+            port?: number
+            secure?: boolean
+            username?: string
+            password?: string
+        }
+    }) => {
+        const payload = {
+            enabled: data.enabled,
+            fromName: data.fromName,
+            fromEmail: data.fromEmail,
+            smtp: {
+                host: data.smtp?.host ?? data.smtpHost,
+                port: data.smtp?.port ?? data.smtpPort,
+                secure: data.smtp?.secure ?? false,
+                username: data.smtp?.username ?? data.smtpUsername ?? data.smtpUser,
+                password: data.smtp?.password ?? data.smtpPassword,
+            },
+        }
+
+        return client.post<any>('/api/company/email-config', payload)
+    },
     
     verifyEmailConfig: () => client.post<any>('/api/company/email-config/verify', {}),
     
@@ -480,6 +503,15 @@ export const meetingsApi = {
         client.get<any>('/api/meetings/stats/team'),
 }
 
+// Stock API
+export const stockApi = {
+    getProducts: () => client.get<any[]>('/api/stock/products'),
+
+    getInvoices: () => client.get<any[]>('/api/stock/invoices'),
+
+    getQuotations: () => client.get<any[]>('/api/stock/quotations'),
+}
+
 // Setup API for onboarding wizard
 const setupApi = {
     getProgress: () => client.get<any>('/api/setup/progress'),
@@ -534,6 +566,7 @@ export const api = {
     leave: leaveApi,
     payroll: payrollApi,
     meetings: meetingsApi,
+    stock: stockApi,
     setup: setupApi,
     stamps: stampsApi,
 }

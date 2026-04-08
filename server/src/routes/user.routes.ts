@@ -17,6 +17,9 @@ router.get("/:userId", UserController.getUserById)
 // Update user (Admin or self)
 router.put("/:userId", UserController.updateUser)
 
+// Delete user (Admin/HR only)
+router.delete("/:userId", roleMiddleware("company_admin", "hr"), UserController.deleteUser)
+
 // Get team members for manager
 router.get("/team/:managerId", UserController.getTeamMembers)
 
