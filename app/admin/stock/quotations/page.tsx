@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Checkbox } from "@/components/ui/checkbox"
 import { useToast } from "@/hooks/use-toast"
 import { applyStampToPdf, generateQuotationPdf, type TenantBranding } from "@/lib/stock-document-pdf"
 
@@ -29,6 +30,7 @@ interface QuotationItem {
   quantity: number
   unitPrice: number
   lineTotal: number
+  isOutsourced?: boolean
 }
 
 interface Quotation {
@@ -43,9 +45,11 @@ interface Quotation {
 }
 
 interface DraftItem {
-  productId: string
+  productId?: string
+  productName?: string
   quantity: number
   unitPrice: number
+  isOutsourced?: boolean
 }
 
 interface StampOption {
@@ -72,6 +76,7 @@ export default function QuotationsPage() {
   const [productSearch, setProductSearch] = useState("")
   const [itemQuantity, setItemQuantity] = useState("1")
   const [itemUnitPrice, setItemUnitPrice] = useState("")
+  const [itemOutsourced, setItemOutsourced] = useState(false)
   const [items, setItems] = useState<DraftItem[]>([])
 
   const [quotationSearchInput, setQuotationSearchInput] = useState("")
@@ -146,6 +151,7 @@ export default function QuotationsPage() {
     setProductSearch("")
     setItemQuantity("1")
     setItemUnitPrice("")
+    setItemOutsourced(false)
     setItems([])
     setEditingQuotationId(null)
     setShowCreate(false)
@@ -178,12 +184,50 @@ export default function QuotationsPage() {
         productId: product._id,
         quantity: Number(itemQuantity),
         unitPrice,
+        isOutsourced: itemOutsourced,
       },
     ])
 
     setProductSearch("")
     setItemQuantity("1")
     setItemUnitPrice("")
+    setItemOutsourced(false)
+  }
+
+  const addOutsourcedItem = () => {
+    const productName = productSearch.trim()
+    if (!productName) {
+      toast({ title: "Missing product name", description: "Type the outsourced product name", variant: "destructive" })
+      return
+    }
+
+    if (Number(itemQuantity) <= 0) {
+      toast({ title: "Invalid quantity", description: "Quantity must be greater than 0", variant: "destructive" })
+      return
+    }
+
+    const unitPrice = Number(itemUnitPrice)
+    if (!Number.isFinite(unitPrice) || unitPrice < 0) {
+      toast({ title: "Invalid price", description: "Provide a valid unit price for outsourced item", variant: "destructive" })
+      return
+    }
+
+    const fallbackId = `outsourced:${productName.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "")}`
+    setItems((prev) => [
+      ...prev,
+      {
+        productId: fallbackId,
+        productName,
+        quantity: Number(itemQuantity),
+        unitPrice,
+        isOutsourced: true,
+      },
+    ])
+
+    setProductSearch("")
+    setItemQuantity("1")
+    setItemUnitPrice("")
+    setItemOutsourced(false)
   }
 
   const createOrUpdateQuotation = async () => {
@@ -241,8 +285,10 @@ export default function QuotationsPage() {
     setItems(
       quotation.items.map((item) => ({
         productId: item.productId,
+        productName: item.productName,
         quantity: item.quantity,
         unitPrice: item.unitPrice,
+        isOutsourced: Boolean(item.isOutsourced),
       })),
     )
   }
@@ -412,7 +458,7 @@ export default function QuotationsPage() {
             </div>
 
             <div className="rounded-md border p-4 space-y-4">
-              <div className="grid gap-4 md:grid-cols-3">
+              <div className="grid gap-4 md:grid-cols-4">
                 <div>
                   <Label>Type Product Name</Label>
                   <Input
@@ -429,12 +475,25 @@ export default function QuotationsPage() {
                   <Label>Unit Price (optional override)</Label>
                   <Input type="number" min="0" value={itemUnitPrice} onChange={(event) => setItemUnitPrice(event.target.value)} />
                 </div>
+                <div className="flex items-end">
+                  <label className="flex items-center gap-2 text-sm border rounded-md px-3 py-2 w-full h-10">
+                    <Checkbox checked={itemOutsourced} onCheckedChange={(value) => setItemOutsourced(Boolean(value))} />
+                    <span>Outsourced (local)</span>
+                  </label>
+                </div>
               </div>
 
               {productSearch.trim() && (
                 <div className="border rounded-md divide-y">
                   {productSuggestions.length === 0 ? (
-                    <div className="p-3 text-sm text-muted-foreground">No matching products</div>
+                    <div className="p-3 text-sm text-muted-foreground space-y-2">
+                      <p>No matching products</p>
+                      {itemOutsourced ? (
+                        <Button type="button" size="sm" onClick={addOutsourcedItem}>Add outsourced item "{productSearch.trim()}"</Button>
+                      ) : (
+                        <p className="text-xs">Tick "Outsourced (local)" to add a product that is not in inventory.</p>
+                      )}
+                    </div>
                   ) : (
                     productSuggestions.map((product) => (
                       <button
@@ -460,17 +519,19 @@ export default function QuotationsPage() {
                       <th className="py-2 px-2">Product</th>
                       <th className="py-2 px-2">Qty</th>
                       <th className="py-2 px-2">Unit Price</th>
+                      <th className="py-2 px-2">Outsourced</th>
                       <th className="py-2 px-2">Total</th>
                     </tr>
                   </thead>
                   <tbody>
                     {items.map((item, index) => {
-                      const name = products.find((product) => product._id === item.productId)?.name || item.productId
+                      const name = item.productName || products.find((product) => product._id === item.productId)?.name || item.productId
                       return (
                         <tr key={`${item.productId}-${index}`} className="border-b">
                           <td className="py-2 px-2">{name}</td>
                           <td className="py-2 px-2">{item.quantity}</td>
                           <td className="py-2 px-2">{item.unitPrice}</td>
+                          <td className="py-2 px-2">{item.isOutsourced ? "Yes" : "No"}</td>
                           <td className="py-2 px-2">{(item.quantity * item.unitPrice).toFixed(2)}</td>
                         </tr>
                       )

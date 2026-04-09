@@ -145,6 +145,12 @@ const adminMenuItems = [
     section: "INVENTORY MANAGER"
   },
   {
+    label: "Outsourced Analytics",
+    icon: Package,
+    href: "/admin/stock/outsourced",
+    section: "INVENTORY MANAGER"
+  },
+  {
     label: "Inventory History",
     icon: Package,
     href: "/admin/stock/history",

@@ -5,6 +5,8 @@ export interface IStockEntry {
   org_id: string
   productId: string
   quantityAdded: number
+  isOutsourced?: boolean
+  outsourcedCompany?: string
   expiryEnabled?: boolean
   expiryDate?: Date | null
   expiryReminderDays?: number
@@ -19,6 +21,8 @@ const stockEntrySchema = new Schema<IStockEntry>(
     org_id: { type: String, required: true, index: true },
     productId: { type: String, required: true, index: true },
     quantityAdded: { type: Number, required: true, min: 1 },
+    isOutsourced: { type: Boolean, default: false },
+    outsourcedCompany: { type: String, trim: true },
     expiryEnabled: { type: Boolean, default: false },
     expiryDate: { type: Date, default: null },
     expiryReminderDays: { type: Number, min: 0, default: 7 },

@@ -48,7 +48,7 @@ function withOptionalDispatchObjects(baseDispatch: any, sourceDispatch: any) {
 
 async function buildQuotationItems(
   orgId: string,
-  items: Array<{ productId: string; quantity: number; unitPrice?: number }>,
+  items: Array<{ productId?: string; productName?: string; quantity: number; unitPrice?: number; isOutsourced?: boolean }>,
 ) {
   if (!Array.isArray(items) || items.length === 0) {
     throw new Error("At least one item is required")
@@ -59,14 +59,42 @@ async function buildQuotationItems(
   const productMap = new Map(products.map((product) => [String(product._id), product]))
 
   return items.map((item) => {
+    const quantity = Number(item.quantity)
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      throw new Error("Invalid quantity")
+    }
+
+    const isOutsourced = Boolean(item.isOutsourced)
+    if (isOutsourced) {
+      const manualName = String(item.productName || "").trim()
+      if (!manualName) {
+        throw new Error("Outsourced items require a product name")
+      }
+
+      const unitPrice = Number(item.unitPrice)
+      if (!Number.isFinite(unitPrice) || unitPrice < 0) {
+        throw new Error(`Invalid unit price for ${manualName}`)
+      }
+
+      const fallbackId = `outsourced:${manualName.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "")}`
+
+      return {
+        productId: String(item.productId || fallbackId),
+        productName: manualName,
+        quantity,
+        unitPrice,
+        lineTotal: Number((quantity * unitPrice).toFixed(2)),
+        isOutsourced: true,
+      }
+    }
+
     const product = productMap.get(String(item.productId))
     if (!product) {
       throw new Error(`Product not found: ${item.productId}`)
     }
 
-    const quantity = Number(item.quantity)
-    if (!Number.isFinite(quantity) || quantity <= 0) {
-      throw new Error(`Invalid quantity for ${product.name}`)
+    if (!String(product._id)) {
+      throw new Error(`Invalid product selection for ${product.name}`)
     }
 
     const unitPrice = item.unitPrice !== undefined && item.unitPrice !== null
@@ -83,6 +111,7 @@ async function buildQuotationItems(
       quantity,
       unitPrice,
       lineTotal: Number((quantity * unitPrice).toFixed(2)),
+      isOutsourced: false,
     }
   })
 }
@@ -395,11 +424,12 @@ export class StockController {
         return res.status(200).json({ success: true, data: existingInvoice })
       }
 
-      const productIds = [...new Set(quotation.items.map((item) => item.productId).filter(Boolean))]
+      const stockManagedItems = quotation.items.filter((item: any) => !item.isOutsourced)
+      const productIds = [...new Set(stockManagedItems.map((item) => item.productId).filter(Boolean))]
       const products = await StockProduct.find({ _id: { $in: productIds }, org_id })
       const productMap = new Map(products.map((product) => [String(product._id), product]))
 
-      for (const item of quotation.items) {
+      for (const item of stockManagedItems) {
         const product = productMap.get(String(item.productId))
         if (!product) {
           return res.status(400).json({ success: false, message: `Product not found for quotation item: ${item.productName}` })
@@ -438,7 +468,7 @@ export class StockController {
 
       const receiptNumber = generateDocumentNumber("RCP")
 
-      const salesToCreate = quotation.items.map((item) => {
+      const salesToCreate = stockManagedItems.map((item) => {
         const product = productMap.get(String(item.productId))!
         product.currentQuantity -= item.quantity
 
@@ -460,9 +490,14 @@ export class StockController {
         }
       })
 
-      await Promise.all(products.map((product) => product.save()))
-      await StockSale.insertMany(salesToCreate)
-      await Promise.all(products.map((product) => sendLowStockAlert(product, org_id)))
+      if (products.length > 0) {
+        await Promise.all(products.map((product) => product.save()))
+        await Promise.all(products.map((product) => sendLowStockAlert(product, org_id)))
+      }
+
+      if (salesToCreate.length > 0) {
+        await StockSale.insertMany(salesToCreate)
+      }
 
       quotation.status = "converted"
       quotation.convertedInvoiceId = String(invoice._id)
@@ -980,6 +1015,7 @@ export class StockController {
         minAlertQuantity,
         currentQuantity = 0,
         assignedUsers = [],
+        isOutsourced = false,
         expiryEnabled = false,
         expiryDate,
         expiryReminderDays = 7,
@@ -1015,6 +1051,7 @@ export class StockController {
         minAlertQuantity: Number(minAlertQuantity),
         currentQuantity: Number(currentQuantity),
         assignedUsers: Array.isArray(assignedUsers) ? assignedUsers : [],
+        isOutsourced: Boolean(isOutsourced),
         expiryEnabled: Boolean(expiryEnabled),
         expiryDate: expiryEnabled && expiryDate ? new Date(expiryDate) : null,
         expiryReminderDays: Number(expiryReminderDays),
@@ -1070,6 +1107,7 @@ export class StockController {
         minAlertQuantity,
         currentQuantity,
         assignedUsers,
+        isOutsourced,
         isActive,
         expiryEnabled,
         expiryDate,
@@ -1084,6 +1122,7 @@ export class StockController {
       if (minAlertQuantity !== undefined) payload.minAlertQuantity = Number(minAlertQuantity)
       if (currentQuantity !== undefined) payload.currentQuantity = Number(currentQuantity)
       if (assignedUsers !== undefined) payload.assignedUsers = Array.isArray(assignedUsers) ? assignedUsers : []
+      if (isOutsourced !== undefined) payload.isOutsourced = Boolean(isOutsourced)
       if (isActive !== undefined) payload.isActive = Boolean(isActive)
       if (expiryEnabled !== undefined) payload.expiryEnabled = Boolean(expiryEnabled)
       if (expiryDate !== undefined) payload.expiryDate = expiryDate ? new Date(expiryDate) : null
@@ -1125,6 +1164,8 @@ export class StockController {
         productId,
         quantityAdded,
         note,
+        isOutsourced,
+        outsourcedCompany,
         expiryEnabled,
         expiryDate,
         expiryReminderDays,
@@ -1132,6 +1173,10 @@ export class StockController {
 
       if (!productId || Number(quantityAdded) <= 0) {
         return res.status(400).json({ success: false, message: "productId and positive quantityAdded are required" })
+      }
+
+      if (Boolean(isOutsourced) && !String(outsourcedCompany || "").trim()) {
+        return res.status(400).json({ success: false, message: "outsourcedCompany is required when stock entry is outsourced" })
       }
 
       const product = await StockProduct.findOne({ _id: productId, org_id })
@@ -1172,6 +1217,8 @@ export class StockController {
         org_id,
         productId,
         quantityAdded: Number(quantityAdded),
+        isOutsourced: Boolean(isOutsourced),
+        outsourcedCompany: Boolean(isOutsourced) ? String(outsourcedCompany).trim() : undefined,
         expiryEnabled: product.expiryEnabled,
         expiryDate: product.expiryDate || null,
         expiryReminderDays: Number(product.expiryReminderDays || 7),

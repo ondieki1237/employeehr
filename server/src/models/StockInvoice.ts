@@ -6,6 +6,7 @@ interface IInvoiceItem {
   quantity: number
   unitPrice: number
   lineTotal: number
+  isOutsourced?: boolean
 }
 
 interface IInvoiceClient {
@@ -77,6 +78,7 @@ const invoiceItemSchema = new Schema<IInvoiceItem>(
     quantity: { type: Number, required: true, min: 1 },
     unitPrice: { type: Number, required: true, min: 0 },
     lineTotal: { type: Number, required: true, min: 0 },
+    isOutsourced: { type: Boolean, default: false },
   },
   { _id: false },
 )

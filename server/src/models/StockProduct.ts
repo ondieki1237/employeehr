@@ -10,6 +10,7 @@ export interface IStockProduct {
   minAlertQuantity: number
   currentQuantity: number
   assignedUsers: string[]
+  isOutsourced?: boolean
   expiryEnabled?: boolean
   expiryDate?: Date | null
   expiryReminderDays?: number
@@ -30,6 +31,7 @@ const stockProductSchema = new Schema<IStockProduct>(
     minAlertQuantity: { type: Number, required: true, min: 0, default: 0 },
     currentQuantity: { type: Number, required: true, min: 0, default: 0 },
     assignedUsers: [{ type: String }],
+    isOutsourced: { type: Boolean, default: false },
     expiryEnabled: { type: Boolean, default: false },
     expiryDate: { type: Date, default: null },
     expiryReminderDays: { type: Number, min: 0, default: 7 },
