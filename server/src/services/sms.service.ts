@@ -14,10 +14,14 @@ interface SendSmsResult {
 }
 
 class SmsService {
-  private readonly apiKey = process.env.AFRICASTALKING_API_KEY || ""
-  private readonly username = process.env.AFRICASTALKING_USERNAME || "sandbox"
+  private readonly apiKey = process.env.AFRICASTALKING_API_KEY || process.env.AFRICAN_TALKING_API_KEY || ""
+  private readonly username = process.env.AFRICASTALKING_USERNAME || process.env.AFRICAN_TALKING_USERNAME || "sandbox"
   private readonly senderId = process.env.AFRICASTALKING_SENDER_ID || ""
-  private readonly endpoint = process.env.AFRICASTALKING_BASE_URL || "https://api.africastalking.com/version1/messaging"
+  private readonly endpoint =
+    process.env.AFRICASTALKING_BASE_URL ||
+    (this.username === "sandbox"
+      ? "https://api.sandbox.africastalking.com/version1/messaging"
+      : "https://api.africastalking.com/version1/messaging")
   private readonly defaultCountryCode = process.env.DISPATCH_DEFAULT_COUNTRY_CODE || "254"
 
   isConfigured() {
@@ -88,11 +92,15 @@ class SmsService {
       const recipients = responseData?.SMSMessageData?.Recipients || []
       const firstRecipient = recipients[0] || {}
 
+      const providerStatus = String(firstRecipient?.status || "").toLowerCase()
+      const isProviderSuccess = providerStatus.includes("success") || providerStatus.includes("queued")
+
       return {
-        success: true,
+        success: isProviderSuccess,
         normalizedTo,
         providerMessageId: firstRecipient?.messageId,
         providerRawResponse: JSON.stringify(responseData),
+        error: isProviderSuccess ? undefined : (firstRecipient?.status || "Provider rejected SMS"),
       }
     } catch (error: any) {
       const providerPayload = error?.response?.data ? JSON.stringify(error.response.data) : undefined

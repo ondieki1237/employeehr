@@ -175,7 +175,12 @@ export function DispatchWorkflow({ invoiceId, allowBackTo }: DispatchWorkflowPro
       const json = await response.json()
       if (!response.ok) throw new Error(json.message || "Failed to mark dispatched")
       setInvoice(json.data)
-      setSuccess("Invoice marked as dispatched")
+      const smsMessage = json?.smsNotification?.message
+      if (smsMessage) {
+        setSuccess(`Invoice marked as dispatched. SMS: ${smsMessage}`)
+      } else {
+        setSuccess("Invoice marked as dispatched")
+      }
     } catch (dispatchError: any) {
       setError(dispatchError.message || "Failed to mark dispatched")
     } finally {
@@ -221,6 +226,26 @@ export function DispatchWorkflow({ invoiceId, allowBackTo }: DispatchWorkflowPro
       setSuccess("Package marked as delivered")
     } catch (deliveryError: any) {
       setError(deliveryError.message || "Failed to confirm delivery")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const sendClientSms = async () => {
+    try {
+      setSaving(true)
+      setError("")
+      setSuccess("")
+      const response = await fetch(`${API_URL}/api/stock/invoices/${invoiceId}/dispatch/notify-client`, {
+        method: "POST",
+        headers,
+      })
+      const json = await response.json()
+      if (!response.ok) throw new Error(json.message || "Failed to send client SMS")
+      const smsMessage = json?.smsNotification?.message || "Client SMS sent"
+      setSuccess(`SMS: ${smsMessage}`)
+    } catch (smsError: any) {
+      setError(smsError.message || "Failed to send client SMS")
     } finally {
       setSaving(false)
     }
@@ -380,6 +405,11 @@ export function DispatchWorkflow({ invoiceId, allowBackTo }: DispatchWorkflowPro
               <div className="text-xs text-gray-600 p-2 bg-gray-50 rounded">
                 ✓ Dispatch recorded on {invoice.dispatch?.dispatchedAt ? new Date(invoice.dispatch.dispatchedAt).toLocaleString() : ""}
               </div>
+            )}
+            {(dispatchStatus === "dispatched" || dispatchStatus === "delivered") && (
+              <Button variant="outline" onClick={sendClientSms} disabled={saving} className="w-full">
+                {saving ? "Sending SMS..." : "Send / Retry Client SMS"}
+              </Button>
             )}
           </CardContent>
         </Card>

@@ -22,6 +22,7 @@ router.post("/invoices/:invoiceId/dispatch/assign", StockController.assignInvoic
 router.put("/invoices/:invoiceId/dispatch/packing", StockController.updateDispatchPacking)
 router.post("/invoices/:invoiceId/dispatch/dispatch", StockController.markInvoiceDispatched)
 router.get("/invoices/:invoiceId/dispatch/notifications", StockController.getDispatchNotifications)
+router.post("/invoices/:invoiceId/dispatch/notify-client", StockController.sendDispatchClientNotification)
 router.post("/invoices/:invoiceId/dispatch/inquiry", StockController.addDispatchInquiry)
 router.post("/invoices/:invoiceId/dispatch/delivery", StockController.confirmInvoiceDelivery)
 router.post("/dispatch/notifications/:notificationId/retry", StockController.retryDispatchNotification)

@@ -174,6 +174,115 @@ function buildDispatchClientMessage(params: {
   ].join(" ")
 }
 
+async function sendDispatchNotificationForInvoice(params: {
+  orgId: string
+  userId: string
+  invoice: any
+}) {
+  const { orgId, userId, invoice } = params
+
+  if (!invoice?.dispatch?.courier) {
+    return {
+      attempted: false,
+      success: false,
+      message: "Courier details are missing on dispatch",
+    }
+  }
+
+  const officeNumber = String((await Company.findById(orgId).select("phone").lean())?.phone || process.env.DISPATCH_OFFICE_NUMBER || "").trim()
+  const clientNumber = String(invoice?.client?.number || "").trim()
+
+  if (!clientNumber) {
+    return {
+      attempted: false,
+      success: false,
+      message: "Client phone number is missing on invoice",
+    }
+  }
+
+  if (!officeNumber) {
+    return {
+      attempted: false,
+      success: false,
+      message: "Office phone number is missing (company.phone or DISPATCH_OFFICE_NUMBER)",
+    }
+  }
+
+  const message = buildDispatchClientMessage({
+    clientName: invoice.client?.name,
+    invoiceNumber: invoice.invoiceNumber,
+    deliveryNoteNumber: invoice.deliveryNoteNumber,
+    courierName: invoice.dispatch.courier.name,
+    courierContactNumber: invoice.dispatch.courier.contactNumber,
+    officeContactNumber: officeNumber,
+  })
+
+  const notification = await DispatchNotification.create({
+    org_id: orgId,
+    invoiceId: String(invoice._id),
+    invoiceNumber: invoice.invoiceNumber,
+    clientName: invoice.client?.name,
+    clientNumber,
+    courierName: invoice.dispatch.courier.name,
+    courierContactNumber: invoice.dispatch.courier.contactNumber,
+    officeContactNumber: officeNumber,
+    message,
+    provider: "africastalking",
+    status: "queued",
+    attempts: 0,
+    createdBy: String(userId),
+  })
+
+  const smsResult = await smsService.sendDispatchSms({
+    to: clientNumber,
+    message,
+  })
+
+  const now = new Date()
+  if (smsResult.success) {
+    await DispatchNotification.updateOne(
+      { _id: notification._id },
+      {
+        $set: {
+          status: "sent",
+          sentAt: now,
+          lastAttemptAt: now,
+          providerMessageId: smsResult.providerMessageId,
+          providerRawResponse: smsResult.providerRawResponse,
+        },
+        $inc: { attempts: 1 },
+        $unset: { errorMessage: 1 },
+      },
+    )
+    return {
+      attempted: true,
+      success: true,
+      message: "Dispatch SMS sent to client",
+      notificationId: String(notification._id),
+    }
+  }
+
+  await DispatchNotification.updateOne(
+    { _id: notification._id },
+    {
+      $set: {
+        status: "failed",
+        lastAttemptAt: now,
+        errorMessage: smsResult.error,
+        providerRawResponse: smsResult.providerRawResponse,
+      },
+      $inc: { attempts: 1 },
+    },
+  )
+
+  return {
+    attempted: true,
+    success: false,
+    message: smsResult.error || "Failed to send dispatch SMS",
+    notificationId: String(notification._id),
+  }
+}
+
 async function sendExpiryReminderEmail(product: any, orgId: string) {
   if (!product.expiryEnabled || !product.expiryDate) return false
   if (Number(product.currentQuantity) <= 0) return false
@@ -809,108 +918,15 @@ export class StockController {
         { new: true },
       )
 
-      let smsNotification: {
-        attempted: boolean
-        success: boolean
-        message: string
-        notificationId?: string
-      } = {
-        attempted: false,
-        success: false,
-        message: "Dispatch SMS skipped",
+      if (!updatedInvoice) {
+        return res.status(404).json({ success: false, message: "Invoice not found after dispatch update" })
       }
 
-      if (updatedInvoice?.dispatch?.courier) {
-        const officeNumber = String((await Company.findById(org_id).select("phone").lean())?.phone || process.env.DISPATCH_OFFICE_NUMBER || "").trim()
-        const clientNumber = String(updatedInvoice?.client?.number || "").trim()
-
-        if (!clientNumber) {
-          smsNotification = {
-            attempted: false,
-            success: false,
-            message: "Client phone number is missing on invoice",
-          }
-        } else if (!officeNumber) {
-          smsNotification = {
-            attempted: false,
-            success: false,
-            message: "Office phone number is missing (company.phone or DISPATCH_OFFICE_NUMBER)",
-          }
-        } else {
-          const message = buildDispatchClientMessage({
-            clientName: updatedInvoice.client?.name,
-            invoiceNumber: updatedInvoice.invoiceNumber,
-            deliveryNoteNumber: updatedInvoice.deliveryNoteNumber,
-            courierName: updatedInvoice.dispatch.courier.name,
-            courierContactNumber: updatedInvoice.dispatch.courier.contactNumber,
-            officeContactNumber: officeNumber,
-          })
-
-          const notification = await DispatchNotification.create({
-            org_id,
-            invoiceId: String(updatedInvoice._id),
-            invoiceNumber: updatedInvoice.invoiceNumber,
-            clientName: updatedInvoice.client?.name,
-            clientNumber,
-            courierName: updatedInvoice.dispatch.courier.name,
-            courierContactNumber: updatedInvoice.dispatch.courier.contactNumber,
-            officeContactNumber: officeNumber,
-            message,
-            provider: "africastalking",
-            status: "queued",
-            attempts: 0,
-            createdBy: String(userId),
-          })
-
-          const smsResult = await smsService.sendDispatchSms({
-            to: clientNumber,
-            message,
-          })
-
-          const now = new Date()
-          if (smsResult.success) {
-            await DispatchNotification.updateOne(
-              { _id: notification._id },
-              {
-                $set: {
-                  status: "sent",
-                  sentAt: now,
-                  lastAttemptAt: now,
-                  providerMessageId: smsResult.providerMessageId,
-                  providerRawResponse: smsResult.providerRawResponse,
-                },
-                $inc: { attempts: 1 },
-                $unset: { errorMessage: 1 },
-              },
-            )
-            smsNotification = {
-              attempted: true,
-              success: true,
-              message: "Dispatch SMS sent to client",
-              notificationId: String(notification._id),
-            }
-          } else {
-            await DispatchNotification.updateOne(
-              { _id: notification._id },
-              {
-                $set: {
-                  status: "failed",
-                  lastAttemptAt: now,
-                  errorMessage: smsResult.error,
-                  providerRawResponse: smsResult.providerRawResponse,
-                },
-                $inc: { attempts: 1 },
-              },
-            )
-            smsNotification = {
-              attempted: true,
-              success: false,
-              message: smsResult.error || "Failed to send dispatch SMS",
-              notificationId: String(notification._id),
-            }
-          }
-        }
-      }
+      const smsNotification = await sendDispatchNotificationForInvoice({
+        orgId: org_id,
+        userId: String(userId),
+        invoice: updatedInvoice,
+      })
 
       return res.status(200).json({ success: true, data: updatedInvoice, smsNotification })
     } catch (error: any) {
@@ -939,6 +955,32 @@ export class StockController {
       return res.status(200).json({ success: true, data: notifications })
     } catch (error: any) {
       return res.status(500).json({ success: false, message: error.message || "Failed to fetch dispatch notifications" })
+    }
+  }
+
+  static async sendDispatchClientNotification(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = req.user?.org_id
+      const userId = req.user?.userId
+      if (!org_id || !userId) return res.status(401).json({ success: false, message: "Unauthorized" })
+
+      const { invoiceId } = req.params
+      const invoice = await StockInvoice.findOne({ _id: invoiceId, org_id })
+      if (!invoice) return res.status(404).json({ success: false, message: "Invoice not found" })
+
+      if (!canManageDispatchForInvoice(req, invoice)) {
+        return res.status(403).json({ success: false, message: "Not allowed to send dispatch notification for this invoice" })
+      }
+
+      const smsNotification = await sendDispatchNotificationForInvoice({
+        orgId: org_id,
+        userId: String(userId),
+        invoice,
+      })
+
+      return res.status(200).json({ success: true, smsNotification })
+    } catch (error: any) {
+      return res.status(500).json({ success: false, message: error.message || "Failed to send dispatch notification" })
     }
   }
 

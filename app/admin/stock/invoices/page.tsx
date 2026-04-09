@@ -174,6 +174,13 @@ export default function InvoicesPage() {
         window.alert(json.message || "Failed to assign dispatch")
         return
       }
+      if (json?.success) {
+        const openDispatchNow = window.confirm("Dispatch handler assigned. Open Dispatch Form now to mark as dispatched and send client SMS?")
+        if (openDispatchNow) {
+          window.location.href = `/admin/stock/dispatch/${invoiceId}`
+          return
+        }
+      }
       await loadInvoices()
     } finally {
       setAssigningInvoiceId(null)
@@ -428,7 +435,7 @@ export default function InvoicesPage() {
                                   disabled={assigningInvoiceId === invoice._id}
                                   className="whitespace-nowrap"
                                 >
-                                  To Dispatch
+                                  Assign Handler
                                 </Button>
                               </>
                             )}
