@@ -9,7 +9,12 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { useToast } from "@/hooks/use-toast"
-import { applyStampToPdf, generateQuotationPdf, type TenantBranding } from "@/lib/stock-document-pdf"
+import {
+  applyStampToPdf,
+  generateQuotationPdf,
+  type InvoiceDocumentSettings,
+  type TenantBranding,
+} from "@/lib/stock-document-pdf"
 
 interface Product {
   _id: string
@@ -64,6 +69,7 @@ export default function QuotationsPage() {
   const [clients, setClients] = useState<Client[]>([])
   const [quotations, setQuotations] = useState<Quotation[]>([])
   const [branding, setBranding] = useState<TenantBranding>({})
+  const [invoiceSettings, setInvoiceSettings] = useState<InvoiceDocumentSettings>({})
 
   const [showCreate, setShowCreate] = useState(false)
   const [editingQuotationId, setEditingQuotationId] = useState<string | null>(null)
@@ -93,23 +99,26 @@ export default function QuotationsPage() {
   const loadData = async () => {
     try {
       setLoading(true)
-      const [productsRes, quotationsRes, clientsRes, brandingRes] = await Promise.all([
+      const [productsRes, quotationsRes, clientsRes, brandingRes, invoiceSettingsRes] = await Promise.all([
         fetch(`${API_URL}/api/stock/products`, { headers }),
         fetch(`${API_URL}/api/stock/quotations`, { headers }),
         fetch(`${API_URL}/api/stock/clients`, { headers }),
         fetch(`${API_URL}/api/company/branding`, { headers }),
+        fetch(`${API_URL}/api/company/invoice-settings`, { headers }),
       ])
-      const [productsJson, quotationsJson, clientsJson, brandingJson] = await Promise.all([
+      const [productsJson, quotationsJson, clientsJson, brandingJson, invoiceSettingsJson] = await Promise.all([
         productsRes.json(),
         quotationsRes.json(),
         clientsRes.json(),
         brandingRes.json(),
+        invoiceSettingsRes.json(),
       ])
 
       setProducts(productsJson.data || [])
       setQuotations(quotationsJson.data || [])
       setClients(clientsJson.data || [])
       setBranding(brandingJson.data || {})
+      setInvoiceSettings(invoiceSettingsJson.data || {})
     } catch {
       toast({ title: "Error", description: "Failed to load quotations", variant: "destructive" })
     } finally {
@@ -354,6 +363,7 @@ export default function QuotationsPage() {
       items: quotation.items,
       subTotal: quotation.subTotal,
       branding,
+      invoiceSettings,
       preparedBy,
       watermarkText: quotation.status === "draft" ? "DRAFT" : quotation.status === "cancelled" ? "CANCELLED" : undefined,
       autoSave: false,

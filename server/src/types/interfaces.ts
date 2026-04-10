@@ -65,6 +65,26 @@ export interface ICompany {
     officePhone?: string
     messageTemplate?: string
   }
+  invoiceSettings?: {
+    invoiceEmail?: string
+    contactPhone?: string
+    officeLocation?: string
+    contactEmail?: string
+    termsAndConditions?: string
+    includeQuotationReference?: boolean
+    includeDeliveryNoteNumber?: boolean
+    includePreparedBy?: boolean
+    includeVat?: boolean
+    includePaymentChannels?: boolean
+    paymentChannels?: Array<{
+      channelName?: string
+      bankName?: string
+      accountName?: string
+      accountNumber?: string
+      branch?: string
+      notes?: string
+    }>
+  }
   setupProgress?: {
     completed: boolean
     currentStep: string

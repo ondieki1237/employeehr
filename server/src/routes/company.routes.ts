@@ -17,6 +17,10 @@ router.post("/page-access", roleMiddleware("company_admin"), CompanyController.u
 router.get("/branding", CompanyController.getBranding)
 router.post("/branding", roleMiddleware("company_admin", "hr"), uploadLogo.single("logo"), CompanyController.updateBranding)
 
+// Invoice Generation Settings
+router.get("/invoice-settings", roleMiddleware("company_admin", "hr"), CompanyController.getInvoiceSettings)
+router.post("/invoice-settings", roleMiddleware("company_admin", "hr"), CompanyController.updateInvoiceSettings)
+
 // Dispatch SMS Settings
 router.get("/dispatch-sms", roleMiddleware("company_admin", "hr"), CompanyController.getDispatchSmsSettings)
 router.post("/dispatch-sms", roleMiddleware("company_admin", "hr"), CompanyController.updateDispatchSmsSettings)

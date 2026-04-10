@@ -55,6 +55,31 @@ const companySchema = new Schema<ICompany>(
         password: { type: String }, // Should be encrypted
       },
     },
+    invoiceSettings: {
+      invoiceEmail: { type: String },
+      contactPhone: { type: String },
+      officeLocation: { type: String },
+      contactEmail: { type: String },
+      termsAndConditions: { type: String },
+      includeQuotationReference: { type: Boolean, default: true },
+      includeDeliveryNoteNumber: { type: Boolean, default: true },
+      includePreparedBy: { type: Boolean, default: true },
+      includeVat: { type: Boolean, default: true },
+      includePaymentChannels: { type: Boolean, default: true },
+      paymentChannels: {
+        type: [
+          {
+            channelName: { type: String },
+            bankName: { type: String },
+            accountName: { type: String },
+            accountNumber: { type: String },
+            branch: { type: String },
+            notes: { type: String },
+          },
+        ],
+        default: [],
+      },
+    },
     dispatchSmsSettings: {
       officePhone: { type: String },
       messageTemplate: { type: String },

@@ -3,7 +3,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { useRouter } from "next/navigation"
-import { Settings, ShieldCheck } from "lucide-react"
+import { Settings, ShieldCheck, FileText } from "lucide-react"
 
 export default function SystemSettingsPage() {
   const router = useRouter()
@@ -29,6 +29,19 @@ export default function SystemSettingsPage() {
           <CardContent className="space-y-2 text-sm text-muted-foreground">
             <p>Use Company Branding to control primary/secondary colors and logo. These apply across all users in your organization.</p>
             <Button className="mt-2" onClick={() => router.push("/admin/settings/company")}>Go to Company Branding</Button>
+          </CardContent>
+        </Card>
+
+        <Card className="border-2">
+          <CardHeader>
+            <CardTitle className="text-base">Invoice Generation</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm text-muted-foreground">
+            <p>Configure invoice email, terms and conditions, payment channels, and the sections shown on invoice PDFs.</p>
+            <Button onClick={() => router.push("/admin/settings/system/invoice-generation")} className="gap-2">
+              <FileText className="w-4 h-4" />
+              Manage Invoice Settings
+            </Button>
           </CardContent>
         </Card>
 

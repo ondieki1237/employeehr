@@ -285,6 +285,27 @@ export const reportsApi = {
 
 export const companyApi = {
     getBranding: () => client.get<any>('/api/company/branding'),
+    getInvoiceSettings: () => client.get<any>('/api/company/invoice-settings'),
+    updateInvoiceSettings: (data: {
+        invoiceEmail: string
+        contactPhone?: string
+        officeLocation?: string
+        contactEmail?: string
+        termsAndConditions: string
+        includeQuotationReference?: boolean
+        includeDeliveryNoteNumber?: boolean
+        includePreparedBy?: boolean
+        includeVat?: boolean
+        includePaymentChannels?: boolean
+        paymentChannels?: Array<{
+            channelName?: string
+            bankName?: string
+            accountName?: string
+            accountNumber?: string
+            branch?: string
+            notes?: string
+        }>
+    }) => client.post<any>('/api/company/invoice-settings', data),
     getPageAccess: () => client.get<any>('/api/company/page-access'),
     updatePageAccess: (data: {
         adminSectionsByRole: {

@@ -5,12 +5,34 @@ export interface TenantBranding {
   logo?: string;           // base64 or url
   primaryColor?: string;
   secondaryColor?: string;
+  invoiceEmail?: string;
   email?: string;
   phone?: string;
   website?: string;
   city?: string;
   state?: string;
   country?: string;
+}
+
+export interface InvoiceDocumentSettings {
+  invoiceEmail?: string;
+  contactPhone?: string;
+  officeLocation?: string;
+  contactEmail?: string;
+  termsAndConditions?: string;
+  includeQuotationReference?: boolean;
+  includeDeliveryNoteNumber?: boolean;
+  includePreparedBy?: boolean;
+  includeVat?: boolean;
+  includePaymentChannels?: boolean;
+  paymentChannels?: Array<{
+    channelName?: string;
+    bankName?: string;
+    accountName?: string;
+    accountNumber?: string;
+    branch?: string;
+    notes?: string;
+  }>;
 }
 
 export interface DocumentClient {
@@ -85,52 +107,54 @@ function buildCompanyAddress(branding?: TenantBranding): string {
 
 function drawModernHeader(doc: jsPDF, args: HeaderArgs) {
   const primary = args.branding?.primaryColor || DEFAULT_PRIMARY;
-  const companyName = args.branding?.name || "Your Company";
   const hasLogo = Boolean(args.branding?.logo);
 
   // Thin accent bar at top
   setColorFromHex(doc, primary, "fill");
   doc.rect(0, 0, 210, 4, "F");
 
-  let logoX = 12;
-  let contentX = hasLogo ? 38 : 12;
+  const logoX = 12;
+  const logoY = 10;
 
   // Logo
   if (hasLogo) {
     try {
       const lower = args.branding!.logo!.toLowerCase();
       const format = lower.includes("jpg") || lower.includes("jpeg") ? "JPEG" : "PNG";
-      doc.addImage(args.branding!.logo!, format, logoX, 10, 24, 24);
+      const maxLogoWidth = 38;
+      const maxLogoHeight = 16;
+      let imageWidth = 0;
+      let imageHeight = 0;
+
+      try {
+        const imageProps = doc.getImageProperties(args.branding!.logo!);
+        imageWidth = Number(imageProps?.width || 0);
+        imageHeight = Number(imageProps?.height || 0);
+      } catch {
+        imageWidth = 3;
+        imageHeight = 1;
+      }
+
+      let drawWidth = maxLogoWidth;
+      let drawHeight = maxLogoHeight;
+
+      if (imageWidth > 0 && imageHeight > 0) {
+        const ratio = imageWidth / imageHeight;
+        if (ratio >= 1) {
+          drawWidth = maxLogoWidth;
+          drawHeight = Math.min(maxLogoHeight, drawWidth / ratio);
+        } else {
+          drawHeight = maxLogoHeight;
+          drawWidth = Math.min(maxLogoWidth, drawHeight * ratio);
+        }
+      }
+
+      const alignedY = logoY + (maxLogoHeight - drawHeight) / 2;
+      doc.addImage(args.branding!.logo!, format, logoX, alignedY, drawWidth, drawHeight);
     } catch (e) {
       console.warn("Logo failed to load", e);
     }
   }
-
-  // Company info - left side
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(16);
-  setColorFromHex(doc, DEFAULT_TEXT, "text");
-  doc.text(companyName, contentX, 18);
-
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(9);
-  setColorFromHex(doc, DEFAULT_GRAY, "text");
-
-  let infoY = 24;
-  if (args.branding?.website) {
-    doc.text(args.branding.website, contentX, infoY);
-    infoY += 5;
-  }
-  if (args.branding?.email) {
-    doc.text(args.branding.email, contentX, infoY);
-    infoY += 5;
-  }
-  if (args.branding?.phone) {
-    doc.text(`Phone: ${args.branding.phone}`, contentX, infoY);
-    infoY += 5;
-  }
-  const addr = buildCompanyAddress(args.branding);
-  if (addr) doc.text(addr, contentX, infoY);
 
   // Document meta - right side
   doc.setFont("helvetica", "bold");
@@ -152,6 +176,45 @@ function drawModernHeader(doc: jsPDF, args: HeaderArgs) {
   doc.text(new Date(args.createdAt).toLocaleDateString("en-KE"), 198, 39, { align: "right" });
 
   drawThinDivider(doc, 54);
+}
+
+function drawContactSlotBelowLogo(
+  doc: jsPDF,
+  branding?: TenantBranding,
+  settings?: InvoiceDocumentSettings,
+) {
+  const phone = String(settings?.contactPhone || branding?.phone || "").trim();
+  const location = String(settings?.officeLocation || buildCompanyAddress(branding) || "").trim();
+  const email = String(settings?.contactEmail || settings?.invoiceEmail || branding?.email || "").trim();
+
+  const rows = [
+    { icon: "☎", value: phone },
+    { icon: "📍", value: location },
+    { icon: "✉", value: email },
+  ].filter((row) => row.value);
+
+  if (!rows.length) return;
+
+  const boxX = 12;
+  const boxY = 56;
+  const rowHeight = 5;
+  const boxHeight = Math.max(16, rows.length * rowHeight + 6);
+
+  setColorFromHex(doc, "#e2e8f0", "draw");
+  doc.setLineWidth(0.35);
+  doc.roundedRect(boxX, boxY, 98, boxHeight, 2, 2);
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8.7);
+  setColorFromHex(doc, DEFAULT_GRAY, "text");
+
+  let y = boxY + 5.2;
+  rows.forEach((row) => {
+    doc.text(row.icon, boxX + 3, y);
+    const wrapped = doc.splitTextToSize(row.value, 88);
+    doc.text(wrapped[0] || "", boxX + 9, y);
+    y += rowHeight;
+  });
 }
 
 function drawPartiesSection(
@@ -208,24 +271,71 @@ function drawItemsTable(
   compact = false
 ) {
   const primary = branding?.primaryColor || DEFAULT_PRIMARY;
+  const tableX = 12;
+  const tableWidth = 186;
+  const headerHeight = 10;
+  const rowHeight = 11;
+
+  const columns = compact
+    ? [
+        { key: "index", label: "#", width: 14, align: "left" as const },
+        { key: "description", label: "Description", width: 128, align: "left" as const },
+        { key: "quantity", label: "Qty", width: 44, align: "right" as const },
+      ]
+    : [
+        { key: "index", label: "#", width: 14, align: "left" as const },
+        { key: "description", label: "Description", width: 88, align: "left" as const },
+        { key: "quantity", label: "Qty", width: 20, align: "right" as const },
+        { key: "unitPrice", label: "Unit Price", width: 32, align: "right" as const },
+        { key: "total", label: "Total", width: 32, align: "right" as const },
+      ];
+
+  const columnStartX = columns.map((_, index) => {
+    return tableX + columns.slice(0, index).reduce((sum, c) => sum + c.width, 0);
+  });
+
+  const drawTableHeader = (headerY: number) => {
+    setColorFromHex(doc, primary, "fill");
+    doc.rect(tableX, headerY, tableWidth, headerHeight, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+
+    columns.forEach((column, index) => {
+      const startX = columnStartX[index];
+      const endX = startX + column.width;
+      if (column.align === "right") {
+        doc.text(column.label, endX - 2, headerY + 7, { align: "right" });
+      } else {
+        doc.text(column.label, startX + 2, headerY + 7);
+      }
+    });
+
+    setColorFromHex(doc, "#cbd5e1", "draw");
+    doc.setLineWidth(0.5);
+    doc.rect(tableX, headerY, tableWidth, headerHeight);
+    columns.forEach((_, index) => {
+      if (index === 0) return;
+      const x = columnStartX[index];
+      doc.line(x, headerY, x, headerY + headerHeight);
+    });
+  };
+
+  const drawRowGrid = (rowY: number) => {
+    setColorFromHex(doc, "#e2e8f0", "draw");
+    doc.setLineWidth(0.35);
+    doc.rect(tableX, rowY, tableWidth, rowHeight);
+    columns.forEach((_, index) => {
+      if (index === 0) return;
+      const x = columnStartX[index];
+      doc.line(x, rowY, x, rowY + rowHeight);
+    });
+  };
+
   let y = startY;
+  drawTableHeader(y);
 
-  // Header row
-  setColorFromHex(doc, primary, "fill");
-  doc.rect(12, y, 186, 10, "F");
-  doc.setTextColor(255, 255, 255);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(10);
-
-  doc.text("#", 16, y + 7);
-  doc.text("Description", 26, y + 7);
-  doc.text("Qty", 130, y + 7);
-  if (!compact) {
-    doc.text("Unit Price", 160, y + 7, { align: "right" });
-    doc.text("Total", 198, y + 7, { align: "right" });
-  }
-
-  y += 10;
+  y += headerHeight;
 
   doc.setTextColor(30, 30, 30);
   doc.setFont("helvetica", "normal");
@@ -235,44 +345,58 @@ function drawItemsTable(
     if (y > 250) {
       doc.addPage();
       y = 20;
-      drawThinDivider(doc, 15);
+      drawTableHeader(y);
+      y += headerHeight;
     }
 
-    // Very light row stripe
+    // Light row stripe
     if (i % 2 === 0) {
       doc.setFillColor(248, 250, 252);
-      doc.rect(12, y, 186, 11, "F");
+      doc.rect(tableX, y, tableWidth, rowHeight, "F");
     }
 
-    const name = item.productName.length > 60
-      ? item.productName.slice(0, 57) + "..."
+    const maxNameLength = compact ? 76 : 52;
+    const name = item.productName.length > maxNameLength
+      ? item.productName.slice(0, maxNameLength - 3) + "..."
       : item.productName;
 
-    doc.text(String(i + 1).padStart(2, "0"), 16, y + 7.5);
-    doc.text(name, 26, y + 7.5);
-    doc.text(String(item.quantity), 130, y + 7.5, { align: "left" });
+    drawRowGrid(y);
 
-    if (!compact) {
-      doc.text(formatKsh(item.unitPrice), 160, y + 7.5, { align: "right" });
-      doc.text(formatKsh(item.lineTotal), 198, y + 7.5, { align: "right" });
+    doc.text(String(i + 1).padStart(2, "0"), columnStartX[0] + 2, y + 7.5);
+    doc.text(name, columnStartX[1] + 2, y + 7.5);
+
+    if (compact) {
+      const qtyCol = columns[2];
+      doc.text(String(item.quantity), tableX + qtyCol.width + columns[0].width + columns[1].width - 2, y + 7.5, { align: "right" });
+    } else {
+      doc.text(String(item.quantity), columnStartX[2] + columns[2].width - 2, y + 7.5, { align: "right" });
+      doc.text(formatKsh(item.unitPrice), columnStartX[3] + columns[3].width - 2, y + 7.5, { align: "right" });
+      doc.text(formatKsh(item.lineTotal), columnStartX[4] + columns[4].width - 2, y + 7.5, { align: "right" });
     }
 
-    setColorFromHex(doc, "#e2e8f0", "draw");
-    doc.line(12, y + 11, 198, y + 11);
-
-    y += 11;
+    y += rowHeight;
   });
 
-  drawThinDivider(doc, y + 2);
-  return y + 8;
+  return y + 6;
 }
 
-function drawTotalsSection(doc: jsPDF, subtotal: number, startY: number, branding?: TenantBranding) {
+function drawTotalsSection(
+  doc: jsPDF,
+  subtotal: number,
+  startY: number,
+  branding?: TenantBranding,
+  settings?: InvoiceDocumentSettings,
+) {
   const primary = branding?.primaryColor || DEFAULT_PRIMARY;
-  const vat = subtotal * 0.16;
-  const grandTotal = subtotal + vat;
+  const showVat = settings?.includeVat !== false
+  const vat = showVat ? subtotal * 0.16 : 0
+  const grandTotal = subtotal + vat
 
-  let y = Math.max(startY, 220);
+  let y = Math.max(startY + 4, 218);
+  if (y + 52 > 282) {
+    doc.addPage();
+    y = 20;
+  }
 
   // Totals box - right aligned
   doc.setDrawColor(226, 232, 240);
@@ -286,11 +410,13 @@ function drawTotalsSection(doc: jsPDF, subtotal: number, startY: number, brandin
   doc.text("Subtotal", 114, y + 10);
   doc.text(formatKsh(subtotal), 194, y + 10, { align: "right" });
 
-  doc.text("VAT (16%)", 114, y + 18);
-  doc.text(formatKsh(vat), 194, y + 18, { align: "right" });
+  if (showVat) {
+    doc.text("VAT (16%)", 114, y + 18);
+    doc.text(formatKsh(vat), 194, y + 18, { align: "right" });
 
-  doc.setLineWidth(0.6);
-  doc.line(114, y + 24, 194, y + 24);
+    doc.setLineWidth(0.6);
+    doc.line(114, y + 24, 194, y + 24);
+  }
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(12);
@@ -300,24 +426,95 @@ function drawTotalsSection(doc: jsPDF, subtotal: number, startY: number, brandin
   doc.setTextColor(255, 255, 255);
   doc.text(formatKsh(grandTotal), 194, y + 36, { align: "right" });
 
-  // Terms
-  y += 60;
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(10);
-  setColorFromHex(doc, DEFAULT_TEXT, "text");
-  doc.text("Terms & Conditions", 12, y);
+  return y + 12;
+}
+
+function drawBottomFooter(
+  doc: jsPDF,
+  branding?: TenantBranding,
+  settings?: InvoiceDocumentSettings,
+  preparedBy?: string,
+) {
+  const footerY = 289;
+  drawThinDivider(doc, footerY - 4, "#dbe4ee");
+
+  const footerEmail = String(settings?.contactEmail || settings?.invoiceEmail || branding?.email || "").trim();
+  const footerPhone = String(settings?.contactPhone || branding?.phone || "").trim();
+  const footerLocation = String(settings?.officeLocation || buildCompanyAddress(branding) || "").trim();
+
+  const left = [footerPhone, footerLocation, footerEmail].filter(Boolean).join("   •   ") || "";
 
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(9);
+  doc.setFontSize(8);
   setColorFromHex(doc, DEFAULT_GRAY, "text");
-  y += 6;
-  doc.text("• Payment due within 7 days", 12, y);
-  y += 5;
-  doc.text("• Once sold, items are non-refundable", 12, y);
-  y += 5;
-  doc.text("• Warranty as per mutual agreement", 12, y);
+  if (left) {
+    doc.text(left, 12, footerY);
+  }
 
-  return y + 12;
+  if (preparedBy) {
+    doc.text(`Prepared by: ${preparedBy}`, 198, footerY, { align: "right" });
+  }
+}
+
+function drawTermsAndPaymentChannelsSection(
+  doc: jsPDF,
+  startY: number,
+  settings?: InvoiceDocumentSettings,
+  branding?: TenantBranding,
+) {
+  let y = startY + 8
+  const terms = String(settings?.termsAndConditions || "").trim()
+  const channels = Array.isArray(settings?.paymentChannels) ? settings!.paymentChannels : []
+
+  if (terms) {
+    doc.setFont("helvetica", "bold")
+    doc.setFontSize(10)
+    setColorFromHex(doc, DEFAULT_TEXT, "text")
+    doc.text("Terms & Conditions", 12, y)
+    y += 6
+
+    doc.setFont("helvetica", "normal")
+    doc.setFontSize(9)
+    setColorFromHex(doc, DEFAULT_GRAY, "text")
+    const wrapped = doc.splitTextToSize(terms, 186)
+    doc.text(wrapped, 12, y)
+    y += wrapped.length * 4.5 + 4
+  }
+
+  if (settings?.includePaymentChannels !== false && channels.length) {
+    doc.setFont("helvetica", "bold")
+    doc.setFontSize(10)
+    setColorFromHex(doc, DEFAULT_TEXT, "text")
+    doc.text("Payment Channels", 12, y)
+    y += 6
+
+    doc.setFont("helvetica", "normal")
+    doc.setFontSize(9)
+    setColorFromHex(doc, DEFAULT_GRAY, "text")
+
+    channels.forEach((channel) => {
+      const title = [channel.channelName || channel.bankName].filter(Boolean).join(" - ") || "Payment Channel"
+      doc.text(title, 12, y)
+      y += 4.5
+
+      const details = [
+        channel.accountName ? `Account Name: ${channel.accountName}` : "",
+        channel.accountNumber ? `Account No: ${channel.accountNumber}` : "",
+        channel.branch ? `Branch: ${channel.branch}` : "",
+        channel.notes ? `${channel.notes}` : "",
+      ].filter(Boolean)
+
+      details.forEach((line) => {
+        const wrapped = doc.splitTextToSize(line, 186)
+        doc.text(wrapped, 12, y)
+        y += wrapped.length * 4.5
+      })
+
+      y += 2
+    })
+  }
+
+  return y
 }
 
 function drawDeliverySignatures(doc: jsPDF, startY: number, preparedBy: string) {
@@ -346,6 +543,7 @@ export function generateQuotationPdf(params: {
   items: DocumentItem[];
   subTotal: number;
   branding?: TenantBranding;
+  invoiceSettings?: InvoiceDocumentSettings;
   preparedBy: string;
   watermarkText?: string;
   autoSave?: boolean;
@@ -362,11 +560,14 @@ export function generateQuotationPdf(params: {
     branding: params.branding,
   });
 
+  drawContactSlotBelowLogo(doc, params.branding, params.invoiceSettings);
+
   const tableY = drawPartiesSection(doc, params.client, params.preparedBy, params.branding, "Quotation Info");
 
   const endY = drawItemsTable(doc, tableY, params.items, params.branding);
 
-  drawTotalsSection(doc, params.subTotal, endY, params.branding);
+  drawTotalsSection(doc, params.subTotal, endY, params.branding, params.invoiceSettings);
+  drawBottomFooter(doc, params.branding, params.invoiceSettings, params.preparedBy);
 
   if (params.autoSave !== false) {
     doc.save(`quotation-${params.quotationNumber}.pdf`);
@@ -384,6 +585,7 @@ export function generateInvoicePdf(params: {
   items: DocumentItem[];
   subTotal: number;
   branding?: TenantBranding;
+  invoiceSettings?: InvoiceDocumentSettings;
   preparedBy: string;
   watermarkText?: string;
   autoSave?: boolean;
@@ -397,20 +599,45 @@ export function generateInvoicePdf(params: {
     numberLabel: "Invoice No",
     numberValue: params.invoiceNumber,
     createdAt: params.createdAt,
-    branding: params.branding,
+    branding: {
+      ...params.branding,
+      invoiceEmail: params.invoiceSettings?.invoiceEmail || params.branding?.invoiceEmail,
+    },
   });
 
-  let tableY = drawPartiesSection(doc, params.client, params.preparedBy, params.branding);
+  drawContactSlotBelowLogo(doc, params.branding, params.invoiceSettings);
+
+  let tableY = drawPartiesSection(
+    doc,
+    params.client,
+    params.preparedBy,
+    {
+      ...params.branding,
+      invoiceEmail: params.invoiceSettings?.invoiceEmail || params.branding?.invoiceEmail,
+    },
+  );
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
   setColorFromHex(doc, DEFAULT_GRAY, "text");
-  doc.text(`Delivery Note: ${params.deliveryNoteNumber}`, 12, tableY - 8);
-  doc.text(`Quotation Ref: ${params.quotationNumber || "N/A"}`, 12, tableY - 3);
+  if (params.invoiceSettings?.includeDeliveryNoteNumber !== false) {
+    doc.text(`Delivery Note: ${params.deliveryNoteNumber}`, 12, tableY - 8);
+  }
+  if (params.invoiceSettings?.includeQuotationReference !== false) {
+    doc.text(`Quotation Ref: ${params.quotationNumber || "N/A"}`, 12, tableY - 3);
+  }
 
   const endY = drawItemsTable(doc, tableY, params.items, params.branding);
 
-  drawTotalsSection(doc, params.subTotal, endY, params.branding);
+  const totalsY = drawTotalsSection(doc, params.subTotal, endY, params.branding, params.invoiceSettings);
+  const termsEndY = drawTermsAndPaymentChannelsSection(doc, totalsY, params.invoiceSettings, params.branding)
+
+  drawBottomFooter(
+    doc,
+    params.branding,
+    params.invoiceSettings,
+    params.invoiceSettings?.includePreparedBy !== false ? params.preparedBy : undefined,
+  );
 
   if (params.autoSave !== false) {
     doc.save(`invoice-${params.invoiceNumber}.pdf`);

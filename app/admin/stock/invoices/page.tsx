@@ -12,6 +12,7 @@ import {
   applyStampToPdf,
   generateDeliveryNotePdf,
   generateInvoicePdf,
+  type InvoiceDocumentSettings,
   type TenantBranding,
 } from "@/lib/stock-document-pdf"
 
@@ -97,6 +98,7 @@ export default function InvoicesPage() {
   const [loading, setLoading] = useState(true)
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [branding, setBranding] = useState<TenantBranding>({})
+  const [invoiceSettings, setInvoiceSettings] = useState<InvoiceDocumentSettings>({})
   const [searchInput, setSearchInput] = useState("")
   const [search, setSearch] = useState("")
   const [dispatchUsers, setDispatchUsers] = useState<DispatchUser[]>([])
@@ -121,8 +123,9 @@ export default function InvoicesPage() {
       }
       setInvoices(invoicesData.data || [])
 
-      const [brandingResult, usersResult] = await Promise.allSettled([
+      const [brandingResult, invoiceSettingsResult, usersResult] = await Promise.allSettled([
         fetch(`${API_URL}/api/company/branding`, { headers }),
+        fetch(`${API_URL}/api/company/invoice-settings`, { headers }),
         fetch(`${API_URL}/api/users`, { headers }),
       ])
 
@@ -135,6 +138,17 @@ export default function InvoicesPage() {
         }
       } else {
         setBranding({})
+      }
+
+      if (invoiceSettingsResult.status === "fulfilled") {
+        try {
+          const invoiceSettingsData = await invoiceSettingsResult.value.json()
+          setInvoiceSettings(invoiceSettingsData.data || {})
+        } catch {
+          setInvoiceSettings({})
+        }
+      } else {
+        setInvoiceSettings({})
       }
 
       if (usersResult.status === "fulfilled") {
@@ -231,6 +245,7 @@ export default function InvoicesPage() {
       items: invoice.items,
       subTotal: invoice.subTotal,
       branding,
+      invoiceSettings,
       preparedBy,
       watermarkText: invoice.status === "paid" ? "PAID" : invoice.status === "cancelled" ? "CANCELLED" : undefined,
       autoSave: false,

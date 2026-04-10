@@ -18,6 +18,21 @@ const DEFAULT_DISPATCH_SMS_TEMPLATE = [
   "Thank you.",
 ].join(" ")
 
+const DEFAULT_INVOICE_TERMS = [
+  "Payment is due within 7 days from the invoice date.",
+  "All items remain the property of the company until fully paid.",
+  "Goods once sold are subject to the company return policy.",
+].join(" ")
+
+const normalizePaymentChannel = (value: any) => ({
+  channelName: String(value?.channelName || value?.name || "").trim(),
+  bankName: String(value?.bankName || "").trim(),
+  accountName: String(value?.accountName || "").trim(),
+  accountNumber: String(value?.accountNumber || "").trim(),
+  branch: String(value?.branch || "").trim(),
+  notes: String(value?.notes || "").trim(),
+})
+
 const DISPATCH_SMS_ALLOWED_PLACEHOLDERS = [
   "{{clientName}}",
   "{{invoiceNumber}}",
@@ -36,6 +51,136 @@ const buildBaseUrl = (req: AuthenticatedRequest) => {
 }
 
 export class CompanyController {
+  static async getInvoiceSettings(req: AuthenticatedRequest, res: Response) {
+    try {
+      if (!req.org_id) {
+        return res.status(400).json({ success: false, message: "Organization context required" })
+      }
+
+      const company = await Company.findById(req.org_id).select("email phone city state country logo invoiceSettings")
+      if (!company) {
+        return res.status(404).json({ success: false, message: "Company not found" })
+      }
+
+      return res.json({
+        success: true,
+        data: {
+          invoiceEmail: String(company.invoiceSettings?.invoiceEmail || company.email || "").trim(),
+          contactPhone: String(company.invoiceSettings?.contactPhone || company.phone || "").trim(),
+          officeLocation: String(
+            company.invoiceSettings?.officeLocation ||
+            [company.city, company.state, company.country].filter(Boolean).join(", ") ||
+            "",
+          ).trim(),
+          contactEmail: String(company.invoiceSettings?.contactEmail || company.invoiceSettings?.invoiceEmail || company.email || "").trim(),
+          termsAndConditions: String(company.invoiceSettings?.termsAndConditions || DEFAULT_INVOICE_TERMS).trim(),
+          includeQuotationReference: company.invoiceSettings?.includeQuotationReference ?? true,
+          includeDeliveryNoteNumber: company.invoiceSettings?.includeDeliveryNoteNumber ?? true,
+          includePreparedBy: company.invoiceSettings?.includePreparedBy ?? true,
+          includeVat: company.invoiceSettings?.includeVat ?? true,
+          includePaymentChannels: company.invoiceSettings?.includePaymentChannels ?? true,
+          paymentChannels: Array.isArray(company.invoiceSettings?.paymentChannels)
+            ? company.invoiceSettings.paymentChannels.map(normalizePaymentChannel)
+            : [],
+          logoUrl: company.logo || "",
+          defaultTermsAndConditions: DEFAULT_INVOICE_TERMS,
+        },
+      })
+    } catch (error) {
+      console.error("Error fetching invoice settings:", error)
+      return res.status(500).json({ success: false, message: "Failed to fetch invoice settings" })
+    }
+  }
+
+  static async updateInvoiceSettings(req: AuthenticatedRequest, res: Response) {
+    try {
+      if (!req.org_id) {
+        return res.status(400).json({ success: false, message: "Organization context required" })
+      }
+
+      const invoiceEmail = String(req.body?.invoiceEmail || "").trim()
+      const contactPhone = String(req.body?.contactPhone || "").trim()
+      const officeLocation = String(req.body?.officeLocation || "").trim()
+      const contactEmail = String(req.body?.contactEmail || "").trim()
+      const termsAndConditions = String(req.body?.termsAndConditions || "").trim()
+      const includeQuotationReference = Boolean(req.body?.includeQuotationReference)
+      const includeDeliveryNoteNumber = Boolean(req.body?.includeDeliveryNoteNumber)
+      const includePreparedBy = Boolean(req.body?.includePreparedBy)
+      const includeVat = Boolean(req.body?.includeVat)
+      const includePaymentChannels = Boolean(req.body?.includePaymentChannels)
+      const paymentChannels = Array.isArray(req.body?.paymentChannels)
+        ? req.body.paymentChannels
+            .map(normalizePaymentChannel)
+            .filter((channel: any) => channel.channelName || channel.bankName || channel.accountNumber || channel.branch || channel.notes)
+        : []
+
+      if (!invoiceEmail) {
+        return res.status(400).json({ success: false, message: "invoiceEmail is required" })
+      }
+
+      if (!termsAndConditions) {
+        return res.status(400).json({ success: false, message: "termsAndConditions is required" })
+      }
+
+      if (termsAndConditions.length > 2000) {
+        return res.status(400).json({ success: false, message: "termsAndConditions is too long (max 2000 characters)" })
+      }
+
+      const company = await Company.findByIdAndUpdate(
+        req.org_id,
+        {
+          $set: {
+            "invoiceSettings.invoiceEmail": invoiceEmail,
+            "invoiceSettings.contactPhone": contactPhone,
+            "invoiceSettings.officeLocation": officeLocation,
+            "invoiceSettings.contactEmail": contactEmail || invoiceEmail,
+            "invoiceSettings.termsAndConditions": termsAndConditions,
+            "invoiceSettings.includeQuotationReference": includeQuotationReference,
+            "invoiceSettings.includeDeliveryNoteNumber": includeDeliveryNoteNumber,
+            "invoiceSettings.includePreparedBy": includePreparedBy,
+            "invoiceSettings.includeVat": includeVat,
+            "invoiceSettings.includePaymentChannels": includePaymentChannels,
+            "invoiceSettings.paymentChannels": paymentChannels,
+          },
+        },
+        { new: true }
+      ).select("email phone city state country logo invoiceSettings")
+
+      if (!company) {
+        return res.status(404).json({ success: false, message: "Company not found" })
+      }
+
+      return res.json({
+        success: true,
+        message: "Invoice settings updated successfully",
+        data: {
+          invoiceEmail: String(company.invoiceSettings?.invoiceEmail || company.email || "").trim(),
+          contactPhone: String(company.invoiceSettings?.contactPhone || company.phone || "").trim(),
+          officeLocation: String(
+            company.invoiceSettings?.officeLocation ||
+            [company.city, company.state, company.country].filter(Boolean).join(", ") ||
+            "",
+          ).trim(),
+          contactEmail: String(company.invoiceSettings?.contactEmail || company.invoiceSettings?.invoiceEmail || company.email || "").trim(),
+          termsAndConditions: String(company.invoiceSettings?.termsAndConditions || DEFAULT_INVOICE_TERMS).trim(),
+          includeQuotationReference: company.invoiceSettings?.includeQuotationReference ?? true,
+          includeDeliveryNoteNumber: company.invoiceSettings?.includeDeliveryNoteNumber ?? true,
+          includePreparedBy: company.invoiceSettings?.includePreparedBy ?? true,
+          includeVat: company.invoiceSettings?.includeVat ?? true,
+          includePaymentChannels: company.invoiceSettings?.includePaymentChannels ?? true,
+          paymentChannels: Array.isArray(company.invoiceSettings?.paymentChannels)
+            ? company.invoiceSettings.paymentChannels.map(normalizePaymentChannel)
+            : [],
+          logoUrl: company.logo || "",
+          defaultTermsAndConditions: DEFAULT_INVOICE_TERMS,
+        },
+      })
+    } catch (error) {
+      console.error("Error updating invoice settings:", error)
+      return res.status(500).json({ success: false, message: "Failed to update invoice settings" })
+    }
+  }
+
   static async getDispatchSmsSettings(req: AuthenticatedRequest, res: Response) {
     try {
       if (!req.org_id) {
