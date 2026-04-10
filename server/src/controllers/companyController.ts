@@ -11,6 +11,22 @@ const ADMIN_SECTION_OPTIONS = [
   "SYSTEM",
 ]
 
+const DEFAULT_DISPATCH_SMS_TEMPLATE = [
+  "Hello {{clientName}}, your package for invoice {{invoiceNumber}} (DN {{deliveryNoteNumber}}) has been dispatched.",
+  "Courier: {{courierName}} ({{courierContactNumber}}).",
+  "For inquiries, call office: {{officeContactNumber}}.",
+  "Thank you.",
+].join(" ")
+
+const DISPATCH_SMS_ALLOWED_PLACEHOLDERS = [
+  "{{clientName}}",
+  "{{invoiceNumber}}",
+  "{{deliveryNoteNumber}}",
+  "{{courierName}}",
+  "{{courierContactNumber}}",
+  "{{officeContactNumber}}",
+]
+
 const buildBaseUrl = (req: AuthenticatedRequest) => {
   const forwardedProto = (req.headers["x-forwarded-proto"] as string) || req.protocol
   const host = req.headers.host
@@ -20,6 +36,87 @@ const buildBaseUrl = (req: AuthenticatedRequest) => {
 }
 
 export class CompanyController {
+  static async getDispatchSmsSettings(req: AuthenticatedRequest, res: Response) {
+    try {
+      if (!req.org_id) {
+        return res.status(400).json({ success: false, message: "Organization context required" })
+      }
+
+      const company = await Company.findById(req.org_id).select("phone dispatchSmsSettings")
+      if (!company) {
+        return res.status(404).json({ success: false, message: "Company not found" })
+      }
+
+      const officePhone = String(company.dispatchSmsSettings?.officePhone || company.phone || "").trim()
+      const messageTemplate = String(company.dispatchSmsSettings?.messageTemplate || DEFAULT_DISPATCH_SMS_TEMPLATE).trim()
+
+      return res.json({
+        success: true,
+        data: {
+          officePhone,
+          messageTemplate,
+          placeholders: DISPATCH_SMS_ALLOWED_PLACEHOLDERS,
+          defaultTemplate: DEFAULT_DISPATCH_SMS_TEMPLATE,
+        },
+      })
+    } catch (error) {
+      console.error("Error fetching dispatch SMS settings:", error)
+      return res.status(500).json({ success: false, message: "Failed to fetch dispatch SMS settings" })
+    }
+  }
+
+  static async updateDispatchSmsSettings(req: AuthenticatedRequest, res: Response) {
+    try {
+      if (!req.org_id) {
+        return res.status(400).json({ success: false, message: "Organization context required" })
+      }
+
+      const officePhone = String(req.body?.officePhone || "").trim()
+      const messageTemplate = String(req.body?.messageTemplate || "").trim()
+
+      if (!officePhone) {
+        return res.status(400).json({ success: false, message: "officePhone is required" })
+      }
+
+      if (!messageTemplate) {
+        return res.status(400).json({ success: false, message: "messageTemplate is required" })
+      }
+
+      if (messageTemplate.length > 800) {
+        return res.status(400).json({ success: false, message: "messageTemplate is too long (max 800 characters)" })
+      }
+
+      const company = await Company.findByIdAndUpdate(
+        req.org_id,
+        {
+          $set: {
+            "dispatchSmsSettings.officePhone": officePhone,
+            "dispatchSmsSettings.messageTemplate": messageTemplate,
+          },
+        },
+        { new: true }
+      ).select("phone dispatchSmsSettings")
+
+      if (!company) {
+        return res.status(404).json({ success: false, message: "Company not found" })
+      }
+
+      return res.json({
+        success: true,
+        message: "Dispatch SMS settings updated successfully",
+        data: {
+          officePhone: String(company.dispatchSmsSettings?.officePhone || company.phone || "").trim(),
+          messageTemplate: String(company.dispatchSmsSettings?.messageTemplate || DEFAULT_DISPATCH_SMS_TEMPLATE).trim(),
+          placeholders: DISPATCH_SMS_ALLOWED_PLACEHOLDERS,
+          defaultTemplate: DEFAULT_DISPATCH_SMS_TEMPLATE,
+        },
+      })
+    } catch (error) {
+      console.error("Error updating dispatch SMS settings:", error)
+      return res.status(500).json({ success: false, message: "Failed to update dispatch SMS settings" })
+    }
+  }
+
   static async getPageAccessSettings(req: AuthenticatedRequest, res: Response) {
     try {
       if (!req.org_id) {

@@ -8,6 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import {
   ResponsiveContainer,
   LineChart,
@@ -59,10 +61,24 @@ interface DispatchUser {
   last_name?: string
 }
 
+interface DispatchSmsSettingsPayload {
+  officePhone: string
+  messageTemplate: string
+  placeholders?: string[]
+  defaultTemplate?: string
+}
+
 export default function AdminDispatchManagementPage() {
   const [loading, setLoading] = useState(true)
   const [invoices, setInvoices] = useState<DispatchInvoice[]>([])
   const [users, setUsers] = useState<DispatchUser[]>([])
+  const [smsSettingsLoading, setSmsSettingsLoading] = useState(true)
+  const [smsSettingsSaving, setSmsSettingsSaving] = useState(false)
+  const [smsSettingsError, setSmsSettingsError] = useState("")
+  const [smsSettingsStatus, setSmsSettingsStatus] = useState("")
+  const [smsSettings, setSmsSettings] = useState({ officePhone: "", messageTemplate: "" })
+  const [smsPlaceholders, setSmsPlaceholders] = useState<string[]>([])
+  const [smsDefaultTemplate, setSmsDefaultTemplate] = useState("")
 
   const [dateFilter, setDateFilter] = useState<"week" | "month" | "custom">("week")
   const [customFrom, setCustomFrom] = useState("")
@@ -88,6 +104,74 @@ export default function AdminDispatchManagementPage() {
   }
 
   const now = new Date()
+
+  const loadDispatchSmsSettings = async () => {
+    try {
+      setSmsSettingsLoading(true)
+      setSmsSettingsError("")
+      const response = await fetch(`${API_URL}/api/company/dispatch-sms`, { headers })
+      const json = await response.json()
+      if (!response.ok) throw new Error(json.message || "Failed to load dispatch SMS settings")
+
+      const data = (json.data || {}) as DispatchSmsSettingsPayload
+      setSmsSettings({
+        officePhone: data.officePhone || "",
+        messageTemplate: data.messageTemplate || "",
+      })
+      setSmsPlaceholders(data.placeholders || [])
+      setSmsDefaultTemplate(data.defaultTemplate || "")
+    } catch (error: any) {
+      setSmsSettingsError(error.message || "Failed to load dispatch SMS settings")
+    } finally {
+      setSmsSettingsLoading(false)
+    }
+  }
+
+  const saveDispatchSmsSettings = async () => {
+    try {
+      setSmsSettingsSaving(true)
+      setSmsSettingsError("")
+      setSmsSettingsStatus("")
+
+      const response = await fetch(`${API_URL}/api/company/dispatch-sms`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          officePhone: smsSettings.officePhone,
+          messageTemplate: smsSettings.messageTemplate,
+        }),
+      })
+      const json = await response.json()
+      if (!response.ok) throw new Error(json.message || "Failed to update dispatch SMS settings")
+
+      const data = (json.data || {}) as DispatchSmsSettingsPayload
+      setSmsSettings({
+        officePhone: data.officePhone || "",
+        messageTemplate: data.messageTemplate || "",
+      })
+      setSmsPlaceholders(data.placeholders || [])
+      setSmsDefaultTemplate(data.defaultTemplate || "")
+      setSmsSettingsStatus("Dispatch SMS settings saved")
+    } catch (error: any) {
+      setSmsSettingsError(error.message || "Failed to update dispatch SMS settings")
+    } finally {
+      setSmsSettingsSaving(false)
+    }
+  }
+
+  const smsPreview = useMemo(() => {
+    const template = smsSettings.messageTemplate || smsDefaultTemplate
+    return template
+      .replace(/\{\{\s*clientName\s*\}\}/g, "Client Name")
+      .replace(/\{\{\s*invoiceNumber\s*\}\}/g, "INV-000123")
+      .replace(/\{\{\s*deliveryNoteNumber\s*\}\}/g, "DN-000123")
+      .replace(/\{\{\s*courierName\s*\}\}/g, "Sample Courier")
+      .replace(/\{\{\s*courierContactNumber\s*\}\}/g, "+254700000000")
+      .replace(/\{\{\s*officeContactNumber\s*\}\}/g, smsSettings.officePhone || "0700000000")
+      .replace(/\s+/g, " ")
+      .trim()
+  }, [smsSettings.messageTemplate, smsSettings.officePhone, smsDefaultTemplate])
+
   const isInDateRange = (value?: string) => {
     if (!value) return false
     const date = new Date(value)
@@ -125,6 +209,7 @@ export default function AdminDispatchManagementPage() {
     }
 
     load()
+    loadDispatchSmsSettings()
     const interval = setInterval(load, 30000)
     return () => clearInterval(interval)
   }, [headers])
@@ -349,6 +434,70 @@ export default function AdminDispatchManagementPage() {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">Dispatch Management</h1>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Dispatch SMS Settings</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {smsSettingsLoading ? (
+            <p className="text-sm text-muted-foreground">Loading SMS settings...</p>
+          ) : (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="dispatch-office-phone">Dispatch Office Phone</Label>
+                <Input
+                  id="dispatch-office-phone"
+                  placeholder="e.g. 0759433906"
+                  value={smsSettings.officePhone}
+                  onChange={(e) => setSmsSettings((prev) => ({ ...prev, officePhone: e.target.value }))}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="dispatch-message-template">SMS Message Template</Label>
+                <Textarea
+                  id="dispatch-message-template"
+                  rows={4}
+                  value={smsSettings.messageTemplate}
+                  onChange={(e) => setSmsSettings((prev) => ({ ...prev, messageTemplate: e.target.value }))}
+                  placeholder="Customize dispatch SMS with placeholders"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Placeholders: {smsPlaceholders.length ? smsPlaceholders.join(", ") : "{{clientName}}, {{invoiceNumber}}, {{deliveryNoteNumber}}, {{courierName}}, {{courierContactNumber}}, {{officeContactNumber}}"}
+                </p>
+              </div>
+
+              <div className="rounded-md border p-3 bg-muted/30 space-y-1">
+                <p className="text-xs text-muted-foreground">Preview</p>
+                <p className="text-sm">{smsPreview || "No preview available"}</p>
+              </div>
+
+              {(smsSettingsError || smsSettingsStatus) && (
+                <p className={`text-sm ${smsSettingsError ? "text-red-600" : "text-green-600"}`}>
+                  {smsSettingsError || smsSettingsStatus}
+                </p>
+              )}
+
+              <div className="flex flex-wrap gap-2">
+                <Button onClick={saveDispatchSmsSettings} disabled={smsSettingsSaving}>
+                  {smsSettingsSaving ? "Saving..." : "Save SMS Settings"}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setSmsSettings((prev) => ({
+                    ...prev,
+                    messageTemplate: smsDefaultTemplate || prev.messageTemplate,
+                  }))}
+                  disabled={!smsDefaultTemplate}
+                >
+                  Use Default Template
+                </Button>
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>

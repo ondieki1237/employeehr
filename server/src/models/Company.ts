@@ -55,6 +55,10 @@ const companySchema = new Schema<ICompany>(
         password: { type: String }, // Should be encrypted
       },
     },
+    dispatchSmsSettings: {
+      officePhone: { type: String },
+      messageTemplate: { type: String },
+    },
     setupProgress: {
       completed: { type: Boolean, default: false },
       currentStep: { type: String, default: "companyInfo" },

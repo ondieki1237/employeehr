@@ -61,6 +61,10 @@ export interface ICompany {
       password: string // Encrypted
     }
   }
+  dispatchSmsSettings?: {
+    officePhone?: string
+    messageTemplate?: string
+  }
   setupProgress?: {
     completed: boolean
     currentStep: string

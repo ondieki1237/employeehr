@@ -157,6 +157,33 @@ function toDateKey(date: Date) {
   return date.toISOString().slice(0, 10)
 }
 
+const DEFAULT_DISPATCH_SMS_TEMPLATE = [
+  "Hello {{clientName}}, your package for invoice {{invoiceNumber}} (DN {{deliveryNoteNumber}}) has been dispatched.",
+  "Courier: {{courierName}} ({{courierContactNumber}}).",
+  "For inquiries, call office: {{officeContactNumber}}.",
+  "Thank you.",
+].join(" ")
+
+function renderDispatchMessageTemplate(
+  template: string,
+  data: {
+    clientName: string
+    invoiceNumber: string
+    deliveryNoteNumber: string
+    courierName: string
+    courierContactNumber: string
+    officeContactNumber: string
+  },
+) {
+  return template
+    .replace(/\{\{\s*clientName\s*\}\}/g, data.clientName)
+    .replace(/\{\{\s*invoiceNumber\s*\}\}/g, data.invoiceNumber)
+    .replace(/\{\{\s*deliveryNoteNumber\s*\}\}/g, data.deliveryNoteNumber)
+    .replace(/\{\{\s*courierName\s*\}\}/g, data.courierName)
+    .replace(/\{\{\s*courierContactNumber\s*\}\}/g, data.courierContactNumber)
+    .replace(/\{\{\s*officeContactNumber\s*\}\}/g, data.officeContactNumber)
+}
+
 function buildDispatchClientMessage(params: {
   clientName?: string
   invoiceNumber: string
@@ -164,14 +191,19 @@ function buildDispatchClientMessage(params: {
   courierName: string
   courierContactNumber: string
   officeContactNumber: string
+  messageTemplate?: string
 }) {
-  const greetingName = String(params.clientName || "Client").trim() || "Client"
-  return [
-    `Hello ${greetingName}, your package for invoice ${params.invoiceNumber} (DN ${params.deliveryNoteNumber}) has been dispatched.`,
-    `Courier: ${params.courierName} (${params.courierContactNumber}).`,
-    `For inquiries, call office: ${params.officeContactNumber}.`,
-    "Thank you.",
-  ].join(" ")
+  const data = {
+    clientName: String(params.clientName || "Client").trim() || "Client",
+    invoiceNumber: String(params.invoiceNumber || "").trim(),
+    deliveryNoteNumber: String(params.deliveryNoteNumber || "").trim(),
+    courierName: String(params.courierName || "").trim(),
+    courierContactNumber: String(params.courierContactNumber || "").trim(),
+    officeContactNumber: String(params.officeContactNumber || "").trim(),
+  }
+
+  const template = String(params.messageTemplate || DEFAULT_DISPATCH_SMS_TEMPLATE).trim() || DEFAULT_DISPATCH_SMS_TEMPLATE
+  return renderDispatchMessageTemplate(template, data).replace(/\s+/g, " ").trim()
 }
 
 async function sendDispatchNotificationForInvoice(params: {
@@ -189,7 +221,9 @@ async function sendDispatchNotificationForInvoice(params: {
     }
   }
 
-  const officeNumber = String((await Company.findById(orgId).select("phone").lean())?.phone || process.env.DISPATCH_OFFICE_NUMBER || "").trim()
+  const company = await Company.findById(orgId).select("phone dispatchSmsSettings").lean()
+  const officeNumber = String(company?.dispatchSmsSettings?.officePhone || company?.phone || process.env.DISPATCH_OFFICE_NUMBER || "").trim()
+  const dispatchTemplate = String(company?.dispatchSmsSettings?.messageTemplate || DEFAULT_DISPATCH_SMS_TEMPLATE).trim()
   const clientNumber = String(invoice?.client?.number || "").trim()
 
   if (!clientNumber) {
@@ -215,6 +249,7 @@ async function sendDispatchNotificationForInvoice(params: {
     courierName: invoice.dispatch.courier.name,
     courierContactNumber: invoice.dispatch.courier.contactNumber,
     officeContactNumber: officeNumber,
+    messageTemplate: dispatchTemplate,
   })
 
   const notification = await DispatchNotification.create({

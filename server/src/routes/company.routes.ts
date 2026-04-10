@@ -17,6 +17,10 @@ router.post("/page-access", roleMiddleware("company_admin"), CompanyController.u
 router.get("/branding", CompanyController.getBranding)
 router.post("/branding", roleMiddleware("company_admin", "hr"), uploadLogo.single("logo"), CompanyController.updateBranding)
 
+// Dispatch SMS Settings
+router.get("/dispatch-sms", roleMiddleware("company_admin", "hr"), CompanyController.getDispatchSmsSettings)
+router.post("/dispatch-sms", roleMiddleware("company_admin", "hr"), CompanyController.updateDispatchSmsSettings)
+
 // Email Configuration (Admin only)
 router.get("/email-config", roleMiddleware("company_admin", "hr"), CompanyEmailController.getEmailConfig)
 router.post("/email-config", roleMiddleware("company_admin", "hr"), CompanyEmailController.updateEmailConfig)
