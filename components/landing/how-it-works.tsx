@@ -1,112 +1,122 @@
-"use client"
+"use client";
 
-import { motion } from "framer-motion"
-import { staggerContainer, fadeInUp } from "@/components/animations/variants"
+import { motion } from "framer-motion";
+import { Users, Settings, Rocket, BarChart } from "lucide-react";
 
 const steps = [
   {
-    number: "01",
-    title: "Setup Your Organization",
-    description: "Create your company workspace and invite team members in minutes.",
-    icon: "🏢"
+    icon: Users,
+    title: "1. Set Up Your Workspace",
+    description:
+      "Easily create your company profile and invite your entire team to the platform in just a few clicks.",
   },
   {
-    number: "02",
-    title: "Configure Performance Metrics",
-    description: "Define KPIs and performance categories aligned with your business goals.",
-    icon: "📊"
+    icon: Settings,
+    title: "2. Configure Your Metrics",
+    description:
+      "Define performance indicators and goals that align perfectly with your business objectives.",
   },
   {
-    number: "03",
-    title: "Launch Performance Reviews",
-    description: "Employees and managers collaborate on goals, PDPs, and regular feedback.",
-    icon: "💬"
+    icon: Rocket,
+    title: "3. Launch & Collaborate",
+    description:
+      "Initiate performance reviews, facilitate feedback, and empower managers and employees to collaborate on growth.",
   },
   {
-    number: "04",
-    title: "Get Insights & Recognize",
-    description: "Access real-time analytics and automatically celebrate top performers.",
-    icon: "🎉"
+    icon: BarChart,
+    title: "4. Analyze & Elevate",
+    description:
+      "Leverage real-time analytics to gain valuable insights, recognize achievements, and drive continuous improvement.",
   },
-]
+];
 
 export default function HowItWorks() {
+  const containerVariants = {
+    hidden: {},
+    visible: {
+      transition: {
+        staggerChildren: 0.2,
+      },
+    },
+  };
+
+  const itemVariants = {
+    hidden: { opacity: 0, y: 30 },
+    visible: {
+      opacity: 1,
+      y: 0,
+      transition: {
+        duration: 0.6,
+        ease: "easeOut",
+      },
+    },
+  };
+
   return (
-    <section id="how-it-works" className="py-28 md:py-40 bg-gradient-to-b from-slate-50/50 to-white">
+    <section id="how-it-works" className="py-20 md:py-28 bg-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Section Header */}
         <motion.div
-          className="text-center mb-20"
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-          viewport={{ once: true }}
+          className="text-center mb-12 md:mb-20"
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true, amount: 0.5 }}
+          variants={itemVariants}
         >
-          <motion.div
-            className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-full mb-6 shadow-sm"
-            style={{
-              boxShadow: "inset 0 1px 2px rgba(255,255,255,0.5), 0 2px 4px rgba(0,0,0,0.05)"
-            }}
-          >
-            <span className="w-2 h-2 rounded-full bg-orange-500"></span>
-            <span className="text-sm font-medium text-slate-700">Simple Process</span>
-          </motion.div>
-          <h2 className="text-5xl md:text-6xl font-bold mb-6 text-balance text-slate-900">Simple, Powerful Workflow</h2>
-          <p className="text-xl text-slate-600 max-w-2xl mx-auto">
-            Get started in 4 simple steps. Most organizations see results within the first month.
+          <span className="text-blue-600 font-semibold">How It Works</span>
+          <h2 className="text-3xl md:text-4xl font-extrabold text-gray-900 mt-2 mb-4">
+            Get Started in Minutes
+          </h2>
+          <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+            Our intuitive process makes it simple to elevate your team's
+            performance.
           </p>
         </motion.div>
 
-        {/* Steps Grid */}
+        {/* Steps */}
         <motion.div
-          className="grid md:grid-cols-4 gap-8"
-          variants={staggerContainer}
+          className="relative"
+          variants={containerVariants}
           initial="hidden"
           whileInView="visible"
-          viewport={{ once: true, margin: "-100px" }}
+          viewport={{ once: true, amount: 0.2 }}
         >
-          {steps.map((step, index) => (
-            <motion.div key={index} className="relative group" variants={fadeInUp} whileHover={{ y: -8 }}>
-              {/* Card */}
-              <div 
-                className="relative h-full rounded-2xl p-8 bg-white border border-slate-200 group-hover:border-blue-300 transition-all"
-                style={{
-                  boxShadow: "inset 0 1px 3px rgba(255,255,255,0.7), 0 8px 16px rgba(0,0,0,0.06)"
-                }}
-              >
-                {/* Number badge */}
+          {/* The connecting line */}
+          <div
+            className="hidden md:block absolute top-10 left-10 right-10 h-0.5 bg-gray-200"
+            aria-hidden="true"
+          ></div>
+          <div
+            className="md:hidden absolute top-10 left-10 bottom-10 w-0.5 bg-gray-200"
+            aria-hidden="true"
+          ></div>
+
+          <div className="grid md:grid-cols-4 gap-8 md:gap-16 relative">
+            {steps.map((step, index) => {
+              const Icon = step.icon;
+              return (
                 <motion.div
-                  className="text-6xl font-bold text-slate-200 mb-6 group-hover:text-blue-200 transition-colors"
-                  animate={{ opacity: [0.4, 0.7, 0.4] }}
-                  transition={{ duration: 3, repeat: Number.POSITIVE_INFINITY, delay: index * 0.2 }}
+                  key={index}
+                  className="text-center relative"
+                  variants={itemVariants}
                 >
-                  {step.number}
+                  <div className="flex justify-center">
+                    <div className="w-20 h-20 bg-white border-4 border-gray-200 rounded-full flex items-center justify-center relative z-10">
+                      <div className="w-16 h-16 bg-blue-600 text-white rounded-full flex items-center justify-center">
+                        <Icon className="w-8 h-8" />
+                      </div>
+                    </div>
+                  </div>
+                  <h3 className="mt-6 text-xl font-bold text-gray-900">
+                    {step.title}
+                  </h3>
+                  <p className="mt-2 text-gray-600">{step.description}</p>
                 </motion.div>
-
-                {/* Icon */}
-                <div className="text-4xl mb-4">{step.icon}</div>
-
-                {/* Content */}
-                <h3 className="text-xl font-semibold mb-3 text-slate-900">{step.title}</h3>
-                <p className="text-slate-600 leading-relaxed">{step.description}</p>
-              </div>
-
-              {/* Connecting line */}
-              {index < steps.length - 1 && (
-                <motion.div
-                  className="hidden md:block absolute top-1/2 -right-4 w-8 h-1 bg-gradient-to-r from-blue-400 to-blue-200"
-                  animate={{ scaleX: [0, 1] }}
-                  transition={{ duration: 1, delay: 0.3 + index * 0.15 }}
-                  style={{
-                    transformOrigin: "left",
-                    boxShadow: "0 2px 4px rgba(0,0,0,0.1)"
-                  }}
-                ></motion.div>
-              )}
-            </motion.div>
-          ))}
+              );
+            })}
+          </div>
         </motion.div>
       </div>
     </section>
-  )
+  );
 }
