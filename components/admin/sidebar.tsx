@@ -157,6 +157,18 @@ const adminMenuItems = [
     section: "INVENTORY MANAGER"
   },
   {
+    label: "Posts",
+    icon: FileText,
+    href: "/admin/accounts/posts",
+    section: "ACCOUNTS"
+  },
+  {
+    label: "Expenses",
+    icon: Banknote,
+    href: "/admin/accounts/expenses",
+    section: "ACCOUNTS"
+  },
+  {
     label: "Stamps",
     icon: Stamp,
     href: "/admin/stamps",

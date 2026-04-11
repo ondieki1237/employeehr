@@ -23,8 +23,16 @@ export interface IStockInvoice {
   quotationId?: string
   quotationNumber?: string
   client: IInvoiceClient
+  clientProfileId?: string
   items: IInvoiceItem[]
   subTotal: number
+  etims?: {
+    status: "not_posted" | "posted" | "failed"
+    kraInvoiceId?: string
+    postedAt?: Date
+    postedBy?: string
+    responseMessage?: string
+  }
   status: "issued" | "paid" | "cancelled"
   dispatch?: {
     status: "not_assigned" | "assigned" | "packing" | "packed" | "dispatched" | "delivered"
@@ -95,8 +103,20 @@ const stockInvoiceSchema = new Schema<IStockInvoice>(
       number: { type: String, required: true },
       location: { type: String, required: true },
     },
+    clientProfileId: { type: String },
     items: { type: [invoiceItemSchema], required: true },
     subTotal: { type: Number, required: true, min: 0 },
+    etims: {
+      status: {
+        type: String,
+        enum: ["not_posted", "posted", "failed"],
+        default: "not_posted",
+      },
+      kraInvoiceId: { type: String },
+      postedAt: { type: Date },
+      postedBy: { type: String },
+      responseMessage: { type: String },
+    },
     status: {
       type: String,
       enum: ["issued", "paid", "cancelled"],

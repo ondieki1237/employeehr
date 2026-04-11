@@ -7,11 +7,15 @@ import { StockSale } from "../models/StockSale"
 import { StockQuotation } from "../models/StockQuotation"
 import { StockInvoice } from "../models/StockInvoice"
 import { StockCourier } from "../models/StockCourier"
+import { StockClient } from "../models/StockClient"
+import { StockExpense } from "../models/StockExpense"
+import { StockRepeatBill } from "../models/StockRepeatBill"
 import { DispatchNotification } from "../models/DispatchNotification"
 import { Company } from "../models/Company"
 import { User } from "../models/User"
 import emailService from "../services/email.service"
 import { smsService } from "../services/sms.service"
+import { mpesaService } from "../services/mpesa.service"
 
 const ADMIN_ROLES = ["company_admin", "hr"]
 
@@ -23,6 +27,29 @@ function generateDocumentNumber(prefix: string) {
   const ts = Date.now().toString().slice(-8)
   const rand = Math.floor(Math.random() * 9000 + 1000)
   return `${prefix}-${ts}-${rand}`
+}
+
+function normalizeClientValue(value: string) {
+  return String(value || "").trim().toLowerCase().replace(/\s+/g, " ")
+}
+
+function buildClientSourceKey(client: { name?: string; number?: string; location?: string }) {
+  return {
+    sourceName: normalizeClientValue(String(client?.name || "")),
+    sourceNumber: normalizeClientValue(String(client?.number || "")),
+    sourceLocation: normalizeClientValue(String(client?.location || "")),
+  }
+}
+
+function splitPhoneList(raw: string) {
+  return Array.from(
+    new Set(
+      String(raw || "")
+        .split(/[\n,;]+/g)
+        .map((value) => value.trim())
+        .filter(Boolean),
+    ),
+  )
 }
 
 function canManageDispatchForInvoice(req: AuthenticatedRequest, invoice: any) {
@@ -568,6 +595,415 @@ export class StockController {
       return res.status(200).json({ success: true, data: Array.from(clientMap.values()) })
     } catch (error: any) {
       return res.status(500).json({ success: false, message: error.message || "Failed to fetch clients" })
+    }
+  }
+
+  static async getAccountsPosts(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = req.user?.org_id
+      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+
+      const invoices = await StockInvoice.find({ org_id }).sort({ createdAt: -1 }).lean()
+
+      const clientKeys = invoices.map((invoice: any) => buildClientSourceKey(invoice.client))
+      const uniqueName = [...new Set(clientKeys.map((key) => key.sourceName).filter(Boolean))]
+      const uniqueNumber = [...new Set(clientKeys.map((key) => key.sourceNumber).filter(Boolean))]
+      const uniqueLocation = [...new Set(clientKeys.map((key) => key.sourceLocation).filter(Boolean))]
+
+      const profiles = await StockClient.find({
+        org_id,
+        sourceName: { $in: uniqueName },
+        sourceNumber: { $in: uniqueNumber },
+        sourceLocation: { $in: uniqueLocation },
+      }).lean()
+
+      const profileMap = new Map<string, any>()
+      for (const profile of profiles) {
+        const key = `${profile.sourceName}|${profile.sourceNumber}|${profile.sourceLocation}`
+        profileMap.set(key, profile)
+      }
+
+      const data = invoices.map((invoice: any) => {
+        const source = buildClientSourceKey(invoice.client)
+        const key = `${source.sourceName}|${source.sourceNumber}|${source.sourceLocation}`
+        const clientProfile = profileMap.get(key) || null
+
+        return {
+          ...invoice,
+          clientProfile,
+          hasKraSaved: Boolean(clientProfile?.hasKraDetails),
+          etimsStatus: String(invoice?.etims?.status || "not_posted"),
+        }
+      })
+
+      return res.status(200).json({ success: true, data })
+    } catch (error: any) {
+      return res.status(500).json({ success: false, message: error.message || "Failed to fetch posts" })
+    }
+  }
+
+  static async upsertInvoiceClientProfile(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = req.user?.org_id
+      const actorId = req.user?.userId
+      if (!org_id || !actorId) return res.status(401).json({ success: false, message: "Unauthorized" })
+
+      const { invoiceId } = req.params
+      const { legalName, kraPin, email, branchId } = req.body || {}
+
+      if (!legalName || !kraPin) {
+        return res.status(400).json({ success: false, message: "legalName and kraPin are required" })
+      }
+
+      const invoice = await StockInvoice.findOne({ _id: invoiceId, org_id }).lean()
+      if (!invoice) return res.status(404).json({ success: false, message: "Invoice not found" })
+
+      const source = buildClientSourceKey(invoice.client)
+      if (!source.sourceName || !source.sourceNumber || !source.sourceLocation) {
+        return res.status(400).json({ success: false, message: "Invoice client details are incomplete" })
+      }
+
+      const hasKraDetails = Boolean(String(legalName).trim() && String(kraPin).trim())
+
+      const profile = await StockClient.findOneAndUpdate(
+        {
+          org_id,
+          sourceName: source.sourceName,
+          sourceNumber: source.sourceNumber,
+          sourceLocation: source.sourceLocation,
+        },
+        {
+          $set: {
+            legalName: String(legalName).trim(),
+            kraPin: String(kraPin).trim().toUpperCase(),
+            email: String(email || "").trim() || undefined,
+            branchId: String(branchId || "").trim() || undefined,
+            hasKraDetails,
+            updatedBy: String(actorId),
+          },
+          $setOnInsert: {
+            org_id,
+            sourceName: source.sourceName,
+            sourceNumber: source.sourceNumber,
+            sourceLocation: source.sourceLocation,
+            createdBy: String(actorId),
+          },
+        },
+        { upsert: true, new: true },
+      )
+
+      await StockInvoice.updateOne(
+        { _id: invoiceId, org_id },
+        { $set: { clientProfileId: String(profile._id) } },
+      )
+
+      return res.status(200).json({ success: true, data: profile })
+    } catch (error: any) {
+      return res.status(500).json({ success: false, message: error.message || "Failed to save client KRA details" })
+    }
+  }
+
+  static async postInvoiceToEtims(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = req.user?.org_id
+      const actorId = req.user?.userId
+      if (!org_id || !actorId) return res.status(401).json({ success: false, message: "Unauthorized" })
+
+      const { invoiceId } = req.params
+      const invoice = await StockInvoice.findOne({ _id: invoiceId, org_id }).lean()
+      if (!invoice) return res.status(404).json({ success: false, message: "Invoice not found" })
+
+      const source = buildClientSourceKey(invoice.client)
+      const clientProfile = await StockClient.findOne({
+        org_id,
+        sourceName: source.sourceName,
+        sourceNumber: source.sourceNumber,
+        sourceLocation: source.sourceLocation,
+      }).lean()
+
+      if (!clientProfile || !clientProfile.hasKraDetails) {
+        return res.status(400).json({ success: false, message: "Save client legal name and KRA PIN first" })
+      }
+
+      const etimsPayload = {
+        invoiceNumber: invoice.invoiceNumber,
+        invoiceDate: invoice.createdAt,
+        client: {
+          legalName: clientProfile.legalName,
+          kraPin: clientProfile.kraPin,
+          email: clientProfile.email || "",
+          branchId: clientProfile.branchId || "",
+        },
+        totals: {
+          subTotal: invoice.subTotal,
+        },
+        items: invoice.items,
+      }
+
+      const kraInvoiceId = `KRA-${String(invoice.invoiceNumber || "").replace(/[^A-Za-z0-9-]/g, "")}`
+      const responseMessage = "Posted to eTIMS (VSCU manual post)"
+
+      const updated = await StockInvoice.findOneAndUpdate(
+        { _id: invoiceId, org_id },
+        {
+          $set: {
+            clientProfileId: String(clientProfile._id),
+            etims: {
+              status: "posted",
+              kraInvoiceId,
+              postedAt: new Date(),
+              postedBy: String(actorId),
+              responseMessage,
+            },
+          },
+        },
+        { new: true },
+      ).lean()
+
+      return res.status(200).json({
+        success: true,
+        message: responseMessage,
+        data: {
+          invoice: updated,
+          kraInvoiceId,
+          payload: etimsPayload,
+        },
+      })
+    } catch (error: any) {
+      return res.status(500).json({ success: false, message: error.message || "Failed to post sale to eTIMS" })
+    }
+  }
+
+  static async getExpenses(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = req.user?.org_id
+      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+
+      const expenses = await StockExpense.find({ org_id }).sort({ createdAt: -1 }).lean()
+      return res.status(200).json({ success: true, data: expenses })
+    } catch (error: any) {
+      return res.status(500).json({ success: false, message: error.message || "Failed to fetch expenses" })
+    }
+  }
+
+  static async initiateExpense(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = req.user?.org_id
+      const actorId = req.user?.userId
+      if (!org_id || !actorId) return res.status(401).json({ success: false, message: "Unauthorized" })
+
+      const { payerPhone, payeePhone, amount, purpose } = req.body || {}
+      if (!payerPhone || !payeePhone || !amount || !purpose) {
+        return res.status(400).json({
+          success: false,
+          message: "payerPhone, payeePhone, amount and purpose are required",
+        })
+      }
+
+      const numericAmount = Number(amount)
+      if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
+        return res.status(400).json({ success: false, message: "Invalid amount" })
+      }
+
+      const accountReference = `EXP-${Date.now()}`
+      const transactionDesc = String(purpose).trim().slice(0, 180) || "Business expense"
+      const stkResult = await mpesaService.initiateStkPush({
+        payerPhone: String(payerPhone),
+        amount: numericAmount,
+        accountReference,
+        transactionDesc,
+      })
+
+      const expense = await StockExpense.create({
+        org_id,
+        payerPhone: mpesaService.normalizePhone(String(payerPhone)),
+        payeePhone: mpesaService.normalizePhone(String(payeePhone)),
+        amount: Number(numericAmount.toFixed(2)),
+        purpose: String(purpose).trim(),
+        status: stkResult.success ? "prompt_sent" : "failed",
+        mpesaCheckoutRequestId: stkResult.checkoutRequestId,
+        mpesaMerchantRequestId: stkResult.merchantRequestId,
+        responseMessage: stkResult.responseMessage,
+        initiatedBy: String(actorId),
+      })
+
+      return res.status(201).json({
+        success: stkResult.success,
+        message: stkResult.responseMessage,
+        data: expense,
+      })
+    } catch (error: any) {
+      return res.status(500).json({ success: false, message: error.message || "Failed to initiate expense" })
+    }
+  }
+
+  static async getRepeatBills(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = req.user?.org_id
+      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+
+      const repeatBills = await StockRepeatBill.find({ org_id }).sort({ createdAt: -1 }).lean()
+      return res.status(200).json({ success: true, data: repeatBills })
+    } catch (error: any) {
+      return res.status(500).json({ success: false, message: error.message || "Failed to fetch repeat bills" })
+    }
+  }
+
+  static async createRepeatBill(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = req.user?.org_id
+      const actorId = req.user?.userId
+      if (!org_id || !actorId) return res.status(401).json({ success: false, message: "Unauthorized" })
+
+      const { payerPhone, payeePhones, amount, purpose, sendNow } = req.body || {}
+      if (!payerPhone || !amount || !purpose) {
+        return res.status(400).json({ success: false, message: "payerPhone, amount and purpose are required" })
+      }
+
+      const normalizedPayees = Array.isArray(payeePhones)
+        ? Array.from(new Set(payeePhones.map((value) => String(value).trim()).filter(Boolean)))
+        : splitPhoneList(String(payeePhones || ""))
+
+      if (!normalizedPayees.length) {
+        return res.status(400).json({ success: false, message: "At least one payee number is required" })
+      }
+
+      const numericAmount = Number(amount)
+      if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
+        return res.status(400).json({ success: false, message: "Invalid amount" })
+      }
+
+      const payer = mpesaService.normalizePhone(String(payerPhone))
+      const payees = normalizedPayees.map((phone) => mpesaService.normalizePhone(phone)).filter(Boolean)
+
+      const repeatBill = await StockRepeatBill.create({
+        org_id,
+        payerPhone: payer,
+        payeePhones: payees,
+        amount: Number(numericAmount.toFixed(2)),
+        purpose: String(purpose).trim(),
+        createdBy: String(actorId),
+        updatedBy: String(actorId),
+      })
+
+      let sentCount = 0
+      let failedCount = 0
+
+      if (sendNow !== false) {
+        for (const payeePhone of payees) {
+          const accountReference = `EXP-${Date.now()}-${Math.floor(Math.random() * 9999)}`
+          const transactionDesc = String(purpose).trim().slice(0, 180) || "Business expense"
+          const stkResult = await mpesaService.initiateStkPush({
+            payerPhone: payer,
+            amount: numericAmount,
+            accountReference,
+            transactionDesc,
+          })
+
+          await StockExpense.create({
+            org_id,
+            payerPhone: payer,
+            payeePhone,
+            amount: Number(numericAmount.toFixed(2)),
+            purpose: String(purpose).trim(),
+            status: stkResult.success ? "prompt_sent" : "failed",
+            mpesaCheckoutRequestId: stkResult.checkoutRequestId,
+            mpesaMerchantRequestId: stkResult.merchantRequestId,
+            responseMessage: stkResult.responseMessage,
+            initiatedBy: String(actorId),
+          })
+
+          if (stkResult.success) sentCount += 1
+          else failedCount += 1
+        }
+
+        await StockRepeatBill.updateOne(
+          { _id: repeatBill._id, org_id },
+          {
+            $set: {
+              lastRunAt: new Date(),
+              lastRunCount: sentCount,
+              updatedBy: String(actorId),
+            },
+          },
+        )
+      }
+
+      return res.status(201).json({
+        success: true,
+        message: sendNow === false
+          ? "Repeat bill saved"
+          : `Repeat bill saved and prompts sent (${sentCount} success, ${failedCount} failed)`,
+        data: {
+          repeatBillId: String(repeatBill._id),
+          sentCount,
+          failedCount,
+        },
+      })
+    } catch (error: any) {
+      return res.status(500).json({ success: false, message: error.message || "Failed to create repeat bill" })
+    }
+  }
+
+  static async runRepeatBill(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = req.user?.org_id
+      const actorId = req.user?.userId
+      if (!org_id || !actorId) return res.status(401).json({ success: false, message: "Unauthorized" })
+
+      const { repeatBillId } = req.params
+      const repeatBill = await StockRepeatBill.findOne({ _id: repeatBillId, org_id }).lean()
+      if (!repeatBill) return res.status(404).json({ success: false, message: "Repeat bill not found" })
+
+      let sentCount = 0
+      let failedCount = 0
+
+      for (const payeePhone of repeatBill.payeePhones || []) {
+        const accountReference = `EXP-${Date.now()}-${Math.floor(Math.random() * 9999)}`
+        const transactionDesc = String(repeatBill.purpose || "Business expense").trim().slice(0, 180)
+
+        const stkResult = await mpesaService.initiateStkPush({
+          payerPhone: repeatBill.payerPhone,
+          amount: repeatBill.amount,
+          accountReference,
+          transactionDesc,
+        })
+
+        await StockExpense.create({
+          org_id,
+          payerPhone: repeatBill.payerPhone,
+          payeePhone,
+          amount: repeatBill.amount,
+          purpose: repeatBill.purpose,
+          status: stkResult.success ? "prompt_sent" : "failed",
+          mpesaCheckoutRequestId: stkResult.checkoutRequestId,
+          mpesaMerchantRequestId: stkResult.merchantRequestId,
+          responseMessage: stkResult.responseMessage,
+          initiatedBy: String(actorId),
+        })
+
+        if (stkResult.success) sentCount += 1
+        else failedCount += 1
+      }
+
+      await StockRepeatBill.updateOne(
+        { _id: repeatBillId, org_id },
+        {
+          $set: {
+            lastRunAt: new Date(),
+            lastRunCount: sentCount,
+            updatedBy: String(actorId),
+          },
+        },
+      )
+
+      return res.status(200).json({
+        success: true,
+        message: `Repeat bill executed (${sentCount} success, ${failedCount} failed)`,
+        data: { sentCount, failedCount },
+      })
+    } catch (error: any) {
+      return res.status(500).json({ success: false, message: error.message || "Failed to run repeat bill" })
     }
   }
 

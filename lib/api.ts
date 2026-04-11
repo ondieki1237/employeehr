@@ -531,6 +531,38 @@ export const stockApi = {
     getInvoices: () => client.get<any[]>('/api/stock/invoices'),
 
     getQuotations: () => client.get<any[]>('/api/stock/quotations'),
+
+    getAccountsPosts: () => client.get<any[]>('/api/stock/accounts/posts'),
+
+    saveInvoiceClientProfile: (
+        invoiceId: string,
+        data: { legalName: string; kraPin: string; email?: string; branchId?: string }
+    ) => client.put<any>(`/api/stock/accounts/posts/${invoiceId}/client`, data),
+
+    postInvoiceToEtims: (invoiceId: string) =>
+        client.post<any>(`/api/stock/accounts/posts/${invoiceId}/post-etims`, {}),
+
+    getExpenses: () => client.get<any[]>('/api/stock/accounts/expenses'),
+
+    initiateExpense: (data: {
+        payerPhone: string
+        payeePhone: string
+        amount: number
+        purpose: string
+    }) => client.post<any>('/api/stock/accounts/expenses/initiate', data),
+
+    getRepeatBills: () => client.get<any[]>('/api/stock/accounts/repeat-bills'),
+
+    createRepeatBill: (data: {
+        payerPhone: string
+        payeePhones: string[]
+        amount: number
+        purpose: string
+        sendNow?: boolean
+    }) => client.post<any>('/api/stock/accounts/repeat-bills', data),
+
+    runRepeatBill: (repeatBillId: string) =>
+        client.post<any>(`/api/stock/accounts/repeat-bills/${repeatBillId}/run`, {}),
 }
 
 // Setup API for onboarding wizard
