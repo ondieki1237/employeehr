@@ -14,18 +14,37 @@ interface SendSmsResult {
 }
 
 class SmsService {
-  private readonly apiKey = process.env.AFRICASTALKING_API_KEY || process.env.AFRICAN_TALKING_API_KEY || ""
-  private readonly username = process.env.AFRICASTALKING_USERNAME || process.env.AFRICAN_TALKING_USERNAME || "sandbox"
+  private readonly apiKey =
+    process.env.AFRICASTALKING_API_KEY ||
+    process.env.AFRICASTALKING_APIKEY ||
+    process.env.AFRICAN_TALKING_API_KEY ||
+    ""
+  private readonly username =
+    process.env.AFRICASTALKING_USERNAME ||
+    process.env.AFRICASTALKING_USER_NAME ||
+    process.env.AFRICAN_TALKING_USERNAME ||
+    ""
   private readonly senderId = process.env.AFRICASTALKING_SENDER_ID || ""
-  private readonly endpoint =
-    process.env.AFRICASTALKING_BASE_URL ||
-    (this.username === "sandbox"
-      ? "https://api.sandbox.africastalking.com/version1/messaging"
-      : "https://api.africastalking.com/version1/messaging")
+  private readonly endpoint = this.resolveEndpoint()
   private readonly defaultCountryCode = process.env.DISPATCH_DEFAULT_COUNTRY_CODE || "254"
+
+  private resolveEndpoint() {
+    const explicitBaseUrl = String(process.env.AFRICASTALKING_BASE_URL || "").trim()
+    if (explicitBaseUrl) {
+      return explicitBaseUrl
+    }
+
+    return this.username === "sandbox"
+      ? "https://api.sandbox.africastalking.com/version1/messaging"
+      : "https://api.africastalking.com/version1/messaging"
+  }
 
   isConfigured() {
     return Boolean(this.apiKey && this.username)
+  }
+
+  private hasInvalidProductionSandboxCombination() {
+    return process.env.NODE_ENV === "production" && this.username === "sandbox"
   }
 
   normalizePhone(rawPhone: string): string {
@@ -67,6 +86,14 @@ class SmsService {
         success: false,
         normalizedTo,
         error: "AFRICASTALKING_API_KEY / AFRICASTALKING_USERNAME is not configured",
+      }
+    }
+
+    if (this.hasInvalidProductionSandboxCombination()) {
+      return {
+        success: false,
+        normalizedTo,
+        error: "Invalid Africa's Talking config: username 'sandbox' cannot be used in production",
       }
     }
 
