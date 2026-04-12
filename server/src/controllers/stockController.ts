@@ -337,6 +337,15 @@ async function sendDispatchNotificationForInvoice(params: {
     },
   )
 
+  console.error("Dispatch SMS failed", {
+    orgId,
+    invoiceId: String(invoice?._id || ""),
+    invoiceNumber: String(invoice?.invoiceNumber || ""),
+    clientNumber,
+    error: smsResult.error,
+    providerRawResponse: smsResult.providerRawResponse,
+  })
+
   return {
     attempted: true,
     success: false,

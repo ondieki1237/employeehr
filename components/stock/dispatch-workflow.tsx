@@ -175,8 +175,12 @@ export function DispatchWorkflow({ invoiceId, allowBackTo }: DispatchWorkflowPro
       const json = await response.json()
       if (!response.ok) throw new Error(json.message || "Failed to mark dispatched")
       setInvoice(json.data)
+      const smsSuccess = json?.smsNotification?.success
       const smsMessage = json?.smsNotification?.message
-      if (smsMessage) {
+      if (smsSuccess === false) {
+        setSuccess("Invoice marked as dispatched")
+        setError(`SMS not sent: ${smsMessage || "Dispatch SMS failed"}`)
+      } else if (smsMessage) {
         setSuccess(`Invoice marked as dispatched. SMS: ${smsMessage}`)
       } else {
         setSuccess("Invoice marked as dispatched")
@@ -242,8 +246,13 @@ export function DispatchWorkflow({ invoiceId, allowBackTo }: DispatchWorkflowPro
       })
       const json = await response.json()
       if (!response.ok) throw new Error(json.message || "Failed to send client SMS")
+      const smsSuccess = json?.smsNotification?.success
       const smsMessage = json?.smsNotification?.message || "Client SMS sent"
-      setSuccess(`SMS: ${smsMessage}`)
+      if (smsSuccess === false) {
+        setError(`SMS not sent: ${smsMessage}`)
+      } else {
+        setSuccess(`SMS: ${smsMessage}`)
+      }
     } catch (smsError: any) {
       setError(smsError.message || "Failed to send client SMS")
     } finally {
