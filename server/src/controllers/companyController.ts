@@ -44,11 +44,18 @@ const DISPATCH_SMS_ALLOWED_PLACEHOLDERS = [
 ]
 
 const buildBaseUrl = (req: AuthenticatedRequest) => {
-  const forwardedProto = (req.headers["x-forwarded-proto"] as string) || req.protocol
-  const host = req.headers.host
+  const forwardedProtoRaw = String(req.headers["x-forwarded-proto"] || "").trim()
+  const forwardedProto = (forwardedProtoRaw.split(",")[0] || req.protocol || "").trim()
+  const forwardedHostRaw = String(req.headers["x-forwarded-host"] || "").trim()
+  const host = (forwardedHostRaw.split(",")[0] || req.headers.host || "").trim()
+
   if (process.env.API_URL) return process.env.API_URL
+
   if (host) return `${forwardedProto}://${host}`
-  return "http://localhost:5010"
+
+  return process.env.NODE_ENV === "production"
+    ? "https://hrapi.codewithseth.co.ke"
+    : "http://localhost:5010"
 }
 
 export class CompanyController {

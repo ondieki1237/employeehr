@@ -46,6 +46,8 @@ import anonymousFeedbackRoutes from "./routes/anonymousFeedback.routes"
 import feedbackSurveyRoutes from "./routes/feedbackSurvey.routes"
 import stockRoutes from "./routes/stock.routes"
 import stampRoutes from "./routes/stamp.routes"
+import smsWebhookRoutes from "./routes/smsWebhook.routes"
+import mpesaWebhookRoutes from "./routes/mpesaWebhook.routes"
 import { JobController } from "./controllers/jobController"
 import { JobApplicationController } from "./controllers/jobApplicationController"
 import { ApplicationFormController } from "./controllers/applicationFormController"
@@ -56,6 +58,8 @@ const app = express()
 const server = createServer(app)
 const PORT = process.env.PORT || 5010
 
+app.set("trust proxy", 1)
+
 // Initialize WebRTC signaling service
 const webrtcService = new WebRTCSignalingService(server)
 
@@ -63,7 +67,11 @@ const webrtcService = new WebRTCSignalingService(server)
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
-app.use(helmet()) // Security headers
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+  }),
+) // Security headers
 app.use(morgan("combined")) // Request logging
 
 // Serve static files from uploads directory with CORS headers
@@ -71,6 +79,7 @@ app.use('/uploads', (req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*')
   res.header('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS')
   res.header('Access-Control-Allow-Headers', 'Content-Type')
+  res.header('Cross-Origin-Resource-Policy', 'cross-origin')
   next()
 }, express.static(path.join(__dirname, '../uploads')))
 
@@ -125,6 +134,8 @@ app.get("/api/application-forms/job/:jobId", ApplicationFormController.getFormBy
 app.post("/api/job-applications/submit", JobApplicationController.submitApplication)
 app.get("/api/meetings/by-meeting-id/:meetingId", MeetingController.getMeetingByMeetingIdPublic)
 app.post("/api/meetings/by-meeting-id/:meetingId/join", MeetingController.joinMeetingByMeetingIdPublic)
+app.use("/api/sms", smsWebhookRoutes)
+app.use("/api/mpesa", mpesaWebhookRoutes)
 
 // API Routes
 app.use("/api/auth", authRoutes)
