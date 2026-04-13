@@ -532,6 +532,8 @@ export const stockApi = {
 
     getQuotations: () => client.get<any[]>('/api/stock/quotations'),
 
+    getAccountsClients: () => client.get<any[]>('/api/stock/accounts/clients'),
+
     getAccountsPosts: () => client.get<any[]>('/api/stock/accounts/posts'),
 
     saveInvoiceClientProfile: (
@@ -541,6 +543,21 @@ export const stockApi = {
 
     postInvoiceToEtims: (invoiceId: string) =>
         client.post<any>(`/api/stock/accounts/posts/${invoiceId}/post-etims`, {}),
+
+    getAccountsPayments: () => client.get<any[]>('/api/stock/accounts/payments'),
+
+    addInvoicePayment: (
+        invoiceId: string,
+        data: {
+            amount: number
+            paymentMethod?: string
+            reference?: string
+            note?: string
+            paidAt?: string
+        }
+    ) => client.post<any>(`/api/stock/accounts/payments/${invoiceId}`, data),
+
+    getDebtManagement: () => client.get<any[]>('/api/stock/accounts/debts'),
 
     getExpenses: () => client.get<any[]>('/api/stock/accounts/expenses'),
 

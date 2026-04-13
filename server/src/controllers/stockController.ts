@@ -10,6 +10,7 @@ import { StockCourier } from "../models/StockCourier"
 import { StockClient } from "../models/StockClient"
 import { StockExpense } from "../models/StockExpense"
 import { StockRepeatBill } from "../models/StockRepeatBill"
+import { StockInvoicePayment } from "../models/StockInvoicePayment"
 import { DispatchNotification } from "../models/DispatchNotification"
 import { Company } from "../models/Company"
 import { User } from "../models/User"
@@ -50,6 +51,25 @@ function splitPhoneList(raw: string) {
         .filter(Boolean),
     ),
   )
+}
+
+function buildInvoicePaymentSummary(invoice: any, invoicePayments: any[]) {
+  const sortedPayments = [...invoicePayments].sort(
+    (a, b) => new Date(b.paidAt || b.createdAt || 0).getTime() - new Date(a.paidAt || a.createdAt || 0).getTime(),
+  )
+  const paidAmount = sortedPayments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0)
+  const subTotal = Number(invoice?.subTotal || 0)
+  const balanceRemaining = Math.max(0, Number((subTotal - paidAmount).toFixed(2)))
+  const lastPayment = sortedPayments[0] || null
+
+  return {
+    ...invoice,
+    paidAmount: Number(paidAmount.toFixed(2)),
+    balanceRemaining,
+    paymentCount: sortedPayments.length,
+    lastPayment,
+    payments: sortedPayments,
+  }
 }
 
 function canManageDispatchForInvoice(req: AuthenticatedRequest, invoice: any) {
@@ -792,6 +812,320 @@ export class StockController {
       return res.status(200).json({ success: true, data: expenses })
     } catch (error: any) {
       return res.status(500).json({ success: false, message: error.message || "Failed to fetch expenses" })
+    }
+  }
+
+  static async getAccountsPayments(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = req.user?.org_id
+      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+
+      const invoices = await StockInvoice.find({ org_id, status: { $ne: "cancelled" } }).sort({ createdAt: -1 }).lean()
+      const invoiceIds = invoices.map((invoice: any) => String(invoice._id))
+
+      const payments = await StockInvoicePayment.find({
+        org_id,
+        invoiceId: { $in: invoiceIds },
+      })
+        .sort({ paidAt: -1, createdAt: -1 })
+        .lean()
+
+      const paymentsByInvoice = new Map<string, any[]>()
+      for (const payment of payments) {
+        const key = String(payment.invoiceId)
+        const existing = paymentsByInvoice.get(key) || []
+        existing.push(payment)
+        paymentsByInvoice.set(key, existing)
+      }
+
+      const data = invoices.map((invoice: any) => {
+        const invoicePayments = paymentsByInvoice.get(String(invoice._id)) || []
+        return buildInvoicePaymentSummary(invoice, invoicePayments)
+      })
+
+      return res.status(200).json({ success: true, data })
+    } catch (error: any) {
+      return res.status(500).json({ success: false, message: error.message || "Failed to fetch payment management data" })
+    }
+  }
+
+  static async getAccountsClients(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = req.user?.org_id
+      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+
+      const [quotations, invoices, sales] = await Promise.all([
+        StockQuotation.find({ org_id })
+          .select("quotationNumber client subTotal status createdAt")
+          .sort({ createdAt: -1 })
+          .lean(),
+        StockInvoice.find({ org_id, status: { $ne: "cancelled" } })
+          .select("invoiceNumber client subTotal status createdAt")
+          .sort({ createdAt: -1 })
+          .lean(),
+        StockSale.find({ org_id, isWalkInClient: { $ne: true } })
+          .select("buyerName buyerNumber buyerLocation quantitySold soldPrice receiptNumber createdAt")
+          .sort({ createdAt: -1 })
+          .lean(),
+      ])
+
+      const invoiceIds = invoices.map((invoice: any) => String(invoice._id))
+      const payments = await StockInvoicePayment.find({ org_id, invoiceId: { $in: invoiceIds } })
+        .select("invoiceId invoiceNumber amount paymentMethod reference paidAt createdAt")
+        .sort({ paidAt: -1, createdAt: -1 })
+        .lean()
+
+      const paymentsByInvoice = new Map<string, any[]>()
+      for (const payment of payments) {
+        const key = String(payment.invoiceId)
+        const existing = paymentsByInvoice.get(key) || []
+        existing.push(payment)
+        paymentsByInvoice.set(key, existing)
+      }
+
+      const clientsMap = new Map<string, any>()
+
+      const ensureClient = (client: { name?: string; number?: string; location?: string }) => {
+        const normalized = buildClientSourceKey(client)
+        if (!normalized.sourceName || !normalized.sourceNumber || !normalized.sourceLocation) return null
+
+        const key = `${normalized.sourceName}|${normalized.sourceNumber}|${normalized.sourceLocation}`
+        if (!clientsMap.has(key)) {
+          clientsMap.set(key, {
+            key,
+            client: {
+              name: String(client.name || "").trim(),
+              number: String(client.number || "").trim(),
+              location: String(client.location || "").trim(),
+            },
+            quotationsCount: 0,
+            quotationsValue: 0,
+            invoicesCount: 0,
+            purchasesValue: 0,
+            paidAmount: 0,
+            debtAmount: 0,
+            salesCount: 0,
+            salesValue: 0,
+            lastActivityAt: null,
+            activities: [],
+          })
+        }
+
+        return clientsMap.get(key)
+      }
+
+      for (const quotation of quotations) {
+        const clientRecord = ensureClient((quotation as any).client)
+        if (!clientRecord) continue
+
+        const subTotal = Number((quotation as any).subTotal || 0)
+        const createdAt = (quotation as any).createdAt
+
+        clientRecord.quotationsCount += 1
+        clientRecord.quotationsValue += subTotal
+        clientRecord.activities.push({
+          type: "quotation",
+          reference: (quotation as any).quotationNumber,
+          amount: subTotal,
+          status: (quotation as any).status,
+          date: createdAt,
+        })
+
+        if (!clientRecord.lastActivityAt || new Date(createdAt) > new Date(clientRecord.lastActivityAt)) {
+          clientRecord.lastActivityAt = createdAt
+        }
+      }
+
+      for (const invoice of invoices) {
+        const clientRecord = ensureClient((invoice as any).client)
+        if (!clientRecord) continue
+
+        const subTotal = Number((invoice as any).subTotal || 0)
+        const createdAt = (invoice as any).createdAt
+        const invoicePayments = paymentsByInvoice.get(String((invoice as any)._id)) || []
+        const paidAmount = invoicePayments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0)
+        const debtAmount = Math.max(0, Number((subTotal - paidAmount).toFixed(2)))
+
+        clientRecord.invoicesCount += 1
+        clientRecord.purchasesValue += subTotal
+        clientRecord.paidAmount += paidAmount
+        clientRecord.debtAmount += debtAmount
+
+        clientRecord.activities.push({
+          type: "invoice",
+          reference: (invoice as any).invoiceNumber,
+          amount: subTotal,
+          paidAmount: Number(paidAmount.toFixed(2)),
+          debtAmount,
+          status: (invoice as any).status,
+          date: createdAt,
+        })
+
+        for (const payment of invoicePayments) {
+          const paymentDate = payment.paidAt || payment.createdAt
+          clientRecord.activities.push({
+            type: "payment",
+            reference: payment.invoiceNumber || (invoice as any).invoiceNumber,
+            amount: Number(payment.amount || 0),
+            paymentMethod: payment.paymentMethod,
+            externalReference: payment.reference,
+            date: paymentDate,
+          })
+
+          if (!clientRecord.lastActivityAt || new Date(paymentDate) > new Date(clientRecord.lastActivityAt)) {
+            clientRecord.lastActivityAt = paymentDate
+          }
+        }
+
+        if (!clientRecord.lastActivityAt || new Date(createdAt) > new Date(clientRecord.lastActivityAt)) {
+          clientRecord.lastActivityAt = createdAt
+        }
+      }
+
+      for (const sale of sales) {
+        const clientRecord = ensureClient({
+          name: String((sale as any).buyerName || "").trim(),
+          number: String((sale as any).buyerNumber || "").trim(),
+          location: String((sale as any).buyerLocation || "").trim(),
+        })
+        if (!clientRecord) continue
+
+        const saleAmount = Number((sale as any).soldPrice || 0) * Number((sale as any).quantitySold || 0)
+        const createdAt = (sale as any).createdAt
+
+        clientRecord.salesCount += 1
+        clientRecord.salesValue += saleAmount
+        clientRecord.activities.push({
+          type: "sale",
+          reference: (sale as any).receiptNumber,
+          amount: Number(saleAmount.toFixed(2)),
+          date: createdAt,
+        })
+
+        if (!clientRecord.lastActivityAt || new Date(createdAt) > new Date(clientRecord.lastActivityAt)) {
+          clientRecord.lastActivityAt = createdAt
+        }
+      }
+
+      const data = Array.from(clientsMap.values())
+        .map((row: any) => ({
+          ...row,
+          quotationsValue: Number(row.quotationsValue.toFixed(2)),
+          purchasesValue: Number(row.purchasesValue.toFixed(2)),
+          paidAmount: Number(row.paidAmount.toFixed(2)),
+          debtAmount: Number(row.debtAmount.toFixed(2)),
+          salesValue: Number(row.salesValue.toFixed(2)),
+          activities: (row.activities || [])
+            .sort((a: any, b: any) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime())
+            .slice(0, 50),
+        }))
+        .sort((a: any, b: any) => new Date(b.lastActivityAt || 0).getTime() - new Date(a.lastActivityAt || 0).getTime())
+
+      return res.status(200).json({ success: true, data })
+    } catch (error: any) {
+      return res.status(500).json({ success: false, message: error.message || "Failed to fetch accounts clients" })
+    }
+  }
+
+  static async addInvoicePayment(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = req.user?.org_id
+      const actorId = req.user?.userId
+      if (!org_id || !actorId) return res.status(401).json({ success: false, message: "Unauthorized" })
+
+      const { invoiceId } = req.params
+      const { amount, paymentMethod, reference, note, paidAt } = req.body || {}
+
+      const numericAmount = Number(amount)
+      if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
+        return res.status(400).json({ success: false, message: "Valid payment amount is required" })
+      }
+
+      const invoice = await StockInvoice.findOne({ _id: invoiceId, org_id })
+      if (!invoice) return res.status(404).json({ success: false, message: "Invoice not found" })
+      if (invoice.status === "cancelled") {
+        return res.status(400).json({ success: false, message: "Cannot add payment to cancelled invoice" })
+      }
+
+      const existingPayments = await StockInvoicePayment.find({ org_id, invoiceId: String(invoice._id) }).lean()
+      const alreadyPaid = existingPayments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0)
+      const subTotal = Number(invoice.subTotal || 0)
+      const balanceRemaining = Math.max(0, Number((subTotal - alreadyPaid).toFixed(2)))
+
+      if (numericAmount > balanceRemaining) {
+        return res.status(400).json({
+          success: false,
+          message: `Payment exceeds remaining balance (${balanceRemaining.toFixed(2)})`,
+        })
+      }
+
+      const normalizedPaidAt = paidAt ? new Date(paidAt) : new Date()
+      if (Number.isNaN(normalizedPaidAt.getTime())) {
+        return res.status(400).json({ success: false, message: "Invalid paidAt date" })
+      }
+
+      const payment = await StockInvoicePayment.create({
+        org_id,
+        invoiceId: String(invoice._id),
+        invoiceNumber: String(invoice.invoiceNumber),
+        amount: Number(numericAmount.toFixed(2)),
+        paymentMethod: String(paymentMethod || "cash").trim() || "cash",
+        reference: String(reference || "").trim() || undefined,
+        note: String(note || "").trim() || undefined,
+        paidAt: normalizedPaidAt,
+        receivedBy: String(actorId),
+      })
+
+      const newPaidAmount = alreadyPaid + Number(payment.amount || 0)
+      const isFullyPaid = newPaidAmount >= subTotal
+      await StockInvoice.updateOne(
+        { _id: invoiceId, org_id },
+        { $set: { status: isFullyPaid ? "paid" : "issued" } },
+      )
+
+      return res.status(201).json({
+        success: true,
+        message: isFullyPaid ? "Payment saved. Invoice is now fully settled" : "Payment saved",
+        data: payment,
+      })
+    } catch (error: any) {
+      return res.status(500).json({ success: false, message: error.message || "Failed to add payment" })
+    }
+  }
+
+  static async getDebtManagement(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = req.user?.org_id
+      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+
+      const invoices = await StockInvoice.find({ org_id, status: { $ne: "cancelled" } }).sort({ createdAt: -1 }).lean()
+      const invoiceIds = invoices.map((invoice: any) => String(invoice._id))
+
+      const payments = await StockInvoicePayment.find({
+        org_id,
+        invoiceId: { $in: invoiceIds },
+      })
+        .sort({ paidAt: -1, createdAt: -1 })
+        .lean()
+
+      const paymentsByInvoice = new Map<string, any[]>()
+      for (const payment of payments) {
+        const key = String(payment.invoiceId)
+        const existing = paymentsByInvoice.get(key) || []
+        existing.push(payment)
+        paymentsByInvoice.set(key, existing)
+      }
+
+      const data = invoices
+        .map((invoice: any) => {
+          const invoicePayments = paymentsByInvoice.get(String(invoice._id)) || []
+          return buildInvoicePaymentSummary(invoice, invoicePayments)
+        })
+        .filter((invoice: any) => Number(invoice.balanceRemaining || 0) > 0)
+
+      return res.status(200).json({ success: true, data })
+    } catch (error: any) {
+      return res.status(500).json({ success: false, message: error.message || "Failed to fetch debt management data" })
     }
   }
 

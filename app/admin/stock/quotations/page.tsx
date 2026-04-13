@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import { useSearchParams } from "next/navigation"
 import API_URL from "@/lib/apiBase"
 import { getToken, getUser } from "@/lib/auth"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -63,6 +64,7 @@ interface StampOption {
 }
 
 export default function QuotationsPage() {
+  const searchParams = useSearchParams()
   const { toast } = useToast()
   const [loading, setLoading] = useState(true)
   const [products, setProducts] = useState<Product[]>([])
@@ -87,6 +89,13 @@ export default function QuotationsPage() {
 
   const [quotationSearchInput, setQuotationSearchInput] = useState("")
   const [quotationSearch, setQuotationSearch] = useState("")
+
+  useEffect(() => {
+    const q = searchParams.get("q") || ""
+    if (!q) return
+    setQuotationSearchInput(q)
+    setQuotationSearch(q)
+  }, [searchParams])
 
   const headers = useMemo(
     () => ({

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
+import { useSearchParams } from "next/navigation"
 import API_URL from "@/lib/apiBase"
 import { getToken, getUser } from "@/lib/auth"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -95,6 +96,7 @@ function exportInvoiceCsv(invoices: Invoice[]) {
 }
 
 export default function InvoicesPage() {
+  const searchParams = useSearchParams()
   const [loading, setLoading] = useState(true)
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [branding, setBranding] = useState<TenantBranding>({})
@@ -104,6 +106,13 @@ export default function InvoicesPage() {
   const [dispatchUsers, setDispatchUsers] = useState<DispatchUser[]>([])
   const [selectedDispatchByInvoice, setSelectedDispatchByInvoice] = useState<Record<string, string>>({})
   const [assigningInvoiceId, setAssigningInvoiceId] = useState<string | null>(null)
+
+  useEffect(() => {
+    const q = searchParams.get("q") || ""
+    if (!q) return
+    setSearchInput(q)
+    setSearch(q)
+  }, [searchParams])
 
   const headers = useMemo(
     () => ({

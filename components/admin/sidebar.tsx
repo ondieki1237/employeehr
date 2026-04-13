@@ -163,6 +163,24 @@ const adminMenuItems = [
     section: "ACCOUNTS"
   },
   {
+    label: "Clients",
+    icon: Users,
+    href: "/admin/accounts/clients",
+    section: "ACCOUNTS"
+  },
+  {
+    label: "Payment Management",
+    icon: Banknote,
+    href: "/admin/accounts/payments",
+    section: "ACCOUNTS"
+  },
+  {
+    label: "Debt Management",
+    icon: FileCheck,
+    href: "/admin/accounts/debts",
+    section: "ACCOUNTS"
+  },
+  {
     label: "Expenses",
     icon: Banknote,
     href: "/admin/accounts/expenses",
