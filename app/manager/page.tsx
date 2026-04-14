@@ -170,7 +170,7 @@ export default function ManagerDashboard() {
             { label: "Evaluate Employee", icon: "📋", href: "/manager/evaluations" },
             { label: "Review PDP", icon: "📝", href: "/manager/pdp-reviews" },
             { label: "Give Feedback", icon: "💬", href: "/manager/feedback" },
-            { label: "View Team Report", icon: "📊", href: "/manager/reports" },
+            { label: "Leave Requests", icon: "📊", href: "/manager/leave-requests" },
           ].map((action, index) => (
             <Link key={index} href={action.href}>
               <Card className="p-6 border-border hover:border-primary/50 hover:bg-secondary/50 transition cursor-pointer h-full">

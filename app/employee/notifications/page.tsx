@@ -5,7 +5,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Bell, CheckCheck, Trash2, Clock, AlertCircle, Info, CheckCircle } from "lucide-react"
-import { getUser } from "@/lib/auth"
+import API_URL from "@/lib/apiBase"
+import { getToken } from "@/lib/auth"
 
 interface Notification {
   _id: string
@@ -15,6 +16,23 @@ interface Notification {
   is_read: boolean
   created_at: string
   action_url?: string
+}
+
+interface AlertApiRow {
+  _id: string
+  severity: "low" | "medium" | "high" | "critical"
+  title: string
+  message: string
+  is_read: boolean
+  created_at: string
+  action_url?: string
+}
+
+const severityToType = (severity: string): Notification["type"] => {
+  if (severity === "critical") return "error"
+  if (severity === "high") return "warning"
+  if (severity === "medium") return "info"
+  return "success"
 }
 
 export default function NotificationsPage() {
@@ -28,69 +46,84 @@ export default function NotificationsPage() {
 
   const fetchNotifications = async () => {
     try {
-      const user = getUser()
-      if (!user) return
+      const token = getToken()
+      if (!token) {
+        setNotifications([])
+        return
+      }
 
-      // For now, mock notifications until backend endpoint is created
-      const mockNotifications: Notification[] = [
-        {
-          _id: "1",
-          type: "info",
-          title: "New Task Assigned",
-          message: "You have been assigned a new task: Complete Q4 Report",
-          is_read: false,
-          created_at: new Date().toISOString(),
-          action_url: "/employee/tasks",
-        },
-        {
-          _id: "2",
-          type: "success",
-          title: "Award Received",
-          message: "Congratulations! You received the Excellence Award",
-          is_read: false,
-          created_at: new Date(Date.now() - 3600000).toISOString(),
-          action_url: "/employee/awards",
-        },
-        {
-          _id: "3",
-          type: "warning",
-          title: "Pending Feedback",
-          message: "You have pending feedback to submit for your manager",
-          is_read: true,
-          created_at: new Date(Date.now() - 86400000).toISOString(),
-          action_url: "/employee/feedback",
-        },
-        {
-          _id: "4",
-          type: "info",
-          title: "New Message",
-          message: "You have a new message from John Doe",
-          is_read: true,
-          created_at: new Date(Date.now() - 172800000).toISOString(),
-          action_url: "/employee/messages",
-        },
-      ]
+      const response = await fetch(`${API_URL}/api/alerts`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      const data = await response.json()
+      if (!response.ok || !data?.success) {
+        throw new Error(data?.message || "Failed to fetch notifications")
+      }
 
-      setNotifications(mockNotifications)
+      const mapped: Notification[] = (data?.data?.alerts || []).map((alert: AlertApiRow) => ({
+        _id: alert._id,
+        type: severityToType(alert.severity),
+        title: String(alert.title || "Notification"),
+        message: String(alert.message || ""),
+        is_read: Boolean(alert.is_read),
+        created_at: String(alert.created_at || new Date().toISOString()),
+        action_url: alert.action_url,
+      }))
+
+      setNotifications(mapped)
     } catch (error) {
       console.error("Failed to fetch notifications:", error)
+      setNotifications([])
     } finally {
       setLoading(false)
     }
   }
 
   const markAsRead = async (notificationId: string) => {
-    setNotifications(
-      notifications.map((notif) => (notif._id === notificationId ? { ...notif, is_read: true } : notif))
-    )
+    try {
+      const token = getToken()
+      if (!token) return
+
+      const response = await fetch(`${API_URL}/api/alerts/${notificationId}/read`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      const data = await response.json()
+      if (!response.ok || !data?.success) {
+        throw new Error(data?.message || "Failed to mark as read")
+      }
+
+      setNotifications(
+        notifications.map((notif) => (notif._id === notificationId ? { ...notif, is_read: true } : notif))
+      )
+    } catch (error) {
+      console.error("Failed to mark notification as read:", error)
+    }
   }
 
   const markAllAsRead = async () => {
-    setNotifications(notifications.map((notif) => ({ ...notif, is_read: true })))
+    const unread = notifications.filter((notif) => !notif.is_read)
+    await Promise.all(unread.map((notif) => markAsRead(notif._id)))
   }
 
   const deleteNotification = async (notificationId: string) => {
-    setNotifications(notifications.filter((notif) => notif._id !== notificationId))
+    try {
+      const token = getToken()
+      if (!token) return
+
+      const response = await fetch(`${API_URL}/api/alerts/${notificationId}/dismiss`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      const data = await response.json()
+      if (!response.ok || !data?.success) {
+        throw new Error(data?.message || "Failed to dismiss notification")
+      }
+
+      setNotifications(notifications.filter((notif) => notif._id !== notificationId))
+    } catch (error) {
+      console.error("Failed to dismiss notification:", error)
+    }
   }
 
   const getNotificationIcon = (type: string) => {
