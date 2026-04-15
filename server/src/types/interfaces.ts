@@ -228,6 +228,8 @@ export interface IAttendance {
   user_id: string
   date: Date
   status: "present" | "absent" | "late" | "half_day" | "leave"
+  checkIn?: Date
+  checkOut?: Date
   hoursWorked?: number
   remarks?: string
   createdAt?: Date

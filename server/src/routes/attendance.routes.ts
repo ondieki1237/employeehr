@@ -7,6 +7,10 @@ const router = Router()
 
 router.use(authMiddleware, orgMiddleware, tenantIsolation)
 
+router.get("/my-attendance", AttendanceController.getMyAttendance)
+router.post("/check-in", AttendanceController.checkIn)
+router.post("/check-out", AttendanceController.checkOut)
+
 // Get organization attendance records (Admin/HR/Manager)
 router.get("/", roleMiddleware("company_admin", "hr", "manager"), AttendanceController.getAllAttendance)
 

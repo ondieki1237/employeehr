@@ -11,6 +11,8 @@ const attendanceSchema = new Schema<IAttendance>(
       enum: ["present", "absent", "late", "half_day", "leave"],
       required: true,
     },
+    checkIn: { type: Date },
+    checkOut: { type: Date },
     hoursWorked: { type: Number },
     remarks: { type: String },
   },

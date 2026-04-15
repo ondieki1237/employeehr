@@ -351,6 +351,25 @@ export default function AdminDashboard() {
     return { pending, dispatched, delivered }
   }, [data.stockInvoices])
 
+  const attendanceToday = useMemo(() => {
+    const now = new Date()
+    const isSameDay = (value: any) => {
+      const date = new Date(value)
+      return date.getDate() === now.getDate() && date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear()
+    }
+
+    const todayRecords = data.attendance.filter((row: any) => isSameDay(row.date || row.createdAt))
+    const checkedIn = todayRecords.filter((row: any) => Boolean(row.checkIn)).length
+    const checkedOut = todayRecords.filter((row: any) => Boolean(row.checkOut)).length
+    const pendingCheckOut = Math.max(0, checkedIn - checkedOut)
+
+    return {
+      checkedIn,
+      checkedOut,
+      pendingCheckOut,
+    }
+  }, [data.attendance])
+
   const inventorySummary = useMemo(() => {
     const quotationsGenerated = data.stockQuotations.length
     const invoicesConverted = data.stockInvoices.filter((invoice: any) => invoice.quotationId || invoice.quotationNumber).length
@@ -590,6 +609,8 @@ export default function AdminDashboard() {
                     <SmallMetric accentColor={brand.secondary} icon={<FileText className="w-4 h-4" />} label="Reports" value={stats.reportsThisMonth} />
                     <SmallMetric accentColor={brand.accent} icon={<BadgeCheck className="w-4 h-4" />} label="KPIs" value={stats.kpis} />
                     <SmallMetric accentColor={brand.primary} icon={<DollarSign className="w-4 h-4" />} label="Payroll" value={stats.payrollProcessed} />
+                    <SmallMetric accentColor={brand.secondary} icon={<Clock3 className="w-4 h-4" />} label="Checked In Today" value={attendanceToday.checkedIn} />
+                    <SmallMetric accentColor={brand.accent} icon={<Clock3 className="w-4 h-4" />} label="Pending Check-out" value={attendanceToday.pendingCheckOut} />
                   </div>
 
                   <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">

@@ -1,14 +1,12 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
-import { useSearchParams } from "next/navigation"
+import { useEffect, useMemo, useRef, useState } from "react"
 import API_URL from "@/lib/apiBase"
 import { getToken, getUser } from "@/lib/auth"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Checkbox } from "@/components/ui/checkbox"
 import { useToast } from "@/hooks/use-toast"
 import {
   applyStampToPdf,
@@ -22,7 +20,6 @@ interface Product {
   name: string
   sellingPrice: number
   currentQuantity: number
-  isOutsourced?: boolean
   categoryDetails?: { _id: string; name: string }
 }
 
@@ -50,7 +47,6 @@ interface Quotation {
   items: QuotationItem[]
   subTotal: number
   createdBy: string
-  createdByName?: string
   convertedInvoiceId?: string
   createdAt: string
 }
@@ -68,9 +64,10 @@ interface StampOption {
   name: string
 }
 
-export default function QuotationsPage() {
-  const searchParams = useSearchParams()
+export default function EmployeeQuotationsPage() {
   const { toast } = useToast()
+  const createFormRef = useRef<HTMLDivElement | null>(null)
+
   const [loading, setLoading] = useState(true)
   const [products, setProducts] = useState<Product[]>([])
   const [clients, setClients] = useState<Client[]>([])
@@ -83,26 +80,16 @@ export default function QuotationsPage() {
 
   const [clientName, setClientName] = useState("")
   const [clientNumber, setClientNumber] = useState("")
-  const [clientLocation, setClientLocation] = useState("")
   const [clientContactPerson, setClientContactPerson] = useState("")
   const [selectedExistingClient, setSelectedExistingClient] = useState("")
   const [existingClientSearch, setExistingClientSearch] = useState("")
 
   const [productSearch, setProductSearch] = useState("")
   const [itemQuantity, setItemQuantity] = useState("1")
-  const [itemUnitPrice, setItemUnitPrice] = useState("")
-  const [itemOutsourced, setItemOutsourced] = useState(false)
   const [items, setItems] = useState<DraftItem[]>([])
 
   const [quotationSearchInput, setQuotationSearchInput] = useState("")
   const [quotationSearch, setQuotationSearch] = useState("")
-
-  useEffect(() => {
-    const q = searchParams.get("q") || ""
-    if (!q) return
-    setQuotationSearchInput(q)
-    setQuotationSearch(q)
-  }, [searchParams])
 
   const headers = useMemo(
     () => ({
@@ -122,6 +109,7 @@ export default function QuotationsPage() {
         fetch(`${API_URL}/api/company/branding`, { headers }),
         fetch(`${API_URL}/api/company/invoice-settings`, { headers }),
       ])
+
       const [productsJson, quotationsJson, clientsJson, brandingJson, invoiceSettingsJson] = await Promise.all([
         productsRes.json(),
         quotationsRes.json(),
@@ -152,51 +140,40 @@ export default function QuotationsPage() {
     return (
       quotation.quotationNumber.toLowerCase().includes(query) ||
       quotation.client.name.toLowerCase().includes(query) ||
-      quotation.client.number.toLowerCase().includes(query) ||
       quotation.client.location.toLowerCase().includes(query)
     )
   })
-
-  const pendingApprovalQuotations = filteredQuotations.filter((quotation) => quotation.status === "pending_approval")
-  const activeQuotations = filteredQuotations.filter((quotation) => quotation.status !== "pending_approval")
 
   const filteredClients = clients.filter((client) => {
     const query = existingClientSearch.trim().toLowerCase()
     if (!query) return true
     return (
       client.name.toLowerCase().includes(query) ||
-      client.location.toLowerCase().includes(query) ||
-      client.number.toLowerCase().includes(query) ||
-      (client.contactPerson || "").toLowerCase().includes(query)
+      (client.contactPerson || "").toLowerCase().includes(query) ||
+      client.location.toLowerCase().includes(query)
     )
   })
 
-  const matchingProducts = products.filter((product) => {
-    const query = productSearch.trim().toLowerCase()
-    if (!query) return false
-    return (
-      product.name.toLowerCase().includes(query) ||
-      (product.categoryDetails?.name || "").toLowerCase().includes(query)
-    )
-  })
-
-  const outOfStockHiddenCount = matchingProducts.filter((product) => Number(product.currentQuantity || 0) <= 0).length
-
-  const productSuggestions = matchingProducts
+  const productSuggestions = products
+    .filter((product) => {
+      const query = productSearch.trim().toLowerCase()
+      if (!query) return false
+      return (
+        product.name.toLowerCase().includes(query) ||
+        (product.categoryDetails?.name || "").toLowerCase().includes(query)
+      )
+    })
     .filter((product) => Number(product.currentQuantity || 0) > 0)
     .slice(0, 8)
 
   const resetForm = () => {
     setClientName("")
     setClientNumber("")
-    setClientLocation("")
     setClientContactPerson("")
     setSelectedExistingClient("")
     setExistingClientSearch("")
     setProductSearch("")
     setItemQuantity("1")
-    setItemUnitPrice("")
-    setItemOutsourced(false)
     setItems([])
     setEditingQuotationId(null)
     setShowCreate(false)
@@ -209,12 +186,10 @@ export default function QuotationsPage() {
       const client = JSON.parse(value) as Client
       setClientName(client.name || "")
       setClientNumber(client.number || "")
-      setClientLocation(client.location || "")
       setClientContactPerson(client.contactPerson || "")
     } catch {
       setClientName("")
       setClientNumber("")
-      setClientLocation("")
       setClientContactPerson("")
     }
   }
@@ -225,74 +200,30 @@ export default function QuotationsPage() {
       return
     }
 
-    const unitPrice = itemUnitPrice ? Number(itemUnitPrice) : Number(product.sellingPrice || 0)
-    if (unitPrice < 0) {
-      toast({ title: "Invalid price", description: "Price cannot be negative", variant: "destructive" })
-      return
-    }
-
     setItems((prev) => [
       ...prev,
       {
         productId: product._id,
+        productName: product.name,
         quantity: Number(itemQuantity),
-        unitPrice,
-        isOutsourced: itemOutsourced,
+        unitPrice: Number(product.sellingPrice || 0),
+        isOutsourced: false,
       },
     ])
 
     setProductSearch("")
     setItemQuantity("1")
-    setItemUnitPrice("")
-    setItemOutsourced(false)
-  }
-
-  const addOutsourcedItem = () => {
-    const productName = productSearch.trim()
-    if (!productName) {
-      toast({ title: "Missing product name", description: "Type the outsourced product name", variant: "destructive" })
-      return
-    }
-
-    if (Number(itemQuantity) <= 0) {
-      toast({ title: "Invalid quantity", description: "Quantity must be greater than 0", variant: "destructive" })
-      return
-    }
-
-    const unitPrice = Number(itemUnitPrice)
-    if (!Number.isFinite(unitPrice) || unitPrice < 0) {
-      toast({ title: "Invalid price", description: "Provide a valid unit price for outsourced item", variant: "destructive" })
-      return
-    }
-
-    const fallbackId = `outsourced:${productName.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "")}`
-    setItems((prev) => [
-      ...prev,
-      {
-        productId: fallbackId,
-        productName,
-        quantity: Number(itemQuantity),
-        unitPrice,
-        isOutsourced: true,
-      },
-    ])
-
-    setProductSearch("")
-    setItemQuantity("1")
-    setItemUnitPrice("")
-    setItemOutsourced(false)
   }
 
   const createOrUpdateQuotation = async () => {
-    if (!clientName || !clientNumber || !clientLocation || !clientContactPerson || items.length === 0) {
-      toast({ title: "Missing data", description: "Add full client details and at least one item", variant: "destructive" })
+    if (!clientName || !clientNumber || !clientContactPerson || items.length === 0) {
+      toast({ title: "Missing data", description: "Add client details and at least one item", variant: "destructive" })
       return
     }
 
     const endpoint = editingQuotationId
       ? `${API_URL}/api/stock/quotations/${editingQuotationId}`
       : `${API_URL}/api/stock/quotations`
-
     const method = editingQuotationId ? "PUT" : "POST"
 
     const response = await fetch(endpoint, {
@@ -301,8 +232,8 @@ export default function QuotationsPage() {
       body: JSON.stringify({
         clientName,
         clientNumber,
-        clientLocation,
         clientContactPerson,
+        clientLocation: "N/A",
         items,
       }),
     })
@@ -334,7 +265,6 @@ export default function QuotationsPage() {
     setEditingQuotationId(quotation._id)
     setClientName(quotation.client.name)
     setClientNumber(quotation.client.number)
-    setClientLocation(quotation.client.location)
     setClientContactPerson(quotation.client.contactPerson || "")
     setSelectedExistingClient("")
     setItems(
@@ -346,22 +276,10 @@ export default function QuotationsPage() {
         isOutsourced: Boolean(item.isOutsourced),
       })),
     )
-  }
 
-  const approveQuotation = async (quotationId: string) => {
-    const response = await fetch(`${API_URL}/api/stock/quotations/${quotationId}/approve`, {
-      method: "POST",
-      headers,
+    window.requestAnimationFrame(() => {
+      createFormRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
     })
-
-    const result = await response.json()
-    if (!response.ok) {
-      toast({ title: "Error", description: result.message || "Failed to approve quotation", variant: "destructive" })
-      return
-    }
-
-    toast({ title: "Approved", description: "Quotation moved to active quotations" })
-    loadData()
   }
 
   const convertToInvoice = async (quotationId: string) => {
@@ -415,7 +333,6 @@ export default function QuotationsPage() {
   const downloadQuotationPdf = async (quotation: Quotation) => {
     const currentUser = getUser()
     const preparedBy = [currentUser?.first_name, currentUser?.last_name].filter(Boolean).join(" ") || "System User"
-
     const stampSelection = await promptStampSelection()
 
     const doc = generateQuotationPdf({
@@ -443,12 +360,8 @@ export default function QuotationsPage() {
         if (stampRes.ok) {
           const stampSvg = await stampRes.text()
           await applyStampToPdf(doc, stampSvg, 140, 255, 55, 33)
-        } else {
-          const errorText = await stampRes.text()
-          toast({ title: "Stamp skipped", description: errorText || "Failed to load selected stamp", variant: "destructive" })
         }
       } catch {
-        toast({ title: "Stamp skipped", description: "Failed to apply stamp, downloading PDF without stamp", variant: "destructive" })
       }
     }
 
@@ -457,19 +370,29 @@ export default function QuotationsPage() {
 
   if (loading) return <div className="p-6">Loading quotations...</div>
 
-  const currentUser = getUser()
-  const canApprove = ["company_admin", "hr"].includes(String(currentUser?.role || ""))
-
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-6">
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Quotations</h1>
-          <p className="text-sm text-muted-foreground">View existing quotations or create a new one.</p>
+          <h1 className="text-2xl font-bold">My Quotations</h1>
+          <p className="text-sm text-muted-foreground">Create and manage your own quotations.</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => loadData()}>Refresh</Button>
-          <Button onClick={() => (showCreate ? resetForm() : setShowCreate(true))}>
+          <Button variant="outline" type="button" onClick={loadData}>Refresh</Button>
+          <Button
+            type="button"
+            onClick={() => {
+              if (showCreate) {
+                resetForm()
+                return
+              }
+              setEditingQuotationId(null)
+              setShowCreate(true)
+              window.requestAnimationFrame(() => {
+                createFormRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+              })
+            }}
+          >
             {showCreate ? "Close" : "Create Quotation"}
           </Button>
         </div>
@@ -481,211 +404,144 @@ export default function QuotationsPage() {
           <div className="w-full md:max-w-md">
             <Label>Search</Label>
             <Input
-              placeholder="Quotation no, client name, number or location"
+              placeholder="Quotation no, client name or location"
               value={quotationSearchInput}
               onChange={(event) => setQuotationSearchInput(event.target.value)}
             />
           </div>
-          <Button variant="outline" onClick={() => setQuotationSearch(quotationSearchInput)}>Search</Button>
+          <Button variant="outline" type="button" onClick={() => setQuotationSearch(quotationSearchInput)}>Search</Button>
         </CardContent>
       </Card>
 
       {showCreate && (
-        <Card>
-          <CardHeader>
-            <CardTitle>{editingQuotationId ? "Edit Quotation" : "Create Quotation"}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2">
-              <div>
-                <Label>Use Existing Client</Label>
-                <Input
-                  className="mb-2"
-                  placeholder="Search client by name, location, number or contact person"
-                  value={existingClientSearch}
-                  onChange={(event) => setExistingClientSearch(event.target.value)}
-                />
-                <select
-                  className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-                  value={selectedExistingClient}
-                  onChange={(event) => selectExistingClient(event.target.value)}
-                >
-                  <option value="">-- Select existing client --</option>
-                  {filteredClients.map((client) => {
-                    const value = JSON.stringify(client)
-                    return (
-                      <option key={value} value={value}>
-                        {client.name} - {client.location}
-                      </option>
-                    )
-                  })}
-                </select>
-              </div>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-3">
-              <div>
-                <Label>Client Name</Label>
-                <Input value={clientName} onChange={(event) => setClientName(event.target.value)} />
-              </div>
-              <div>
-                <Label>Client Number</Label>
-                <Input value={clientNumber} onChange={(event) => setClientNumber(event.target.value)} />
-              </div>
-              <div>
-                <Label>Client Location</Label>
-                <Input value={clientLocation} onChange={(event) => setClientLocation(event.target.value)} />
-              </div>
-              <div>
-                <Label>Contact Person</Label>
-                <Input value={clientContactPerson} onChange={(event) => setClientContactPerson(event.target.value)} />
-              </div>
-            </div>
-
-            <div className="rounded-md border p-4 space-y-4">
-              <div className="grid gap-4 md:grid-cols-4">
+        <div ref={createFormRef}>
+          <Card>
+            <CardHeader>
+              <CardTitle>{editingQuotationId ? "Edit Quotation" : "Create Quotation"}</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2">
                 <div>
-                  <Label>Type Product Name</Label>
+                  <Label>Use Existing Client</Label>
                   <Input
-                    placeholder="Start typing product name"
-                    value={productSearch}
-                    onChange={(event) => setProductSearch(event.target.value)}
+                    className="mb-2"
+                    placeholder="Search by client name or contact person"
+                    value={existingClientSearch}
+                    onChange={(event) => setExistingClientSearch(event.target.value)}
                   />
-                </div>
-                <div>
-                  <Label>Quantity</Label>
-                  <Input type="number" min="1" value={itemQuantity} onChange={(event) => setItemQuantity(event.target.value)} />
-                </div>
-                <div>
-                  <Label>Unit Price (optional override)</Label>
-                  <Input type="number" min="0" value={itemUnitPrice} onChange={(event) => setItemUnitPrice(event.target.value)} />
-                </div>
-                <div className="flex items-end">
-                  <label className="flex items-center gap-2 text-sm border rounded-md px-3 py-2 w-full h-10">
-                    <Checkbox checked={itemOutsourced} onCheckedChange={(value) => setItemOutsourced(Boolean(value))} />
-                    <span>Outsourced (local)</span>
-                  </label>
+                  <select
+                    className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                    value={selectedExistingClient}
+                    onChange={(event) => selectExistingClient(event.target.value)}
+                  >
+                    <option value="">-- Select existing client --</option>
+                    {filteredClients.map((client) => {
+                      const value = JSON.stringify(client)
+                      return (
+                        <option key={value} value={value}>
+                          {client.name}
+                        </option>
+                      )
+                    })}
+                  </select>
                 </div>
               </div>
 
-              {productSearch.trim() && (
-                <div className="border rounded-md divide-y">
-                  {productSuggestions.length === 0 ? (
-                    <div className="p-3 text-sm text-muted-foreground space-y-2">
-                      <p>No matching products</p>
-                      {itemOutsourced ? (
-                        <Button type="button" size="sm" onClick={addOutsourcedItem}>Add outsourced item "{productSearch.trim()}"</Button>
-                      ) : (
-                        <p className="text-xs">Tick "Outsourced (local)" to add a product that is not in inventory.</p>
-                      )}
-                    </div>
-                  ) : (
-                    <>
-                      {productSuggestions.map((product) => (
+              <div className="grid gap-4 md:grid-cols-3">
+                <div>
+                  <Label>Client Name</Label>
+                  <Input value={clientName} onChange={(event) => setClientName(event.target.value)} />
+                </div>
+                <div>
+                  <Label>Contact Person</Label>
+                  <Input value={clientContactPerson} onChange={(event) => setClientContactPerson(event.target.value)} />
+                </div>
+                {!selectedExistingClient ? (
+                  <div>
+                    <Label>Client Phone Number</Label>
+                    <Input value={clientNumber} onChange={(event) => setClientNumber(event.target.value)} placeholder="e.g. 07XXXXXXXX" />
+                  </div>
+                ) : (
+                  <div className="rounded-md border p-3 text-xs text-muted-foreground">
+                    Existing client selected. Phone number is kept private and will be used automatically.
+                  </div>
+                )}
+              </div>
+
+              <div className="rounded-md border p-4 space-y-4">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div>
+                    <Label>Type Product Name</Label>
+                    <Input placeholder="Start typing product name" value={productSearch} onChange={(event) => setProductSearch(event.target.value)} />
+                  </div>
+                  <div>
+                    <Label>Quantity</Label>
+                    <Input type="number" min="1" value={itemQuantity} onChange={(event) => setItemQuantity(event.target.value)} />
+                  </div>
+                  <div className="flex items-end rounded-md border px-3 py-2 text-xs text-muted-foreground">
+                    Choose a product from the list below.
+                  </div>
+                </div>
+
+                {productSearch.trim() && (
+                  <div className="border rounded-md divide-y">
+                    {productSuggestions.length === 0 ? (
+                      <div className="p-3 text-sm text-muted-foreground">No matching products found.</div>
+                    ) : (
+                      productSuggestions.map((product) => (
                         <button
                           key={product._id}
                           type="button"
                           className="w-full text-left p-3 hover:bg-secondary text-sm"
                           onClick={() => addItemFromSuggestion(product)}
                         >
-                          <div className="font-medium flex items-center gap-2">
-                            {product.name}
-                            {product.isOutsourced ? <span className="rounded bg-amber-100 px-2 py-0.5 text-[11px] text-amber-800">Outsourced</span> : null}
-                          </div>
-                          <div className="text-muted-foreground">
-                            Category: {product.categoryDetails?.name || "N/A"} | Price: {product.sellingPrice} | In stock: {product.currentQuantity}
-                          </div>
+                          <div className="font-medium">{product.name}</div>
+                          <div className="text-muted-foreground">Category: {product.categoryDetails?.name || "N/A"} | Price: {product.sellingPrice}</div>
                         </button>
-                      ))}
-                      {outOfStockHiddenCount > 0 ? (
-                        <div className="p-3 text-xs text-muted-foreground">{outOfStockHiddenCount} out-of-stock product(s) hidden from selectable list.</div>
-                      ) : null}
-                    </>
-                  )}
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {items.length > 0 && (
+                <div className="overflow-x-auto border rounded-md">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left border-b">
+                        <th className="py-2 px-2">Product</th>
+                        <th className="py-2 px-2">Qty</th>
+                        <th className="py-2 px-2">Unit Price</th>
+                        <th className="py-2 px-2">Outsourced</th>
+                        <th className="py-2 px-2">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {items.map((item, index) => {
+                        const name = item.productName || products.find((product) => product._id === item.productId)?.name || item.productId
+                        return (
+                          <tr key={`${item.productId}-${index}`} className="border-b">
+                            <td className="py-2 px-2">{name}</td>
+                            <td className="py-2 px-2">{item.quantity}</td>
+                            <td className="py-2 px-2">{item.unitPrice}</td>
+                            <td className="py-2 px-2">{item.isOutsourced ? "Yes" : "No"}</td>
+                            <td className="py-2 px-2">{(item.quantity * item.unitPrice).toFixed(2)}</td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
                 </div>
               )}
-            </div>
 
-            {items.length > 0 && (
-              <div className="overflow-x-auto border rounded-md">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-left border-b">
-                      <th className="py-2 px-2">Product</th>
-                      <th className="py-2 px-2">Qty</th>
-                      <th className="py-2 px-2">Unit Price</th>
-                      <th className="py-2 px-2">Outsourced</th>
-                      <th className="py-2 px-2">Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {items.map((item, index) => {
-                      const name = item.productName || products.find((product) => product._id === item.productId)?.name || item.productId
-                      return (
-                        <tr key={`${item.productId}-${index}`} className="border-b">
-                          <td className="py-2 px-2">{name}</td>
-                          <td className="py-2 px-2">{item.quantity}</td>
-                          <td className="py-2 px-2">{item.unitPrice}</td>
-                          <td className="py-2 px-2">{item.isOutsourced ? "Yes" : "No"}</td>
-                          <td className="py-2 px-2">{(item.quantity * item.unitPrice).toFixed(2)}</td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
+              <div className="flex gap-2">
+                <Button type="button" onClick={createOrUpdateQuotation}>{editingQuotationId ? "Update Quotation" : "Generate Quotation"}</Button>
+                <Button type="button" variant="outline" onClick={resetForm}>Cancel</Button>
               </div>
-            )}
-
-            <div className="flex gap-2">
-              <Button onClick={createOrUpdateQuotation}>{editingQuotationId ? "Update Quotation" : "Generate Quotation"}</Button>
-              <Button variant="outline" onClick={resetForm}>Cancel</Button>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </div>
       )}
-
-      <Card>
-        <CardHeader><CardTitle>Pending Approvals</CardTitle></CardHeader>
-        <CardContent>
-          {pendingApprovalQuotations.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No pending approvals.</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left border-b">
-                    <th className="py-2">Quotation No</th>
-                    <th className="py-2">Client</th>
-                    <th className="py-2">Owner</th>
-                    <th className="py-2">Amount</th>
-                    <th className="py-2">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {pendingApprovalQuotations.map((quotation) => (
-                    <tr key={quotation._id} className="border-b">
-                      <td className="py-2">{quotation.quotationNumber}</td>
-                      <td className="py-2">{quotation.client.name}</td>
-                      <td className="py-2">{quotation.createdByName || quotation.createdBy}</td>
-                      <td className="py-2">{quotation.subTotal.toFixed(2)}</td>
-                      <td className="py-2">
-                        <div className="flex flex-wrap gap-2">
-                          <Button size="sm" variant="outline" onClick={() => downloadQuotationPdf(quotation)}>Download PDF</Button>
-                          {canApprove ? (
-                            <Button size="sm" onClick={() => approveQuotation(quotation._id)}>Approve</Button>
-                          ) : (
-                            <span className="text-muted-foreground text-xs self-center">Awaiting admin approval</span>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
 
       <Card>
         <CardHeader><CardTitle>Quotation List</CardTitle></CardHeader>
@@ -696,7 +552,6 @@ export default function QuotationsPage() {
                 <tr className="text-left border-b">
                   <th className="py-2">Quotation No</th>
                   <th className="py-2">Client</th>
-                  <th className="py-2">Owner</th>
                   <th className="py-2">Items</th>
                   <th className="py-2">Amount</th>
                   <th className="py-2">Status</th>
@@ -704,11 +559,10 @@ export default function QuotationsPage() {
                 </tr>
               </thead>
               <tbody>
-                {activeQuotations.map((quotation) => (
+                {filteredQuotations.map((quotation) => (
                   <tr key={quotation._id} className="border-b">
                     <td className="py-2">{quotation.quotationNumber}</td>
                     <td className="py-2">{quotation.client.name}</td>
-                    <td className="py-2">{quotation.createdByName || quotation.createdBy}</td>
                     <td className="py-2">{quotation.items.length}</td>
                     <td className="py-2">{quotation.subTotal.toFixed(2)}</td>
                     <td className="py-2 capitalize">{quotation.status.replace("_", " ")}</td>
@@ -720,6 +574,8 @@ export default function QuotationsPage() {
                         )}
                         {quotation.status === "draft" ? (
                           <Button size="sm" onClick={() => convertToInvoice(quotation._id)}>Convert to Invoice</Button>
+                        ) : quotation.status === "pending_approval" ? (
+                          <span className="text-muted-foreground text-xs self-center">Pending approval</span>
                         ) : (
                           <span className="text-muted-foreground text-xs self-center">Converted</span>
                         )}

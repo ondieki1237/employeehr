@@ -34,11 +34,41 @@ interface Sale {
   product?: { name: string }
 }
 
+interface Quotation {
+  _id: string
+  quotationNumber: string
+  status: "draft" | "pending_approval" | "converted" | "cancelled"
+  client: {
+    name: string
+    number: string
+    location: string
+  }
+  subTotal: number
+  createdAt: string
+}
+
+interface Invoice {
+  _id: string
+  invoiceNumber: string
+  deliveryNoteNumber: string
+  quotationNumber?: string
+  status: "issued" | "paid" | "cancelled"
+  client: {
+    name: string
+    number: string
+    location: string
+  }
+  subTotal: number
+  createdAt: string
+}
+
 export default function EmployeeStockPage() {
   const { toast } = useToast()
   const [products, setProducts] = useState<Product[]>([])
   const [employees, setEmployees] = useState<Employee[]>([])
   const [sales, setSales] = useState<Sale[]>([])
+  const [quotations, setQuotations] = useState<Quotation[]>([])
+  const [invoices, setInvoices] = useState<Invoice[]>([])
   const [loading, setLoading] = useState(true)
 
   const [stockForm, setStockForm] = useState({ productId: "", quantityAdded: "", note: "" })
@@ -61,21 +91,27 @@ export default function EmployeeStockPage() {
   const fetchData = async () => {
     try {
       setLoading(true)
-      const [productsRes, usersRes, salesRes] = await Promise.all([
+      const [productsRes, usersRes, salesRes, quotationsRes, invoicesRes] = await Promise.all([
         fetch(`${API_URL}/api/stock/products`, { headers }),
         fetch(`${API_URL}/api/users`, { headers }),
         fetch(`${API_URL}/api/stock/sales`, { headers }),
+        fetch(`${API_URL}/api/stock/quotations`, { headers }),
+        fetch(`${API_URL}/api/stock/invoices`, { headers }),
       ])
 
-      const [productsJson, usersJson, salesJson] = await Promise.all([
+      const [productsJson, usersJson, salesJson, quotationsJson, invoicesJson] = await Promise.all([
         productsRes.json(),
         usersRes.json(),
         salesRes.json(),
+        quotationsRes.json(),
+        invoicesRes.json(),
       ])
 
       setProducts(productsJson.data || [])
       setEmployees(usersJson.data || [])
       setSales(salesJson.data || [])
+      setQuotations(quotationsJson.data || [])
+      setInvoices(invoicesJson.data || [])
     } catch {
       toast({ title: "Error", description: "Failed to load stock data", variant: "destructive" })
     } finally {
@@ -215,7 +251,7 @@ export default function EmployeeStockPage() {
         </Card>
       </div>
 
-      <Card>
+      <Card id="my-quotations">
         <CardHeader>
           <CardTitle>Products</CardTitle>
         </CardHeader>
@@ -245,7 +281,7 @@ export default function EmployeeStockPage() {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card id="my-invoices">
         <CardHeader>
           <CardTitle>My Sales History</CardTitle>
         </CardHeader>
@@ -271,6 +307,84 @@ export default function EmployeeStockPage() {
                     <td className="py-2">{sale.remainingQuantity}</td>
                   </tr>
                 ))}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>My Quotations</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left border-b">
+                  <th className="py-2">Date</th>
+                  <th className="py-2">Quotation No</th>
+                  <th className="py-2">Client</th>
+                  <th className="py-2">Amount</th>
+                  <th className="py-2">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {quotations.length === 0 ? (
+                  <tr>
+                    <td className="py-3 text-muted-foreground" colSpan={5}>No quotations found</td>
+                  </tr>
+                ) : (
+                  quotations.map((quotation) => (
+                    <tr key={quotation._id} className="border-b">
+                      <td className="py-2">{new Date(quotation.createdAt).toLocaleDateString()}</td>
+                      <td className="py-2">{quotation.quotationNumber}</td>
+                      <td className="py-2">{quotation.client?.name || "-"}</td>
+                      <td className="py-2">{Number(quotation.subTotal || 0).toFixed(2)}</td>
+                      <td className="py-2 capitalize">{String(quotation.status || "").replace("_", " ")}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>My Invoices</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left border-b">
+                  <th className="py-2">Date</th>
+                  <th className="py-2">Invoice No</th>
+                  <th className="py-2">Delivery Note</th>
+                  <th className="py-2">Client</th>
+                  <th className="py-2">Amount</th>
+                  <th className="py-2">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {invoices.length === 0 ? (
+                  <tr>
+                    <td className="py-3 text-muted-foreground" colSpan={6}>No invoices found</td>
+                  </tr>
+                ) : (
+                  invoices.map((invoice) => (
+                    <tr key={invoice._id} className="border-b">
+                      <td className="py-2">{new Date(invoice.createdAt).toLocaleDateString()}</td>
+                      <td className="py-2">{invoice.invoiceNumber}</td>
+                      <td className="py-2">{invoice.deliveryNoteNumber}</td>
+                      <td className="py-2">{invoice.client?.name || "-"}</td>
+                      <td className="py-2">{Number(invoice.subTotal || 0).toFixed(2)}</td>
+                      <td className="py-2 capitalize">{invoice.status}</td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>

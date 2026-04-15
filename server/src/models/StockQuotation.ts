@@ -13,6 +13,7 @@ interface IQuotationClient {
   name: string
   number: string
   location: string
+  contactPerson?: string
 }
 
 export interface IStockQuotation {
@@ -22,8 +23,10 @@ export interface IStockQuotation {
   client: IQuotationClient
   items: IQuotationItem[]
   subTotal: number
-  status: "draft" | "converted" | "cancelled"
+  status: "draft" | "pending_approval" | "converted" | "cancelled"
   createdBy: string
+  approvedBy?: string
+  approvedAt?: Date
   convertedInvoiceId?: string
   createdAt?: Date
   updatedAt?: Date
@@ -49,15 +52,18 @@ const stockQuotationSchema = new Schema<IStockQuotation>(
       name: { type: String, required: true },
       number: { type: String, required: true },
       location: { type: String, required: true },
+      contactPerson: { type: String },
     },
     items: { type: [quotationItemSchema], required: true },
     subTotal: { type: Number, required: true, min: 0 },
     status: {
       type: String,
-      enum: ["draft", "converted", "cancelled"],
+      enum: ["draft", "pending_approval", "converted", "cancelled"],
       default: "draft",
     },
     createdBy: { type: String, required: true },
+    approvedBy: { type: String },
+    approvedAt: { type: Date },
     convertedInvoiceId: { type: String },
   },
   { timestamps: true },

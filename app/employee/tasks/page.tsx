@@ -23,6 +23,10 @@ interface Task {
   }
   completed_at?: string
   createdAt: string
+  related_entity_type?: string
+  related_entity_id?: string
+  source_label?: string
+  is_packaging_duty?: boolean
 }
 
 export default function EmployeeTasksPage() {
@@ -102,6 +106,14 @@ export default function EmployeeTasksPage() {
     ? tasks 
     : tasks.filter(task => task.status === filter)
 
+  const packagingTasks = tasks.filter(
+    (task) =>
+      task.is_packaging_duty ||
+      task.related_entity_type === "invoice" ||
+      String(task.source_label || "").toLowerCase().includes("packaging") ||
+      String(task.title || "").toLowerCase().includes("packaging"),
+  )
+
   return (
     <main className="flex-1 overflow-y-auto p-6 bg-gray-50 dark:bg-gray-900">
           <div className="max-w-6xl mx-auto space-y-6">
@@ -114,7 +126,7 @@ export default function EmployeeTasksPage() {
             </div>
 
             {/* Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
               <Card>
                 <CardHeader className="pb-3">
                   <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">
@@ -161,6 +173,18 @@ export default function EmployeeTasksPage() {
                   </p>
                 </CardContent>
               </Card>
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                    Packaging Duties
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-3xl font-bold text-amber-500">
+                    {packagingTasks.length}
+                  </p>
+                </CardContent>
+              </Card>
             </div>
 
             {/* Tabs */}
@@ -204,11 +228,14 @@ export default function EmployeeTasksPage() {
 
                               {/* Task Details */}
                               <div className="flex-1">
-                                <div className="flex items-center gap-2 mb-2">
+                                <div className="flex flex-wrap items-center gap-2 mb-2">
                                   {getStatusIcon(task.status)}
                                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                                     {task.title}
                                   </h3>
+                                  {(task.is_packaging_duty || task.related_entity_type === "invoice") && (
+                                    <Badge variant="secondary">Packaging</Badge>
+                                  )}
                                 </div>
                                 <p className="text-gray-600 dark:text-gray-400 mb-3">
                                   {task.description}
@@ -229,6 +256,11 @@ export default function EmployeeTasksPage() {
                                   {task.completed_at && (
                                     <span>
                                       Completed: {new Date(task.completed_at).toLocaleDateString()}
+                                    </span>
+                                  )}
+                                  {(task.related_entity_type === "invoice" && task.related_entity_id) && (
+                                    <span>
+                                      Linked Invoice Duty
                                     </span>
                                   )}
                                 </div>

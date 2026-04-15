@@ -41,6 +41,8 @@ const navigation = [
   { name: "My Attendance", href: "/employee/attendance", icon: Calendar },
   { name: "My Payslips", href: "/employee/payslip", icon: Receipt },
   { name: "Stock Sales", href: "/employee/stock", icon: Package },
+  { name: "My Quotations", href: "/employee/stock/quotations", icon: FileText },
+  { name: "My Invoices", href: "/employee/stock#my-invoices", icon: Receipt },
   { name: "My Dispatch", href: "/employee/dispatch", icon: Package },
   { name: "My Awards", href: "/employee/awards", icon: Award },
   { name: "Badges", href: "/employee/badges", icon: Trophy },

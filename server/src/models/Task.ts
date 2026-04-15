@@ -15,6 +15,11 @@ export interface ITask {
   attachments?: string[]
   createdAt?: Date
   updatedAt?: Date
+  related_entity_type?: "invoice" | "meeting" | "report" | "pdp" | "other"
+  related_entity_id?: string
+  source_label?: string
+  source_status?: string
+  is_packaging_duty?: boolean
   // AI Meeting Integration
   is_ai_generated?: boolean // Set to true if created by AI from meeting
   meeting_id?: string // Reference to meeting
@@ -43,6 +48,11 @@ const taskSchema = new Schema<ITask>(
     completed_at: { type: Date },
     notes: { type: String },
     attachments: [{ type: String }],
+    related_entity_type: { type: String, enum: ["invoice", "meeting", "report", "pdp", "other"] },
+    related_entity_id: { type: String },
+    source_label: { type: String },
+    source_status: { type: String },
+    is_packaging_duty: { type: Boolean, default: false },
     is_ai_generated: { type: Boolean, default: false },
     meeting_id: { type: String },
     is_ai_reminder: { type: Boolean, default: false },

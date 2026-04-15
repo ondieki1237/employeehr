@@ -12,6 +12,7 @@ import { StockExpense } from "../models/StockExpense"
 import { StockRepeatBill } from "../models/StockRepeatBill"
 import { StockInvoicePayment } from "../models/StockInvoicePayment"
 import { DispatchNotification } from "../models/DispatchNotification"
+import { Task } from "../models/Task"
 import { Company } from "../models/Company"
 import { User } from "../models/User"
 import emailService from "../services/email.service"
@@ -51,6 +52,65 @@ function splitPhoneList(raw: string) {
         .filter(Boolean),
     ),
   )
+}
+
+function buildPackagingTaskContext(invoice: any) {
+  const invoiceNumber = String(invoice?.invoiceNumber || "").trim()
+  const clientName = String(invoice?.client?.name || "Client").trim() || "Client"
+  const itemCount = Array.isArray(invoice?.items) ? invoice.items.length : 0
+  const packedCount = Array.isArray(invoice?.dispatch?.packingItems)
+    ? invoice.dispatch.packingItems.filter((item: any) => Number(item.packedQuantity || 0) >= Number(item.requiredQuantity || 0)).length
+    : 0
+
+  return {
+    title: `Packaging duty: ${invoiceNumber}`,
+    description: `Pack items for ${clientName}. Invoice ${invoiceNumber} has ${itemCount} item line(s). Packed lines: ${packedCount}/${itemCount}.`,
+  }
+}
+
+async function upsertPackagingDutyTask(params: {
+  orgId: string
+  invoice: any
+  assignedToUserId: string
+  assignedByUserId: string
+  status: "pending" | "in_progress" | "completed"
+}) {
+  const { orgId, invoice, assignedToUserId, assignedByUserId, status } = params
+  const context = buildPackagingTaskContext(invoice)
+  const dueDate = invoice?.dispatch?.assignedAt ? new Date(invoice.dispatch.assignedAt) : new Date()
+
+  const task = await Task.findOneAndUpdate(
+    {
+      org_id: orgId,
+      related_entity_type: "invoice",
+      related_entity_id: String(invoice._id),
+      is_packaging_duty: true,
+    },
+    {
+      $set: {
+        title: context.title,
+        description: context.description,
+        assigned_to: String(assignedToUserId),
+        assigned_by: String(assignedByUserId),
+        priority: "high",
+        status,
+        due_date: dueDate,
+        related_entity_type: "invoice",
+        related_entity_id: String(invoice._id),
+        source_label: "Packaging",
+        source_status: String(invoice?.dispatch?.status || "assigned"),
+        is_packaging_duty: true,
+        notes: status === "completed" ? "Packing completed from dispatch workflow" : undefined,
+        completed_at: status === "completed" ? new Date() : undefined,
+      },
+      $setOnInsert: {
+        org_id: orgId,
+      },
+    },
+    { upsert: true, new: true },
+  )
+
+  return task
 }
 
 function buildInvoicePaymentSummary(invoice: any, invoicePayments: any[]) {
@@ -490,10 +550,13 @@ export class StockController {
       const createdBy = req.user?.userId
       if (!org_id || !createdBy) return res.status(401).json({ success: false, message: "Unauthorized" })
 
-      const { clientName, clientNumber, clientLocation, items } = req.body
-      if (!clientName || !clientNumber || !clientLocation) {
-        return res.status(400).json({ success: false, message: "Client name, number, and location are required" })
+      const { clientName, clientNumber, clientLocation, clientContactPerson, items } = req.body
+      if (!clientName || !clientNumber) {
+        return res.status(400).json({ success: false, message: "Client name and phone number are required" })
       }
+
+      const normalizedLocation = String(clientLocation || "N/A").trim() || "N/A"
+      const normalizedContactPerson = String(clientContactPerson || "").trim()
 
       const normalizedItems = await buildQuotationItems(org_id, items || [])
       const subTotal = Number(normalizedItems.reduce((sum, item) => sum + item.lineTotal, 0).toFixed(2))
@@ -504,7 +567,8 @@ export class StockController {
         client: {
           name: String(clientName).trim(),
           number: String(clientNumber).trim(),
-          location: String(clientLocation).trim(),
+          location: normalizedLocation,
+          contactPerson: normalizedContactPerson || undefined,
         },
         items: normalizedItems,
         subTotal,
@@ -521,9 +585,17 @@ export class StockController {
   static async getQuotations(req: AuthenticatedRequest, res: Response) {
     try {
       const org_id = req.user?.org_id
+      const userId = req.user?.userId
+      const role = req.user?.role
       if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
 
-      const quotations = await StockQuotation.find({ org_id }).sort({ createdAt: -1 }).lean()
+      const query: any = { org_id }
+      if (role === "employee") {
+        if (!userId) return res.status(401).json({ success: false, message: "Unauthorized" })
+        query.createdBy = String(userId)
+      }
+
+      const quotations = await StockQuotation.find(query).sort({ createdAt: -1 }).lean()
       return res.status(200).json({ success: true, data: quotations })
     } catch (error: any) {
       return res.status(500).json({ success: false, message: error.message || "Failed to fetch quotations" })
@@ -533,6 +605,8 @@ export class StockController {
   static async updateQuotation(req: AuthenticatedRequest, res: Response) {
     try {
       const org_id = req.user?.org_id
+      const userId = req.user?.userId
+      const role = req.user?.role
       if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
 
       const { quotationId } = req.params
@@ -541,14 +615,21 @@ export class StockController {
         return res.status(404).json({ success: false, message: "Quotation not found" })
       }
 
+      if (role === "employee" && String(quotation.createdBy) !== String(userId || "")) {
+        return res.status(403).json({ success: false, message: "You can only edit your own quotation" })
+      }
+
       if (quotation.status !== "draft") {
         return res.status(400).json({ success: false, message: "Only draft quotations can be edited" })
       }
 
-      const { clientName, clientNumber, clientLocation, items } = req.body
-      if (!clientName || !clientNumber || !clientLocation) {
-        return res.status(400).json({ success: false, message: "Client name, number, and location are required" })
+      const { clientName, clientNumber, clientLocation, clientContactPerson, items } = req.body
+      if (!clientName || !clientNumber) {
+        return res.status(400).json({ success: false, message: "Client name and phone number are required" })
       }
+
+      const normalizedLocation = String(clientLocation || "N/A").trim() || "N/A"
+      const normalizedContactPerson = String(clientContactPerson || "").trim()
 
       const normalizedItems = await buildQuotationItems(org_id, items || [])
       const subTotal = Number(normalizedItems.reduce((sum, item) => sum + item.lineTotal, 0).toFixed(2))
@@ -556,7 +637,8 @@ export class StockController {
       quotation.client = {
         name: String(clientName).trim(),
         number: String(clientNumber).trim(),
-        location: String(clientLocation).trim(),
+        location: normalizedLocation,
+        contactPerson: normalizedContactPerson || undefined,
       }
       quotation.items = normalizedItems as any
       quotation.subTotal = subTotal
@@ -566,6 +648,38 @@ export class StockController {
       return res.status(200).json({ success: true, data: quotation })
     } catch (error: any) {
       return res.status(500).json({ success: false, message: error.message || "Failed to update quotation" })
+    }
+  }
+
+  static async approveQuotation(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = req.user?.org_id
+      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+
+      if (!isAdminRole(req.user?.role)) {
+        return res.status(403).json({ success: false, message: "Only admin/HR can approve quotations" })
+      }
+
+      const { quotationId } = req.params
+      const quotation = await StockQuotation.findOne({ _id: quotationId, org_id })
+      if (!quotation) {
+        return res.status(404).json({ success: false, message: "Quotation not found" })
+      }
+
+      if (quotation.status === "converted" || quotation.status === "cancelled") {
+        return res.status(400).json({ success: false, message: `Cannot approve ${quotation.status} quotation` })
+      }
+
+      quotation.status = "draft"
+      await quotation.save()
+
+      return res.status(200).json({
+        success: true,
+        message: "Quotation approved",
+        data: quotation,
+      })
+    } catch (error: any) {
+      return res.status(500).json({ success: false, message: error.message || "Failed to approve quotation" })
     }
   }
 
@@ -582,7 +696,7 @@ export class StockController {
           .lean(),
       ])
 
-      const clientMap = new Map<string, { name: string; number: string; location: string }>()
+      const clientMap = new Map<string, { name: string; number: string; location: string; contactPerson?: string }>()
 
       for (const quotation of quotations) {
         const client = (quotation as any).client
@@ -593,6 +707,7 @@ export class StockController {
             name: client.name,
             number: client.number,
             location: client.location,
+            contactPerson: client.contactPerson,
           })
         }
       }
@@ -606,6 +721,7 @@ export class StockController {
             name: client.name,
             number: client.number,
             location: client.location,
+            contactPerson: client.contactPerson,
           })
         }
       }
@@ -617,7 +733,7 @@ export class StockController {
         if (!name || !number || !location) continue
         const key = `${name}|${number}|${location}`.toLowerCase()
         if (!clientMap.has(key)) {
-          clientMap.set(key, { name, number, location })
+          clientMap.set(key, { name, number, location, contactPerson: undefined })
         }
       }
 
@@ -1354,12 +1470,17 @@ export class StockController {
     try {
       const org_id = req.user?.org_id
       const actorId = req.user?.userId
+      const role = req.user?.role
       if (!org_id || !actorId) return res.status(401).json({ success: false, message: "Unauthorized" })
 
       const { quotationId } = req.params
       const quotation = await StockQuotation.findOne({ _id: quotationId, org_id })
       if (!quotation) {
         return res.status(404).json({ success: false, message: "Quotation not found" })
+      }
+
+      if (role === "employee" && String(quotation.createdBy) !== String(actorId)) {
+        return res.status(403).json({ success: false, message: "You can only convert your own quotation" })
       }
 
       if (quotation.status === "converted" && quotation.convertedInvoiceId) {
@@ -1406,7 +1527,7 @@ export class StockController {
           packingCompleted: false,
           inquiries: [],
         },
-        createdBy: actorId,
+        createdBy: String(quotation.createdBy || actorId),
       })
 
       const receiptNumber = generateDocumentNumber("RCP")
@@ -1455,9 +1576,17 @@ export class StockController {
   static async getInvoices(req: AuthenticatedRequest, res: Response) {
     try {
       const org_id = req.user?.org_id
+      const userId = req.user?.userId
+      const role = req.user?.role
       if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
 
-      const invoices = await StockInvoice.find({ org_id }).sort({ createdAt: -1 }).lean()
+      const query: any = { org_id }
+      if (role === "employee") {
+        if (!userId) return res.status(401).json({ success: false, message: "Unauthorized" })
+        query.createdBy = String(userId)
+      }
+
+      const invoices = await StockInvoice.find(query).sort({ createdAt: -1 }).lean()
       return res.status(200).json({ success: true, data: invoices })
     } catch (error: any) {
       return res.status(500).json({ success: false, message: error.message || "Failed to fetch invoices" })
@@ -1467,11 +1596,17 @@ export class StockController {
   static async getInvoiceById(req: AuthenticatedRequest, res: Response) {
     try {
       const org_id = req.user?.org_id
+      const userId = req.user?.userId
+      const role = req.user?.role
       if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
 
       const { invoiceId } = req.params
       const invoice = await StockInvoice.findOne({ _id: invoiceId, org_id }).lean()
       if (!invoice) return res.status(404).json({ success: false, message: "Invoice not found" })
+
+      if (role === "employee" && String((invoice as any).createdBy || "") !== String(userId || "")) {
+        return res.status(403).json({ success: false, message: "You can only view your own invoice" })
+      }
 
       return res.status(200).json({ success: true, data: invoice })
     } catch (error: any) {
@@ -1535,6 +1670,14 @@ export class StockController {
         },
         { new: true },
       )
+
+      await upsertPackagingDutyTask({
+        orgId: org_id,
+        invoice: updatedInvoice,
+        assignedToUserId: String(assignedToUserId),
+        assignedByUserId: String(actorId),
+        status: "in_progress",
+      })
 
       return res.status(200).json({ success: true, data: updatedInvoice })
     } catch (error: any) {
@@ -1607,6 +1750,16 @@ export class StockController {
         },
         { new: true },
       )
+
+      if (updatedInvoice?.dispatch?.assignedToUserId) {
+        await upsertPackagingDutyTask({
+          orgId: org_id,
+          invoice: updatedInvoice,
+          assignedToUserId: String(updatedInvoice.dispatch.assignedToUserId),
+          assignedByUserId: String(updatedInvoice.dispatch.assignedByUserId || userId),
+          status: packingCompleted ? "completed" : "in_progress",
+        })
+      }
 
       return res.status(200).json({ success: true, data: updatedInvoice })
     } catch (error: any) {
