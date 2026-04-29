@@ -24,13 +24,37 @@ type UserRecord = {
   _id: string
   first_name?: string
   last_name?: string
+  firstName?: string
+  lastName?: string
   email?: string
   role?: string
 }
 
+const normalizeUserId = (value: any): string => {
+  if (!value) return ""
+  if (typeof value === "string") return value
+  if (typeof value === "object") {
+    if (typeof value._id === "string") return value._id
+    if (typeof value.$oid === "string") return value.$oid
+    if (typeof value.toString === "function") {
+      const text = value.toString()
+      if (text && text !== "[object Object]") return text
+    }
+  }
+  return String(value)
+}
+
+const getUserDisplayName = (user?: UserRecord | null): string => {
+  if (!user) return "Unknown User"
+  const first = user.first_name || user.firstName || ""
+  const last = user.last_name || user.lastName || ""
+  const fullName = `${first} ${last}`.trim()
+  return fullName || user.email || "Unknown User"
+}
+
 const normalizeRecord = (record: any): AttendanceRecord => ({
   _id: String(record._id),
-  user_id: String(record.user_id || record.userId || record.user?._id || ""),
+  user_id: normalizeUserId(record.user_id || record.userId || record.user?._id || record.user),
   date: record.date,
   checkIn: record.checkIn ?? null,
   checkOut: record.checkOut ?? null,
@@ -78,7 +102,7 @@ export default function AdminAttendancePage() {
 
   const usersMap = useMemo(() => {
     const map = new Map<string, UserRecord>()
-    users.forEach((user) => map.set(String(user._id), user))
+    users.forEach((user) => map.set(normalizeUserId(user._id), user))
     return map
   }, [users])
 
@@ -124,7 +148,7 @@ export default function AdminAttendancePage() {
   }, [filteredEmployees, selectedEmployeeId])
 
   const selectedEmployee = useMemo(
-    () => filteredEmployees.find((user) => String(user._id) === selectedEmployeeId) || null,
+    () => filteredEmployees.find((user) => normalizeUserId(user._id) === selectedEmployeeId) || null,
     [filteredEmployees, selectedEmployeeId],
   )
 
@@ -222,9 +246,9 @@ export default function AdminAttendancePage() {
                 <p className="text-sm text-muted-foreground">No employees found.</p>
               ) : (
                 filteredEmployees.map((employee) => {
-                  const key = String(employee._id)
+                  const key = normalizeUserId(employee._id)
                   const stats = employeeStatsByUser.get(key) || { records: 0, totalHours: 0, present: 0, late: 0, absent: 0 }
-                  const fullName = `${employee.first_name || ""} ${employee.last_name || ""}`.trim() || "Unknown User"
+                  const fullName = getUserDisplayName(employee)
                   const active = key === selectedEmployeeId
 
                   return (
@@ -255,7 +279,7 @@ export default function AdminAttendancePage() {
               <CardTitle className="flex items-center gap-2">
                 <BarChart3 className="h-4 w-4" />
                 {selectedEmployee
-                  ? `${`${selectedEmployee.first_name || ""} ${selectedEmployee.last_name || ""}`.trim() || "Employee"} Performance`
+                  ? `${getUserDisplayName(selectedEmployee)} Performance`
                   : "Attendance Performance"}
               </CardTitle>
             </CardHeader>
