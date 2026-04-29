@@ -29,7 +29,8 @@ import {
   Video,
   Package,
   Stamp,
-  ShieldCheck
+  ShieldCheck,
+  Clock3
 } from "lucide-react"
 import { getUser, logout } from "@/lib/auth"
 import { companyApi } from "@/lib/api"
@@ -88,6 +89,12 @@ const adminMenuItems = [
     label: "Leave Requests",
     icon: Calendar,
     href: "/admin/leave",
+    section: "EMPLOYEE MANAGEMENT"
+  },
+  {
+    label: "Attendance Tracker",
+    icon: Clock3,
+    href: "/admin/attendance",
     section: "EMPLOYEE MANAGEMENT"
   },
   {

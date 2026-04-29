@@ -109,17 +109,17 @@ export default function SignupForm({ onBack }: SignupFormProps) {
 
   return (
     <div className="space-y-6">
-      <button onClick={onBack} className="inline-flex items-center gap-2 text-primary hover:text-primary/80 transition">
+      <button onClick={onBack} className="inline-flex items-center gap-2 text-sm text-primary hover:text-primary/80 transition">
         <ArrowLeft size={18} />
         Back
       </button>
 
-      <div className="text-center">
-        <h2 className="text-3xl font-bold">Register Your Company</h2>
-        <p className="text-muted-foreground mt-2">Set up your organization and start managing performance</p>
+      <div className="rounded-2xl border bg-card/80 p-5 shadow-sm backdrop-blur-sm text-center">
+        <h2 className="text-3xl font-bold tracking-tight">Register your company</h2>
+        <p className="text-sm text-muted-foreground mt-2">Set up your organization and start managing performance.</p>
       </div>
 
-      <Card className="p-8 border-border">
+      <Card className="border-border/80 p-8 shadow-md">
         <form onSubmit={handleSubmit} className="space-y-5">
           <div className="space-y-2">
             <label className="block text-sm font-medium">Company Name</label>
@@ -189,14 +189,14 @@ export default function SignupForm({ onBack }: SignupFormProps) {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <label className="block text-sm font-medium">Industry</label>
               <select
                 name="industry"
                 value={formData.industry}
                 onChange={handleChange}
-                className="w-full px-4 py-2 border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary"
+                className="w-full rounded-lg border border-border bg-background px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                 required
                 disabled={isLoading}
               >
@@ -215,7 +215,7 @@ export default function SignupForm({ onBack }: SignupFormProps) {
                 name="teamSize"
                 value={formData.teamSize}
                 onChange={handleChange}
-                className="w-full px-4 py-2 border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary"
+                className="w-full rounded-lg border border-border bg-background px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                 required
                 disabled={isLoading}
               >

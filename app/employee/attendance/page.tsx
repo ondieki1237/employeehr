@@ -8,7 +8,7 @@ import { Calendar } from "@/components/ui/calendar"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Calendar as CalendarIcon, Clock, CheckCircle2, XCircle, AlertCircle } from "lucide-react"
 import API_URL from "@/lib/apiBase"
-import { getUser } from "@/lib/auth"
+import { getToken } from "@/lib/auth"
 import { HolidayList } from "@/components/attendance/holiday-list"
 
 // API base URL handled by lib/apiBase
@@ -27,6 +27,9 @@ export default function AttendancePage() {
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([])
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date())
   const [loading, setLoading] = useState(true)
+  const [actionLoading, setActionLoading] = useState<"check-in" | "check-out" | null>(null)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [stats, setStats] = useState({
     present: 0,
     absent: 0,
@@ -40,22 +43,32 @@ export default function AttendancePage() {
 
   const fetchAttendance = async () => {
     try {
-      const user = getUser()
-      if (!user) return
+      const token = getToken()
+      if (!token) {
+        setErrorMessage("You are not authenticated. Please log in again.")
+        return
+      }
+
+      setErrorMessage(null)
 
       const response = await fetch(`${API_URL}/api/attendance/my-attendance`, {
         headers: {
-          Authorization: `Bearer ${user.token}`,
+          Authorization: `Bearer ${token}`,
         },
       })
 
-      if (response.ok) {
-        const data = await response.json()
-        setAttendanceRecords(data.data || [])
-        calculateStats(data.data || [])
+      const data = await response.json()
+
+      if (!response.ok) {
+        setErrorMessage(data.message || "Failed to load attendance records")
+        return
       }
+
+      setAttendanceRecords(data.data || [])
+      calculateStats(data.data || [])
     } catch (error) {
       console.error("Failed to fetch attendance:", error)
+      setErrorMessage("Failed to load attendance records")
     } finally {
       setLoading(false)
     }
@@ -77,43 +90,75 @@ export default function AttendancePage() {
 
   const handleCheckIn = async () => {
     try {
-      const user = getUser()
-      if (!user) return
+      const token = getToken()
+      if (!token) {
+        setErrorMessage("You are not authenticated. Please log in again.")
+        return
+      }
+
+      setActionLoading("check-in")
+      setErrorMessage(null)
+      setSuccessMessage(null)
 
       const response = await fetch(`${API_URL}/api/attendance/check-in`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${user.token}`,
+          Authorization: `Bearer ${token}`,
         },
       })
 
-      if (response.ok) {
-        fetchAttendance()
+      const data = await response.json()
+
+      if (!response.ok) {
+        setErrorMessage(data.message || "Failed to check in")
+        return
       }
+
+      setSuccessMessage("Check-in successful")
+      fetchAttendance()
     } catch (error) {
       console.error("Failed to check in:", error)
+      setErrorMessage("Failed to check in")
+    } finally {
+      setActionLoading(null)
     }
   }
 
   const handleCheckOut = async () => {
     try {
-      const user = getUser()
-      if (!user) return
+      const token = getToken()
+      if (!token) {
+        setErrorMessage("You are not authenticated. Please log in again.")
+        return
+      }
+
+      setActionLoading("check-out")
+      setErrorMessage(null)
+      setSuccessMessage(null)
 
       const response = await fetch(`${API_URL}/api/attendance/check-out`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${user.token}`,
+          Authorization: `Bearer ${token}`,
         },
       })
 
-      if (response.ok) {
-        fetchAttendance()
+      const data = await response.json()
+
+      if (!response.ok) {
+        setErrorMessage(data.message || "Failed to check out")
+        return
       }
+
+      setSuccessMessage("Check-out successful")
+      fetchAttendance()
     } catch (error) {
       console.error("Failed to check out:", error)
+      setErrorMessage("Failed to check out")
+    } finally {
+      setActionLoading(null)
     }
   }
 
@@ -161,19 +206,31 @@ export default function AttendancePage() {
         </div>
         <div className="flex gap-2">
           {!todayRecord?.checkIn && (
-            <Button onClick={handleCheckIn}>
+            <Button onClick={handleCheckIn} disabled={actionLoading === "check-in" || actionLoading === "check-out"}>
               <Clock className="mr-2 h-4 w-4" />
-              Check In
+              {actionLoading === "check-in" ? "Checking In..." : "Check In"}
             </Button>
           )}
           {todayRecord?.checkIn && !todayRecord?.checkOut && (
-            <Button onClick={handleCheckOut} variant="outline">
+            <Button onClick={handleCheckOut} variant="outline" disabled={actionLoading === "check-in" || actionLoading === "check-out"}>
               <Clock className="mr-2 h-4 w-4" />
-              Check Out
+              {actionLoading === "check-out" ? "Checking Out..." : "Check Out"}
             </Button>
           )}
         </div>
       </div>
+
+      {errorMessage && (
+        <Card className="border-destructive/30 bg-destructive/5">
+          <CardContent className="pt-6 text-sm text-destructive">{errorMessage}</CardContent>
+        </Card>
+      )}
+
+      {successMessage && (
+        <Card className="border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/30">
+          <CardContent className="pt-6 text-sm text-emerald-700 dark:text-emerald-300">{successMessage}</CardContent>
+        </Card>
+      )}
 
       {/* Statistics */}
       <div className="grid gap-4 md:grid-cols-4">

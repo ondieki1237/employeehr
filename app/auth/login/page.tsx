@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { useState } from "react"
-import { ArrowLeft, Mail, Lock } from "lucide-react"
+import { ArrowLeft, Mail, Lock, ShieldCheck, Sparkles } from "lucide-react"
 import { api } from "@/lib/api"
 import { removeToken, removeUser, setToken, setUser } from "@/lib/auth"
 import InvitationForm from "@/components/auth/invitation-form"
@@ -40,19 +40,15 @@ function LoginContent() {
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
-    console.log('handleSubmit called')
     e.preventDefault()
     e.stopPropagation()
-    console.log('preventDefault called')
     
     if (isLoading) {
-      console.log('Already loading, returning')
       return // Prevent multiple submissions
     }
     
     setError("")
     setIsLoading(true)
-    console.log('Starting login...')
 
     try {
       // Ensure stale session data doesn't interfere with a fresh login
@@ -94,16 +90,22 @@ function LoginContent() {
 
   return (
     <div className="space-y-6">
-      <div className="text-center mb-8">
-        <Link href="/" className="inline-flex items-center gap-2 text-primary hover:text-primary/80 transition mb-4">
-          <ArrowLeft size={18} />
-          Back to Home
-        </Link>
-        <h1 className="text-3xl font-bold">Welcome Back</h1>
-        <p className="text-muted-foreground mt-2">Sign in to your Elevate account</p>
+      <div className="rounded-2xl border bg-card/80 p-5 shadow-sm backdrop-blur-sm">
+        <div className="mb-4 flex items-center justify-between gap-4">
+          <Link href="/" className="inline-flex items-center gap-2 text-sm text-primary hover:text-primary/80 transition">
+            <ArrowLeft size={16} />
+            Back
+          </Link>
+          <div className="inline-flex items-center gap-2 rounded-full border bg-background px-3 py-1 text-xs text-muted-foreground">
+            <ShieldCheck size={14} className="text-accent" />
+            Secure Login
+          </div>
+        </div>
+        <h1 className="text-3xl font-bold tracking-tight">Welcome back</h1>
+        <p className="mt-2 text-sm text-muted-foreground">Sign in to continue to your workspace dashboard.</p>
       </div>
 
-      <Card className="p-8 border-border">
+      <Card className="border-border/80 p-8 shadow-md">
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="space-y-2">
             <label className="block text-sm font-medium">Email Address</label>
@@ -151,15 +153,25 @@ function LoginContent() {
           <Button type="submit" size="lg" className="w-full bg-primary hover:bg-primary/90" disabled={isLoading}>
             {isLoading ? "Signing in..." : "Sign In"}
           </Button>
+
+          <div className="rounded-lg border bg-muted/40 p-3 text-xs text-muted-foreground">
+            <div className="flex items-center gap-2 font-medium text-foreground">
+              <Sparkles size={14} className="text-primary" />
+              Quick Access
+            </div>
+            <p className="mt-1">Admins, managers, and employees all sign in here and are routed automatically.</p>
+          </div>
         </form>
       </Card>
 
-      <p className="text-center text-sm text-muted-foreground">
-        Don't have an account?{" "}
-        <Link href="/auth/signup" className="text-primary hover:underline font-medium">
-          Sign up here
-        </Link>
-      </p>
+      <Card className="border-border/70 bg-card/60 p-4 shadow-sm">
+        <p className="text-center text-sm text-muted-foreground">
+          Don&apos;t have an account?{" "}
+          <Link href="/auth/signup" className="font-semibold text-primary hover:underline">
+            Create one now
+          </Link>
+        </p>
+      </Card>
     </div>
   )
 }
