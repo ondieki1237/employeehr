@@ -34,6 +34,8 @@ interface QuotationItem {
   productId: string
   productName: string
   quantity: number
+  productUnitPrice?: number
+  soldUnitPrice?: number
   unitPrice: number
   lineTotal: number
   isOutsourced?: boolean
@@ -55,6 +57,8 @@ interface DraftItem {
   productId?: string
   productName?: string
   quantity: number
+  productUnitPrice?: number
+  soldUnitPrice?: number
   unitPrice: number
   isOutsourced?: boolean
 }
@@ -86,6 +90,7 @@ export default function EmployeeQuotationsPage() {
 
   const [productSearch, setProductSearch] = useState("")
   const [itemQuantity, setItemQuantity] = useState("1")
+  const [itemSoldPrice, setItemSoldPrice] = useState("")
   const [items, setItems] = useState<DraftItem[]>([])
 
   const [quotationSearchInput, setQuotationSearchInput] = useState("")
@@ -174,6 +179,7 @@ export default function EmployeeQuotationsPage() {
     setExistingClientSearch("")
     setProductSearch("")
     setItemQuantity("1")
+    setItemSoldPrice("")
     setItems([])
     setEditingQuotationId(null)
     setShowCreate(false)
@@ -200,24 +206,62 @@ export default function EmployeeQuotationsPage() {
       return
     }
 
+    const referencePrice = Number(product.sellingPrice || 0)
+    const soldPrice = itemSoldPrice ? Number(itemSoldPrice) : referencePrice
+
+    if (!Number.isFinite(soldPrice) || soldPrice < referencePrice) {
+      toast({
+        title: "Invalid sold price",
+        description: `Sold price cannot be below product price (${referencePrice})`,
+        variant: "destructive",
+      })
+      return
+    }
+
     setItems((prev) => [
       ...prev,
       {
         productId: product._id,
         productName: product.name,
         quantity: Number(itemQuantity),
-        unitPrice: Number(product.sellingPrice || 0),
+        productUnitPrice: referencePrice,
+        soldUnitPrice: soldPrice,
+        unitPrice: soldPrice,
         isOutsourced: false,
       },
     ])
 
     setProductSearch("")
     setItemQuantity("1")
+    setItemSoldPrice("")
+  }
+
+  const removeDraftItem = (index: number) => {
+    setItems((prev) => prev.filter((_, currentIndex) => currentIndex !== index))
+  }
+
+  const updateDraftItemSoldPrice = (index: number, value: string) => {
+    setItems((prev) =>
+      prev.map((item, currentIndex) => {
+        if (currentIndex !== index) return item
+        const parsed = Number(value)
+        if (!Number.isFinite(parsed)) return item
+
+        const minimumPrice = Number(item.productUnitPrice ?? item.unitPrice ?? 0)
+        const nextSoldPrice = parsed < minimumPrice ? minimumPrice : parsed
+
+        return {
+          ...item,
+          soldUnitPrice: nextSoldPrice,
+          unitPrice: nextSoldPrice,
+        }
+      }),
+    )
   }
 
   const createOrUpdateQuotation = async () => {
-    if (!clientName || !clientNumber || !clientContactPerson || items.length === 0) {
-      toast({ title: "Missing data", description: "Add client details and at least one item", variant: "destructive" })
+    if (!clientName || !clientNumber || items.length === 0) {
+      toast({ title: "Missing data", description: "Add client name, phone number and at least one item", variant: "destructive" })
       return
     }
 
@@ -232,7 +276,7 @@ export default function EmployeeQuotationsPage() {
       body: JSON.stringify({
         clientName,
         clientNumber,
-        clientContactPerson,
+        clientContactPerson: clientContactPerson || "",
         clientLocation: "N/A",
         items,
       }),
@@ -248,7 +292,7 @@ export default function EmployeeQuotationsPage() {
       title: "Success",
       description: editingQuotationId
         ? `Quotation ${result.data.quotationNumber} updated`
-        : `Quotation ${result.data.quotationNumber} created`,
+        : `Quotation ${result.data.quotationNumber} submitted for admin approval`,
     })
 
     resetForm()
@@ -272,6 +316,8 @@ export default function EmployeeQuotationsPage() {
         productId: item.productId,
         productName: item.productName,
         quantity: item.quantity,
+        productUnitPrice: item.productUnitPrice ?? item.unitPrice,
+        soldUnitPrice: item.soldUnitPrice ?? item.unitPrice,
         unitPrice: item.unitPrice,
         isOutsourced: Boolean(item.isOutsourced),
       })),
@@ -280,24 +326,6 @@ export default function EmployeeQuotationsPage() {
     window.requestAnimationFrame(() => {
       createFormRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
     })
-  }
-
-  const convertToInvoice = async (quotationId: string) => {
-    const response = await fetch(`${API_URL}/api/stock/quotations/${quotationId}/convert`, {
-      method: "POST",
-      headers,
-    })
-    const result = await response.json()
-    if (!response.ok) {
-      toast({ title: "Error", description: result.message || "Failed to convert quotation", variant: "destructive" })
-      return
-    }
-
-    toast({
-      title: "Converted",
-      description: `Invoice ${result.data.invoiceNumber} created with Delivery Note ${result.data.deliveryNoteNumber}`,
-    })
-    loadData()
   }
 
   const promptStampSelection = async (): Promise<{ stampId: string; date: string } | null> => {
@@ -453,7 +481,7 @@ export default function EmployeeQuotationsPage() {
                   <Input value={clientName} onChange={(event) => setClientName(event.target.value)} />
                 </div>
                 <div>
-                  <Label>Contact Person</Label>
+                  <Label>Contact Person (optional)</Label>
                   <Input value={clientContactPerson} onChange={(event) => setClientContactPerson(event.target.value)} />
                 </div>
                 {!selectedExistingClient ? (
@@ -469,7 +497,7 @@ export default function EmployeeQuotationsPage() {
               </div>
 
               <div className="rounded-md border p-4 space-y-4">
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-4 md:grid-cols-3">
                   <div>
                     <Label>Type Product Name</Label>
                     <Input placeholder="Start typing product name" value={productSearch} onChange={(event) => setProductSearch(event.target.value)} />
@@ -477,6 +505,10 @@ export default function EmployeeQuotationsPage() {
                   <div>
                     <Label>Quantity</Label>
                     <Input type="number" min="1" value={itemQuantity} onChange={(event) => setItemQuantity(event.target.value)} />
+                  </div>
+                  <div>
+                    <Label>Sold Price (optional)</Label>
+                    <Input type="number" min="0" value={itemSoldPrice} onChange={(event) => setItemSoldPrice(event.target.value)} placeholder="Defaults to product price" />
                   </div>
                   <div className="flex items-end rounded-md border px-3 py-2 text-xs text-muted-foreground">
                     Choose a product from the list below.
@@ -511,21 +543,40 @@ export default function EmployeeQuotationsPage() {
                       <tr className="text-left border-b">
                         <th className="py-2 px-2">Product</th>
                         <th className="py-2 px-2">Qty</th>
-                        <th className="py-2 px-2">Unit Price</th>
+                        <th className="py-2 px-2">Product Price</th>
+                        <th className="py-2 px-2">Sold Price (Editable)</th>
                         <th className="py-2 px-2">Outsourced</th>
                         <th className="py-2 px-2">Total</th>
+                        <th className="py-2 px-2">Drop</th>
                       </tr>
                     </thead>
                     <tbody>
                       {items.map((item, index) => {
                         const name = item.productName || products.find((product) => product._id === item.productId)?.name || item.productId
+                        const referencePrice = item.productUnitPrice ?? item.unitPrice
+                        const soldPrice = item.soldUnitPrice ?? item.unitPrice
                         return (
                           <tr key={`${item.productId}-${index}`} className="border-b">
                             <td className="py-2 px-2">{name}</td>
                             <td className="py-2 px-2">{item.quantity}</td>
-                            <td className="py-2 px-2">{item.unitPrice}</td>
+                            <td className="py-2 px-2">{referencePrice}</td>
+                            <td className="py-2 px-2">
+                              <Input
+                                type="number"
+                                min={Number(referencePrice || 0)}
+                                value={soldPrice}
+                                onChange={(event) => updateDraftItemSoldPrice(index, event.target.value)}
+                                className="h-8"
+                              />
+                              <div className="mt-1 text-[10px] text-muted-foreground">Min: {referencePrice}</div>
+                            </td>
                             <td className="py-2 px-2">{item.isOutsourced ? "Yes" : "No"}</td>
-                            <td className="py-2 px-2">{(item.quantity * item.unitPrice).toFixed(2)}</td>
+                            <td className="py-2 px-2">{(item.quantity * soldPrice).toFixed(2)}</td>
+                            <td className="py-2 px-2">
+                              <Button size="sm" type="button" variant="destructive" onClick={() => removeDraftItem(index)}>
+                                Drop
+                              </Button>
+                            </td>
                           </tr>
                         )
                       })}
@@ -568,14 +619,15 @@ export default function EmployeeQuotationsPage() {
                     <td className="py-2 capitalize">{quotation.status.replace("_", " ")}</td>
                     <td className="py-2">
                       <div className="flex flex-wrap gap-2">
-                        <Button size="sm" variant="outline" onClick={() => downloadQuotationPdf(quotation)}>Download PDF</Button>
-                        {quotation.status === "draft" && (
-                          <Button size="sm" variant="outline" onClick={() => startEditQuotation(quotation)}>Edit</Button>
+                        {quotation.status === "draft" || quotation.status === "converted" ? (
+                          <Button size="sm" variant="outline" onClick={() => downloadQuotationPdf(quotation)}>Download PDF</Button>
+                        ) : (
+                          <span className="text-muted-foreground text-xs self-center">Download available after approval</span>
                         )}
-                        {quotation.status === "draft" ? (
-                          <Button size="sm" onClick={() => convertToInvoice(quotation._id)}>Convert to Invoice</Button>
-                        ) : quotation.status === "pending_approval" ? (
+                        {quotation.status === "pending_approval" ? (
                           <span className="text-muted-foreground text-xs self-center">Pending approval</span>
+                        ) : quotation.status === "draft" ? (
+                          <span className="text-muted-foreground text-xs self-center">Approved by admin</span>
                         ) : (
                           <span className="text-muted-foreground text-xs self-center">Converted</span>
                         )}

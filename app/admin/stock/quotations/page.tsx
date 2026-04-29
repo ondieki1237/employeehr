@@ -37,6 +37,8 @@ interface QuotationItem {
   productId: string
   productName: string
   quantity: number
+  productUnitPrice?: number
+  soldUnitPrice?: number
   unitPrice: number
   lineTotal: number
   isOutsourced?: boolean
@@ -59,6 +61,8 @@ interface DraftItem {
   productId?: string
   productName?: string
   quantity: number
+  productUnitPrice?: number
+  soldUnitPrice?: number
   unitPrice: number
   isOutsourced?: boolean
 }
@@ -231,11 +235,20 @@ export default function QuotationsPage() {
       return
     }
 
+    const minimumPrice = Number(product.sellingPrice || 0)
+    if (unitPrice < minimumPrice) {
+      toast({ title: "Invalid sold price", description: `Sold price cannot be below minimum selling price (${minimumPrice})`, variant: "destructive" })
+      return
+    }
+
     setItems((prev) => [
       ...prev,
       {
         productId: product._id,
         quantity: Number(itemQuantity),
+        productName: product.name,
+        productUnitPrice: Number(product.sellingPrice || 0),
+        soldUnitPrice: unitPrice,
         unitPrice,
         isOutsourced: itemOutsourced,
       },
@@ -272,6 +285,8 @@ export default function QuotationsPage() {
         productId: fallbackId,
         productName,
         quantity: Number(itemQuantity),
+        productUnitPrice: unitPrice,
+        soldUnitPrice: unitPrice,
         unitPrice,
         isOutsourced: true,
       },
@@ -281,6 +296,29 @@ export default function QuotationsPage() {
     setItemQuantity("1")
     setItemUnitPrice("")
     setItemOutsourced(false)
+  }
+
+  const removeDraftItem = (index: number) => {
+    setItems((prev) => prev.filter((_, currentIndex) => currentIndex !== index))
+  }
+
+  const updateDraftItemSoldPrice = (index: number, value: string) => {
+    setItems((prev) =>
+      prev.map((item, currentIndex) => {
+        if (currentIndex !== index) return item
+        const parsed = Number(value)
+        if (!Number.isFinite(parsed)) return item
+
+        const minimumPrice = Number(item.productUnitPrice ?? item.unitPrice ?? 0)
+        const nextSoldPrice = parsed < minimumPrice ? minimumPrice : parsed
+
+        return {
+          ...item,
+          soldUnitPrice: nextSoldPrice,
+          unitPrice: nextSoldPrice,
+        }
+      }),
+    )
   }
 
   const createOrUpdateQuotation = async () => {
@@ -325,8 +363,8 @@ export default function QuotationsPage() {
   }
 
   const startEditQuotation = (quotation: Quotation) => {
-    if (quotation.status !== "draft") {
-      toast({ title: "Not editable", description: "Only draft quotations can be edited", variant: "destructive" })
+    if (quotation.status !== "draft" && quotation.status !== "pending_approval") {
+      toast({ title: "Not editable", description: "Only draft or pending quotations can be edited", variant: "destructive" })
       return
     }
 
@@ -342,6 +380,8 @@ export default function QuotationsPage() {
         productId: item.productId,
         productName: item.productName,
         quantity: item.quantity,
+        productUnitPrice: item.productUnitPrice ?? item.unitPrice,
+        soldUnitPrice: item.soldUnitPrice ?? item.unitPrice,
         unitPrice: item.unitPrice,
         isOutsourced: Boolean(item.isOutsourced),
       })),
@@ -361,6 +401,22 @@ export default function QuotationsPage() {
     }
 
     toast({ title: "Approved", description: "Quotation moved to active quotations" })
+    loadData()
+  }
+
+  const rejectQuotation = async (quotationId: string) => {
+    const response = await fetch(`${API_URL}/api/stock/quotations/${quotationId}/reject`, {
+      method: "POST",
+      headers,
+    })
+
+    const result = await response.json()
+    if (!response.ok) {
+      toast({ title: "Error", description: result.message || "Failed to reject quotation", variant: "destructive" })
+      return
+    }
+
+    toast({ title: "Rejected", description: "Quotation has been rejected" })
     loadData()
   }
 
@@ -466,6 +522,11 @@ export default function QuotationsPage() {
         <div>
           <h1 className="text-2xl font-bold">Quotations</h1>
           <p className="text-sm text-muted-foreground">View existing quotations or create a new one.</p>
+          {pendingApprovalQuotations.length > 0 ? (
+            <div className="mt-2 inline-flex items-center rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-800">
+              Pending Requests: {pendingApprovalQuotations.length}
+            </div>
+          ) : null}
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => loadData()}>Refresh</Button>
@@ -557,7 +618,7 @@ export default function QuotationsPage() {
                   <Input type="number" min="1" value={itemQuantity} onChange={(event) => setItemQuantity(event.target.value)} />
                 </div>
                 <div>
-                  <Label>Unit Price (optional override)</Label>
+                  <Label>Sold Price (optional override)</Label>
                   <Input type="number" min="0" value={itemUnitPrice} onChange={(event) => setItemUnitPrice(event.target.value)} />
                 </div>
                 <div className="flex items-end">
@@ -593,7 +654,7 @@ export default function QuotationsPage() {
                             {product.isOutsourced ? <span className="rounded bg-amber-100 px-2 py-0.5 text-[11px] text-amber-800">Outsourced</span> : null}
                           </div>
                           <div className="text-muted-foreground">
-                            Category: {product.categoryDetails?.name || "N/A"} | Price: {product.sellingPrice} | In stock: {product.currentQuantity}
+                            Category: {product.categoryDetails?.name || "N/A"} | Product Price: {product.sellingPrice} | In stock: {product.currentQuantity}
                           </div>
                         </button>
                       ))}
@@ -613,21 +674,40 @@ export default function QuotationsPage() {
                     <tr className="text-left border-b">
                       <th className="py-2 px-2">Product</th>
                       <th className="py-2 px-2">Qty</th>
-                      <th className="py-2 px-2">Unit Price</th>
+                      <th className="py-2 px-2">Product Price</th>
+                      <th className="py-2 px-2">Sold Price (Editable)</th>
                       <th className="py-2 px-2">Outsourced</th>
                       <th className="py-2 px-2">Total</th>
+                      <th className="py-2 px-2">Drop</th>
                     </tr>
                   </thead>
                   <tbody>
                     {items.map((item, index) => {
                       const name = item.productName || products.find((product) => product._id === item.productId)?.name || item.productId
+                      const referencePrice = item.productUnitPrice ?? products.find((product) => product._id === item.productId)?.sellingPrice ?? item.unitPrice
+                      const soldPrice = item.soldUnitPrice ?? item.unitPrice
                       return (
                         <tr key={`${item.productId}-${index}`} className="border-b">
                           <td className="py-2 px-2">{name}</td>
                           <td className="py-2 px-2">{item.quantity}</td>
-                          <td className="py-2 px-2">{item.unitPrice}</td>
+                          <td className="py-2 px-2">{referencePrice}</td>
+                          <td className="py-2 px-2">
+                            <Input
+                              type="number"
+                              min={Number(referencePrice || 0)}
+                              value={soldPrice}
+                              onChange={(event) => updateDraftItemSoldPrice(index, event.target.value)}
+                              className="h-8"
+                            />
+                            <div className="mt-1 text-[10px] text-muted-foreground">Min: {referencePrice}</div>
+                          </td>
                           <td className="py-2 px-2">{item.isOutsourced ? "Yes" : "No"}</td>
-                          <td className="py-2 px-2">{(item.quantity * item.unitPrice).toFixed(2)}</td>
+                          <td className="py-2 px-2">{(item.quantity * soldPrice).toFixed(2)}</td>
+                          <td className="py-2 px-2">
+                            <Button size="sm" type="button" variant="destructive" onClick={() => removeDraftItem(index)}>
+                              Drop
+                            </Button>
+                          </td>
                         </tr>
                       )
                     })}
@@ -645,7 +725,14 @@ export default function QuotationsPage() {
       )}
 
       <Card>
-        <CardHeader><CardTitle>Pending Approvals</CardTitle></CardHeader>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            Pending Requests
+            <span className="rounded-full bg-primary px-2 py-0.5 text-xs text-primary-foreground">
+              {pendingApprovalQuotations.length}
+            </span>
+          </CardTitle>
+        </CardHeader>
         <CardContent>
           {pendingApprovalQuotations.length === 0 ? (
             <p className="text-sm text-muted-foreground">No pending approvals.</p>
@@ -671,8 +758,12 @@ export default function QuotationsPage() {
                       <td className="py-2">
                         <div className="flex flex-wrap gap-2">
                           <Button size="sm" variant="outline" onClick={() => downloadQuotationPdf(quotation)}>Download PDF</Button>
+                          <Button size="sm" variant="outline" onClick={() => startEditQuotation(quotation)}>Edit</Button>
                           {canApprove ? (
-                            <Button size="sm" onClick={() => approveQuotation(quotation._id)}>Approve</Button>
+                            <>
+                              <Button size="sm" onClick={() => approveQuotation(quotation._id)}>Approve</Button>
+                              <Button size="sm" variant="destructive" onClick={() => rejectQuotation(quotation._id)}>Reject</Button>
+                            </>
                           ) : (
                             <span className="text-muted-foreground text-xs self-center">Awaiting admin approval</span>
                           )}

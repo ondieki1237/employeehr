@@ -192,6 +192,8 @@ async function buildQuotationItems(
         productId: String(item.productId || fallbackId),
         productName: manualName,
         quantity,
+        productUnitPrice: unitPrice,
+        soldUnitPrice: unitPrice,
         unitPrice,
         lineTotal: Number((quantity * unitPrice).toFixed(2)),
         isOutsourced: true,
@@ -211,14 +213,22 @@ async function buildQuotationItems(
       ? Number(item.unitPrice)
       : Number(product.sellingPrice)
 
+    const minimumSellingPrice = Number(product.sellingPrice)
+
     if (!Number.isFinite(unitPrice) || unitPrice < 0) {
       throw new Error(`Invalid unit price for ${product.name}`)
+    }
+
+    if (unitPrice < minimumSellingPrice) {
+      throw new Error(`Sold price for ${product.name} cannot be below minimum selling price (${minimumSellingPrice})`)
     }
 
     return {
       productId: String(product._id),
       productName: product.name,
       quantity,
+      productUnitPrice: Number(product.sellingPrice),
+      soldUnitPrice: unitPrice,
       unitPrice,
       lineTotal: Number((quantity * unitPrice).toFixed(2)),
       isOutsourced: false,
@@ -572,7 +582,7 @@ export class StockController {
         },
         items: normalizedItems,
         subTotal,
-        status: "draft",
+        status: req.user?.role === "employee" ? "pending_approval" : "draft",
         createdBy,
       })
 
@@ -596,7 +606,17 @@ export class StockController {
       }
 
       const quotations = await StockQuotation.find(query).sort({ createdAt: -1 }).lean()
-      return res.status(200).json({ success: true, data: quotations })
+
+      const creatorIds = [...new Set(quotations.map((quotation: any) => String(quotation.createdBy || "")).filter(Boolean))]
+      const creators = await User.find({ _id: { $in: creatorIds } }).select("firstName lastName").lean()
+      const creatorMap = new Map(creators.map((user: any) => [String(user._id), `${user.firstName || ""} ${user.lastName || ""}`.trim()]))
+
+      const enriched = quotations.map((quotation: any) => ({
+        ...quotation,
+        createdByName: creatorMap.get(String(quotation.createdBy || "")) || undefined,
+      }))
+
+      return res.status(200).json({ success: true, data: enriched })
     } catch (error: any) {
       return res.status(500).json({ success: false, message: error.message || "Failed to fetch quotations" })
     }
@@ -615,12 +635,12 @@ export class StockController {
         return res.status(404).json({ success: false, message: "Quotation not found" })
       }
 
-      if (role === "employee" && String(quotation.createdBy) !== String(userId || "")) {
-        return res.status(403).json({ success: false, message: "You can only edit your own quotation" })
+      if (!isAdminRole(role)) {
+        return res.status(403).json({ success: false, message: "Only admin/HR can edit quotations" })
       }
 
-      if (quotation.status !== "draft") {
-        return res.status(400).json({ success: false, message: "Only draft quotations can be edited" })
+      if (quotation.status !== "draft" && quotation.status !== "pending_approval") {
+        return res.status(400).json({ success: false, message: "Only draft or pending quotations can be edited" })
       }
 
       const { clientName, clientNumber, clientLocation, clientContactPerson, items } = req.body
@@ -671,6 +691,8 @@ export class StockController {
       }
 
       quotation.status = "draft"
+      quotation.approvedBy = String(req.user?.userId || "")
+      quotation.approvedAt = new Date()
       await quotation.save()
 
       return res.status(200).json({
@@ -680,6 +702,38 @@ export class StockController {
       })
     } catch (error: any) {
       return res.status(500).json({ success: false, message: error.message || "Failed to approve quotation" })
+    }
+  }
+
+  static async rejectQuotation(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = req.user?.org_id
+      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+
+      if (!isAdminRole(req.user?.role)) {
+        return res.status(403).json({ success: false, message: "Only admin/HR can reject quotations" })
+      }
+
+      const { quotationId } = req.params
+      const quotation = await StockQuotation.findOne({ _id: quotationId, org_id })
+      if (!quotation) {
+        return res.status(404).json({ success: false, message: "Quotation not found" })
+      }
+
+      if (quotation.status === "converted") {
+        return res.status(400).json({ success: false, message: "Cannot reject converted quotation" })
+      }
+
+      quotation.status = "cancelled"
+      await quotation.save()
+
+      return res.status(200).json({
+        success: true,
+        message: "Quotation rejected",
+        data: quotation,
+      })
+    } catch (error: any) {
+      return res.status(500).json({ success: false, message: error.message || "Failed to reject quotation" })
     }
   }
 
@@ -1479,8 +1533,8 @@ export class StockController {
         return res.status(404).json({ success: false, message: "Quotation not found" })
       }
 
-      if (role === "employee" && String(quotation.createdBy) !== String(actorId)) {
-        return res.status(403).json({ success: false, message: "You can only convert your own quotation" })
+      if (!isAdminRole(role)) {
+        return res.status(403).json({ success: false, message: "Only admin/HR can convert quotations to invoices" })
       }
 
       if (quotation.status === "converted" && quotation.convertedInvoiceId) {

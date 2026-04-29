@@ -33,6 +33,8 @@ import {
   Clock3
 } from "lucide-react"
 import { getUser, logout } from "@/lib/auth"
+import { getToken } from "@/lib/auth"
+import API_URL from "@/lib/apiBase"
 import { companyApi } from "@/lib/api"
 import { useEffect, useMemo, useState } from "react"
 
@@ -280,6 +282,7 @@ const adminMenuItems = [
 export default function AdminSidebar({ isOpen, isCollapsed, onToggle, onCollapseToggle }: SidebarProps) {
   const pathname = usePathname()
   const [allowedSections, setAllowedSections] = useState<Set<string> | null>(null)
+  const [pendingQuotationCount, setPendingQuotationCount] = useState(0)
 
   const currentUser = useMemo(() => getUser(), [])
 
@@ -306,6 +309,37 @@ export default function AdminSidebar({ isOpen, isCollapsed, onToggle, onCollapse
     }
 
     loadSectionAccess()
+  }, [currentUser?.role])
+
+  useEffect(() => {
+    const role = currentUser?.role
+    if (!role || !["company_admin", "hr"].includes(role)) {
+      setPendingQuotationCount(0)
+      return
+    }
+
+    let mounted = true
+    const loadPendingCount = async () => {
+      try {
+        const token = getToken()
+        if (!token) return
+        const response = await fetch(`${API_URL}/api/stock/quotations`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        const result = await response.json()
+        if (!response.ok) return
+        const pending = (result?.data || []).filter((quotation: any) => quotation.status === "pending_approval").length
+        if (mounted) setPendingQuotationCount(pending)
+      } catch {
+      }
+    }
+
+    loadPendingCount()
+    const interval = setInterval(loadPendingCount, 30000)
+    return () => {
+      mounted = false
+      clearInterval(interval)
+    }
   }, [currentUser?.role])
 
   const handleLogout = () => {
@@ -377,8 +411,24 @@ export default function AdminSidebar({ isOpen, isCollapsed, onToggle, onCollapse
                         }
                       `}
                     >
-                      <Icon size={18} />
-                      {!isCollapsed && <span>{item.label}</span>}
+                      <div className="relative">
+                        <Icon size={18} />
+                        {item.href === "/admin/stock/quotations" && pendingQuotationCount > 0 && isCollapsed ? (
+                          <span className="absolute -right-2 -top-2 min-w-4 rounded-full bg-destructive px-1 text-[10px] font-semibold text-destructive-foreground text-center">
+                            {pendingQuotationCount > 99 ? "99+" : pendingQuotationCount}
+                          </span>
+                        ) : null}
+                      </div>
+                      {!isCollapsed && (
+                        <span className="flex items-center gap-2">
+                          {item.label}
+                          {item.href === "/admin/stock/quotations" && pendingQuotationCount > 0 ? (
+                            <span className="rounded-full bg-destructive px-2 py-0.5 text-[11px] font-semibold text-destructive-foreground">
+                              {pendingQuotationCount > 99 ? "99+" : pendingQuotationCount}
+                            </span>
+                          ) : null}
+                        </span>
+                      )}
                     </Link>
                   )
                 })}
