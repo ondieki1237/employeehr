@@ -19,6 +19,9 @@ export interface InvoiceDocumentSettings {
   contactPhone?: string;
   officeLocation?: string;
   contactEmail?: string;
+  website?: string;
+  vatNumber?: string;
+  pinNumber?: string;
   termsAndConditions?: string;
   includeQuotationReference?: boolean;
   includeDeliveryNoteNumber?: boolean;
@@ -46,6 +49,8 @@ export interface DocumentItem {
   quantity: number;
   unitPrice: number;
   lineTotal: number;
+  taxRate?: number;
+  totalAfterTax?: number;
 }
 
 interface HeaderArgs {
@@ -109,10 +114,6 @@ function drawModernHeader(doc: jsPDF, args: HeaderArgs) {
   const primary = args.branding?.primaryColor || DEFAULT_PRIMARY;
   const hasLogo = Boolean(args.branding?.logo);
 
-  // Thin accent bar at top
-  setColorFromHex(doc, primary, "fill");
-  doc.rect(0, 0, 210, 4, "F");
-
   const logoX = 12;
   const logoY = 10;
 
@@ -156,26 +157,39 @@ function drawModernHeader(doc: jsPDF, args: HeaderArgs) {
     }
   }
 
-  // Document meta - right side
+  // Document title - right side
   doc.setFont("helvetica", "bold");
   doc.setFontSize(22);
   setColorFromHex(doc, primary, "text");
   doc.text(args.title.toUpperCase(), 198, 18, { align: "right" });
 
+  // Meta table - right side
+  const metaW = 117;
+  const metaH = 27;
+  const metaX = 198 - metaW;
+  const metaY = 30;
+  const metaSplitX = metaX + 45;
+  const metaRowH = metaH / 2;
+
+  setColorFromHex(doc, primary, "draw");
+  doc.setLineWidth(0.6);
+  doc.rect(metaX, metaY, metaW, metaH);
+  doc.line(metaSplitX, metaY, metaSplitX, metaY + metaH);
+  doc.line(metaX, metaY + metaRowH, metaX + metaW, metaY + metaRowH);
+
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(10);
+  doc.setFontSize(9.5);
   setColorFromHex(doc, DEFAULT_GRAY, "text");
+  doc.text(args.numberLabel, metaX + 3, metaY + 9.5);
+  doc.text("Issued", metaX + 3, metaY + metaRowH + 9.5);
 
-  doc.text(`${args.numberLabel}:`, 140, 32);
   doc.setFont("helvetica", "bold");
-  doc.setTextColor(0, 0, 0);
-  doc.text(args.numberValue, 198, 32, { align: "right" });
+  doc.setFontSize(10.5);
+  setColorFromHex(doc, DEFAULT_TEXT, "text");
+  doc.text(args.numberValue, metaX + metaW - 3, metaY + 9.5, { align: "right" });
+  doc.text(new Date(args.createdAt).toLocaleDateString("en-KE"), metaX + metaW - 3, metaY + metaRowH + 9.5, { align: "right" });
 
-  doc.setFont("helvetica", "normal");
-  doc.text("Issued:", 140, 39);
-  doc.text(new Date(args.createdAt).toLocaleDateString("en-KE"), 198, 39, { align: "right" });
-
-  drawThinDivider(doc, 54);
+  drawThinDivider(doc, 56);
 }
 
 function drawContactSlotBelowLogo(
@@ -183,38 +197,46 @@ function drawContactSlotBelowLogo(
   branding?: TenantBranding,
   settings?: InvoiceDocumentSettings,
 ) {
+  const primary = branding?.primaryColor || DEFAULT_PRIMARY;
   const phone = String(settings?.contactPhone || branding?.phone || "").trim();
   const location = String(settings?.officeLocation || buildCompanyAddress(branding) || "").trim();
   const email = String(settings?.contactEmail || settings?.invoiceEmail || branding?.email || "").trim();
+  const website = String(settings?.website || branding?.website || "").trim();
+  const vatNumber = String(settings?.vatNumber || "").trim();
+  const pinNumber = String(settings?.pinNumber || "").trim();
 
   const rows = [
-    { icon: "☎", value: phone },
-    { icon: "📍", value: location },
-    { icon: "✉", value: email },
+    { label: "Phone", value: phone },
+    { label: "Email", value: email },
+    { label: "Website", value: website },
+    { label: "Address", value: location },
+    { label: "VAT", value: vatNumber },
+    { label: "PIN", value: pinNumber },
   ].filter((row) => row.value);
 
-  if (!rows.length) return;
+  if (!rows.length) return 51;
 
   const boxX = 12;
-  const boxY = 56;
-  const rowHeight = 5;
-  const boxHeight = Math.max(16, rows.length * rowHeight + 6);
+  const boxY = 52;
+  const rowHeight = 4.2;
+  const boxHeight = Math.max(13, rows.length * rowHeight + 3);
 
-  setColorFromHex(doc, "#e2e8f0", "draw");
-  doc.setLineWidth(0.35);
-  doc.roundedRect(boxX, boxY, 98, boxHeight, 2, 2);
+  setColorFromHex(doc, primary, "draw");
+  doc.setLineWidth(0.5);
+  doc.rect(boxX, boxY, 98, boxHeight);
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8.7);
   setColorFromHex(doc, DEFAULT_GRAY, "text");
 
-  let y = boxY + 5.2;
+  let y = boxY + 4.2;
   rows.forEach((row) => {
-    doc.text(row.icon, boxX + 3, y);
     const wrapped = doc.splitTextToSize(row.value, 88);
-    doc.text(wrapped[0] || "", boxX + 9, y);
+    doc.text(`${row.label}: ${wrapped[0] || ""}`, boxX + 3, y);
     y += rowHeight;
   });
+
+  return boxY + boxHeight + 1;
 }
 
 function drawPartiesSection(
@@ -222,45 +244,71 @@ function drawPartiesSection(
   client: DocumentClient,
   preparedBy: string,
   branding?: TenantBranding,
-  rightTitle = "Payment Terms"
+  rightTitle = "Payment Terms",
+  startY = 68,
 ) {
-  let y = 62;
+  const primary = branding?.primaryColor || DEFAULT_PRIMARY;
+  const leftX = 12;
+  const rightX = 106;
+  const boxY = Math.max(startY, 58);
+  const boxW = 92;
 
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(12);
-  setColorFromHex(doc, DEFAULT_TEXT, "text");
-  doc.text("Bill To", 12, y);
-  doc.text(rightTitle, 110, y);
+  const headerH = 6;
+  const lineH = 4.2;
+  const padX = 4;
+  const padY = 3;
 
-  y += 7;
-
-  // Left - Client
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(11);
-  doc.text(client.name || "Client Name", 12, y);
-
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(9);
-  setColorFromHex(doc, DEFAULT_GRAY, "text");
-  y += 6;
-  doc.text(`Phone: ${client.number || "—"}`, 12, y);
-  y += 5;
-  doc.text(`Location: ${client.location || "—"}`, 12, y);
-
-  // Right - Prepared / Account info
-  y = 69; // reset for right column
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(9);
-  doc.text(`Prepared by: ${preparedBy}`, 110, y);
-  y += 5;
-  doc.text(`Company: ${branding?.name || "—"}`, 110, y);
-  y += 5;
+  const nameLines = doc.splitTextToSize(client.name || "Client Name", 82);
+  const preparedLines = doc.splitTextToSize(`Prepared by: ${preparedBy}`, 82);
+  const companyLines = doc.splitTextToSize(`Company: ${branding?.name || "—"}`, 82);
   const contact = branding?.phone || branding?.email || "—";
-  doc.text(`Contact: ${contact}`, 110, y);
+  const contactLines = doc.splitTextToSize(`Contact: ${contact}`, 82);
 
-  drawThinDivider(doc, 92);
+  const leftContentLines = nameLines.length + 2;
+  const rightContentLines = preparedLines.length + companyLines.length + contactLines.length;
+  const leftHeight = headerH + padY + leftContentLines * lineH + 2;
+  const rightHeight = headerH + padY + rightContentLines * lineH + 2;
+  const boxH = Math.max(leftHeight, rightHeight, headerH + 14);
 
-  return 98;
+  setColorFromHex(doc, primary, "draw");
+  doc.setLineWidth(0.6);
+  doc.rect(leftX, boxY, boxW, boxH);
+  doc.rect(rightX, boxY, boxW, boxH);
+  setColorFromHex(doc, DEFAULT_LIGHT, "fill");
+  doc.rect(leftX, boxY, boxW, headerH, "F");
+  doc.rect(rightX, boxY, boxW, headerH, "F");
+  doc.line(leftX, boxY + headerH, leftX + boxW, boxY + headerH);
+  doc.line(rightX, boxY + headerH, rightX + boxW, boxY + headerH);
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(9.5);
+  setColorFromHex(doc, DEFAULT_TEXT, "text");
+  doc.text("Bill To", leftX + padX, boxY + 4.5);
+  doc.text(rightTitle, rightX + padX, boxY + 4.5);
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8.3);
+  setColorFromHex(doc, DEFAULT_GRAY, "text");
+
+  let ly = boxY + headerH + padY + 3.2;
+  doc.setFont("helvetica", "bold");
+  setColorFromHex(doc, DEFAULT_TEXT, "text");
+  doc.text(nameLines, leftX + padX, ly);
+  ly += nameLines.length * lineH;
+  doc.setFont("helvetica", "normal");
+  setColorFromHex(doc, DEFAULT_GRAY, "text");
+  doc.text(`Phone: ${client.number || "—"}`, leftX + padX, ly);
+  ly += lineH;
+  doc.text(`Location: ${client.location || "—"}`, leftX + padX, ly);
+
+  let ry = boxY + headerH + padY + 3.2;
+  doc.text(preparedLines, rightX + padX, ry);
+  ry += preparedLines.length * lineH;
+  doc.text(companyLines, rightX + padX, ry);
+  ry += companyLines.length * lineH;
+  doc.text(contactLines, rightX + padX, ry);
+
+  return boxY + boxH + 3;
 }
 
 function drawItemsTable(
@@ -268,13 +316,14 @@ function drawItemsTable(
   startY: number,
   items: DocumentItem[],
   branding?: TenantBranding,
-  compact = false
+  compact = false,
+  includeTax = false
 ) {
   const primary = branding?.primaryColor || DEFAULT_PRIMARY;
   const tableX = 12;
   const tableWidth = 186;
-  const headerHeight = 10;
-  const rowHeight = 11;
+  const headerHeight = 9.5;
+  const rowHeight = 9;
 
   const columns = compact
     ? [
@@ -282,13 +331,22 @@ function drawItemsTable(
         { key: "description", label: "Description", width: 128, align: "left" as const },
         { key: "quantity", label: "Qty", width: 44, align: "right" as const },
       ]
-    : [
-        { key: "index", label: "#", width: 14, align: "left" as const },
-        { key: "description", label: "Description", width: 88, align: "left" as const },
-        { key: "quantity", label: "Qty", width: 20, align: "right" as const },
-        { key: "unitPrice", label: "Unit Price", width: 32, align: "right" as const },
-        { key: "total", label: "Total", width: 32, align: "right" as const },
-      ];
+    : includeTax
+      ? [
+          { key: "index", label: "#", width: 14, align: "left" as const },
+          { key: "description", label: "Description", width: 70, align: "left" as const },
+          { key: "quantity", label: "Qty", width: 16, align: "right" as const },
+          { key: "unitPrice", label: "Unit Price", width: 28, align: "right" as const },
+          { key: "tax", label: "Tax %", width: 18, align: "right" as const },
+          { key: "totalAfterTax", label: "Total", width: 40, align: "right" as const },
+        ]
+      : [
+          { key: "index", label: "#", width: 14, align: "left" as const },
+          { key: "description", label: "Description", width: 88, align: "left" as const },
+          { key: "quantity", label: "Qty", width: 20, align: "right" as const },
+          { key: "unitPrice", label: "Unit Price", width: 32, align: "right" as const },
+          { key: "total", label: "Total", width: 32, align: "right" as const },
+        ];
 
   const columnStartX = columns.map((_, index) => {
     return tableX + columns.slice(0, index).reduce((sum, c) => sum + c.width, 0);
@@ -311,8 +369,8 @@ function drawItemsTable(
       }
     });
 
-    setColorFromHex(doc, "#cbd5e1", "draw");
-    doc.setLineWidth(0.5);
+    setColorFromHex(doc, primary, "draw");
+    doc.setLineWidth(0.6);
     doc.rect(tableX, headerY, tableWidth, headerHeight);
     columns.forEach((_, index) => {
       if (index === 0) return;
@@ -322,7 +380,7 @@ function drawItemsTable(
   };
 
   const drawRowGrid = (rowY: number) => {
-    setColorFromHex(doc, "#e2e8f0", "draw");
+    setColorFromHex(doc, primary, "draw");
     doc.setLineWidth(0.35);
     doc.rect(tableX, rowY, tableWidth, rowHeight);
     columns.forEach((_, index) => {
@@ -339,10 +397,10 @@ function drawItemsTable(
 
   doc.setTextColor(30, 30, 30);
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(9.5);
+  doc.setFontSize(9.2);
 
   items.forEach((item, i) => {
-    if (y > 250) {
+    if (y > 246) {
       doc.addPage();
       y = 20;
       drawTableHeader(y);
@@ -355,23 +413,32 @@ function drawItemsTable(
       doc.rect(tableX, y, tableWidth, rowHeight, "F");
     }
 
-    const maxNameLength = compact ? 76 : 52;
+    const maxNameLength = compact ? 76 : includeTax ? 40 : 52;
     const name = item.productName.length > maxNameLength
       ? item.productName.slice(0, maxNameLength - 3) + "..."
       : item.productName;
 
     drawRowGrid(y);
 
-    doc.text(String(i + 1).padStart(2, "0"), columnStartX[0] + 2, y + 7.5);
-    doc.text(name, columnStartX[1] + 2, y + 7.5);
+    doc.text(String(i + 1).padStart(2, "0"), columnStartX[0] + 2, y + 7.1);
+    doc.text(name, columnStartX[1] + 2, y + 7.1);
 
     if (compact) {
       const qtyCol = columns[2];
-      doc.text(String(item.quantity), tableX + qtyCol.width + columns[0].width + columns[1].width - 2, y + 7.5, { align: "right" });
+      doc.text(String(item.quantity), tableX + qtyCol.width + columns[0].width + columns[1].width - 2, y + 7.1, { align: "right" });
+    } else if (includeTax) {
+      const taxRate = Number(item.taxRate || 0);
+      const baseTotal = Number(item.lineTotal || 0);
+      const totalAfterTax = Number(item.totalAfterTax || (baseTotal + baseTotal * (taxRate / 100)));
+
+      doc.text(String(item.quantity), columnStartX[2] + columns[2].width - 2, y + 7.1, { align: "right" });
+      doc.text(formatKsh(item.unitPrice), columnStartX[3] + columns[3].width - 2, y + 7.1, { align: "right" });
+      doc.text(`${taxRate.toFixed(2)}%`, columnStartX[4] + columns[4].width - 2, y + 7.1, { align: "right" });
+      doc.text(formatKsh(totalAfterTax), columnStartX[5] + columns[5].width - 2, y + 7.1, { align: "right" });
     } else {
-      doc.text(String(item.quantity), columnStartX[2] + columns[2].width - 2, y + 7.5, { align: "right" });
-      doc.text(formatKsh(item.unitPrice), columnStartX[3] + columns[3].width - 2, y + 7.5, { align: "right" });
-      doc.text(formatKsh(item.lineTotal), columnStartX[4] + columns[4].width - 2, y + 7.5, { align: "right" });
+      doc.text(String(item.quantity), columnStartX[2] + columns[2].width - 2, y + 7.1, { align: "right" });
+      doc.text(formatKsh(item.unitPrice), columnStartX[3] + columns[3].width - 2, y + 7.1, { align: "right" });
+      doc.text(formatKsh(item.lineTotal), columnStartX[4] + columns[4].width - 2, y + 7.1, { align: "right" });
     }
 
     y += rowHeight;
@@ -392,41 +459,54 @@ function drawTotalsSection(
   const vat = showVat ? subtotal * 0.16 : 0
   const grandTotal = subtotal + vat
 
-  let y = Math.max(startY + 4, 218);
-  if (y + 52 > 282) {
+  let y = startY + 1;
+  if (y + 50 > 280) {
     doc.addPage();
     y = 20;
   }
 
-  // Totals box - right aligned
-  doc.setDrawColor(226, 232, 240);
-  doc.setLineWidth(0.5);
-  doc.roundedRect(110, y, 88, 52, 3, 3);
+  const boxX = 118;
+  const boxW = 80;
+  const rowH = 6;
+  const rows = showVat ? 3 : 2;
+  const boxH = rows * rowH + 2;
+  const splitX = boxX + 46;
 
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(10);
-  setColorFromHex(doc, DEFAULT_TEXT, "text");
-
-  doc.text("Subtotal", 114, y + 10);
-  doc.text(formatKsh(subtotal), 194, y + 10, { align: "right" });
-
-  if (showVat) {
-    doc.text("VAT (16%)", 114, y + 18);
-    doc.text(formatKsh(vat), 194, y + 18, { align: "right" });
-
-    doc.setLineWidth(0.6);
-    doc.line(114, y + 24, 194, y + 24);
+  // Totals table
+  doc.setFillColor(255, 255, 255);
+  setColorFromHex(doc, primary, "draw");
+  doc.setLineWidth(0.6);
+  doc.rect(boxX, y, boxW, boxH, "FD");
+  doc.line(splitX, y, splitX, y + boxH);
+  for (let i = 1; i < rows; i += 1) {
+    doc.line(boxX, y + i * rowH, boxX + boxW, y + i * rowH);
   }
 
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(12);
-  doc.text("Grand Total", 114, y + 34);
-  setColorFromHex(doc, primary, "fill");
-  doc.roundedRect(140, y + 27, 52, 12, 3, 3, "F");
-  doc.setTextColor(255, 255, 255);
-  doc.text(formatKsh(grandTotal), 194, y + 36, { align: "right" });
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  setColorFromHex(doc, DEFAULT_TEXT, "text");
 
-  return y + 12;
+  const labelX = boxX + 3;
+  const valueX = boxX + boxW - 3;
+  let rowY = y + 4.2;
+
+  doc.text("Subtotal", labelX, rowY);
+  doc.text(formatKsh(subtotal), valueX, rowY, { align: "right" });
+
+  if (showVat) {
+    rowY += rowH;
+    doc.text("VAT (16%)", labelX, rowY);
+    doc.text(formatKsh(vat), valueX, rowY, { align: "right" });
+  }
+
+  rowY = y + rowH * (rows - 1) + 4.2;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(9.5);
+  setColorFromHex(doc, primary, "text");
+  doc.text("Grand Total", labelX, rowY);
+  doc.text(formatKsh(grandTotal), valueX, rowY, { align: "right" });
+
+  return y + boxH + 4;
 }
 
 function drawBottomFooter(
@@ -435,7 +515,7 @@ function drawBottomFooter(
   settings?: InvoiceDocumentSettings,
   preparedBy?: string,
 ) {
-  const footerY = 289;
+  const footerY = 286;
   drawThinDivider(doc, footerY - 4, "#dbe4ee");
 
   const footerEmail = String(settings?.contactEmail || settings?.invoiceEmail || branding?.email || "").trim();
@@ -462,40 +542,32 @@ function drawTermsAndPaymentChannelsSection(
   settings?: InvoiceDocumentSettings,
   branding?: TenantBranding,
 ) {
-  let y = startY + 8
+  const availableBottom = 284
+  let y = startY + 4
   const terms = String(settings?.termsAndConditions || "").trim()
   const channels = Array.isArray(settings?.paymentChannels) ? settings!.paymentChannels : []
+  const primary = branding?.primaryColor || DEFAULT_PRIMARY
 
-  if (terms) {
-    doc.setFont("helvetica", "bold")
-    doc.setFontSize(10)
-    setColorFromHex(doc, DEFAULT_TEXT, "text")
-    doc.text("Terms & Conditions", 12, y)
-    y += 6
-
-    doc.setFont("helvetica", "normal")
-    doc.setFontSize(9)
-    setColorFromHex(doc, DEFAULT_GRAY, "text")
-    const wrapped = doc.splitTextToSize(terms, 186)
-    doc.text(wrapped, 12, y)
-    y += wrapped.length * 4.5 + 4
+  if (!terms && !(settings?.includePaymentChannels !== false && channels.length)) {
+    return y
   }
 
+  const leftX = 12
+  const rightX = 106
+  const boxW = 92
+  const lineH = 4
+  const headerH = 6
+  const padX = 4
+  const padY = 3
+
+  const termsLines = terms ? doc.splitTextToSize(terms, 84) : []
+  const termsHeight = terms ? headerH + padY + termsLines.length * lineH + 2 : headerH + 8
+
+  const channelLines: string[] = []
   if (settings?.includePaymentChannels !== false && channels.length) {
-    doc.setFont("helvetica", "bold")
-    doc.setFontSize(10)
-    setColorFromHex(doc, DEFAULT_TEXT, "text")
-    doc.text("Payment Channels", 12, y)
-    y += 6
-
-    doc.setFont("helvetica", "normal")
-    doc.setFontSize(9)
-    setColorFromHex(doc, DEFAULT_GRAY, "text")
-
-    channels.forEach((channel) => {
+    channels.forEach((channel, index) => {
       const title = [channel.channelName || channel.bankName].filter(Boolean).join(" - ") || "Payment Channel"
-      doc.text(title, 12, y)
-      y += 4.5
+      channelLines.push(title)
 
       const details = [
         channel.accountName ? `Account Name: ${channel.accountName}` : "",
@@ -505,16 +577,74 @@ function drawTermsAndPaymentChannelsSection(
       ].filter(Boolean)
 
       details.forEach((line) => {
-        const wrapped = doc.splitTextToSize(line, 186)
-        doc.text(wrapped, 12, y)
-        y += wrapped.length * 4.5
+        const wrapped = doc.splitTextToSize(line, 84)
+        wrapped.forEach((item: string) => channelLines.push(item))
       })
 
-      y += 2
+      if (index < channels.length - 1) {
+        channelLines.push("")
+      }
     })
   }
 
-  return y
+  const channelsHeight = channelLines.length ? headerH + padY + channelLines.length * lineH + 2 : headerH + 8
+  const contentHeight = Math.max(termsHeight, channelsHeight, headerH + 10)
+
+  const bottomY = availableBottom - contentHeight
+  y = Math.max(y, bottomY)
+
+  if (y + contentHeight > availableBottom) {
+    doc.addPage()
+    y = 20
+  }
+
+  setColorFromHex(doc, primary, "draw")
+  doc.setLineWidth(0.6)
+  doc.rect(leftX, y - 2, boxW, contentHeight)
+  doc.rect(rightX, y - 2, boxW, contentHeight)
+  setColorFromHex(doc, DEFAULT_LIGHT, "fill")
+  doc.rect(leftX, y - 2, boxW, headerH, "F")
+  doc.rect(rightX, y - 2, boxW, headerH, "F")
+  doc.line(leftX, y - 2 + headerH, leftX + boxW, y - 2 + headerH)
+  doc.line(rightX, y - 2 + headerH, rightX + boxW, y - 2 + headerH)
+
+  if (terms) {
+    doc.setFont("helvetica", "bold")
+    doc.setFontSize(9)
+    setColorFromHex(doc, DEFAULT_TEXT, "text")
+    doc.text("Terms & Conditions", leftX + padX, y + 2.6)
+
+    doc.setFont("helvetica", "normal")
+    doc.setFontSize(8.2)
+    setColorFromHex(doc, DEFAULT_GRAY, "text")
+    let ty = y + headerH + padY + 1
+    termsLines.forEach((line: string) => {
+      doc.text(line, leftX + padX, ty)
+      ty += lineH
+    })
+  }
+
+  if (channelLines.length) {
+    doc.setFont("helvetica", "bold")
+    doc.setFontSize(9)
+    setColorFromHex(doc, DEFAULT_TEXT, "text")
+    doc.text("Payment Channels", rightX + padX, y + 2.6)
+
+    doc.setFont("helvetica", "normal")
+    doc.setFontSize(8.2)
+    setColorFromHex(doc, DEFAULT_GRAY, "text")
+    let cy = y + headerH + padY + 1
+    channelLines.forEach((line: string) => {
+      if (!line) {
+        cy += lineH * 0.6
+        return
+      }
+      doc.text(line, rightX + padX, cy)
+      cy += lineH
+    })
+  }
+
+  return y + contentHeight + 2
 }
 
 function drawDeliverySignatures(doc: jsPDF, startY: number, preparedBy: string) {
@@ -559,11 +689,9 @@ export function generateQuotationPdf(params: {
     createdAt: params.createdAt,
     branding: params.branding,
   });
+  const contactBottom = drawContactSlotBelowLogo(doc, params.branding, params.invoiceSettings);
 
-  drawContactSlotBelowLogo(doc, params.branding, params.invoiceSettings);
-
-  const tableY = drawPartiesSection(doc, params.client, params.preparedBy, params.branding, "Quotation Info");
-
+  const tableY = drawPartiesSection(doc, params.client, params.preparedBy, params.branding, "Quotation Info", contactBottom + 1);
   const endY = drawItemsTable(doc, tableY, params.items, params.branding);
 
   drawTotalsSection(doc, params.subTotal, endY, params.branding, params.invoiceSettings);
@@ -605,7 +733,7 @@ export function generateInvoicePdf(params: {
     },
   });
 
-  drawContactSlotBelowLogo(doc, params.branding, params.invoiceSettings);
+  const contactBottom = drawContactSlotBelowLogo(doc, params.branding, params.invoiceSettings);
 
   let tableY = drawPartiesSection(
     doc,
@@ -615,16 +743,24 @@ export function generateInvoicePdf(params: {
       ...params.branding,
       invoiceEmail: params.invoiceSettings?.invoiceEmail || params.branding?.invoiceEmail,
     },
+    "Prepared By",
+    contactBottom + 1,
   );
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
   setColorFromHex(doc, DEFAULT_GRAY, "text");
-  if (params.invoiceSettings?.includeDeliveryNoteNumber !== false) {
-    doc.text(`Delivery Note: ${params.deliveryNoteNumber}`, 12, tableY - 8);
-  }
-  if (params.invoiceSettings?.includeQuotationReference !== false) {
-    doc.text(`Quotation Ref: ${params.quotationNumber || "N/A"}`, 12, tableY - 3);
+  const showDelivery = params.invoiceSettings?.includeDeliveryNoteNumber !== false
+  const showQuote = params.invoiceSettings?.includeQuotationReference !== false
+  if (showDelivery || showQuote) {
+    const refsY = tableY + 1;
+    if (showDelivery) {
+      doc.text(`Delivery Note: ${params.deliveryNoteNumber}`, 12, refsY);
+    }
+    if (showQuote) {
+      doc.text(`Quotation Ref: ${params.quotationNumber || "N/A"}`, 198, refsY, { align: "right" });
+    }
+    tableY = refsY + 6;
   }
 
   const endY = drawItemsTable(doc, tableY, params.items, params.branding);

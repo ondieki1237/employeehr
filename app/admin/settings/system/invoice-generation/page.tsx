@@ -27,6 +27,9 @@ interface InvoiceSettings {
   contactPhone: string
   officeLocation: string
   contactEmail: string
+  website: string
+  vatNumber: string
+  pinNumber: string
   termsAndConditions: string
   includeQuotationReference: boolean
   includeDeliveryNoteNumber: boolean
@@ -59,6 +62,9 @@ export default function InvoiceGenerationSettingsPage() {
     contactPhone: "",
     officeLocation: "",
     contactEmail: "",
+    website: "",
+    vatNumber: "",
+    pinNumber: "",
     termsAndConditions: "",
     includeQuotationReference: true,
     includeDeliveryNoteNumber: true,
@@ -89,6 +95,9 @@ export default function InvoiceGenerationSettingsPage() {
             contactPhone: settingsRes.data.contactPhone || "",
             officeLocation: settingsRes.data.officeLocation || "",
             contactEmail: settingsRes.data.contactEmail || "",
+            website: settingsRes.data.website || "",
+            vatNumber: settingsRes.data.vatNumber || "",
+            pinNumber: settingsRes.data.pinNumber || "",
             termsAndConditions: settingsRes.data.termsAndConditions || "",
             includeQuotationReference: settingsRes.data.includeQuotationReference ?? true,
             includeDeliveryNoteNumber: settingsRes.data.includeDeliveryNoteNumber ?? true,
@@ -136,6 +145,9 @@ export default function InvoiceGenerationSettingsPage() {
         contactPhone: settings.contactPhone,
         officeLocation: settings.officeLocation,
         contactEmail: settings.contactEmail,
+        website: settings.website,
+        vatNumber: settings.vatNumber,
+        pinNumber: settings.pinNumber,
         termsAndConditions: settings.termsAndConditions,
         includeQuotationReference: settings.includeQuotationReference,
         includeDeliveryNoteNumber: settings.includeDeliveryNoteNumber,
@@ -206,7 +218,7 @@ export default function InvoiceGenerationSettingsPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="contact-phone">Contact Phone (slot under logo)</Label>
+                <Label htmlFor="contact-phone">Office Phone (slot under logo)</Label>
                 <Input
                   id="contact-phone"
                   value={settings.contactPhone}
@@ -216,13 +228,23 @@ export default function InvoiceGenerationSettingsPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="contact-email">Contact Email (slot under logo)</Label>
+                <Label htmlFor="contact-email">Official Office Email (slot under logo)</Label>
                 <Input
                   id="contact-email"
                   type="email"
                   value={settings.contactEmail}
                   onChange={(e) => setSettings((prev) => ({ ...prev, contactEmail: e.target.value }))}
                   placeholder="e.g. info@company.com"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="contact-website">Website (slot under logo)</Label>
+                <Input
+                  id="contact-website"
+                  value={settings.website}
+                  onChange={(e) => setSettings((prev) => ({ ...prev, website: e.target.value }))}
+                  placeholder="e.g. https://company.com"
                 />
               </div>
 
@@ -234,7 +256,27 @@ export default function InvoiceGenerationSettingsPage() {
                   onChange={(e) => setSettings((prev) => ({ ...prev, officeLocation: e.target.value }))}
                   placeholder="e.g. Nairobi CBD, Westlands"
                 />
-                <p className="text-xs text-muted-foreground">This slot appears directly under the logo with icons: phone, location, and email.</p>
+                <p className="text-xs text-muted-foreground">This slot appears directly under the logo with phone, office email, website, location, VAT, and PIN.</p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="vat-number">VAT Number (slot under logo)</Label>
+                <Input
+                  id="vat-number"
+                  value={settings.vatNumber}
+                  onChange={(e) => setSettings((prev) => ({ ...prev, vatNumber: e.target.value }))}
+                  placeholder="e.g. VAT1234567"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="pin-number">PIN Number (slot under logo)</Label>
+                <Input
+                  id="pin-number"
+                  value={settings.pinNumber}
+                  onChange={(e) => setSettings((prev) => ({ ...prev, pinNumber: e.target.value }))}
+                  placeholder="e.g. P051234567A"
+                />
               </div>
 
               <div className="space-y-2 md:col-span-2">

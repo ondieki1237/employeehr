@@ -70,6 +70,9 @@ export interface ICompany {
     contactPhone?: string
     officeLocation?: string
     contactEmail?: string
+    website?: string
+    vatNumber?: string
+    pinNumber?: string
     termsAndConditions?: string
     includeQuotationReference?: boolean
     includeDeliveryNoteNumber?: boolean

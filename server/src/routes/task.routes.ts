@@ -13,6 +13,12 @@ router.get("/", TaskController.getTasks)
 // Get task by ID
 router.get("/:taskId", TaskController.getTaskById)
 
+// Add note to task
+router.post("/:taskId/notes", TaskController.addNote)
+
+// Request postpone for task
+router.post("/:taskId/postpone", TaskController.requestPostpone)
+
 // Create task
 router.post("/", TaskController.createTask)
 

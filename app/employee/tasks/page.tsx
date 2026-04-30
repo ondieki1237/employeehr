@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { CheckCircle2, Circle, Clock, AlertCircle } from "lucide-react"
+import { getToken } from "@/lib/auth"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5010"
 
@@ -32,7 +33,13 @@ interface Task {
 export default function EmployeeTasksPage() {
   const [tasks, setTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [filter, setFilter] = useState<"all" | "pending" | "in_progress" | "completed">("all")
+  const [selectedTask, setSelectedTask] = useState<any | null>(null)
+  const [detailLoading, setDetailLoading] = useState(false)
+  const [noteText, setNoteText] = useState("")
+  const [postponeDate, setPostponeDate] = useState<string | null>(null)
+  const [postponeReason, setPostponeReason] = useState("")
 
   useEffect(() => {
     fetchTasks()
@@ -40,7 +47,13 @@ export default function EmployeeTasksPage() {
 
   const fetchTasks = async () => {
     try {
-      const token = localStorage.getItem("token")
+      const token = getToken()
+      if (!token) {
+        setError("You are not signed in. Please log in again.")
+        setTasks([])
+        return
+      }
+
       const statusParam = filter !== "all" ? `?status=${filter}` : ""
       
       const response = await fetch(`${API_URL}/api/tasks${statusParam}`, {
@@ -52,9 +65,14 @@ export default function EmployeeTasksPage() {
       const data = await response.json()
       if (data.success) {
         setTasks(data.data)
+        setError(null)
+      } else {
+        setTasks([])
+        setError(data.message || "Failed to load tasks")
       }
     } catch (error) {
       console.error("Failed to fetch tasks:", error)
+      setError("Failed to load tasks")
     } finally {
       setLoading(false)
     }
@@ -62,7 +80,8 @@ export default function EmployeeTasksPage() {
 
   const handleCompleteTask = async (taskId: string) => {
     try {
-      const token = localStorage.getItem("token")
+      const token = getToken()
+      if (!token) return
       
       const response = await fetch(`${API_URL}/api/tasks/${taskId}/complete`, {
         method: "POST",
@@ -80,6 +99,88 @@ export default function EmployeeTasksPage() {
       }
     } catch (error) {
       console.error("Failed to complete task:", error)
+    }
+  }
+
+  const fetchTaskDetails = async (taskId: string) => {
+    try {
+      setDetailLoading(true)
+      const token = getToken()
+      if (!token) {
+        setError("You are not signed in. Please log in again.")
+        return
+      }
+
+      const res = await fetch(`${API_URL}/api/tasks/${taskId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      const data = await res.json()
+      if (data.success) {
+        setSelectedTask(data.data)
+        setError(null)
+      } else {
+        setSelectedTask(null)
+        setError(data.message || "Failed to load task")
+      }
+    } catch (err) {
+      console.error(err)
+      setError("Failed to load task")
+    } finally {
+      setDetailLoading(false)
+    }
+  }
+
+  const handleOpenTask = (taskId: string) => {
+    fetchTaskDetails(taskId)
+  }
+
+  const handleAddNote = async () => {
+    if (!selectedTask) return
+    try {
+      const token = getToken()
+      if (!token) return
+      const res = await fetch(`${API_URL}/api/tasks/${selectedTask._id}/notes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ text: noteText }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        setNoteText("")
+        // refresh details and tasks
+        fetchTaskDetails(selectedTask._id)
+        fetchTasks()
+      } else {
+        setError(data.message || "Failed to add note")
+      }
+    } catch (err) {
+      console.error(err)
+      setError("Failed to add note")
+    }
+  }
+
+  const handleRequestPostpone = async () => {
+    if (!selectedTask) return
+    try {
+      const token = getToken()
+      if (!token) return
+      const res = await fetch(`${API_URL}/api/tasks/${selectedTask._id}/postpone`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ new_due_date: postponeDate, reason: postponeReason }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        setPostponeDate(null)
+        setPostponeReason("")
+        fetchTaskDetails(selectedTask._id)
+        fetchTasks()
+      } else {
+        setError(data.message || "Failed to request postpone")
+      }
+    } catch (err) {
+      console.error(err)
+      setError("Failed to request postpone")
     }
   }
 
@@ -123,6 +224,9 @@ export default function EmployeeTasksPage() {
               <p className="text-gray-600 dark:text-gray-400 mt-1">
                 Manage your assigned duties and track your progress
               </p>
+              {error && (
+                <p className="mt-2 text-sm text-red-500">{error}</p>
+              )}
             </div>
 
             {/* Stats */}
@@ -211,11 +315,11 @@ export default function EmployeeTasksPage() {
                   <div className="space-y-4">
                     {filteredTasks.map((task) => (
                       <Card key={task._id}>
-                        <CardContent className="p-6">
+                        <CardContent className="p-6 cursor-pointer" onClick={() => handleOpenTask(task._id)}>
                           <div className="flex items-start justify-between">
                             <div className="flex items-start gap-4 flex-1">
                               {/* Checkbox */}
-                              <div className="mt-1">
+                              <div className="mt-1" onClick={(e) => e.stopPropagation()}>
                                 {task.status === "completed" ? (
                                   <CheckCircle2 className="h-6 w-6 text-green-500" />
                                 ) : (
@@ -279,6 +383,46 @@ export default function EmployeeTasksPage() {
                 )}
               </TabsContent>
             </Tabs>
+            {/* Task detail panel */}
+            {selectedTask && (
+              <div className="fixed right-6 top-20 w-96 bg-white dark:bg-gray-800 border rounded shadow p-4 z-50">
+                <div className="flex justify-between items-center mb-3">
+                  <h3 className="text-lg font-bold">{selectedTask.title}</h3>
+                  <Button variant="ghost" size="sm" onClick={() => setSelectedTask(null)}>Close</Button>
+                </div>
+
+                <p className="text-sm text-gray-600 mb-2">{selectedTask.description}</p>
+
+                <div className="text-sm text-gray-500 mb-2">
+                  Assigned by: {selectedTask.assigned_by_user?.firstName} {selectedTask.assigned_by_user?.lastName}
+                </div>
+
+                <div className="mb-3">
+                  <h4 className="font-medium">Notes</h4>
+                  <div className="space-y-2 max-h-40 overflow-auto">
+                    {(selectedTask.notes_history || []).map((n: any, i: number) => (
+                      <div key={i} className="text-sm p-2 bg-gray-100 dark:bg-gray-700 rounded">
+                        <div className="text-xs text-gray-500">{n.user_name} • {new Date(n.createdAt).toLocaleString()}</div>
+                        <div>{n.text}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <textarea value={noteText} onChange={(e) => setNoteText(e.target.value)} className="w-full mt-2 p-2 border rounded" placeholder="Write a note..." />
+                  <div className="flex gap-2 mt-2">
+                    <Button onClick={handleAddNote}>Add Note</Button>
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className="font-medium">Request Postpone</h4>
+                  <input type="date" value={postponeDate || ""} onChange={(e) => setPostponeDate(e.target.value)} className="w-full mt-2 p-2 border rounded" />
+                  <textarea value={postponeReason} onChange={(e) => setPostponeReason(e.target.value)} className="w-full mt-2 p-2 border rounded" placeholder="Reason (optional)" />
+                  <div className="flex gap-2 mt-2">
+                    <Button onClick={handleRequestPostpone}>Request Postpone</Button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
     </main>
   )

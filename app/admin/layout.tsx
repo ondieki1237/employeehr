@@ -10,7 +10,7 @@ import TopNav from "@/components/admin/top-nav"
 const ADMIN_SECTION_PATHS: Array<{ section: string; match: (path: string) => boolean }> = [
   { section: "CORE", match: (path) => path === "/admin" || path.startsWith("/admin/users") },
   { section: "RECRUITMENT", match: (path) => ["/admin/jobs", "/admin/applications", "/admin/analytics", "/admin/communications"].some((prefix) => path.startsWith(prefix)) },
-  { section: "EMPLOYEE MANAGEMENT", match: (path) => ["/admin/leave", "/admin/payroll", "/admin/meetings", "/admin/bookings", "/admin/suggestions", "/admin/badges", "/admin/polls", "/admin/contracts", "/admin/alerts"].some((prefix) => path.startsWith(prefix)) },
+  { section: "EMPLOYEE MANAGEMENT", match: (path) => ["/admin/leave", "/admin/payroll", "/admin/meetings", "/admin/bookings", "/admin/suggestions", "/admin/badges", "/admin/polls", "/admin/contracts", "/admin/alerts", "/admin/allocations"].some((prefix) => path.startsWith(prefix)) },
   { section: "INVENTORY MANAGER", match: (path) => path.startsWith("/admin/stock") },
   { section: "ACCOUNTS", match: (path) => path.startsWith("/admin/accounts") },
   { section: "PERFORMANCE", match: (path) => ["/admin/kpis", "/admin/feedback-360", "/admin/reports"].some((prefix) => path.startsWith(prefix)) },

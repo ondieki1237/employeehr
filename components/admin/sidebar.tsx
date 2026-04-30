@@ -100,6 +100,12 @@ const adminMenuItems = [
     section: "EMPLOYEE MANAGEMENT"
   },
   {
+    label: "Allocations",
+    icon: Target,
+    href: "/admin/allocations",
+    section: "EMPLOYEE MANAGEMENT"
+  },
+  {
     label: "Payroll Management",
     icon: Banknote,
     href: "/admin/payroll",

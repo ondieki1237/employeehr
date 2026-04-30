@@ -81,6 +81,9 @@ export class CompanyController {
             "",
           ).trim(),
           contactEmail: String(company.invoiceSettings?.contactEmail || company.invoiceSettings?.invoiceEmail || company.email || "").trim(),
+          website: String(company.invoiceSettings?.website || company.website || "").trim(),
+          vatNumber: String(company.invoiceSettings?.vatNumber || "").trim(),
+          pinNumber: String(company.invoiceSettings?.pinNumber || "").trim(),
           termsAndConditions: String(company.invoiceSettings?.termsAndConditions || DEFAULT_INVOICE_TERMS).trim(),
           includeQuotationReference: company.invoiceSettings?.includeQuotationReference ?? true,
           includeDeliveryNoteNumber: company.invoiceSettings?.includeDeliveryNoteNumber ?? true,
@@ -110,6 +113,9 @@ export class CompanyController {
       const contactPhone = String(req.body?.contactPhone || "").trim()
       const officeLocation = String(req.body?.officeLocation || "").trim()
       const contactEmail = String(req.body?.contactEmail || "").trim()
+      const website = String(req.body?.website || "").trim()
+      const vatNumber = String(req.body?.vatNumber || "").trim()
+      const pinNumber = String(req.body?.pinNumber || "").trim()
       const termsAndConditions = String(req.body?.termsAndConditions || "").trim()
       const includeQuotationReference = Boolean(req.body?.includeQuotationReference)
       const includeDeliveryNoteNumber = Boolean(req.body?.includeDeliveryNoteNumber)
@@ -142,6 +148,9 @@ export class CompanyController {
             "invoiceSettings.contactPhone": contactPhone,
             "invoiceSettings.officeLocation": officeLocation,
             "invoiceSettings.contactEmail": contactEmail || invoiceEmail,
+            "invoiceSettings.website": website,
+            "invoiceSettings.vatNumber": vatNumber,
+            "invoiceSettings.pinNumber": pinNumber,
             "invoiceSettings.termsAndConditions": termsAndConditions,
             "invoiceSettings.includeQuotationReference": includeQuotationReference,
             "invoiceSettings.includeDeliveryNoteNumber": includeDeliveryNoteNumber,

@@ -208,6 +208,21 @@ export const pdpsApi = {
     delete: (id: string) => client.delete(`/api/pdps/${id}`),
 }
 
+// Tasks API
+export const tasksApi = {
+    getAll: () => client.get<any[]>('/api/tasks'),
+
+    getById: (id: string) => client.get<any>(`/api/tasks/${id}`),
+
+    create: (data: any) => client.post<any>('/api/tasks', data),
+
+    update: (id: string, data: any) => client.put<any>(`/api/tasks/${id}`, data),
+
+    complete: (id: string, data?: { notes?: string }) => client.post<any>(`/api/tasks/${id}/complete`, data || {}),
+
+    delete: (id: string) => client.delete<any>(`/api/tasks/${id}`),
+}
+
 // Attendance API
 export const attendanceApi = {
     getAll: () => client.get<Attendance[]>('/api/attendance'),
@@ -291,6 +306,9 @@ export const companyApi = {
         contactPhone?: string
         officeLocation?: string
         contactEmail?: string
+        website?: string
+        vatNumber?: string
+        pinNumber?: string
         termsAndConditions: string
         includeQuotationReference?: boolean
         includeDeliveryNoteNumber?: boolean
@@ -628,6 +646,7 @@ export const api = {
     performance: performanceApi,
     feedback: feedbackApi,
     pdps: pdpsApi,
+    tasks: tasksApi,
     attendance: attendanceApi,
     invitations: invitationsApi,
     reports: reportsApi,

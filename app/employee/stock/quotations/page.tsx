@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import API_URL from "@/lib/apiBase"
 import { getToken, getUser } from "@/lib/auth"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -81,6 +81,7 @@ export default function EmployeeQuotationsPage() {
 
   const [showCreate, setShowCreate] = useState(false)
   const [editingQuotationId, setEditingQuotationId] = useState<string | null>(null)
+  const [savingQuotation, setSavingQuotation] = useState(false)
 
   const [clientName, setClientName] = useState("")
   const [clientNumber, setClientNumber] = useState("")
@@ -96,23 +97,23 @@ export default function EmployeeQuotationsPage() {
   const [quotationSearchInput, setQuotationSearchInput] = useState("")
   const [quotationSearch, setQuotationSearch] = useState("")
 
-  const headers = useMemo(
-    () => ({
+  const getAuthHeaders = () => {
+    const token = getToken()
+    return {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${getToken()}`,
-    }),
-    [],
-  )
+      Authorization: token ? `Bearer ${token}` : "",
+    }
+  }
 
   const loadData = async () => {
     try {
       setLoading(true)
       const [productsRes, quotationsRes, clientsRes, brandingRes, invoiceSettingsRes] = await Promise.all([
-        fetch(`${API_URL}/api/stock/products`, { headers }),
-        fetch(`${API_URL}/api/stock/quotations`, { headers }),
-        fetch(`${API_URL}/api/stock/clients`, { headers }),
-        fetch(`${API_URL}/api/company/branding`, { headers }),
-        fetch(`${API_URL}/api/company/invoice-settings`, { headers }),
+        fetch(`${API_URL}/api/stock/products`, { headers: getAuthHeaders() }),
+        fetch(`${API_URL}/api/stock/quotations`, { headers: getAuthHeaders() }),
+        fetch(`${API_URL}/api/stock/clients`, { headers: getAuthHeaders() }),
+        fetch(`${API_URL}/api/company/branding`, { headers: getAuthHeaders() }),
+        fetch(`${API_URL}/api/company/invoice-settings`, { headers: getAuthHeaders() }),
       ])
 
       const [productsJson, quotationsJson, clientsJson, brandingJson, invoiceSettingsJson] = await Promise.all([
@@ -265,38 +266,47 @@ export default function EmployeeQuotationsPage() {
       return
     }
 
-    const endpoint = editingQuotationId
-      ? `${API_URL}/api/stock/quotations/${editingQuotationId}`
-      : `${API_URL}/api/stock/quotations`
-    const method = editingQuotationId ? "PUT" : "POST"
+    try {
+      setSavingQuotation(true)
 
-    const response = await fetch(endpoint, {
-      method,
-      headers,
-      body: JSON.stringify({
-        clientName,
-        clientNumber,
-        clientContactPerson: clientContactPerson || "",
-        clientLocation: "N/A",
-        items,
-      }),
-    })
+      const endpoint = editingQuotationId
+        ? `${API_URL}/api/stock/quotations/${editingQuotationId}`
+        : `${API_URL}/api/stock/quotations`
+      const method = editingQuotationId ? "PUT" : "POST"
 
-    const result = await response.json()
-    if (!response.ok) {
-      toast({ title: "Error", description: result.message || "Failed to save quotation", variant: "destructive" })
-      return
+      const response = await fetch(endpoint, {
+        method,
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          clientName,
+          clientNumber,
+          clientContactPerson: clientContactPerson || "",
+          clientLocation: "N/A",
+          items,
+        }),
+      })
+
+      const result = await response.json()
+      if (!response.ok) {
+        toast({ title: "Error", description: result.message || "Failed to save quotation", variant: "destructive" })
+        return
+      }
+
+      toast({
+        title: "Success",
+        description: editingQuotationId
+          ? `Quotation ${result.data.quotationNumber} updated`
+          : `Quotation ${result.data.quotationNumber} submitted for admin approval`,
+      })
+
+      resetForm()
+      loadData()
+    } catch (error) {
+      console.error("Failed to save quotation:", error)
+      toast({ title: "Error", description: "Failed to save quotation", variant: "destructive" })
+    } finally {
+      setSavingQuotation(false)
     }
-
-    toast({
-      title: "Success",
-      description: editingQuotationId
-        ? `Quotation ${result.data.quotationNumber} updated`
-        : `Quotation ${result.data.quotationNumber} submitted for admin approval`,
-    })
-
-    resetForm()
-    loadData()
   }
 
   const startEditQuotation = (quotation: Quotation) => {
@@ -336,7 +346,7 @@ export default function EmployeeQuotationsPage() {
     const selectedDate = window.prompt("Enter stamp date (DD/MM/YYYY)", defaultDate)
     if (selectedDate === null) return null
 
-    const stampsRes = await fetch(`${API_URL}/api/stamps`, { headers })
+    const stampsRes = await fetch(`${API_URL}/api/stamps`, { headers: getAuthHeaders() })
     const stampsJson = await stampsRes.json()
     const stamps: StampOption[] = stampsJson.data || stampsJson || []
 
@@ -384,7 +394,7 @@ export default function EmployeeQuotationsPage() {
           email: branding?.email || "",
           poBox: "",
         }).toString()
-        const stampRes = await fetch(`${API_URL}/api/stamps/${stampSelection.stampId}/svg?${query}`, { headers })
+        const stampRes = await fetch(`${API_URL}/api/stamps/${stampSelection.stampId}/svg?${query}`, { headers: getAuthHeaders() })
         if (stampRes.ok) {
           const stampSvg = await stampRes.text()
           await applyStampToPdf(doc, stampSvg, 140, 255, 55, 33)
@@ -586,7 +596,9 @@ export default function EmployeeQuotationsPage() {
               )}
 
               <div className="flex gap-2">
-                <Button type="button" onClick={createOrUpdateQuotation}>{editingQuotationId ? "Update Quotation" : "Generate Quotation"}</Button>
+                <Button type="button" onClick={createOrUpdateQuotation} disabled={savingQuotation}>
+                  {savingQuotation ? "Saving..." : editingQuotationId ? "Update Quotation" : "Generate Quotation"}
+                </Button>
                 <Button type="button" variant="outline" onClick={resetForm}>Cancel</Button>
               </div>
             </CardContent>

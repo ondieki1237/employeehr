@@ -12,6 +12,20 @@ export interface ITask {
   due_date?: Date
   completed_at?: Date
   notes?: string
+  notes_history?: Array<{
+    text: string
+    user_id: string
+    user_name?: string
+    createdAt?: Date
+  }>
+  postpone_requests?: Array<{
+    requested_by: string
+    requested_by_name?: string
+    requested_at: Date
+    new_due_date?: Date
+    reason?: string
+    status?: "pending" | "approved" | "rejected"
+  }>
   attachments?: string[]
   createdAt?: Date
   updatedAt?: Date
@@ -47,6 +61,14 @@ const taskSchema = new Schema<ITask>(
     due_date: { type: Date },
     completed_at: { type: Date },
     notes: { type: String },
+    notes_history: [
+      {
+        text: { type: String },
+        user_id: { type: String },
+        user_name: { type: String },
+        createdAt: { type: Date, default: Date.now },
+      },
+    ],
     attachments: [{ type: String }],
     related_entity_type: { type: String, enum: ["invoice", "meeting", "report", "pdp", "other"] },
     related_entity_id: { type: String },
@@ -57,6 +79,16 @@ const taskSchema = new Schema<ITask>(
     meeting_id: { type: String },
     is_ai_reminder: { type: Boolean, default: false },
     ai_source: { type: String },
+    postpone_requests: [
+      {
+        requested_by: { type: String },
+        requested_by_name: { type: String },
+        requested_at: { type: Date, default: Date.now },
+        new_due_date: { type: Date },
+        reason: { type: String },
+        status: { type: String, enum: ["pending", "approved", "rejected"], default: "pending" },
+      },
+    ],
   },
   { timestamps: true },
 )
