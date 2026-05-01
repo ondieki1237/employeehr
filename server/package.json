@@ -5,7 +5,7 @@
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "npx tsx watch src/index.ts",
     "build": "tsc",
     "start": "node --experimental-specifier-resolution=node dist/index.js",
     "lint": "eslint src/**/*.ts"
