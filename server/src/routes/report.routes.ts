@@ -21,5 +21,7 @@ router.get("/admin/all", roleMiddleware("company_admin", "hr"), ReportController
 router.post("/admin/approve", roleMiddleware("company_admin", "hr"), ReportController.approveReport)
 router.post("/admin/reject", roleMiddleware("company_admin", "hr"), ReportController.rejectReport)
 router.get("/admin/analytics", roleMiddleware("company_admin", "hr"), ReportController.getReportAnalytics)
+router.get("/admin/monthly-invoice-summary", roleMiddleware("company_admin", "hr"), ReportController.getMonthlyInvoiceSummary)
+router.get("/admin/monthly-invoice-summary/download", roleMiddleware("company_admin", "hr"), ReportController.downloadMonthlyInvoiceSummary)
 
 export default router

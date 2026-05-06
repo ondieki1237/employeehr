@@ -2,6 +2,10 @@ import type { Response } from "express"
 import type { AuthenticatedRequest } from "../middleware/auth"
 import { Report } from "../models/Report"
 import { User } from "../models/User"
+import { StockQuotation } from "../models/StockQuotation"
+import { StockInvoice } from "../models/StockInvoice"
+import { StockEntry } from "../models/StockEntry"
+import { StockSale } from "../models/StockSale"
 
 export class ReportController {
   // Create or update draft report
@@ -393,6 +397,107 @@ export class ReportController {
         message: "Failed to fetch analytics",
         error: error instanceof Error ? error.message : "Unknown error",
       })
+    }
+  }
+
+  // Admin: Monthly invoice/quotation/stock movement summary
+  static async getMonthlyInvoiceSummary(req: AuthenticatedRequest, res: Response) {
+    try {
+      if (!req.org_id) {
+        return res.status(400).json({ success: false, message: "Organization context required" })
+      }
+
+      const { startDate, endDate, include } = req.query
+
+      const org_id = req.org_id
+
+      const start = startDate ? new Date(String(startDate)) : new Date(new Date().getFullYear(), new Date().getMonth(), 1)
+      const end = endDate ? new Date(String(endDate)) : new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1)
+
+      const includeSet = new Set<string>((String(include || "quotations,invoices,stock")).split(",").map((s) => s.trim()))
+
+      const rows: Array<{ date: Date; type: string; reference: string }> = []
+
+      if (includeSet.has("quotations")) {
+        const quotations = await StockQuotation.find({ org_id, createdAt: { $gte: start, $lt: end } }).select("quotationNumber createdAt").lean()
+        quotations.forEach((q: any) => rows.push({ date: q.createdAt, type: "quotation", reference: q.quotationNumber }))
+      }
+
+      if (includeSet.has("invoices")) {
+        const invoices = await StockInvoice.find({ org_id, createdAt: { $gte: start, $lt: end } }).select("invoiceNumber createdAt quotationNumber").lean()
+        invoices.forEach((inv: any) => rows.push({ date: inv.createdAt, type: "invoice", reference: inv.invoiceNumber }))
+      }
+
+      if (includeSet.has("stock")) {
+        const entries = await StockEntry.find({ org_id, createdAt: { $gte: start, $lt: end } }).select("_id createdAt").lean()
+        entries.forEach((e: any) => rows.push({ date: e.createdAt, type: "stock_entry", reference: String(e._id) }))
+
+        const sales = await StockSale.find({ org_id, createdAt: { $gte: start, $lt: end } }).select("receiptNumber createdAt").lean()
+        sales.forEach((s: any) => rows.push({ date: s.createdAt, type: "stock_sale", reference: s.receiptNumber }))
+      }
+
+      // Sort by date
+      rows.sort((a, b) => a.date.getTime() - b.date.getTime())
+
+      res.status(200).json({ success: true, data: rows })
+    } catch (error) {
+      console.error("Get monthly invoice summary error:", error)
+      res.status(500).json({ success: false, message: "Failed to fetch monthly summary", error: error instanceof Error ? error.message : "Unknown error" })
+    }
+  }
+
+  // Admin: Download CSV for monthly invoice/quotation/stock movement summary
+  static async downloadMonthlyInvoiceSummary(req: AuthenticatedRequest, res: Response) {
+    try {
+      if (!req.org_id) {
+        return res.status(400).json({ success: false, message: "Organization context required" })
+      }
+
+      const { startDate, endDate, include } = req.query
+      const org_id = req.org_id
+      const start = startDate ? new Date(String(startDate)) : new Date(new Date().getFullYear(), new Date().getMonth(), 1)
+      const end = endDate ? new Date(String(endDate)) : new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1)
+      const includeSet = new Set<string>((String(include || "quotations,invoices,stock")).split(",").map((s) => s.trim()))
+
+      const rows: Array<{ date: Date; type: string; reference: string }> = []
+
+      if (includeSet.has("quotations")) {
+        const quotations = await StockQuotation.find({ org_id, createdAt: { $gte: start, $lt: end } }).select("quotationNumber createdAt").lean()
+        quotations.forEach((q: any) => rows.push({ date: q.createdAt, type: "quotation", reference: q.quotationNumber }))
+      }
+
+      if (includeSet.has("invoices")) {
+        const invoices = await StockInvoice.find({ org_id, createdAt: { $gte: start, $lt: end } }).select("invoiceNumber createdAt quotationNumber").lean()
+        invoices.forEach((inv: any) => rows.push({ date: inv.createdAt, type: "invoice", reference: inv.invoiceNumber }))
+      }
+
+      if (includeSet.has("stock")) {
+        const entries = await StockEntry.find({ org_id, createdAt: { $gte: start, $lt: end } }).select("_id createdAt").lean()
+        entries.forEach((e: any) => rows.push({ date: e.createdAt, type: "stock_entry", reference: String(e._id) }))
+        const sales = await StockSale.find({ org_id, createdAt: { $gte: start, $lt: end } }).select("receiptNumber createdAt").lean()
+        sales.forEach((s: any) => rows.push({ date: s.createdAt, type: "stock_sale", reference: s.receiptNumber }))
+      }
+
+      // Sort
+      rows.sort((a, b) => a.date.getTime() - b.date.getTime())
+
+      // Build CSV
+      const header = ["date", "type", "reference"]
+      const lines = [header.join(",")]
+      rows.forEach((r) => {
+        const date = new Date(r.date).toISOString()
+        const ref = String(r.reference || "")
+        lines.push([`"${date}"`, r.type, `"${ref}"`].join(","))
+      })
+      const csv = lines.join("\n")
+
+      const filename = `monthly-summary-${start.toISOString().slice(0,7)}.csv`
+      res.setHeader("Content-Type", "text/csv;charset=utf-8")
+      res.setHeader("Content-Disposition", `attachment; filename="${filename}"`)
+      res.send(csv)
+    } catch (error) {
+      console.error("Download monthly invoice summary error:", error)
+      res.status(500).json({ success: false, message: "Failed to generate CSV", error: error instanceof Error ? error.message : "Unknown error" })
     }
   }
 
