@@ -1186,98 +1186,123 @@ export function StockManagerContent({ view }: { view: StockView }) {
 
       {view === "outsourced" && (
         <>
-          <h1 className="text-2xl font-bold">Outsourced Product Analytics</h1>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <Card><CardHeader><CardTitle className="text-sm">Outsourced Stock Entries</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold">{outsourcedStats.outsourcedStockEntriesCount}</p></CardContent></Card>
-            <Card><CardHeader><CardTitle className="text-sm">Outsourced Units Added</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold">{outsourcedStats.outsourcedUnitsAdded}</p></CardContent></Card>
-            <Card><CardHeader><CardTitle className="text-sm">Supplier Companies</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold">{outsourcedStats.outsourcedSuppliersCount}</p></CardContent></Card>
-            <Card><CardHeader><CardTitle className="text-sm">Outsourced Value (Quotes)</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold">{outsourcedStats.outsourcedValue.toFixed(2)}</p></CardContent></Card>
-          </div>
+          <div className="space-y-6">
+            {/* Header */}
+            <div>
+              <h1 className="text-3xl font-bold">Outsourced Product Analytics</h1>
+              <p className="text-gray-600 mt-2">Monitor suppliers, inventory, and outsourced product performance</p>
+            </div>
 
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <Card><CardHeader><CardTitle className="text-sm">Outsourced Products</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold">{outsourcedStats.outsourcedProductsCount}</p></CardContent></Card>
-            <Card><CardHeader><CardTitle className="text-sm">Outsourced Sales Value</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold">{outsourcedStats.outsourcedSalesValue.toFixed(2)}</p></CardContent></Card>
-            <Card><CardHeader><CardTitle className="text-sm">Sales Contribution</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold">{outsourcedStats.contributionToTotalSalesPercent.toFixed(1)}%</p></CardContent></Card>
-            <Card><CardHeader><CardTitle className="text-sm">Outsourced Units Sold</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold">{outsourcedStats.outsourcedSalesUnits}</p></CardContent></Card>
-          </div>
+            {/* Overview KPIs */}
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+              <Card>
+                <CardHeader className="pb-3"><CardTitle className="text-sm font-medium">Stock Entries</CardTitle></CardHeader>
+                <CardContent><p className="text-3xl font-bold">{outsourcedStats.outsourcedStockEntriesCount}</p><p className="text-xs text-gray-500 mt-1">Total entries received</p></CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-3"><CardTitle className="text-sm font-medium">Units Added</CardTitle></CardHeader>
+                <CardContent><p className="text-3xl font-bold">{outsourcedStats.outsourcedUnitsAdded}</p><p className="text-xs text-gray-500 mt-1">Total quantity received</p></CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-3"><CardTitle className="text-sm font-medium">Suppliers</CardTitle></CardHeader>
+                <CardContent><p className="text-3xl font-bold">{outsourcedStats.outsourcedSuppliersCount}</p><p className="text-xs text-gray-500 mt-1">Active supplier companies</p></CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-3"><CardTitle className="text-sm font-medium">Quote Value</CardTitle></CardHeader>
+                <CardContent><p className="text-3xl font-bold">{outsourcedStats.outsourcedValue.toFixed(2)}</p><p className="text-xs text-gray-500 mt-1">Total quoted value</p></CardContent>
+              </Card>
+            </div>
 
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            <Card><CardHeader><CardTitle className="text-sm">Quotations with Outsourced</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold">{outsourcedStats.quotationsWithOutsourced}</p></CardContent></Card>
-            <Card><CardHeader><CardTitle className="text-sm">Outsourced Quotation Items</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold">{outsourcedStats.outsourcedQuotationItemsCount}</p></CardContent></Card>
-            <Card><CardHeader><CardTitle className="text-sm">Outsourced Invoice Items</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold">{outsourcedStats.outsourcedInvoiceItemsCount}</p></CardContent></Card>
-          </div>
+            {/* Performance & Sales */}
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+              <Card>
+                <CardHeader className="pb-3"><CardTitle className="text-sm font-medium">Products</CardTitle></CardHeader>
+                <CardContent><p className="text-3xl font-bold">{outsourcedStats.outsourcedProductsCount}</p><p className="text-xs text-gray-500 mt-1">Outsourced SKUs</p></CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-3"><CardTitle className="text-sm font-medium">Sales Value</CardTitle></CardHeader>
+                <CardContent><p className="text-3xl font-bold">{outsourcedStats.outsourcedSalesValue.toFixed(2)}</p><p className="text-xs text-gray-500 mt-1">Revenue from sales</p></CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-3"><CardTitle className="text-sm font-medium">Contribution</CardTitle></CardHeader>
+                <CardContent><p className="text-3xl font-bold">{outsourcedStats.contributionToTotalSalesPercent.toFixed(1)}%</p><p className="text-xs text-gray-500 mt-1">Of total sales mix</p></CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-3"><CardTitle className="text-sm font-medium">Units Sold</CardTitle></CardHeader>
+                <CardContent><p className="text-3xl font-bold">{outsourcedStats.outsourcedSalesUnits}</p><p className="text-xs text-gray-500 mt-1">Quantity sold</p></CardContent>
+              </Card>
+            </div>
 
-          <Card>
-            <CardHeader><CardTitle>Leading outsourced performer</CardTitle></CardHeader>
-            <CardContent>
-              {!outsourcedStats.leadingOutsourcedProduct ? (
-                <p className="text-sm text-muted-foreground">No outsourced sales yet.</p>
-              ) : (
-                <div className="flex flex-col gap-2 text-sm">
-                  <p><span className="font-medium">Product:</span> {outsourcedStats.leadingOutsourcedProduct.name}</p>
-                  <p><span className="font-medium">Units Sold:</span> {outsourcedStats.leadingOutsourcedProduct.quantitySold}</p>
-                  <p><span className="font-medium">Sales Value:</span> {outsourcedStats.leadingOutsourcedProduct.salesValue.toFixed(2)}</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+            {/* Quote & Invoice Activity */}
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              <Card>
+                <CardHeader className="pb-3"><CardTitle className="text-sm font-medium">Quotations Active</CardTitle></CardHeader>
+                <CardContent><p className="text-3xl font-bold">{outsourcedStats.quotationsWithOutsourced}</p><p className="text-xs text-gray-500 mt-1">With outsourced items</p></CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-3"><CardTitle className="text-sm font-medium">Quote Items</CardTitle></CardHeader>
+                <CardContent><p className="text-3xl font-bold">{outsourcedStats.outsourcedQuotationItemsCount}</p><p className="text-xs text-gray-500 mt-1">Line items quoted</p></CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-3"><CardTitle className="text-sm font-medium">Invoice Items</CardTitle></CardHeader>
+                <CardContent><p className="text-3xl font-bold">{outsourcedStats.outsourcedInvoiceItemsCount}</p><p className="text-xs text-gray-500 mt-1">Line items invoiced</p></CardContent>
+              </Card>
+            </div>
 
-          <Card>
-            <CardHeader><CardTitle>Top outsourced products</CardTitle></CardHeader>
-            <CardContent>
-              {outsourcedStats.topOutsourcedProducts.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No outsourced products recorded yet.</p>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="text-left border-b">
-                        <th className="py-2">Product</th>
-                        <th className="py-2">Quantity</th>
-                        <th className="py-2">Value</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {outsourcedStats.topOutsourcedProducts.map((product, index) => (
-                        <tr key={`${product.name}-${index}`} className="border-b">
-                          <td className="py-2">{product.name}</td>
-                          <td className="py-2">{product.quantity}</td>
-                          <td className="py-2">{product.value.toFixed(2)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <div className="grid gap-4 lg:grid-cols-2">
+            {/* Leading Product */}
             <Card>
-              <CardHeader><CardTitle>Recommended outsourced products to import</CardTitle></CardHeader>
+              <CardHeader>
+                <CardTitle>Leading Outsourced Performer</CardTitle>
+              </CardHeader>
               <CardContent>
-                {outsourcedStats.importRecommendations.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No urgent import recommendations right now.</p>
+                {!outsourcedStats.leadingOutsourcedProduct ? (
+                  <p className="text-sm text-muted-foreground">No outsourced sales yet.</p>
+                ) : (
+                  <div className="space-y-4">
+                    <div>
+                      <p className="text-lg font-semibold">{outsourcedStats.leadingOutsourcedProduct.name}</p>
+                      <div className="mt-3 grid grid-cols-2 gap-4">
+                        <div>
+                          <p className="text-xs text-gray-600">Units Sold</p>
+                          <p className="text-2xl font-bold mt-1">{outsourcedStats.leadingOutsourcedProduct.quantitySold}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-600">Sales Revenue</p>
+                          <p className="text-2xl font-bold mt-1">{outsourcedStats.leadingOutsourcedProduct.salesValue.toFixed(2)}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Top Products Table */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Top Outsourced Products</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {outsourcedStats.topOutsourcedProducts.length === 0 ? (
+                  <div className="text-center py-8">
+                    <p className="text-sm text-muted-foreground">No outsourced products recorded yet.</p>
+                  </div>
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="text-left border-b">
-                          <th className="py-2">Product</th>
-                          <th className="py-2">Sold 30d</th>
-                          <th className="py-2">Stock</th>
-                          <th className="py-2">Projected 30d</th>
-                          <th className="py-2">Reason</th>
+                          <th className="py-3 px-4 font-semibold text-gray-700">Product Name</th>
+                          <th className="py-3 px-4 font-semibold text-gray-700 text-right">Quantity</th>
+                          <th className="py-3 px-4 font-semibold text-gray-700 text-right">Total Value</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {outsourcedStats.importRecommendations.map((item) => (
-                          <tr key={item.productId} className="border-b">
-                            <td className="py-2">{item.name}</td>
-                            <td className="py-2">{item.sold30}</td>
-                            <td className="py-2">{item.currentStock}</td>
-                            <td className={`py-2 ${item.projectedAfter30 < 0 ? "text-red-600 font-semibold" : ""}`}>{item.projectedAfter30}</td>
-                            <td className="py-2">{item.reason}</td>
+                        {outsourcedStats.topOutsourcedProducts.map((product, index) => (
+                          <tr key={`${product.name}-${index}`} className="border-b hover:bg-gray-50">
+                            <td className="py-3 px-4 font-medium">{product.name}</td>
+                            <td className="py-3 px-4 text-right">{product.quantity}</td>
+                            <td className="py-3 px-4 text-right font-semibold">{product.value.toFixed(2)}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -1287,35 +1312,80 @@ export function StockManagerContent({ view }: { view: StockView }) {
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader><CardTitle>Outsourced supplier contribution</CardTitle></CardHeader>
-              <CardContent>
-                {outsourcedStats.supplierBreakdown.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No outsourced suppliers captured yet.</p>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="text-left border-b">
-                          <th className="py-2">Company</th>
-                          <th className="py-2">Entries</th>
-                          <th className="py-2">Units Added</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {outsourcedStats.supplierBreakdown.map((supplier) => (
-                          <tr key={supplier.company} className="border-b">
-                            <td className="py-2">{supplier.company}</td>
-                            <td className="py-2">{supplier.entries}</td>
-                            <td className="py-2">{supplier.quantity}</td>
+            {/* Recommendations & Supplier Breakdown */}
+            <div className="grid gap-4 lg:grid-cols-2">
+              {/* Import Recommendations */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Import Recommendations</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {outsourcedStats.importRecommendations.length === 0 ? (
+                    <div className="text-center py-8">
+                      <p className="text-sm text-muted-foreground">No urgent import recommendations right now.</p>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="text-left border-b">
+                            <th className="py-3 px-4 font-semibold text-gray-700">Product</th>
+                            <th className="py-3 px-4 font-semibold text-gray-700 text-center">Sold (30d)</th>
+                            <th className="py-3 px-4 font-semibold text-gray-700 text-center">Stock</th>
+                            <th className="py-3 px-4 font-semibold text-gray-700 text-center">Projected</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                        </thead>
+                        <tbody>
+                          {outsourcedStats.importRecommendations.map((item) => (
+                            <tr key={item.productId} className="border-b hover:bg-gray-50">
+                              <td className="py-3 px-4 font-medium truncate">{item.name}</td>
+                              <td className="py-3 px-4 text-center">{item.sold30}</td>
+                              <td className="py-3 px-4 text-center">{item.currentStock}</td>
+                              <td className={`py-3 px-4 text-center font-semibold ${item.projectedAfter30 < 0 ? "text-red-600" : ""}`}>{item.projectedAfter30}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Supplier Contribution */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Supplier Contribution</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {outsourcedStats.supplierBreakdown.length === 0 ? (
+                    <div className="text-center py-8">
+                      <p className="text-sm text-muted-foreground">No outsourced suppliers captured yet.</p>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="text-left border-b">
+                            <th className="py-3 px-4 font-semibold text-gray-700">Company</th>
+                            <th className="py-3 px-4 font-semibold text-gray-700 text-center">Entries</th>
+                            <th className="py-3 px-4 font-semibold text-gray-700 text-right">Units Added</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {outsourcedStats.supplierBreakdown.map((supplier) => (
+                            <tr key={supplier.company} className="border-b hover:bg-gray-50">
+                              <td className="py-3 px-4 font-medium">{supplier.company}</td>
+                              <td className="py-3 px-4 text-center">{supplier.entries}</td>
+                              <td className="py-3 px-4 text-right font-semibold">{supplier.quantity}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
           </div>
         </>
       )}

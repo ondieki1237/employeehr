@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { Menu, Bell, PanelLeftClose, PanelLeftOpen } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { getUser } from "@/lib/auth"
@@ -42,6 +43,12 @@ export default function AdminTopNav({ onMenuClick, onSidebarCollapseToggle, isSi
       </div>
 
       <div className="flex items-center gap-4">
+        <Button asChild variant="outline" size="sm" className="hidden md:inline-flex">
+          <Link href="/shule">
+            School Enterprise
+          </Link>
+        </Button>
+
         <Button variant="ghost" size="sm" className="relative">
           <Bell size={20} />
           <span className="absolute top-1 right-1 w-2 h-2 bg-destructive rounded-full"></span>

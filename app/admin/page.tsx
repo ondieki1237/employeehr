@@ -475,6 +475,11 @@ export default function AdminDashboard() {
             <p className="truncate text-sm font-medium text-slate-700">{brand.name} operations</p>
           </div>
           <div className="flex flex-wrap gap-2">
+            <Link href="/shule">
+              <Button variant="outline" className="bg-white">
+                School Enterprise
+              </Button>
+            </Link>
             <Button variant="outline" className="bg-white" onClick={loadDashboard}>
               <RefreshCw className="w-4 h-4 mr-2" />
               Refresh

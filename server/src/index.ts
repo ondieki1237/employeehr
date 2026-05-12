@@ -48,6 +48,7 @@ import stockRoutes from "./routes/stock.routes"
 import stampRoutes from "./routes/stamp.routes"
 import smsWebhookRoutes from "./routes/smsWebhook.routes"
 import mpesaWebhookRoutes from "./routes/mpesaWebhook.routes"
+import shuleRoutes from "./routes/shule.routes"
 import { JobController } from "./controllers/jobController"
 import { JobApplicationController } from "./controllers/jobApplicationController"
 import { ApplicationFormController } from "./controllers/applicationFormController"
@@ -171,6 +172,7 @@ app.use("/api/feedback-surveys", feedbackSurveyRoutes)
 app.use("/api/stock", stockRoutes)
 app.use("/api/stamps", stampRoutes)
 app.use("/api", bookingRoutes)
+app.use("/api/shule", shuleRoutes)
 
 // 404 handler
 app.use((req, res) => {

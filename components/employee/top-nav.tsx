@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import Link from "next/link"
 import { Bell, User, Menu } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
@@ -66,6 +67,12 @@ export function EmployeeTopNav({ onMenuClick }: EmployeeTopNavProps) {
 
       {/* User Info */}
       <div className="flex items-center gap-4">
+        <Button asChild variant="outline" size="sm" className="hidden sm:inline-flex">
+          <Link href="/shule">
+            School Enterprise
+          </Link>
+        </Button>
+
         {/* Notifications */}
         <Button variant="ghost" size="icon" className="relative">
           <Bell className="h-5 w-5" />
