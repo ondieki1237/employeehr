@@ -7,7 +7,7 @@ export interface IStockClient {
   sourceNumber: string
   sourceLocation: string
   legalName: string
-  kraPin: string
+  kraPin?: string
   email?: string
   branchId?: string
   hasKraDetails: boolean
@@ -24,7 +24,7 @@ const stockClientSchema = new Schema<IStockClient>(
     sourceNumber: { type: String, required: true },
     sourceLocation: { type: String, required: true },
     legalName: { type: String, required: true },
-    kraPin: { type: String, required: true },
+    kraPin: { type: String },
     email: { type: String },
     branchId: { type: String },
     hasKraDetails: { type: Boolean, default: false },

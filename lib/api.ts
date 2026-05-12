@@ -550,7 +550,14 @@ export const stockApi = {
 
     getQuotations: () => client.get<any[]>('/api/stock/quotations'),
 
+    convertQuotation: (quotationId: string) => client.post<any>(`/api/stock/quotations/${quotationId}/convert`, {}),
+    addQuotationFollowUp: (quotationId: string, data: { note: string; callMade?: boolean; outcome?: string }) =>
+        client.post<any>(`/api/stock/quotations/${quotationId}/followups`, data),
+    getQuotationFollowUps: (quotationId: string) => client.get<any[]>(`/api/stock/quotations/${quotationId}/followups`),
+
     getAccountsClients: () => client.get<any[]>('/api/stock/accounts/clients'),
+    saveClient: (data: { sourceName: string; sourceNumber: string; sourceLocation: string; legalName: string; kraPin?: string; email?: string; branchId?: string }) =>
+        client.post<any>('/api/stock/accounts/clients', data),
 
     getAccountsPosts: () => client.get<any[]>('/api/stock/accounts/posts'),
 

@@ -30,6 +30,7 @@ interface PaymentInvoiceRow {
   paymentCount: number
   lastPayment: InvoicePayment | null
   payments: InvoicePayment[]
+  nextPaymentDate?: string
 }
 
 const PAYMENT_METHODS = ["cash", "mpesa", "bank", "cheque", "card", "other"]
@@ -183,6 +184,12 @@ export default function AccountsPaymentsPage() {
                   <p><span className="font-medium">Total:</span> {selectedInvoice.subTotal.toFixed(2)}</p>
                   <p><span className="font-medium">Paid:</span> {selectedInvoice.paidAmount.toFixed(2)}</p>
                   <p><span className="font-medium">Balance:</span> {selectedInvoice.balanceRemaining.toFixed(2)}</p>
+                  {selectedInvoice.balanceRemaining > 0 && (
+                    <p>
+                      <span className="font-medium">Next payment date:</span>{' '}
+                      {selectedInvoice.nextPaymentDate ? new Date(selectedInvoice.nextPaymentDate).toLocaleString() : 'Not scheduled'}
+                    </p>
+                  )}
                 </div>
 
                 <div className="grid gap-3 md:grid-cols-2">

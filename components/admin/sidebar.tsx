@@ -136,6 +136,12 @@ const adminMenuItems = [
     section: "INVENTORY MANAGER"
   },
   {
+    label: "Client Communication",
+    icon: Mail,
+    href: "/admin/clients-communication",
+    section: "CLIENTS"
+  },
+  {
     label: "Invoices",
     icon: FileCheck,
     href: "/admin/stock/invoices",

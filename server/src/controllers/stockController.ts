@@ -5,6 +5,7 @@ import { StockProduct } from "../models/StockProduct"
 import { StockEntry } from "../models/StockEntry"
 import { StockSale } from "../models/StockSale"
 import { StockQuotation } from "../models/StockQuotation"
+import { QuotationFollowUp } from "../models/QuotationFollowUp"
 import { StockInvoice } from "../models/StockInvoice"
 import { StockCourier } from "../models/StockCourier"
 import { StockClient } from "../models/StockClient"
@@ -122,6 +123,15 @@ function buildInvoicePaymentSummary(invoice: any, invoicePayments: any[]) {
   const balanceRemaining = Math.max(0, Number((subTotal - paidAmount).toFixed(2)))
   const lastPayment = sortedPayments[0] || null
 
+  // Compute a suggested next payment / debt-claiming date when there is still a balance.
+  // Default policy: schedule next claim 30 days after the latest payment (or invoice creation if no payments).
+  let nextPaymentDate: string | undefined = undefined
+  if (balanceRemaining > 0) {
+    const base = lastPayment ? new Date(lastPayment.paidAt || lastPayment.createdAt || Date.now()) : new Date(invoice.createdAt || Date.now())
+    const next = new Date(base.getTime() + 30 * 24 * 60 * 60 * 1000) // 30 days after base
+    nextPaymentDate = next.toISOString()
+  }
+
   return {
     ...invoice,
     paidAmount: Number(paidAmount.toFixed(2)),
@@ -129,6 +139,7 @@ function buildInvoicePaymentSummary(invoice: any, invoicePayments: any[]) {
     paymentCount: sortedPayments.length,
     lastPayment,
     payments: sortedPayments,
+    nextPaymentDate,
   }
 }
 
@@ -902,6 +913,51 @@ export class StockController {
     }
   }
 
+  static async createOrUpdateClient(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = req.user?.org_id
+      const actorId = req.user?.userId
+      if (!org_id || !actorId) return res.status(401).json({ success: false, message: 'Unauthorized' })
+
+      const { sourceName, sourceNumber, sourceLocation, legalName, kraPin, email, branchId } = req.body || {}
+
+      if (!sourceName || !sourceNumber || !sourceLocation || !legalName) {
+        return res.status(400).json({ success: false, message: 'sourceName, sourceNumber, sourceLocation and legalName are required' })
+      }
+
+      const profile = await StockClient.findOneAndUpdate(
+        {
+          org_id,
+          sourceName: String(sourceName).trim(),
+          sourceNumber: String(sourceNumber).trim(),
+          sourceLocation: String(sourceLocation).trim(),
+        },
+        {
+          $set: {
+            legalName: String(legalName).trim(),
+            kraPin: kraPin ? String(kraPin).trim().toUpperCase() : undefined,
+            email: email ? String(email).trim() : undefined,
+            branchId: branchId ? String(branchId).trim() : undefined,
+            hasKraDetails: Boolean(kraPin),
+            updatedBy: String(actorId),
+          },
+          $setOnInsert: {
+            org_id,
+            sourceName: String(sourceName).trim(),
+            sourceNumber: String(sourceNumber).trim(),
+            sourceLocation: String(sourceLocation).trim(),
+            createdBy: String(actorId),
+          },
+        },
+        { upsert: true, new: true },
+      )
+
+      return res.status(200).json({ success: true, data: profile })
+    } catch (error: any) {
+      return res.status(500).json({ success: false, message: error.message || 'Failed to create/update client' })
+    }
+  }
+
   static async postInvoiceToEtims(req: AuthenticatedRequest, res: Response) {
     try {
       const org_id = req.user?.org_id
@@ -1624,6 +1680,49 @@ export class StockController {
       return res.status(201).json({ success: true, data: invoice })
     } catch (error: any) {
       return res.status(500).json({ success: false, message: error.message || "Failed to convert quotation" })
+    }
+  }
+
+  static async addQuotationFollowUp(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = req.user?.org_id
+      const actorId = req.user?.userId
+      if (!org_id || !actorId) return res.status(401).json({ success: false, message: "Unauthorized" })
+
+      const { quotationId } = req.params
+      const { note, callMade, outcome } = req.body || {}
+      if (!note || String(note).trim().length === 0) {
+        return res.status(400).json({ success: false, message: "Note is required" })
+      }
+
+      const quotation = await StockQuotation.findOne({ _id: quotationId, org_id })
+      if (!quotation) return res.status(404).json({ success: false, message: "Quotation not found" })
+
+      const doc = await QuotationFollowUp.create({
+        org_id,
+        quotationId: String(quotation._id),
+        note: String(note).trim(),
+        callMade: !!callMade,
+        outcome: outcome ? String(outcome).trim() : undefined,
+        createdBy: String(actorId),
+      })
+
+      return res.status(201).json({ success: true, data: doc })
+    } catch (error: any) {
+      return res.status(500).json({ success: false, message: error.message || "Failed to add follow up" })
+    }
+  }
+
+  static async getQuotationFollowUps(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = req.user?.org_id
+      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+
+      const { quotationId } = req.params
+      const followups = await QuotationFollowUp.find({ org_id, quotationId: String(quotationId) }).sort({ createdAt: -1 }).lean()
+      return res.status(200).json({ success: true, data: followups })
+    } catch (error: any) {
+      return res.status(500).json({ success: false, message: error.message || "Failed to fetch follow ups" })
     }
   }
 
