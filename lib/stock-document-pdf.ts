@@ -91,6 +91,13 @@ function formatKsh(value: number): string {
   })}`;
 }
 
+function formatAmount(value: number): string {
+  return value.toLocaleString("en-KE", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
 function drawThinDivider(doc: jsPDF, y: number, colorHex = "#e2e8f0") {
   setColorFromHex(doc, colorHex, "draw");
   doc.setLineWidth(0.4);
@@ -115,15 +122,15 @@ function drawModernHeader(doc: jsPDF, args: HeaderArgs) {
   const hasLogo = Boolean(args.branding?.logo);
 
   const logoX = 12;
-  const logoY = 10;
+  const logoY = 12;
 
   // Logo
   if (hasLogo) {
     try {
       const lower = args.branding!.logo!.toLowerCase();
       const format = lower.includes("jpg") || lower.includes("jpeg") ? "JPEG" : "PNG";
-      const maxLogoWidth = 38;
-      const maxLogoHeight = 16;
+      const maxLogoWidth = 44;
+      const maxLogoHeight = 20;
       let imageWidth = 0;
       let imageHeight = 0;
 
@@ -157,39 +164,29 @@ function drawModernHeader(doc: jsPDF, args: HeaderArgs) {
     }
   }
 
-  // Document title - right side
+  // Document title - right side (larger, more prominent)
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(22);
+  doc.setFontSize(32);
   setColorFromHex(doc, primary, "text");
-  doc.text(args.title.toUpperCase(), 198, 18, { align: "right" });
+  doc.text(args.title.toUpperCase(), 198, 25, { align: "right" });
 
-  // Meta table - right side
-  const metaW = 117;
-  const metaH = 27;
-  const metaX = 198 - metaW;
-  const metaY = 30;
-  const metaSplitX = metaX + 45;
-  const metaRowH = metaH / 2;
-
-  setColorFromHex(doc, primary, "draw");
-  doc.setLineWidth(0.6);
-  doc.rect(metaX, metaY, metaW, metaH);
-  doc.line(metaSplitX, metaY, metaSplitX, metaY + metaH);
-  doc.line(metaX, metaY + metaRowH, metaX + metaW, metaY + metaRowH);
+  // Invoice details - right side (plain, no box)
+  const metaX = 106;
+  const metaY = 38;
 
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(9.5);
+  doc.setFontSize(8);
   setColorFromHex(doc, DEFAULT_GRAY, "text");
-  doc.text(args.numberLabel, metaX + 3, metaY + 9.5);
-  doc.text("Issued", metaX + 3, metaY + metaRowH + 9.5);
+  doc.text(args.numberLabel, metaX, metaY);
+  doc.text("Issued", metaX, metaY + 12);
 
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(10.5);
+  doc.setFontSize(10);
   setColorFromHex(doc, DEFAULT_TEXT, "text");
-  doc.text(args.numberValue, metaX + metaW - 3, metaY + 9.5, { align: "right" });
-  doc.text(new Date(args.createdAt).toLocaleDateString("en-KE"), metaX + metaW - 3, metaY + metaRowH + 9.5, { align: "right" });
+  doc.text(args.numberValue, 198, metaY, { align: "right" });
+  doc.text(new Date(args.createdAt).toLocaleDateString("en-KE"), 198, metaY + 12, { align: "right" });
 
-  drawThinDivider(doc, 56);
+  drawThinDivider(doc, 68);
 }
 
 function drawContactSlotBelowLogo(
@@ -214,29 +211,24 @@ function drawContactSlotBelowLogo(
     { label: "PIN", value: pinNumber },
   ].filter((row) => row.value);
 
-  if (!rows.length) return 51;
+  if (!rows.length) return 68;
 
   const boxX = 12;
-  const boxY = 52;
-  const rowHeight = 4.2;
-  const boxHeight = Math.max(13, rows.length * rowHeight + 3);
-
-  setColorFromHex(doc, primary, "draw");
-  doc.setLineWidth(0.5);
-  doc.rect(boxX, boxY, 98, boxHeight);
+  const boxY = 38;
+  const rowHeight = 3.8;
 
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(8.7);
+  doc.setFontSize(7.8);
   setColorFromHex(doc, DEFAULT_GRAY, "text");
 
-  let y = boxY + 4.2;
+  let y = boxY;
   rows.forEach((row) => {
-    const wrapped = doc.splitTextToSize(row.value, 88);
-    doc.text(`${row.label}: ${wrapped[0] || ""}`, boxX + 3, y);
+    const wrapped = doc.splitTextToSize(row.value, 82);
+    doc.text(`${row.label}: ${wrapped[0] || ""}`, boxX, y);
     y += rowHeight;
   });
 
-  return boxY + boxHeight + 1;
+  return y + 2;
 }
 
 function drawPartiesSection(
@@ -245,33 +237,33 @@ function drawPartiesSection(
   preparedBy: string,
   branding?: TenantBranding,
   rightTitle = "Payment Terms",
-  startY = 68,
+  startY = 90,
 ) {
   const primary = branding?.primaryColor || DEFAULT_PRIMARY;
   const leftX = 12;
   const rightX = 106;
-  const boxY = Math.max(startY, 58);
+  const boxY = Math.max(startY, 72);
   const boxW = 92;
 
-  const headerH = 6;
-  const lineH = 4.2;
-  const padX = 4;
+  const headerH = 6.5;
+  const lineH = 4;
+  const padX = 3.5;
   const padY = 3;
 
-  const nameLines = doc.splitTextToSize(client.name || "Client Name", 82);
-  const preparedLines = doc.splitTextToSize(`Prepared by: ${preparedBy}`, 82);
-  const companyLines = doc.splitTextToSize(`Company: ${branding?.name || "—"}`, 82);
+  const nameLines = doc.splitTextToSize(client.name || "Client Name", 84);
+  const preparedLines = doc.splitTextToSize(`Prepared by: ${preparedBy}`, 84);
+  const companyLines = doc.splitTextToSize(`Company: ${branding?.name || "—"}`, 84);
   const contact = branding?.phone || branding?.email || "—";
-  const contactLines = doc.splitTextToSize(`Contact: ${contact}`, 82);
+  const contactLines = doc.splitTextToSize(`Contact: ${contact}`, 84);
 
   const leftContentLines = nameLines.length + 2;
   const rightContentLines = preparedLines.length + companyLines.length + contactLines.length;
-  const leftHeight = headerH + padY + leftContentLines * lineH + 2;
-  const rightHeight = headerH + padY + rightContentLines * lineH + 2;
-  const boxH = Math.max(leftHeight, rightHeight, headerH + 14);
+  const leftHeight = headerH + padY + leftContentLines * lineH + 1;
+  const rightHeight = headerH + padY + rightContentLines * lineH + 1;
+  const boxH = Math.max(leftHeight, rightHeight, headerH + 12);
 
   setColorFromHex(doc, primary, "draw");
-  doc.setLineWidth(0.6);
+  doc.setLineWidth(0.5);
   doc.rect(leftX, boxY, boxW, boxH);
   doc.rect(rightX, boxY, boxW, boxH);
   setColorFromHex(doc, DEFAULT_LIGHT, "fill");
@@ -286,29 +278,29 @@ function drawPartiesSection(
   doc.text("Bill To", leftX + padX, boxY + 4.5);
   doc.text(rightTitle, rightX + padX, boxY + 4.5);
 
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(8.3);
-  setColorFromHex(doc, DEFAULT_GRAY, "text");
-
-  let ly = boxY + headerH + padY + 3.2;
+  let ly = boxY + headerH + padY + 2.8;
   doc.setFont("helvetica", "bold");
+  doc.setFontSize(8.8);
   setColorFromHex(doc, DEFAULT_TEXT, "text");
   doc.text(nameLines, leftX + padX, ly);
   ly += nameLines.length * lineH;
   doc.setFont("helvetica", "normal");
+  doc.setFontSize(7.8);
   setColorFromHex(doc, DEFAULT_GRAY, "text");
   doc.text(`Phone: ${client.number || "—"}`, leftX + padX, ly);
   ly += lineH;
   doc.text(`Location: ${client.location || "—"}`, leftX + padX, ly);
 
-  let ry = boxY + headerH + padY + 3.2;
+  let ry = boxY + headerH + padY + 2.8;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(7.8);
   doc.text(preparedLines, rightX + padX, ry);
   ry += preparedLines.length * lineH;
   doc.text(companyLines, rightX + padX, ry);
   ry += companyLines.length * lineH;
   doc.text(contactLines, rightX + padX, ry);
 
-  return boxY + boxH + 3;
+  return boxY + boxH + 2.5;
 }
 
 function drawItemsTable(
@@ -322,8 +314,8 @@ function drawItemsTable(
   const primary = branding?.primaryColor || DEFAULT_PRIMARY;
   const tableX = 12;
   const tableWidth = 186;
-  const headerHeight = 9.5;
-  const rowHeight = 9;
+  const headerHeight = 11;
+  const rowHeight = 10.5;
 
   const columns = compact
     ? [
@@ -333,19 +325,19 @@ function drawItemsTable(
       ]
     : includeTax
       ? [
-          { key: "index", label: "#", width: 14, align: "left" as const },
-          { key: "description", label: "Description", width: 70, align: "left" as const },
+          { key: "index", label: "#", width: 12, align: "left" as const },
+          { key: "description", label: "Description", width: 76, align: "left" as const },
           { key: "quantity", label: "Qty", width: 16, align: "right" as const },
-          { key: "unitPrice", label: "Unit Price", width: 28, align: "right" as const },
+          { key: "unitPrice", label: "Unit Price (KSh)", width: 34, align: "right" as const },
           { key: "tax", label: "Tax %", width: 18, align: "right" as const },
-          { key: "totalAfterTax", label: "Total", width: 40, align: "right" as const },
+          { key: "totalAfterTax", label: "Total", width: 30, align: "right" as const },
         ]
       : [
-          { key: "index", label: "#", width: 14, align: "left" as const },
-          { key: "description", label: "Description", width: 88, align: "left" as const },
-          { key: "quantity", label: "Qty", width: 20, align: "right" as const },
-          { key: "unitPrice", label: "Unit Price", width: 32, align: "right" as const },
-          { key: "total", label: "Total", width: 32, align: "right" as const },
+          { key: "index", label: "#", width: 12, align: "left" as const },
+          { key: "description", label: "Description", width: 98, align: "left" as const },
+          { key: "quantity", label: "Qty", width: 18, align: "right" as const },
+          { key: "unitPrice", label: "Unit Price (KSh)", width: 34, align: "right" as const },
+          { key: "total", label: "Total", width: 24, align: "right" as const },
         ];
 
   const columnStartX = columns.map((_, index) => {
@@ -357,20 +349,22 @@ function drawItemsTable(
     doc.rect(tableX, headerY, tableWidth, headerHeight, "F");
     doc.setTextColor(255, 255, 255);
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(10);
+    doc.setFontSize(9.5);
 
     columns.forEach((column, index) => {
       const startX = columnStartX[index];
       const endX = startX + column.width;
-      if (column.align === "right") {
-        doc.text(column.label, endX - 2, headerY + 7, { align: "right" });
+      if (column.key === "unitPrice") {
+        doc.text("Unit Price (KSh)", endX - 3, headerY + 8.5, { align: "right" });
+      } else if (column.align === "right") {
+        doc.text(column.label, endX - 3, headerY + 8.5, { align: "right" });
       } else {
-        doc.text(column.label, startX + 2, headerY + 7);
+        doc.text(column.label, startX + 3, headerY + 8.5);
       }
     });
 
     setColorFromHex(doc, primary, "draw");
-    doc.setLineWidth(0.6);
+    doc.setLineWidth(0.8);
     doc.rect(tableX, headerY, tableWidth, headerHeight);
     columns.forEach((_, index) => {
       if (index === 0) return;
@@ -397,7 +391,7 @@ function drawItemsTable(
 
   doc.setTextColor(30, 30, 30);
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(9.2);
+  doc.setFontSize(9);
 
   items.forEach((item, i) => {
     if (y > 246) {
@@ -413,32 +407,32 @@ function drawItemsTable(
       doc.rect(tableX, y, tableWidth, rowHeight, "F");
     }
 
-    const maxNameLength = compact ? 76 : includeTax ? 40 : 52;
+    const maxNameLength = compact ? 76 : includeTax ? 48 : 62;
     const name = item.productName.length > maxNameLength
       ? item.productName.slice(0, maxNameLength - 3) + "..."
       : item.productName;
 
     drawRowGrid(y);
 
-    doc.text(String(i + 1).padStart(2, "0"), columnStartX[0] + 2, y + 7.1);
-    doc.text(name, columnStartX[1] + 2, y + 7.1);
+    doc.text(String(i + 1).padStart(2, "0"), columnStartX[0] + 2, y + 7.5);
+    doc.text(name, columnStartX[1] + 3, y + 7.5);
 
     if (compact) {
       const qtyCol = columns[2];
-      doc.text(String(item.quantity), tableX + qtyCol.width + columns[0].width + columns[1].width - 2, y + 7.1, { align: "right" });
+      doc.text(String(item.quantity), tableX + qtyCol.width + columns[0].width + columns[1].width - 2, y + 7.5, { align: "right" });
     } else if (includeTax) {
       const taxRate = Number(item.taxRate || 0);
       const baseTotal = Number(item.lineTotal || 0);
       const totalAfterTax = Number(item.totalAfterTax || (baseTotal + baseTotal * (taxRate / 100)));
 
-      doc.text(String(item.quantity), columnStartX[2] + columns[2].width - 2, y + 7.1, { align: "right" });
-      doc.text(formatKsh(item.unitPrice), columnStartX[3] + columns[3].width - 2, y + 7.1, { align: "right" });
-      doc.text(`${taxRate.toFixed(2)}%`, columnStartX[4] + columns[4].width - 2, y + 7.1, { align: "right" });
-      doc.text(formatKsh(totalAfterTax), columnStartX[5] + columns[5].width - 2, y + 7.1, { align: "right" });
+      doc.text(String(item.quantity), columnStartX[2] + columns[2].width - 3, y + 7.5, { align: "right" });
+      doc.text(formatAmount(item.unitPrice), columnStartX[3] + columns[3].width - 3, y + 7.5, { align: "right" });
+      doc.text(`${taxRate.toFixed(2)}%`, columnStartX[4] + columns[4].width - 3, y + 7.5, { align: "right" });
+      doc.text(formatAmount(totalAfterTax), columnStartX[5] + columns[5].width - 3, y + 7.5, { align: "right" });
     } else {
-      doc.text(String(item.quantity), columnStartX[2] + columns[2].width - 2, y + 7.1, { align: "right" });
-      doc.text(formatKsh(item.unitPrice), columnStartX[3] + columns[3].width - 2, y + 7.1, { align: "right" });
-      doc.text(formatKsh(item.lineTotal), columnStartX[4] + columns[4].width - 2, y + 7.1, { align: "right" });
+      doc.text(String(item.quantity), columnStartX[2] + columns[2].width - 3, y + 7.5, { align: "right" });
+      doc.text(formatAmount(item.unitPrice), columnStartX[3] + columns[3].width - 3, y + 7.5, { align: "right" });
+      doc.text(formatAmount(item.lineTotal), columnStartX[4] + columns[4].width - 3, y + 7.5, { align: "right" });
     }
 
     y += rowHeight;
@@ -459,23 +453,23 @@ function drawTotalsSection(
   const vat = showVat ? subtotal * 0.16 : 0
   const grandTotal = subtotal + vat
 
-  let y = startY + 1;
+  let y = startY + 6;
   if (y + 50 > 280) {
     doc.addPage();
     y = 20;
   }
 
-  const boxX = 118;
-  const boxW = 80;
-  const rowH = 6;
+  const boxX = 115;
+  const boxW = 83;
+  const rowH = 7;
   const rows = showVat ? 3 : 2;
-  const boxH = rows * rowH + 2;
-  const splitX = boxX + 46;
+  const boxH = rows * rowH + 3;
+  const splitX = boxX + 48;
 
-  // Totals table
+  // Totals table with better spacing and hierarchy
   doc.setFillColor(255, 255, 255);
   setColorFromHex(doc, primary, "draw");
-  doc.setLineWidth(0.6);
+  doc.setLineWidth(0.8);
   doc.rect(boxX, y, boxW, boxH, "FD");
   doc.line(splitX, y, splitX, y + boxH);
   for (let i = 1; i < rows; i += 1) {
@@ -486,25 +480,25 @@ function drawTotalsSection(
   doc.setFontSize(9);
   setColorFromHex(doc, DEFAULT_TEXT, "text");
 
-  const labelX = boxX + 3;
-  const valueX = boxX + boxW - 3;
-  let rowY = y + 4.2;
+  const labelX = boxX + 4;
+  const valueX = boxX + boxW - 4;
+  let rowY = y + 4.8;
 
   doc.text("Subtotal", labelX, rowY);
-  doc.text(formatKsh(subtotal), valueX, rowY, { align: "right" });
+  doc.text(formatAmount(subtotal), valueX, rowY, { align: "right" });
 
   if (showVat) {
     rowY += rowH;
     doc.text("VAT (16%)", labelX, rowY);
-    doc.text(formatKsh(vat), valueX, rowY, { align: "right" });
+    doc.text(formatAmount(vat), valueX, rowY, { align: "right" });
   }
 
-  rowY = y + rowH * (rows - 1) + 4.2;
+  rowY = y + rowH * (rows - 1) + 4.8;
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(9.5);
+  doc.setFontSize(11);
   setColorFromHex(doc, primary, "text");
   doc.text("Grand Total", labelX, rowY);
-  doc.text(formatKsh(grandTotal), valueX, rowY, { align: "right" });
+  doc.text(formatAmount(grandTotal), valueX, rowY, { align: "right" });
 
   return y + boxH + 4;
 }
@@ -515,25 +509,13 @@ function drawBottomFooter(
   settings?: InvoiceDocumentSettings,
   preparedBy?: string,
 ) {
-  const footerY = 286;
-  drawThinDivider(doc, footerY - 4, "#dbe4ee");
-
-  const footerEmail = String(settings?.contactEmail || settings?.invoiceEmail || branding?.email || "").trim();
-  const footerPhone = String(settings?.contactPhone || branding?.phone || "").trim();
-  const footerLocation = String(settings?.officeLocation || buildCompanyAddress(branding) || "").trim();
-
-  const left = [footerPhone, footerLocation, footerEmail].filter(Boolean).join("   •   ") || "";
+  const footerY = 287;
+  drawThinDivider(doc, footerY - 5, "#cbd5e1");
 
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(8);
+  doc.setFontSize(7.5);
   setColorFromHex(doc, DEFAULT_GRAY, "text");
-  if (left) {
-    doc.text(left, 12, footerY);
-  }
-
-  if (preparedBy) {
-    doc.text(`Prepared by: ${preparedBy}`, 198, footerY, { align: "right" });
-  }
+  doc.text("System build and managed by codewithseth.co.ke", 105, footerY, { align: "center" });
 }
 
 function drawTermsAndPaymentChannelsSection(
@@ -543,108 +525,58 @@ function drawTermsAndPaymentChannelsSection(
   branding?: TenantBranding,
 ) {
   const availableBottom = 284
-  let y = startY + 4
+  const y = availableBottom - 22
   const terms = String(settings?.termsAndConditions || "").trim()
   const channels = Array.isArray(settings?.paymentChannels) ? settings!.paymentChannels : []
-  const primary = branding?.primaryColor || DEFAULT_PRIMARY
 
   if (!terms && !(settings?.includePaymentChannels !== false && channels.length)) {
     return y
   }
 
   const leftX = 12
-  const rightX = 106
-  const boxW = 92
-  const lineH = 4
-  const headerH = 6
-  const padX = 4
-  const padY = 3
+  const rightX = 105
+  const lineH = 3.2
+  const colW = 91
 
-  const termsLines = terms ? doc.splitTextToSize(terms, 84) : []
-  const termsHeight = terms ? headerH + padY + termsLines.length * lineH + 2 : headerH + 8
+  // Small compact header for terms
+  doc.setFont("helvetica", "bold")
+  doc.setFontSize(8)
+  setColorFromHex(doc, DEFAULT_TEXT, "text")
+  doc.text("Terms & Conditions", leftX, y)
+  doc.text("Payment Channels", rightX, y)
 
-  const channelLines: string[] = []
-  if (settings?.includePaymentChannels !== false && channels.length) {
-    channels.forEach((channel, index) => {
-      const title = [channel.channelName || channel.bankName].filter(Boolean).join(" - ") || "Payment Channel"
-      channelLines.push(title)
+  let ty = y + 3.5
 
-      const details = [
-        channel.accountName ? `Account Name: ${channel.accountName}` : "",
-        channel.accountNumber ? `Account No: ${channel.accountNumber}` : "",
-        channel.branch ? `Branch: ${channel.branch}` : "",
-        channel.notes ? `${channel.notes}` : "",
-      ].filter(Boolean)
-
-      details.forEach((line) => {
-        const wrapped = doc.splitTextToSize(line, 84)
-        wrapped.forEach((item: string) => channelLines.push(item))
-      })
-
-      if (index < channels.length - 1) {
-        channelLines.push("")
-      }
-    })
-  }
-
-  const channelsHeight = channelLines.length ? headerH + padY + channelLines.length * lineH + 2 : headerH + 8
-  const contentHeight = Math.max(termsHeight, channelsHeight, headerH + 10)
-
-  const bottomY = availableBottom - contentHeight
-  y = Math.max(y, bottomY)
-
-  if (y + contentHeight > availableBottom) {
-    doc.addPage()
-    y = 20
-  }
-
-  setColorFromHex(doc, primary, "draw")
-  doc.setLineWidth(0.6)
-  doc.rect(leftX, y - 2, boxW, contentHeight)
-  doc.rect(rightX, y - 2, boxW, contentHeight)
-  setColorFromHex(doc, DEFAULT_LIGHT, "fill")
-  doc.rect(leftX, y - 2, boxW, headerH, "F")
-  doc.rect(rightX, y - 2, boxW, headerH, "F")
-  doc.line(leftX, y - 2 + headerH, leftX + boxW, y - 2 + headerH)
-  doc.line(rightX, y - 2 + headerH, rightX + boxW, y - 2 + headerH)
-
+  // Terms content - compact
   if (terms) {
-    doc.setFont("helvetica", "bold")
-    doc.setFontSize(9)
-    setColorFromHex(doc, DEFAULT_TEXT, "text")
-    doc.text("Terms & Conditions", leftX + padX, y + 2.6)
-
     doc.setFont("helvetica", "normal")
-    doc.setFontSize(8.2)
+    doc.setFontSize(7)
     setColorFromHex(doc, DEFAULT_GRAY, "text")
-    let ty = y + headerH + padY + 1
-    termsLines.forEach((line: string) => {
-      doc.text(line, leftX + padX, ty)
+    const termsLines = doc.splitTextToSize(terms, colW - 2)
+    termsLines.slice(0, 3).forEach((line: string) => {
+      doc.text(line, leftX, ty)
       ty += lineH
     })
   }
 
-  if (channelLines.length) {
-    doc.setFont("helvetica", "bold")
-    doc.setFontSize(9)
-    setColorFromHex(doc, DEFAULT_TEXT, "text")
-    doc.text("Payment Channels", rightX + padX, y + 2.6)
-
+  // Payment channels content - compact
+  let cy = y + 3.5
+  if (settings?.includePaymentChannels !== false && channels.length) {
     doc.setFont("helvetica", "normal")
-    doc.setFontSize(8.2)
+    doc.setFontSize(7)
     setColorFromHex(doc, DEFAULT_GRAY, "text")
-    let cy = y + headerH + padY + 1
-    channelLines.forEach((line: string) => {
-      if (!line) {
-        cy += lineH * 0.6
-        return
-      }
-      doc.text(line, rightX + padX, cy)
+    channels.slice(0, 2).forEach((channel) => {
+      const title = channel.channelName || channel.bankName || "Payment Channel"
+      doc.text(title, rightX, cy)
       cy += lineH
+      if (channel.accountNumber) {
+        doc.text(`A/C: ${channel.accountNumber}`, rightX, cy)
+        cy += lineH
+      }
     })
   }
 
-  return y + contentHeight + 2
+  return availableBottom
 }
 
 function drawDeliverySignatures(doc: jsPDF, startY: number, preparedBy: string) {
