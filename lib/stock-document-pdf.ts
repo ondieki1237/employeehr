@@ -449,7 +449,7 @@ function drawTotalsSection(
   settings?: InvoiceDocumentSettings,
 ) {
   const primary = branding?.primaryColor || DEFAULT_PRIMARY;
-  const showVat = settings?.includeVat !== false
+  const showVat = Boolean(settings?.includeVat === true);
   const vat = showVat ? subtotal * 0.16 : 0
   const grandTotal = subtotal + vat
 
@@ -721,6 +721,7 @@ export function generateDeliveryNotePdf(params: {
   client: DocumentClient;
   items: DocumentItem[];
   branding?: TenantBranding;
+  invoiceSettings?: InvoiceDocumentSettings;
   preparedBy: string;
   watermarkText?: string;
   autoSave?: boolean;
@@ -737,7 +738,9 @@ export function generateDeliveryNotePdf(params: {
     branding: params.branding,
   });
 
-  let tableY = drawPartiesSection(doc, params.client, params.preparedBy, params.branding, "Delivery Info");
+  const contactBottom = drawContactSlotBelowLogo(doc, params.branding, params.invoiceSettings);
+
+  let tableY = drawPartiesSection(doc, params.client, params.preparedBy, params.branding, "Delivery Info", contactBottom + 1);
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
@@ -747,6 +750,8 @@ export function generateDeliveryNotePdf(params: {
   const endY = drawItemsTable(doc, tableY, params.items, params.branding, true); // compact mode
 
   drawDeliverySignatures(doc, endY, params.preparedBy);
+
+  drawBottomFooter(doc, params.branding, params.invoiceSettings, params.preparedBy);
 
   if (params.autoSave !== false) {
     doc.save(`delivery-note-${params.deliveryNoteNumber}.pdf`);

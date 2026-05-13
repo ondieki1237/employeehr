@@ -69,7 +69,7 @@ export default function InvoiceGenerationSettingsPage() {
     includeQuotationReference: true,
     includeDeliveryNoteNumber: true,
     includePreparedBy: true,
-    includeVat: true,
+    includeVat: false,
     includePaymentChannels: true,
     paymentChannels: [blankChannel()],
   })
@@ -102,7 +102,7 @@ export default function InvoiceGenerationSettingsPage() {
             includeQuotationReference: settingsRes.data.includeQuotationReference ?? true,
             includeDeliveryNoteNumber: settingsRes.data.includeDeliveryNoteNumber ?? true,
             includePreparedBy: settingsRes.data.includePreparedBy ?? true,
-            includeVat: settingsRes.data.includeVat ?? true,
+            includeVat: settingsRes.data.includeVat ?? false,
             includePaymentChannels: settingsRes.data.includePaymentChannels ?? true,
             paymentChannels: (settingsRes.data.paymentChannels || []).length ? settingsRes.data.paymentChannels : [blankChannel()],
             logoUrl: settingsRes.data.logoUrl || "",

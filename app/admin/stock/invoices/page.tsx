@@ -296,6 +296,7 @@ export default function InvoicesPage() {
       client: invoice.client,
       items: invoice.items,
       branding,
+      invoiceSettings,
       preparedBy,
       watermarkText: invoice.status === "paid" ? "PAID" : invoice.status === "cancelled" ? "CANCELLED" : undefined,
       autoSave: false,

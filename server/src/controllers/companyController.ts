@@ -88,7 +88,7 @@ export class CompanyController {
           includeQuotationReference: company.invoiceSettings?.includeQuotationReference ?? true,
           includeDeliveryNoteNumber: company.invoiceSettings?.includeDeliveryNoteNumber ?? true,
           includePreparedBy: company.invoiceSettings?.includePreparedBy ?? true,
-          includeVat: company.invoiceSettings?.includeVat ?? true,
+          includeVat: company.invoiceSettings?.includeVat ?? false,
           includePaymentChannels: company.invoiceSettings?.includePaymentChannels ?? true,
           paymentChannels: Array.isArray(company.invoiceSettings?.paymentChannels)
             ? company.invoiceSettings.paymentChannels.map(normalizePaymentChannel)
