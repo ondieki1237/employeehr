@@ -62,7 +62,7 @@ const PORT = process.env.PORT || 5010
 app.set("trust proxy", 1)
 
 // Initialize WebRTC signaling service
-const webrtcService = new WebRTCSignalingService(server)
+new WebRTCSignalingService(server)
 
 // Get __dirname equivalent in ES modules
 const __filename = fileURLToPath(import.meta.url)
@@ -76,7 +76,7 @@ app.use(
 app.use(morgan("combined")) // Request logging
 
 // Serve static files from uploads directory with CORS headers
-app.use('/uploads', (req, res, next) => {
+app.use('/uploads', (_req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*')
   res.header('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS')
   res.header('Access-Control-Allow-Headers', 'Content-Type')
@@ -120,13 +120,17 @@ app.use(apiLimiter)
 connectDB()
 
 // Health check
-app.get("/health", (req, res) => {
+app.get("/health", (_req, res) => {
   res.status(200).json({
     success: true,
     message: "Server is running",
     timestamp: new Date().toISOString(),
     version: "1.1.0",
   })
+})
+
+app.get("/", (_req, res) => {
+  res.send("HR API is running")
 })
 
 // Public endpoints (no auth) — mounted early
@@ -175,7 +179,7 @@ app.use("/api", bookingRoutes)
 app.use("/api/shule", shuleRoutes)
 
 // 404 handler
-app.use((req, res) => {
+app.use((_req, res) => {
   res.status(404).json({
     success: false,
     message: "Route not found",

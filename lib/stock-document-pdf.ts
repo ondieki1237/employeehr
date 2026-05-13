@@ -742,11 +742,6 @@ export function generateDeliveryNotePdf(params: {
 
   let tableY = drawPartiesSection(doc, params.client, params.preparedBy, params.branding, "Delivery Info", contactBottom + 1);
 
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(9);
-  setColorFromHex(doc, DEFAULT_GRAY, "text");
-  doc.text(`Related Invoice: ${params.invoiceNumber}`, 12, tableY - 5);
-
   const endY = drawItemsTable(doc, tableY, params.items, params.branding, true); // compact mode
 
   drawDeliverySignatures(doc, endY, params.preparedBy);
