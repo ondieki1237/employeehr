@@ -21,7 +21,7 @@ export class WebRTCSignalingService {
           "http://127.0.0.1:3000",
           "https://employeehr.vercel.app",
           "https://hr.codewithseth.co.ke",
-          "https://hrapi.codewithseth.co.ke",
+          "https://backend.codewithseth.co.ke",
         ],
         credentials: true,
       },

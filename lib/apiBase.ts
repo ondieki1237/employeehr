@@ -2,7 +2,7 @@
 // Usage: import { API_URL } from '@/lib/apiBase'
 
 const DEFAULT_LOCAL = "http://localhost:5010"
-const DEFAULT_PROD = "https://hrapi.codewithseth.co.ke"
+const DEFAULT_PROD = "https://backend.codewithseth.co.ke"
 
 export const API_URL = (() => {
   // If env is set, prefer it

@@ -54,7 +54,7 @@ const buildBaseUrl = (req: AuthenticatedRequest) => {
   if (host) return `${forwardedProto}://${host}`
 
   return process.env.NODE_ENV === "production"
-    ? "https://hrapi.codewithseth.co.ke"
+    ? "https://backend.codewithseth.co.ke"
     : "http://localhost:5010"
 }
 

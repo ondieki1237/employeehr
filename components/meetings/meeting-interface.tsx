@@ -216,8 +216,10 @@ export function MeetingInterface({
     if (!showReport) return
 
     let cancelled = false
+    const host = typeof window !== 'undefined' ? window.location.hostname : ''
+    const isLocalHost = host === 'localhost' || host === '127.0.0.1'
     const baseUrl =
-      process.env.NEXT_PUBLIC_API_URL || 'https://hrapi.codewithseth.co.ke'
+      process.env.NEXT_PUBLIC_API_URL || (isLocalHost ? 'http://localhost:5010' : 'https://backend.codewithseth.co.ke')
     const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
 
     setReportState((prev) => ({
