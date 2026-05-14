@@ -2,8 +2,22 @@ import type { Response } from "express"
 import { UserService } from "../services/userService"
 import { AuthService } from "../services/authService"
 import type { AuthenticatedRequest } from "../middleware/auth"
+import { User } from "../models/User"
 
 export class UserController {
+  private static buildBaseUrl(req: AuthenticatedRequest) {
+    const forwardedProtoRaw = String(req.headers["x-forwarded-proto"] || "").trim()
+    const forwardedProto = (forwardedProtoRaw.split(",")[0] || req.protocol || "").trim()
+    const forwardedHostRaw = String(req.headers["x-forwarded-host"] || "").trim()
+    const host = (forwardedHostRaw.split(",")[0] || req.headers.host || "").trim()
+
+    if (host) return `${forwardedProto}://${host}`
+
+    return process.env.NODE_ENV === "production"
+      ? "https://backend.codewithseth.co.ke"
+      : "http://localhost:5010"
+  }
+
   static async getAllUsers(req: AuthenticatedRequest, res: Response) {
     try {
       if (!req.org_id || !req.user) {
@@ -202,6 +216,51 @@ export class UserController {
       res.status(500).json({
         success: false,
         message: "Failed to fetch colleagues",
+        error: error instanceof Error ? error.message : "Unknown error",
+      })
+    }
+  }
+
+  static async uploadSignature(req: AuthenticatedRequest, res: Response) {
+    try {
+      if (!req.org_id || !req.user) {
+        return res.status(400).json({ success: false, message: "Missing required data" })
+      }
+
+      const { userId } = req.params
+      const targetUserId = userId || req.user.userId
+      const canManageOthers = ["company_admin", "hr", "super_admin"].includes(req.user.role)
+
+      if (!canManageOthers && targetUserId !== req.user.userId) {
+        return res.status(403).json({ success: false, message: "Unauthorized to update another user's signature" })
+      }
+
+      if (!req.file) {
+        return res.status(400).json({ success: false, message: "Signature file is required" })
+      }
+
+      const baseUrl = UserController.buildBaseUrl(req)
+      const signatureUrl = `${baseUrl}/uploads/signatures/${req.file.filename}`
+
+      const user = await User.findOneAndUpdate(
+        { _id: targetUserId, org_id: req.org_id },
+        { $set: { signatureUrl } },
+        { new: true },
+      ).select("-password")
+
+      if (!user) {
+        return res.status(404).json({ success: false, message: "User not found" })
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: "Signature uploaded successfully",
+        data: user,
+      })
+    } catch (error) {
+      return res.status(500).json({
+        success: false,
+        message: "Failed to upload signature",
         error: error instanceof Error ? error.message : "Unknown error",
       })
     }

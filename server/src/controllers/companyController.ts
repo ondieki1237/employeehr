@@ -80,6 +80,8 @@ export class CompanyController {
             [company.city, company.state, company.country].filter(Boolean).join(", ") ||
             "",
           ).trim(),
+          secondLocation: String(company.invoiceSettings?.secondLocation || "").trim(),
+          useBothLocations: company.invoiceSettings?.useBothLocations ?? false,
           contactEmail: String(company.invoiceSettings?.contactEmail || company.invoiceSettings?.invoiceEmail || company.email || "").trim(),
           website: String(company.invoiceSettings?.website || company.website || "").trim(),
           vatNumber: String(company.invoiceSettings?.vatNumber || "").trim(),
@@ -112,6 +114,8 @@ export class CompanyController {
       const invoiceEmail = String(req.body?.invoiceEmail || "").trim()
       const contactPhone = String(req.body?.contactPhone || "").trim()
       const officeLocation = String(req.body?.officeLocation || "").trim()
+      const secondLocation = String(req.body?.secondLocation || "").trim()
+      const useBothLocations = Boolean(req.body?.useBothLocations)
       const contactEmail = String(req.body?.contactEmail || "").trim()
       const website = String(req.body?.website || "").trim()
       const vatNumber = String(req.body?.vatNumber || "").trim()
@@ -147,6 +151,8 @@ export class CompanyController {
             "invoiceSettings.invoiceEmail": invoiceEmail,
             "invoiceSettings.contactPhone": contactPhone,
             "invoiceSettings.officeLocation": officeLocation,
+            "invoiceSettings.secondLocation": secondLocation,
+            "invoiceSettings.useBothLocations": useBothLocations,
             "invoiceSettings.contactEmail": contactEmail || invoiceEmail,
             "invoiceSettings.website": website,
             "invoiceSettings.vatNumber": vatNumber,
@@ -178,12 +184,14 @@ export class CompanyController {
             [company.city, company.state, company.country].filter(Boolean).join(", ") ||
             "",
           ).trim(),
+          secondLocation: String(company.invoiceSettings?.secondLocation || "").trim(),
+          useBothLocations: company.invoiceSettings?.useBothLocations ?? false,
           contactEmail: String(company.invoiceSettings?.contactEmail || company.invoiceSettings?.invoiceEmail || company.email || "").trim(),
           termsAndConditions: String(company.invoiceSettings?.termsAndConditions || DEFAULT_INVOICE_TERMS).trim(),
           includeQuotationReference: company.invoiceSettings?.includeQuotationReference ?? true,
           includeDeliveryNoteNumber: company.invoiceSettings?.includeDeliveryNoteNumber ?? true,
           includePreparedBy: company.invoiceSettings?.includePreparedBy ?? true,
-          includeVat: company.invoiceSettings?.includeVat ?? true,
+          includeVat: company.invoiceSettings?.includeVat ?? false,
           includePaymentChannels: company.invoiceSettings?.includePaymentChannels ?? true,
           paymentChannels: Array.isArray(company.invoiceSettings?.paymentChannels)
             ? company.invoiceSettings.paymentChannels.map(normalizePaymentChannel)

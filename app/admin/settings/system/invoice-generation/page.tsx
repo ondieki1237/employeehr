@@ -26,6 +26,8 @@ interface InvoiceSettings {
   invoiceEmail: string
   contactPhone: string
   officeLocation: string
+  secondLocation: string
+  useBothLocations: boolean
   contactEmail: string
   website: string
   vatNumber: string
@@ -61,6 +63,8 @@ export default function InvoiceGenerationSettingsPage() {
     invoiceEmail: "",
     contactPhone: "",
     officeLocation: "",
+    secondLocation: "",
+    useBothLocations: false,
     contactEmail: "",
     website: "",
     vatNumber: "",
@@ -94,6 +98,8 @@ export default function InvoiceGenerationSettingsPage() {
             invoiceEmail: settingsRes.data.invoiceEmail || "",
             contactPhone: settingsRes.data.contactPhone || "",
             officeLocation: settingsRes.data.officeLocation || "",
+            secondLocation: settingsRes.data.secondLocation || "",
+            useBothLocations: settingsRes.data.useBothLocations ?? false,
             contactEmail: settingsRes.data.contactEmail || "",
             website: settingsRes.data.website || "",
             vatNumber: settingsRes.data.vatNumber || "",
@@ -144,6 +150,8 @@ export default function InvoiceGenerationSettingsPage() {
         invoiceEmail: settings.invoiceEmail,
         contactPhone: settings.contactPhone,
         officeLocation: settings.officeLocation,
+        secondLocation: settings.secondLocation,
+        useBothLocations: settings.useBothLocations,
         contactEmail: settings.contactEmail,
         website: settings.website,
         vatNumber: settings.vatNumber,
@@ -259,6 +267,30 @@ export default function InvoiceGenerationSettingsPage() {
                 <p className="text-xs text-muted-foreground">This slot appears directly under the logo with phone, office email, website, location, VAT, and PIN.</p>
               </div>
 
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor="second-location">Second Location</Label>
+                <Input
+                  id="second-location"
+                  value={settings.secondLocation}
+                  onChange={(e) => setSettings((prev) => ({ ...prev, secondLocation: e.target.value }))}
+                  placeholder="e.g. Westlands Branch"
+                />
+                <p className="text-xs text-muted-foreground">Add this if the company operates from two locations.</p>
+              </div>
+
+              <div className="md:col-span-2 rounded-lg border p-4 bg-muted/20 space-y-3">
+                <label className="flex items-center gap-3 text-sm">
+                  <Checkbox
+                    checked={settings.useBothLocations}
+                    onCheckedChange={(checked) => setSettings((prev) => ({ ...prev, useBothLocations: Boolean(checked) }))}
+                  />
+                  <span>Use both locations and hide the PIN slot on invoices</span>
+                </label>
+                <p className="text-xs text-muted-foreground">
+                  When enabled, the invoice header will show a Both Locations line and the PIN line will be hidden.
+                </p>
+              </div>
+
               <div className="space-y-2">
                 <Label htmlFor="vat-number">VAT Number (slot under logo)</Label>
                 <Input
@@ -269,15 +301,17 @@ export default function InvoiceGenerationSettingsPage() {
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="pin-number">PIN Number (slot under logo)</Label>
-                <Input
-                  id="pin-number"
-                  value={settings.pinNumber}
-                  onChange={(e) => setSettings((prev) => ({ ...prev, pinNumber: e.target.value }))}
-                  placeholder="e.g. P051234567A"
-                />
-              </div>
+              {!settings.useBothLocations && (
+                <div className="space-y-2">
+                  <Label htmlFor="pin-number">PIN Number (slot under logo)</Label>
+                  <Input
+                    id="pin-number"
+                    value={settings.pinNumber}
+                    onChange={(e) => setSettings((prev) => ({ ...prev, pinNumber: e.target.value }))}
+                    placeholder="e.g. P051234567A"
+                  />
+                </div>
+              )}
 
               <div className="space-y-2 md:col-span-2">
                 <Label htmlFor="terms">Terms & Conditions</Label>
@@ -404,6 +438,10 @@ export default function InvoiceGenerationSettingsPage() {
               <div className="flex items-start gap-2">
                 <CheckCircle2 className="mt-0.5 h-4 w-4 text-green-600" />
                 <p>Leave payment channels empty if you do not want them shown.</p>
+              </div>
+              <div className="flex items-start gap-2">
+                <CheckCircle2 className="mt-0.5 h-4 w-4 text-green-600" />
+                <p>Use both locations when your business has two branches; the PIN slot will be hidden.</p>
               </div>
             </CardContent>
           </Card>

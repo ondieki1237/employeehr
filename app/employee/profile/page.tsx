@@ -173,6 +173,35 @@ export default function ProfilePage() {
             <Button variant="outline" size="sm" className="w-full">
               Change Photo
             </Button>
+            <div className="w-full mt-2">
+              <Label>Upload Signature</Label>
+              <Input
+                type="file"
+                accept="image/*"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0]
+                  if (!file) return
+                  const user = getUser()
+                  if (!user) return
+                  const token = getToken()
+                  const form = new FormData()
+                  form.append("signature", file)
+                  try {
+                    const res = await fetch(`${API_URL}/api/users/${user.userId || user._id}/signature`, {
+                      method: "POST",
+                      headers: token ? { Authorization: `Bearer ${token}` } : {},
+                      body: form,
+                    })
+                    if (res.ok) {
+                      const json = await res.json()
+                      setProfile(json.data || json)
+                    }
+                  } catch (err) {
+                    console.error("Failed to upload signature", err)
+                  }
+                }}
+              />
+            </div>
           </CardContent>
         </Card>
 

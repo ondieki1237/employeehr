@@ -75,6 +75,7 @@ interface StampOption {
   name: string
 }
 
+
 export default function QuotationsPage() {
   const searchParams = useSearchParams()
   const { toast } = useToast()
@@ -113,6 +114,10 @@ export default function QuotationsPage() {
     setQuotationSearch(q)
   }, [searchParams])
 
+  useEffect(() => {
+    // No local UI preferences on this page; stamp and signature are managed per-user in User Settings / Profile
+  }, [])
+
   const getAuthHeaders = () => {
     const token = getToken()
     return {
@@ -124,12 +129,13 @@ export default function QuotationsPage() {
   const loadData = async () => {
     try {
       setLoading(true)
-      const [productsRes, quotationsRes, clientsRes, brandingRes, invoiceSettingsRes] = await Promise.all([
+      const [productsRes, quotationsRes, clientsRes, brandingRes, invoiceSettingsRes, usersRes] = await Promise.all([
         fetch(`${API_URL}/api/stock/products`, { headers: getAuthHeaders() }),
         fetch(`${API_URL}/api/stock/quotations`, { headers: getAuthHeaders() }),
         fetch(`${API_URL}/api/stock/clients`, { headers: getAuthHeaders() }),
         fetch(`${API_URL}/api/company/branding`, { headers: getAuthHeaders() }),
         fetch(`${API_URL}/api/company/invoice-settings`, { headers: getAuthHeaders() }),
+        fetch(`${API_URL}/api/users`, { headers: getAuthHeaders() }),
       ])
       const [productsJson, quotationsJson, clientsJson, brandingJson, invoiceSettingsJson] = await Promise.all([
         productsRes.json(),
@@ -144,12 +150,48 @@ export default function QuotationsPage() {
       setClients(clientsJson.data || [])
       setBranding(brandingJson.data || {})
       setInvoiceSettings(invoiceSettingsJson.data || {})
+      // quotation page no longer manages prepared-by selection here; rely on user profile and admin user settings
     } catch {
       toast({ title: "Error", description: "Failed to load quotations", variant: "destructive" })
     } finally {
       setLoading(false)
     }
   }
+
+  const fetchCurrentUserDetails = async () => {
+    try {
+      const currentUser = getUser()
+      if (!currentUser) return null
+      const token = getToken()
+      const res = await fetch(`${API_URL}/api/users/${currentUser.userId || currentUser._id}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+      if (!res.ok) return null
+      const json = await res.json()
+      return json.data || json
+    } catch {
+      return null
+    }
+  }
+
+  const toDataUrl = async (url?: string): Promise<string | undefined> => {
+    if (!url) return undefined
+    try {
+      const response = await fetch(url)
+      if (!response.ok) return undefined
+      const blob = await response.blob()
+      return await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onloadend = () => resolve(String(reader.result || ""))
+        reader.onerror = () => reject(new Error("Failed to read signature image"))
+        reader.readAsDataURL(blob)
+      })
+    } catch {
+      return undefined
+    }
+  }
+
+  // Signature upload and user selection handled in Admin User Settings and Employee Profile
 
   useEffect(() => {
     loadData()
@@ -484,10 +526,14 @@ export default function QuotationsPage() {
   }
 
   const downloadQuotationPdf = async (quotation: Quotation) => {
-    const currentUser = getUser()
-    const preparedBy = [currentUser?.first_name, currentUser?.last_name].filter(Boolean).join(" ") || "System User"
+    const currentDetails = await fetchCurrentUserDetails()
+    const preparedBy = [currentDetails?.firstName || currentDetails?.first_name, currentDetails?.lastName || currentDetails?.last_name]
+      .filter(Boolean)
+      .join(" ") || currentDetails?.email || "System User"
+    const preparedBySignature = currentDetails?.signatureUrl ? await toDataUrl(currentDetails.signatureUrl) : undefined
 
-    const stampSelection = await promptStampSelection()
+    const stampPref = typeof currentDetails?.promptStampOnPdf === "boolean" ? currentDetails.promptStampOnPdf : false
+    const stampSelection = stampPref ? await promptStampSelection() : null
 
     const doc = generateQuotationPdf({
       quotationNumber: quotation.quotationNumber,
@@ -498,6 +544,7 @@ export default function QuotationsPage() {
       branding,
       invoiceSettings,
       preparedBy,
+      preparedBySignature,
       watermarkText: quotation.status === "draft" ? "DRAFT" : quotation.status === "cancelled" ? "CANCELLED" : undefined,
       autoSave: false,
     })
@@ -550,6 +597,8 @@ export default function QuotationsPage() {
           </Button>
         </div>
       </div>
+
+      {/* Stamp prompt and prepared-by signature management moved to Admin User Settings and Employee Profile */}
 
       <Card>
         <CardHeader><CardTitle>Search Quotations</CardTitle></CardHeader>
@@ -773,17 +822,20 @@ export default function QuotationsPage() {
                       <td className="py-2">{quotation.createdByName || quotation.createdBy}</td>
                       <td className="py-2">{quotation.subTotal.toFixed(2)}</td>
                       <td className="py-2">
-                        <div className="flex flex-wrap gap-2">
-                          <Button size="sm" variant="outline" onClick={() => downloadQuotationPdf(quotation)}>Download PDF</Button>
-                          <Button size="sm" variant="outline" onClick={() => startEditQuotation(quotation)}>Edit</Button>
-                          {canApprove ? (
-                            <>
-                              <Button size="sm" onClick={() => approveQuotation(quotation._id)}>Approve</Button>
-                              <Button size="sm" variant="destructive" onClick={() => rejectQuotation(quotation._id)}>Reject</Button>
-                            </>
-                          ) : (
-                            <span className="text-muted-foreground text-xs self-center">Awaiting admin approval</span>
-                          )}
+                        <div className="flex flex-col">
+                          <div className="flex flex-wrap gap-2">
+                            <Button size="sm" variant="outline" onClick={() => downloadQuotationPdf(quotation)}>Download PDF</Button>
+                            <Button size="sm" variant="outline" onClick={() => startEditQuotation(quotation)}>Edit</Button>
+                            {canApprove ? (
+                              <>
+                                <Button size="sm" onClick={() => approveQuotation(quotation._id)}>Approve</Button>
+                                <Button size="sm" variant="destructive" onClick={() => rejectQuotation(quotation._id)}>Reject</Button>
+                              </>
+                            ) : (
+                              <span className="text-muted-foreground text-xs self-center">Awaiting admin approval</span>
+                            )}
+                          </div>
+                          <div className="mt-1 text-xs text-muted-foreground self-end">Prepared By {currentUser?.first_name || "Admin"} {currentUser?.last_name || ""}</div>
                         </div>
                       </td>
                     </tr>
@@ -821,16 +873,19 @@ export default function QuotationsPage() {
                     <td className="py-2">{quotation.subTotal.toFixed(2)}</td>
                     <td className="py-2 capitalize">{quotation.status.replace("_", " ")}</td>
                     <td className="py-2">
-                      <div className="flex flex-wrap gap-2">
-                        <Button size="sm" variant="outline" onClick={() => downloadQuotationPdf(quotation)}>Download PDF</Button>
-                        {quotation.status === "draft" && (
-                          <Button size="sm" variant="outline" onClick={() => startEditQuotation(quotation)}>Edit</Button>
-                        )}
-                        {quotation.status === "draft" ? (
-                          <Button size="sm" onClick={() => convertToInvoice(quotation._id)}>Convert to Invoice</Button>
-                        ) : (
-                          <span className="text-muted-foreground text-xs self-center">Converted</span>
-                        )}
+                      <div className="flex flex-col">
+                        <div className="flex flex-wrap gap-2">
+                          <Button size="sm" variant="outline" onClick={() => downloadQuotationPdf(quotation)}>Download PDF</Button>
+                          {quotation.status === "draft" && (
+                            <Button size="sm" variant="outline" onClick={() => startEditQuotation(quotation)}>Edit</Button>
+                          )}
+                          {quotation.status === "draft" ? (
+                            <Button size="sm" onClick={() => convertToInvoice(quotation._id)}>Convert to Invoice</Button>
+                          ) : (
+                            <span className="text-muted-foreground text-xs self-center">Converted</span>
+                          )}
+                        </div>
+                        <div className="mt-1 text-xs text-muted-foreground self-end">Prepared By {currentUser?.first_name || "Admin"} {currentUser?.last_name || ""}</div>
                       </div>
                     </td>
                   </tr>

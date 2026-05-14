@@ -305,6 +305,8 @@ export const companyApi = {
         invoiceEmail: string
         contactPhone?: string
         officeLocation?: string
+        secondLocation?: string
+        useBothLocations?: boolean
         contactEmail?: string
         website?: string
         vatNumber?: string

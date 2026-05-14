@@ -18,6 +18,8 @@ export interface InvoiceDocumentSettings {
   invoiceEmail?: string;
   contactPhone?: string;
   officeLocation?: string;
+  secondLocation?: string;
+  useBothLocations?: boolean;
   contactEmail?: string;
   website?: string;
   vatNumber?: string;
@@ -197,18 +199,25 @@ function drawContactSlotBelowLogo(
   const primary = branding?.primaryColor || DEFAULT_PRIMARY;
   const phone = String(settings?.contactPhone || branding?.phone || "").trim();
   const location = String(settings?.officeLocation || buildCompanyAddress(branding) || "").trim();
+  const secondLocation = String(settings?.secondLocation || "").trim();
   const email = String(settings?.contactEmail || settings?.invoiceEmail || branding?.email || "").trim();
   const website = String(settings?.website || branding?.website || "").trim();
   const vatNumber = String(settings?.vatNumber || "").trim();
   const pinNumber = String(settings?.pinNumber || "").trim();
+  const useBothLocations = Boolean(settings?.useBothLocations)
 
   const rows = [
     { label: "Phone", value: phone },
     { label: "Email", value: email },
     { label: "Website", value: website },
-    { label: "Address", value: location },
+    ...(useBothLocations && secondLocation
+      ? [
+          { label: "Main Office", value: location },
+          { label: "Branch", value: secondLocation },
+        ]
+      : [{ label: "Address", value: location }]),
     { label: "VAT", value: vatNumber },
-    { label: "PIN", value: pinNumber },
+    ...(useBothLocations ? [] : [{ label: "PIN", value: pinNumber }]),
   ].filter((row) => row.value);
 
   if (!rows.length) return 68;
@@ -234,7 +243,7 @@ function drawContactSlotBelowLogo(
 function drawPartiesSection(
   doc: jsPDF,
   client: DocumentClient,
-  preparedBy: string,
+  preparedBy?: string,
   branding?: TenantBranding,
   rightTitle = "Payment Terms",
   startY = 90,
@@ -251,13 +260,13 @@ function drawPartiesSection(
   const padY = 3;
 
   const nameLines = doc.splitTextToSize(client.name || "Client Name", 84);
-  const preparedLines = doc.splitTextToSize(`Prepared by: ${preparedBy}`, 84);
+  const preparedLines = preparedBy ? doc.splitTextToSize(`Prepared by: ${preparedBy}`, 84) : [];
   const companyLines = doc.splitTextToSize(`Company: ${branding?.name || "—"}`, 84);
   const contact = branding?.phone || branding?.email || "—";
   const contactLines = doc.splitTextToSize(`Contact: ${contact}`, 84);
 
   const leftContentLines = nameLines.length + 2;
-  const rightContentLines = preparedLines.length + companyLines.length + contactLines.length;
+  const rightContentLines = companyLines.length + contactLines.length + (preparedLines.length || 0);
   const leftHeight = headerH + padY + leftContentLines * lineH + 1;
   const rightHeight = headerH + padY + rightContentLines * lineH + 1;
   const boxH = Math.max(leftHeight, rightHeight, headerH + 12);
@@ -294,8 +303,10 @@ function drawPartiesSection(
   let ry = boxY + headerH + padY + 2.8;
   doc.setFont("helvetica", "normal");
   doc.setFontSize(7.8);
-  doc.text(preparedLines, rightX + padX, ry);
-  ry += preparedLines.length * lineH;
+  if (preparedLines.length) {
+    doc.text(preparedLines, rightX + padX, ry);
+    ry += preparedLines.length * lineH;
+  }
   doc.text(companyLines, rightX + padX, ry);
   ry += companyLines.length * lineH;
   doc.text(contactLines, rightX + padX, ry);
@@ -598,6 +609,96 @@ function drawDeliverySignatures(doc: jsPDF, startY: number, preparedBy: string) 
   doc.text(preparedBy, 110, y + 18);
 }
 
+function drawPreparedBySignatureBlock(
+  doc: jsPDF,
+  startY: number,
+  preparedBy: string,
+  signatureDataUrl?: string,
+) {
+  const y = Math.min(Math.max(startY + 6, 226), 246)
+
+  // Positions: left for name, right for signature. Align both to same baseline.
+  const leftX = 24
+  const rightX = 150
+  const signatureW = 30
+  const signatureH = 10
+
+  doc.setFont("helvetica", "normal")
+  doc.setFontSize(9)
+  setColorFromHex(doc, DEFAULT_GRAY, "text")
+  // small centered label above the signing area
+  try {
+    doc.text("Prepared By", 105, y)
+  } catch {}
+
+  // Baseline for name and signature underline
+  const baselineY = y + 10
+
+  // Render prepared by name on the left (compact) at baseline
+  doc.setFontSize(8)
+  setColorFromHex(doc, DEFAULT_TEXT, "text")
+  doc.text(preparedBy || "", leftX, baselineY)
+
+  // underline (shared baseline + offset)
+  const underlineY = baselineY + 2
+  setColorFromHex(doc, "#94a3b8", "draw")
+  doc.setLineWidth(0.35)
+  doc.line(leftX, underlineY, leftX + 60, underlineY)
+
+  // Render smaller signature image on the right, vertically positioned so its bottom aligns with underlineY
+  if (signatureDataUrl) {
+    try {
+      const lower = signatureDataUrl.toLowerCase()
+      const format = lower.includes("jpeg") || lower.includes("jpg") ? "JPEG" : "PNG"
+      const sigY = underlineY - signatureH // signature top so its bottom sits at underlineY
+      doc.addImage(signatureDataUrl, format, rightX, sigY, signatureW, signatureH)
+    } catch {
+      // ignore invalid signature image
+    }
+  }
+  // underline under signature (same line)
+  setColorFromHex(doc, "#94a3b8", "draw")
+  doc.setLineWidth(0.35)
+  doc.line(rightX, underlineY, rightX + signatureW, underlineY)
+
+  // If the user wants the delivery-note style alignment, render same structure: centered label,
+  // signature line on the right, name below. We'll mirror that here so PDFs look identical.
+  // Clean up left-hand name rendering and instead follow delivery-note style: name under line on right.
+  try {
+    // Centered small label
+    doc.setFontSize(9)
+    setColorFromHex(doc, DEFAULT_GRAY, "text")
+    doc.text("Prepared By", 105, y)
+  } catch {}
+
+  // Draw primary signature line on the right (match delivery note positions)
+  const lineLeft = 110
+  const lineRight = 190
+  setColorFromHex(doc, "#94a3b8", "draw")
+  doc.setLineWidth(0.35)
+  doc.line(lineLeft, y + 12, lineRight, y + 12)
+
+  // If signature image exists, draw it above the line and centered within the line bounds
+  if (signatureDataUrl) {
+    try {
+      const lower = signatureDataUrl.toLowerCase()
+      const format = lower.includes("jpeg") || lower.includes("jpg") ? "JPEG" : "PNG"
+      const sigW = Math.min(signatureW, lineRight - lineLeft)
+      const sigH = signatureH
+      const sigX = lineLeft + (lineRight - lineLeft - sigW) / 2
+      const sigY = y + 2
+      doc.addImage(signatureDataUrl, format, sigX, sigY, sigW, sigH)
+    } catch {
+      // ignore
+    }
+  }
+
+  // Render name below the line (right-aligned with the line start)
+  doc.setFontSize(8)
+  setColorFromHex(doc, DEFAULT_TEXT, "text")
+  doc.text(preparedBy || "", lineLeft, y + 18)
+}
+
 export function generateQuotationPdf(params: {
   quotationNumber: string;
   createdAt: string;
@@ -607,6 +708,7 @@ export function generateQuotationPdf(params: {
   branding?: TenantBranding;
   invoiceSettings?: InvoiceDocumentSettings;
   preparedBy: string;
+  preparedBySignature?: string;
   watermarkText?: string;
   autoSave?: boolean;
 }) {
@@ -623,10 +725,10 @@ export function generateQuotationPdf(params: {
   });
   const contactBottom = drawContactSlotBelowLogo(doc, params.branding, params.invoiceSettings);
 
-  const tableY = drawPartiesSection(doc, params.client, params.preparedBy, params.branding, "Quotation Info", contactBottom + 1);
+  const tableY = drawPartiesSection(doc, params.client, undefined, params.branding, "Quotation Info", contactBottom + 1);
   const endY = drawItemsTable(doc, tableY, params.items, params.branding);
 
-  drawTotalsSection(doc, params.subTotal, endY, params.branding, params.invoiceSettings);
+  const totalsY = drawTotalsSection(doc, params.subTotal, endY, params.branding, params.invoiceSettings);
   drawBottomFooter(doc, params.branding, params.invoiceSettings, params.preparedBy);
 
   if (params.autoSave !== false) {
@@ -647,6 +749,7 @@ export function generateInvoicePdf(params: {
   branding?: TenantBranding;
   invoiceSettings?: InvoiceDocumentSettings;
   preparedBy: string;
+  preparedBySignature?: string;
   watermarkText?: string;
   autoSave?: boolean;
 }) {
@@ -670,12 +773,12 @@ export function generateInvoicePdf(params: {
   let tableY = drawPartiesSection(
     doc,
     params.client,
-    params.preparedBy,
+    undefined,
     {
       ...params.branding,
       invoiceEmail: params.invoiceSettings?.invoiceEmail || params.branding?.invoiceEmail,
     },
-    "Prepared By",
+    "Invoice Info",
     contactBottom + 1,
   );
 

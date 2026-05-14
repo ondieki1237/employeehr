@@ -278,6 +278,12 @@ const adminMenuItems = [
     section: "SYSTEM"
   },
   {
+    label: "User Settings",
+    icon: Users,
+    href: "/admin/settings/users",
+    section: "SYSTEM"
+  },
+  {
     label: "System Settings",
     icon: Settings,
     href: "/admin/settings/system",

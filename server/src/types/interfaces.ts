@@ -12,6 +12,7 @@ export interface IUser {
   position?: string // Job title
   manager_id?: string
   avatar?: string
+  signatureUrl?: string
   phone?: string
   dateOfJoining?: Date
   status: "active" | "inactive" | "pending"
@@ -69,6 +70,8 @@ export interface ICompany {
     invoiceEmail?: string
     contactPhone?: string
     officeLocation?: string
+    secondLocation?: string
+    useBothLocations?: boolean
     contactEmail?: string
     website?: string
     vatNumber?: string

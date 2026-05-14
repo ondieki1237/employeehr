@@ -18,6 +18,9 @@ const userSchema = new Schema<IUser>(
     position: { type: String }, // Job title
     manager_id: { type: String },
     avatar: { type: String },
+    signatureUrl: { type: String },
+    // Preference: whether user wants to be prompted for stamps when downloading PDFs
+    promptStampOnPdf: { type: Boolean, default: false },
     phone: { type: String },
     dateOfJoining: { type: Date },
     status: {

@@ -60,6 +60,8 @@ const companySchema = new Schema<ICompany>(
       invoiceEmail: { type: String },
       contactPhone: { type: String },
       officeLocation: { type: String },
+      secondLocation: { type: String },
+      useBothLocations: { type: Boolean, default: false },
       contactEmail: { type: String },
       website: { type: String },
       vatNumber: { type: String },

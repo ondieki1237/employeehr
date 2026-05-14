@@ -2,6 +2,7 @@ import { Router } from "express"
 import { UserController } from "../controllers/userController"
 import { authMiddleware, roleMiddleware, orgMiddleware } from "../middleware/auth"
 import { tenantIsolation } from "../middleware/tenantIsolation.middleware"
+import { uploadSignature } from "../middleware/upload.middleware"
 
 const router = Router()
 
@@ -10,6 +11,9 @@ router.use(authMiddleware, orgMiddleware, tenantIsolation)
 
 // Get all users in organization
 router.get("/", UserController.getAllUsers)
+
+// Upload signature (self or admin/hr/super_admin for others)
+router.post("/:userId/signature", uploadSignature.single("signature"), UserController.uploadSignature)
 
 // Get user by ID
 router.get("/:userId", UserController.getUserById)

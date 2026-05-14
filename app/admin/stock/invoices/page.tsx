@@ -49,6 +49,8 @@ interface DispatchUser {
   first_name?: string
   last_name?: string
   role?: string
+  email?: string
+  signatureUrl?: string
 }
 
 interface StampOption {
@@ -240,10 +242,50 @@ export default function InvoicesPage() {
     return { stampId: stamps[index]._id, date: selectedDate || defaultDate }
   }
 
+  const getUserDisplayName = (user?: DispatchUser | null) => {
+    if (!user) return "System User"
+    return [user.firstName || user.first_name, user.lastName || user.last_name].filter(Boolean).join(" ") || user.email || "System User"
+  }
+
+  const toDataUrl = async (url?: string): Promise<string | undefined> => {
+    if (!url) return undefined
+    try {
+      const response = await fetch(url)
+      if (!response.ok) return undefined
+      const blob = await response.blob()
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onloadend = () => resolve(String(reader.result || ""))
+        reader.onerror = () => reject(new Error("Failed to read signature image"))
+        reader.readAsDataURL(blob)
+      })
+      return dataUrl || undefined
+    } catch {
+      return undefined
+    }
+  }
+
+  const resolvePreparedBy = async () => {
+    try {
+      const currentUser = getUser()
+      if (!currentUser) return { preparedBy: "System User", preparedBySignature: undefined, stampPref: false }
+      const userId = currentUser.userId || currentUser._id
+      const res = await fetch(`${API_URL}/api/users/${userId}`, { headers })
+      if (!res.ok) return { preparedBy: "System User", preparedBySignature: undefined, stampPref: false }
+      const json = await res.json()
+      const user = json.data || json
+      const preparedBy = getUserDisplayName(user)
+      const preparedBySignature = await toDataUrl(user?.signatureUrl)
+      const stampPref = typeof user?.promptStampOnPdf === "boolean" ? user.promptStampOnPdf : false
+      return { preparedBy, preparedBySignature, stampPref }
+    } catch {
+      return { preparedBy: "System User", preparedBySignature: undefined, stampPref: false }
+    }
+  }
+
   const handleDownloadInvoicePdf = async (invoice: Invoice) => {
-    const currentUser = getUser()
-    const preparedBy = [currentUser?.first_name, currentUser?.last_name].filter(Boolean).join(" ") || "System User"
-    const stampSelection = await promptStampSelection()
+    const { preparedBy, preparedBySignature, stampPref } = await resolvePreparedBy()
+    const stampSelection = stampPref ? await promptStampSelection() : null
 
     const doc = generateInvoicePdf({
       invoiceNumber: invoice.invoiceNumber,
@@ -256,6 +298,7 @@ export default function InvoicesPage() {
       branding,
       invoiceSettings,
       preparedBy,
+      preparedBySignature,
       watermarkText: invoice.status === "paid" ? "PAID" : invoice.status === "cancelled" ? "CANCELLED" : undefined,
       autoSave: false,
     })
@@ -473,9 +516,12 @@ export default function InvoicesPage() {
                     </td>
                     <td className="py-2">{new Date(invoice.createdAt).toLocaleString()}</td>
                     <td className="py-2">
-                      <div className="flex flex-wrap gap-2">
-                        <Button size="sm" variant="outline" onClick={() => handleDownloadInvoicePdf(invoice)}>Invoice PDF</Button>
-                        <Button size="sm" variant="outline" onClick={() => handleDownloadDeliveryNotePdf(invoice)}>Delivery Note PDF</Button>
+                      <div className="flex flex-col">
+                        <div className="flex flex-wrap gap-2">
+                          <Button size="sm" variant="outline" onClick={() => handleDownloadInvoicePdf(invoice)}>Invoice PDF</Button>
+                          <Button size="sm" variant="outline" onClick={() => handleDownloadDeliveryNotePdf(invoice)}>Delivery Note PDF</Button>
+                        </div>
+                        <div className="mt-1 text-xs text-muted-foreground self-end">Prepared By { (getUser()?.first_name || "Admin") } { (getUser()?.last_name || "") }</div>
                       </div>
                     </td>
                   </tr>

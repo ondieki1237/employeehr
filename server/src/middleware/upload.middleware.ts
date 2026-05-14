@@ -85,3 +85,27 @@ export const uploadApplicationFiles = multer({
   fileFilter: applicationFileFilter,
   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
 })
+
+// Create signatures directory
+const signaturesDir = path.join(__dirname, "../../uploads/signatures")
+if (!fs.existsSync(signaturesDir)) {
+  fs.mkdirSync(signaturesDir, { recursive: true })
+}
+
+const signatureStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, signaturesDir)
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9)
+    const ext = path.extname(file.originalname)
+    const name = path.basename(file.originalname, ext).replace(/[^a-zA-Z0-9]/g, "_")
+    cb(null, `${name}-${uniqueSuffix}${ext}`)
+  },
+})
+
+export const uploadSignature = multer({
+  storage: signatureStorage,
+  fileFilter,
+  limits: { fileSize: 5 * 1024 * 1024 },
+})
