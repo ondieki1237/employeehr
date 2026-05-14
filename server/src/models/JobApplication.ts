@@ -7,6 +7,7 @@ export interface IJobApplication extends Document {
   applicant_name: string
   applicant_email: string
   applicant_phone?: string
+  device_fingerprint?: string
   answers: Record<string, any>
   uploaded_files?: Record<string, string> // field_id -> file path mapping
   resume_url?: string
@@ -39,6 +40,7 @@ const JobApplicationSchema = new Schema<IJobApplication>(
     applicant_name: { type: String, required: true },
     applicant_email: { type: String, required: true },
     applicant_phone: { type: String },
+    device_fingerprint: { type: String, index: true },
     answers: { type: Schema.Types.Mixed, required: true },
     uploaded_files: { type: Schema.Types.Mixed }, // Store file paths
     resume_url: { type: String },
@@ -74,6 +76,8 @@ const JobApplicationSchema = new Schema<IJobApplication>(
 )
 
 JobApplicationSchema.index({ org_id: 1, job_id: 1 })
+JobApplicationSchema.index({ org_id: 1, job_id: 1, applicant_email: 1 })
+JobApplicationSchema.index({ org_id: 1, job_id: 1, device_fingerprint: 1 }, { sparse: true })
 JobApplicationSchema.index({ applicant_email: 1 })
 JobApplicationSchema.index({ status: 1 })
 JobApplicationSchema.index({ submitted_at: -1 })

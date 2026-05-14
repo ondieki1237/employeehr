@@ -112,6 +112,39 @@ const companySchema = new Schema<ICompany>(
         default: {},
       },
     },
+    enabledPages: {
+      type: [String],
+      default: [
+        "dashboard",
+        "attendance",
+        "leave",
+        "performance",
+        "kpis",
+        "feedback",
+        "meetings",
+        "stock",
+        "payroll",
+        "recruitment",
+        "communications",
+        "reports",
+      ],
+    },
+    isFrozen: {
+      type: Boolean,
+      default: false,
+    },
+    frozenReason: {
+      type: String,
+      default: null,
+    },
+    frozenAt: {
+      type: Date,
+      default: null,
+    },
+    frozenBy: {
+      type: String,
+      default: null,
+    },
   },
   { timestamps: true },
 )

@@ -14,11 +14,32 @@ export class JobApplicationController {
     try {
       const { job_id, form_id, applicant_name, applicant_email, applicant_phone, answers, resume_url, cover_letter, source } =
         req.body
+      const device_fingerprint = String(req.body?.device_fingerprint || "").trim()
+      const normalizedEmail = String(applicant_email || "").trim().toLowerCase()
 
       // Get job to find org_id
       const job = await Job.findById(job_id)
       if (!job) {
         return res.status(404).json({ success: false, message: "Job not found" })
+      }
+
+      // Prevent duplicate applications from the same device or email for the same job
+      const duplicateQuery: any = {
+        org_id: job.org_id,
+        job_id,
+        $or: [{ applicant_email: normalizedEmail }],
+      }
+
+      if (device_fingerprint) {
+        duplicateQuery.$or.push({ device_fingerprint })
+      }
+
+      const duplicateApplication = await JobApplication.findOne(duplicateQuery)
+      if (duplicateApplication) {
+        return res.status(409).json({
+          success: false,
+          message: "You have already applied for this job from this device or email.",
+        })
       }
 
       // Handle uploaded files
@@ -45,8 +66,9 @@ export class JobApplicationController {
         job_id,
         form_id,
         applicant_name,
-        applicant_email,
+        applicant_email: normalizedEmail,
         applicant_phone,
+        device_fingerprint: device_fingerprint || undefined,
         answers: parsedAnswers,
         uploaded_files: Object.keys(uploadedFiles).length > 0 ? uploadedFiles : undefined,
         resume_url,
@@ -89,7 +111,7 @@ export class JobApplicationController {
       }
 
       // Send confirmation email to applicant
-      EmailService.sendApplicationReceivedEmail(applicant_email, applicant_name, job.title, job.company_name, req.org_id).catch(
+      EmailService.sendApplicationReceivedEmail(normalizedEmail, applicant_name, job.title, job.company_name, req.org_id).catch(
         console.error
       )
 
@@ -114,6 +136,12 @@ export class JobApplicationController {
         data: application,
       })
     } catch (error) {
+      if ((error as any)?.code === 11000) {
+        return res.status(409).json({
+          success: false,
+          message: "You have already applied for this job.",
+        })
+      }
       console.error("Submit application error:", error)
       res.status(500).json({
         success: false,

@@ -108,6 +108,11 @@ export interface ICompany {
     }
     adminSectionsByUser?: Record<string, string[]>
   }
+  enabledPages?: string[]
+  isFrozen?: boolean
+  frozenReason?: string | null
+  frozenAt?: Date | null
+  frozenBy?: string | null
   status: "active" | "suspended" | "inactive"
   createdAt?: Date
   updatedAt?: Date

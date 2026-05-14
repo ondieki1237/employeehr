@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useParams } from 'next/navigation';
 import {
   Briefcase, MapPin, Calendar, DollarSign, Clock, Building2,
@@ -55,6 +56,7 @@ interface ApplicationForm {
 }
 
 export default function PublicJobPage() {
+  const router = useRouter();
   const params = useParams();
   const [job, setJob] = useState<Job | null>(null);
   const [applicationForm, setApplicationForm] = useState<ApplicationForm | null>(null);
@@ -64,11 +66,34 @@ export default function PublicJobPage() {
   const [formData, setFormData] = useState<Record<string, any>>({});
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [alreadyApplied, setAlreadyApplied] = useState(false);
   const { toast } = useToast();
+
+  const getDeviceFingerprint = () => {
+    if (typeof window === 'undefined') return '';
+    const storageKey = 'elevate_job_device_id';
+    let deviceId = localStorage.getItem(storageKey);
+    if (!deviceId) {
+      deviceId = (window.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`);
+      localStorage.setItem(storageKey, deviceId);
+    }
+    return deviceId;
+  };
 
   useEffect(() => {
     fetchJob();
   }, [params]);
+
+  useEffect(() => {
+    if (!job?._id || typeof window === 'undefined') return;
+    const deviceId = getDeviceFingerprint();
+    const appliedKey = `job_applied_${job._id}_${deviceId}`;
+    const applied = localStorage.getItem(appliedKey) === 'true';
+    setAlreadyApplied(applied);
+    if (applied) {
+      setSubmitted(true);
+    }
+  }, [job?._id]);
 
   const fetchJob = async () => {
     try {
@@ -109,9 +134,23 @@ export default function PublicJobPage() {
   const handleSubmitApplication = async () => {
     if (!job || !applicationForm) return;
 
+    if (!formData.email) {
+      toast({
+        title: 'Email Required',
+        description: 'Please enter your email address before submitting.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     // Validate required fields
     const missingFields = applicationForm.fields
-      .filter(field => field.required && !formData[field.field_id])
+      .filter((field) => {
+        if (!field.required) return false;
+        const value = formData[field.field_id];
+        if (field.type === 'checkbox') return value === undefined || value === null;
+        return value === undefined || value === null || value === '' || (Array.isArray(value) && value.length === 0);
+      })
       .map(field => field.label);
 
     if (missingFields.length > 0) {
@@ -134,6 +173,7 @@ export default function PublicJobPage() {
       submitData.append('applicant_name', formData.full_name || formData.name || 'Unknown');
       submitData.append('applicant_email', formData.email);
       submitData.append('applicant_phone', formData.phone || '');
+      submitData.append('device_fingerprint', getDeviceFingerprint());
       
       // Prepare answers (excluding files)
       const answers = (applicationForm.fields || []).map((field) => ({
@@ -162,15 +202,33 @@ export default function PublicJobPage() {
       const data = await response.json();
 
       if (data.success) {
+        const deviceId = getDeviceFingerprint();
+        localStorage.setItem(`job_applied_${job._id}_${deviceId}`, 'true');
+        localStorage.setItem(`job_applied_${job._id}`, 'true');
         setSubmitted(true);
+        setAlreadyApplied(true);
         toast({
           title: 'Application Submitted!',
-          description: 'We have received your application. A confirmation email has been sent.',
+          description: 'Thank you for applying. Your application was received successfully.',
         });
+
+        window.alert(`You have successfully applied for ${job.title}.\n\nThank you for your application.`);
+        setIsApplyDialogOpen(false);
+        setTimeout(() => {
+          router.push('/');
+        }, 900);
       } else {
         throw new Error(data.message);
       }
-    } catch (err) {
+    } catch (err: any) {
+      if (err?.message?.toLowerCase().includes('already applied')) {
+        setAlreadyApplied(true);
+        setSubmitted(true);
+        setIsApplyDialogOpen(false);
+        window.alert('You have already applied for this job from this device or email.');
+        router.push('/');
+        return;
+      }
       toast({
         title: 'Submission Failed',
         description: err instanceof Error ? err.message : 'Please try again later',
@@ -330,8 +388,8 @@ export default function PublicJobPage() {
               <CardContent className="space-y-4">
                 <Dialog open={isApplyDialogOpen} onOpenChange={setIsApplyDialogOpen}>
                   <DialogTrigger asChild>
-                    <Button className="w-full" size="lg">
-                      Apply Now
+                    <Button className="w-full" size="lg" disabled={submitted || alreadyApplied}>
+                      {submitted || alreadyApplied ? 'Already Applied' : 'Apply Now'}
                     </Button>
                   </DialogTrigger>
                   <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto backdrop-blur-sm">
@@ -462,7 +520,7 @@ export default function PublicJobPage() {
                           <Button variant="outline" onClick={() => setIsApplyDialogOpen(false)}>
                             Cancel
                           </Button>
-                          <Button onClick={handleSubmitApplication} disabled={submitting}>
+                          <Button type="button" onClick={handleSubmitApplication} disabled={submitting || alreadyApplied}>
                             <Send size={16} className="mr-2" />
                             {submitting ? 'Submitting...' : 'Submit Application'}
                           </Button>
@@ -471,9 +529,8 @@ export default function PublicJobPage() {
                     ) : (
                       <div className="text-center py-8">
                         <CheckCircle className="h-16 w-16 text-green-600 mx-auto mb-4" />
-                        <p className="text-gray-600 mb-6">
-                          A confirmation email has been sent to {formData.email}
-                        </p>
+                        <p className="text-gray-600 mb-2">Your application has been received.</p>
+                        <p className="text-gray-600 mb-6">Thank you for applying to {job.title}.</p>
                         <Button onClick={() => setIsApplyDialogOpen(false)}>
                           Close
                         </Button>
@@ -482,7 +539,7 @@ export default function PublicJobPage() {
                   </DialogContent>
                 </Dialog>
                 <p className="text-sm text-gray-600 text-center">
-                  By applying, you agree to our terms and conditions
+                  {submitted || alreadyApplied ? 'Application already submitted from this device.' : 'By applying, you agree to our terms and conditions'}
                 </p>
               </CardContent>
             </Card>

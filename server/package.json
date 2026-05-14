@@ -6,6 +6,8 @@
   "main": "dist/index.js",
   "scripts": {
     "dev": "npx tsx watch src/index.ts",
+    "create-owner": "npx tsx ./scripts/create_owner.ts",
+    "create-owner": "npx tsx ./scripts/create_owner.ts",
     "build": "tsc",
     "start": "node --experimental-specifier-resolution=node dist/index.js",
     "lint": "eslint src/**/*.ts"

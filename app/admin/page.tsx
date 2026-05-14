@@ -455,16 +455,15 @@ export default function AdminDashboard() {
 
   return (
     <div
-      className="min-h-screen p-3 sm:p-4 lg:p-5"
+      className="min-h-screen p-4 sm:p-6 lg:p-8 bg-slate-50"
       style={{
-        backgroundColor: brand.background,
         color: brand.text,
       }}
     >
-      <div className="w-full space-y-4">
-        <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+      <div className="mx-auto w-full max-w-[1600px] space-y-6">
+        <div className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-start gap-4 min-w-0">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
               {brand.logo ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={brand.logo} alt={brand.name} className="h-full w-full object-contain p-1.5" />
@@ -472,20 +471,27 @@ export default function AdminDashboard() {
                 <span className="text-sm font-semibold text-slate-700">{brand.name.slice(0, 2).toUpperCase()}</span>
               )}
             </div>
-            <p className="truncate text-sm font-medium text-slate-700">{brand.name} operations</p>
+            <div className="min-w-0">
+              <p className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500">Administration</p>
+              <h1 className="truncate text-2xl font-semibold text-slate-900">{brand.name} dashboard</h1>
+              <p className="mt-1 text-sm text-slate-500">Operational snapshot for people, leave, payroll, meetings, reports, and stock.</p>
+            </div>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-600">
+              Updated every 30s
+            </span>
             <Link href="/shule">
-              <Button variant="outline" className="bg-white">
-                School Enterprise
+              <Button variant="outline" className="bg-white text-slate-700">
+                School
               </Button>
             </Link>
-            <Button variant="outline" className="bg-white" onClick={loadDashboard}>
+            <Button variant="outline" className="bg-white text-slate-700" onClick={loadDashboard}>
               <RefreshCw className="w-4 h-4 mr-2" />
               Refresh
             </Button>
             <Link href="/admin/users">
-              <Button className="gap-2 text-white" style={{ backgroundColor: brand.primary }}>
+              <Button className="gap-2 bg-slate-900 text-white hover:bg-slate-800">
                 <UserPlus size={18} />
                 Add Employee
               </Button>
@@ -520,9 +526,9 @@ export default function AdminDashboard() {
 
             {/* Mid row */}
             <div className="grid gap-4">
-              <Card className="rounded-3xl border-slate-200 shadow-sm" style={{ borderTop: `4px solid ${brand.primary}` }}>
+              <Card className="rounded-2xl border-slate-200 bg-white shadow-sm">
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-lg">Department Performance</CardTitle>
+                  <CardTitle className="text-base font-semibold text-slate-900">Department Performance</CardTitle>
                 </CardHeader>
                 <CardContent className="h-80">
                   <ResponsiveContainer width="100%" height="100%">
@@ -539,9 +545,9 @@ export default function AdminDashboard() {
             </div>
 
             {/* Department cards */}
-            <Card className="rounded-3xl border-slate-200 shadow-sm" style={{ borderTop: `4px solid ${brand.accent}` }}>
+            <Card className="rounded-2xl border-slate-200 bg-white shadow-sm">
               <CardHeader className="pb-2">
-                <CardTitle className="text-lg">Department Snapshot</CardTitle>
+                <CardTitle className="text-base font-semibold text-slate-900">Department Snapshot</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -574,9 +580,9 @@ export default function AdminDashboard() {
 
             {/* Dispatch + operational activity */}
             <div className="grid gap-4 xl:grid-cols-2">
-              <Card className="rounded-3xl border-slate-200 shadow-sm" style={{ borderTop: `4px solid ${brand.primary}` }}>
+              <Card className="rounded-2xl border-slate-200 bg-white shadow-sm">
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-lg">Dispatch Section</CardTitle>
+                  <CardTitle className="text-base font-semibold text-slate-900">Dispatch Section</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <p className="text-xs uppercase tracking-wide text-slate-500">This month</p>
@@ -604,9 +610,9 @@ export default function AdminDashboard() {
                 </CardContent>
               </Card>
 
-              <Card className="rounded-3xl border-slate-200 shadow-sm" style={{ borderTop: `4px solid ${brand.secondary}` }}>
+              <Card className="rounded-2xl border-slate-200 bg-white shadow-sm">
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-lg">Operational Activity</CardTitle>
+                  <CardTitle className="text-base font-semibold text-slate-900">Operational Activity</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <div className="grid grid-cols-2 gap-3">
@@ -648,10 +654,10 @@ export default function AdminDashboard() {
 
           {/* Right sidebar */}
           <div className="space-y-6">
-            <Card className="rounded-3xl border-slate-200 shadow-sm overflow-hidden" style={{ borderTop: `4px solid ${brand.accent}` }}>
-              <div className="px-5 py-4 text-white" style={{ backgroundColor: brand.primary }}>
-                <p className="text-xs uppercase tracking-[0.2em] text-slate-300">This month</p>
-                <h2 className="mt-1 text-xl font-semibold">Inventory Manager summary</h2>
+            <Card className="overflow-hidden rounded-2xl border-slate-200 bg-white shadow-sm">
+              <div className="border-b border-slate-200 bg-slate-50 px-5 py-4">
+                <p className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500">Inventory</p>
+                <h2 className="mt-1 text-lg font-semibold text-slate-900">Summary</h2>
               </div>
               <CardContent className="space-y-4 p-5">
                 <div className="grid grid-cols-2 gap-3">
@@ -686,9 +692,9 @@ export default function AdminDashboard() {
               </CardContent>
             </Card>
 
-            <Card className="rounded-3xl border-slate-200 shadow-sm" style={{ borderTop: `4px solid ${brand.primary}` }}>
+            <Card className="rounded-2xl border-slate-200 bg-white shadow-sm">
               <CardHeader className="pb-2">
-                <CardTitle className="text-lg">Sales & Inventory analytics</CardTitle>
+                <CardTitle className="text-base font-semibold text-slate-900">Sales & Inventory analytics</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
@@ -749,15 +755,15 @@ export default function AdminDashboard() {
 
 function MetricCard({ label, value, sublabel, icon, accentColor }: { label: string; value: string | number; sublabel: string; icon: React.ReactNode; accentColor?: string }) {
   return (
-    <Card className="rounded-3xl border-slate-200 shadow-sm">
-      <CardContent className="p-5">
+    <Card className="rounded-2xl border-slate-200 bg-white shadow-sm">
+      <CardContent className="p-4">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="text-sm text-slate-500">{label}</p>
-            <p className="mt-1 text-3xl font-semibold text-slate-900">{value}</p>
+            <p className="text-sm font-medium text-slate-500">{label}</p>
+            <p className="mt-2 text-2xl font-semibold text-slate-900">{value}</p>
             <p className="mt-1 text-xs text-slate-500">{sublabel}</p>
           </div>
-          <div className="rounded-2xl p-3" style={{ backgroundColor: hexToRgba(accentColor || '#2563eb', 0.12), color: accentColor || '#111827' }}>{icon}</div>
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-2.5" style={{ color: accentColor || '#334155' }}>{icon}</div>
         </div>
       </CardContent>
     </Card>
@@ -766,28 +772,28 @@ function MetricCard({ label, value, sublabel, icon, accentColor }: { label: stri
 
 function SmallMetric({ icon, label, value, accentColor }: { icon: React.ReactNode; label: string; value: number | string; accentColor?: string }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-3" style={{ boxShadow: `inset 0 1px 0 ${hexToRgba(accentColor || '#2563eb', 0.06)}` }}>
+    <div className="rounded-xl border border-slate-200 bg-white p-3">
       <div className="flex items-center justify-between">
-        <p className="text-xs text-slate-500">{label}</p>
-        <div style={{ color: accentColor || '#374151' }}>{icon}</div>
+        <p className="text-xs font-medium text-slate-500">{label}</p>
+        <div className="text-slate-500" style={{ color: accentColor || '#475569' }}>{icon}</div>
       </div>
-      <p className="mt-1 text-2xl font-semibold text-slate-900">{value}</p>
+      <p className="mt-2 text-xl font-semibold text-slate-900">{value}</p>
     </div>
   )
 }
 
 function SidebarMetric({ label, value, accentColor }: { label: string; value: number | string; accentColor?: string }) {
   return (
-    <div className="rounded-2xl border p-3 text-center" style={{ backgroundColor: hexToRgba(accentColor || '#2563eb', 0.06), borderColor: hexToRgba(accentColor || '#2563eb', 0.14) }}>
-      <p className="text-xs text-slate-500">{label}</p>
-      <p className="mt-1 text-xl font-semibold" style={{ color: accentColor || '#111827' }}>{value}</p>
+    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-center">
+      <p className="text-xs font-medium text-slate-500">{label}</p>
+      <p className="mt-1 text-lg font-semibold text-slate-900">{value}</p>
     </div>
   )
 }
 
 function StatPill({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl bg-white border border-slate-200 px-3 py-2">
+    <div className="rounded-lg bg-white border border-slate-200 px-3 py-2">
       <p className="text-[11px] uppercase tracking-wide text-slate-500">{label}</p>
       <p className="mt-1 text-sm font-semibold text-slate-900">{value}</p>
     </div>

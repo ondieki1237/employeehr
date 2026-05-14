@@ -123,6 +123,15 @@ export class AuthService {
         }
       }
 
+      // Check if company is frozen
+      const company = await Company.findById(user.org_id)
+      if (company?.isFrozen) {
+        return {
+          success: false,
+          message: "Your account has been Frozen by the System owner. Contact him for Unlocking",
+        }
+      }
+
       // Generate token
       const payload: IJWTPayload = {
         userId: user._id.toString(),
@@ -282,6 +291,14 @@ export class AuthService {
         return {
           success: false,
           message: "Company account is not active",
+        }
+      }
+
+      // Check if company is frozen
+      if (company.isFrozen) {
+        return {
+          success: false,
+          message: "Your account has been Frozen by the System owner. Contact him for Unlocking",
         }
       }
 
