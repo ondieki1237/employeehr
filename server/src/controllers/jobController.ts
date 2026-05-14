@@ -239,10 +239,23 @@ export class JobController {
     try {
       const { companyName, positionIndex } = req.params
       const { source } = req.query
-      const shareLink = `${companyName}/${positionIndex}`
+      const companyKey = decodeURIComponent(String(companyName || "")).trim()
+      const positionKey = String(positionIndex || "").trim()
+      const shareLink = `${companyKey}/${positionKey}`
 
-      // Fetch by share link first; enforce availability after existence check for clearer errors
-      const job = await Job.findOne({ share_link: shareLink })
+      // Fetch by share link first; fallback to company slug/name + position index for older records
+      let job = await Job.findOne({ share_link: shareLink })
+
+      if (!job) {
+        const company = await Company.findOne({
+          $or: [{ slug: companyKey.toLowerCase() }, { name: companyKey }],
+        }).select("_id slug name")
+
+        const numericPositionIndex = Number(positionKey)
+        if (company && !Number.isNaN(numericPositionIndex)) {
+          job = await Job.findOne({ org_id: company._id.toString(), position_index: numericPositionIndex })
+        }
+      }
 
       if (!job) {
         return res.status(404).json({

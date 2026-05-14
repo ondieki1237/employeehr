@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { useState } from "react"
-import { ArrowLeft, Mail, Lock, ShieldCheck, Sparkles } from "lucide-react"
+import { ArrowLeft, Mail, Lock } from "lucide-react"
 import { api } from "@/lib/api"
 import { removeToken, removeUser, setToken, setUser } from "@/lib/auth"
 import InvitationForm from "@/components/auth/invitation-form"
@@ -89,28 +89,24 @@ function LoginContent() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="rounded-2xl border bg-card/80 p-5 shadow-sm backdrop-blur-sm">
-        <div className="mb-4 flex items-center justify-between gap-4">
-          <Link href="/" className="inline-flex items-center gap-2 text-sm text-primary hover:text-primary/80 transition">
+    <div className="space-y-5">
+      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="mb-3 flex items-center justify-between gap-4">
+          <Link href="/" className="inline-flex items-center gap-2 text-sm text-slate-600 hover:text-slate-900 transition">
             <ArrowLeft size={16} />
             Back
           </Link>
-          <div className="inline-flex items-center gap-2 rounded-full border bg-background px-3 py-1 text-xs text-muted-foreground">
-            <ShieldCheck size={14} className="text-accent" />
-            Secure Login
-          </div>
         </div>
-        <h1 className="text-3xl font-bold tracking-tight">Welcome back</h1>
-        <p className="mt-2 text-sm text-muted-foreground">Sign in to continue to your workspace dashboard.</p>
+        <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Sign in</h1>
+        <p className="mt-1 text-sm text-slate-500">Use your account credentials to continue.</p>
       </div>
 
-      <Card className="border-border/80 p-8 shadow-md">
-        <form onSubmit={handleSubmit} className="space-y-6">
+      <Card className="border-slate-200 bg-white p-6 shadow-sm">
+        <form onSubmit={handleSubmit} className="space-y-5">
           <div className="space-y-2">
-            <label className="block text-sm font-medium">Email Address</label>
+            <label className="block text-sm font-medium text-slate-700">Email Address</label>
             <div className="relative">
-              <Mail className="absolute left-3 top-3 w-5 h-5 text-muted-foreground" />
+              <Mail className="absolute left-3 top-3 w-5 h-5 text-slate-400" />
               <Input
                 type="email"
                 placeholder="you@company.com"
@@ -125,13 +121,13 @@ function LoginContent() {
 
           <div className="space-y-2">
             <div className="flex justify-between items-center">
-              <label className="block text-sm font-medium">Password</label>
-              <Link href="/auth/forgot-password" className="text-xs text-primary hover:underline">
+              <label className="block text-sm font-medium text-slate-700">Password</label>
+              <Link href="/auth/forgot-password" className="text-xs text-slate-500 hover:text-slate-900">
                 Forgot password?
               </Link>
             </div>
             <div className="relative">
-              <Lock className="absolute left-3 top-3 w-5 h-5 text-muted-foreground" />
+              <Lock className="absolute left-3 top-3 w-5 h-5 text-slate-400" />
               <Input
                 type="password"
                 placeholder="••••••••"
@@ -145,29 +141,23 @@ function LoginContent() {
           </div>
 
           {error && (
-            <div className="p-4 bg-destructive/10 text-destructive rounded-lg text-sm">
+            <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
               {error}
             </div>
           )}
 
-          <Button type="submit" size="lg" className="w-full bg-primary hover:bg-primary/90" disabled={isLoading}>
-            {isLoading ? "Signing in..." : "Sign In"}
-          </Button>
-
-          <div className="rounded-lg border bg-muted/40 p-3 text-xs text-muted-foreground">
-            <div className="flex items-center gap-2 font-medium text-foreground">
-              <Sparkles size={14} className="text-primary" />
-              Quick Access
-            </div>
-            <p className="mt-1">Admins, managers, and employees all sign in here and are routed automatically.</p>
+          <div className="rounded-lg bg-blue-50 p-2">
+            <Button type="submit" size="lg" className="w-full bg-blue-600 hover:bg-blue-700 text-white" disabled={isLoading}>
+              {isLoading ? "Signing in..." : "Sign In"}
+            </Button>
           </div>
         </form>
       </Card>
 
-      <Card className="border-border/70 bg-card/60 p-4 shadow-sm">
-        <p className="text-center text-sm text-muted-foreground">
+      <Card className="border-slate-200 bg-white p-4 shadow-sm">
+        <p className="text-center text-sm text-slate-500">
           Don&apos;t have an account?{" "}
-          <Link href="/auth/signup" className="font-semibold text-primary hover:underline">
+          <Link href="/auth/signup" className="font-medium text-slate-900 hover:underline">
             Create one now
           </Link>
         </p>
@@ -178,7 +168,7 @@ function LoginContent() {
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<div>Loading...</div>}>
+    <Suspense fallback={<div className="p-6 text-sm text-slate-500">Loading...</div>}>
       <LoginContent />
     </Suspense>
   )

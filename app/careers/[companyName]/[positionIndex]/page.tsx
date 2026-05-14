@@ -98,9 +98,14 @@ export default function PublicJobPage() {
   const fetchJob = async () => {
     try {
       setLoading(true);
-      const { companyName, positionIndex } = params;
+      const companyNameParam = Array.isArray(params.companyName) ? params.companyName[0] : params.companyName;
+      const positionIndexParam = Array.isArray(params.positionIndex) ? params.positionIndex[0] : params.positionIndex;
+
+      if (!companyNameParam || !positionIndexParam) {
+        throw new Error('Invalid job link')
+      }
       const response = await fetch(
-        `${API_URL}/api/jobs/public/${companyName}/${positionIndex}`
+        `${API_URL}/api/jobs/public/${encodeURIComponent(String(companyNameParam))}/${encodeURIComponent(String(positionIndexParam))}`
       );
       const data = await response.json();
 
