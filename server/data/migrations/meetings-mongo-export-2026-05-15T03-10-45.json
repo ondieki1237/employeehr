@@ -1,0 +1,2748 @@
+{
+  "exportedAt": "2026-05-15T03:10:45.968Z",
+  "meetings": [
+    {
+      "_id": "69d648f985b5b46253aea0fe",
+      "org_id": "69d63bdcc81e84290298784d",
+      "title": "Ops Standup #4",
+      "description": "Seeded meeting activity",
+      "scheduled_at": "2026-01-29T12:24:25.635Z",
+      "duration_minutes": 40,
+      "meeting_type": "audio",
+      "meeting_id": "SEED-1775651035860-4",
+      "meeting_link": "https://hr.codewithseth.co.ke/meeting/SEED-1775651035860-4",
+      "require_password": false,
+      "status": "completed",
+      "organizer_id": "69d648de85b5b46253ae9c6e",
+      "attendees": [
+        {
+          "user_id": "69d648de85b5b46253ae9c68",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-01-29T12:24:25.635Z",
+          "left_at": "2026-01-29T13:31:25.635Z",
+          "duration_minutes": 23,
+          "_id": "69d648f985b5b46253aea0ff"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c67",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-01-29T12:24:25.635Z",
+          "left_at": "2026-01-29T13:31:25.635Z",
+          "duration_minutes": 27,
+          "_id": "69d648f985b5b46253aea100"
+        },
+        {
+          "user_id": "69d63bddc81e84290298784f",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": false,
+          "joined_at": "2026-01-29T12:24:25.635Z",
+          "left_at": "2026-01-29T13:31:25.635Z",
+          "duration_minutes": 64,
+          "_id": "69d648f985b5b46253aea101"
+        }
+      ],
+      "actual_start_time": "2026-01-29T12:24:25.635Z",
+      "actual_end_time": "2026-01-29T13:31:25.635Z",
+      "transcript": "Seed transcript: reviewed progress, blockers, and action items.",
+      "ai_summary": "Seed AI summary for meeting.",
+      "key_points": [
+        "Reviewed KPIs",
+        "Resolved blockers",
+        "Planned next sprint"
+      ],
+      "action_items": [
+        {
+          "description": "Follow up on assigned tasks",
+          "assigned_to": "69d648de85b5b46253ae9c62",
+          "due_date": "2026-04-15T12:24:25.635Z",
+          "_id": "69d648f985b5b46253aea102"
+        }
+      ],
+      "ai_processed": true,
+      "ai_processing_status": "completed",
+      "__v": 0,
+      "created_at": "2026-04-08T12:24:25.671Z",
+      "updated_at": "2026-04-08T12:24:25.671Z"
+    },
+    {
+      "_id": "69d648f985b5b46253aea103",
+      "org_id": "69d63bdcc81e84290298784d",
+      "title": "Performance Coaching #5",
+      "description": "Seeded meeting activity",
+      "scheduled_at": "2026-03-08T12:24:25.635Z",
+      "duration_minutes": 68,
+      "meeting_type": "video",
+      "meeting_id": "SEED-1775651035860-5",
+      "meeting_link": "https://hr.codewithseth.co.ke/meeting/SEED-1775651035860-5",
+      "require_password": false,
+      "status": "completed",
+      "organizer_id": "69d648de85b5b46253ae9c62",
+      "attendees": [
+        {
+          "user_id": "69d648de85b5b46253ae9c68",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-03-08T12:24:25.635Z",
+          "left_at": "2026-03-08T13:07:25.635Z",
+          "duration_minutes": 85,
+          "_id": "69d648f985b5b46253aea104"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c67",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-03-08T12:24:25.635Z",
+          "left_at": "2026-03-08T13:07:25.635Z",
+          "duration_minutes": 25,
+          "_id": "69d648f985b5b46253aea105"
+        },
+        {
+          "user_id": "69d63bddc81e84290298784f",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-03-08T12:24:25.635Z",
+          "left_at": "2026-03-08T13:07:25.635Z",
+          "duration_minutes": 41,
+          "_id": "69d648f985b5b46253aea106"
+        }
+      ],
+      "actual_start_time": "2026-03-08T12:24:25.635Z",
+      "actual_end_time": "2026-03-08T13:07:25.635Z",
+      "transcript": "Seed transcript: reviewed progress, blockers, and action items.",
+      "ai_summary": "Seed AI summary for meeting.",
+      "key_points": [
+        "Reviewed KPIs",
+        "Resolved blockers",
+        "Planned next sprint"
+      ],
+      "action_items": [
+        {
+          "description": "Follow up on assigned tasks",
+          "assigned_to": "69d648de85b5b46253ae9c73",
+          "due_date": "2026-04-15T12:24:25.635Z",
+          "_id": "69d648f985b5b46253aea107"
+        }
+      ],
+      "ai_processed": true,
+      "ai_processing_status": "completed",
+      "__v": 0,
+      "created_at": "2026-04-08T12:24:25.671Z",
+      "updated_at": "2026-04-08T12:24:25.671Z"
+    },
+    {
+      "_id": "69d648f985b5b46253aea182",
+      "org_id": "69d63bdcc81e84290298784d",
+      "title": "Performance Coaching #22",
+      "description": "Seeded meeting activity",
+      "scheduled_at": "2026-03-05T12:24:25.635Z",
+      "duration_minutes": 54,
+      "meeting_type": "in-person",
+      "meeting_id": "SEED-1775651035860-22",
+      "meeting_link": "https://hr.codewithseth.co.ke/meeting/SEED-1775651035860-22",
+      "require_password": false,
+      "status": "completed",
+      "organizer_id": "69d63bddc81e84290298784f",
+      "attendees": [
+        {
+          "user_id": "69d648de85b5b46253ae9c68",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-03-05T12:24:25.635Z",
+          "left_at": "2026-03-05T13:07:25.635Z",
+          "duration_minutes": 85,
+          "_id": "69d648f985b5b46253aea183"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c67",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-03-05T12:24:25.635Z",
+          "left_at": "2026-03-05T13:07:25.635Z",
+          "duration_minutes": 58,
+          "_id": "69d648f985b5b46253aea184"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c6a",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-03-05T12:24:25.635Z",
+          "left_at": "2026-03-05T13:07:25.635Z",
+          "duration_minutes": 22,
+          "_id": "69d648f985b5b46253aea185"
+        }
+      ],
+      "actual_start_time": "2026-03-05T12:24:25.635Z",
+      "actual_end_time": "2026-03-05T13:07:25.635Z",
+      "transcript": "Seed transcript: reviewed progress, blockers, and action items.",
+      "ai_summary": "Seed AI summary for meeting.",
+      "key_points": [
+        "Reviewed KPIs",
+        "Resolved blockers",
+        "Planned next sprint"
+      ],
+      "action_items": [
+        {
+          "description": "Follow up on assigned tasks",
+          "assigned_to": "69d648de85b5b46253ae9c6e",
+          "due_date": "2026-04-15T12:24:25.635Z",
+          "_id": "69d648f985b5b46253aea186"
+        }
+      ],
+      "ai_processed": true,
+      "ai_processing_status": "completed",
+      "__v": 0,
+      "created_at": "2026-04-08T12:24:25.672Z",
+      "updated_at": "2026-04-08T12:24:25.672Z"
+    },
+    {
+      "_id": "69d648f985b5b46253aea18f",
+      "org_id": "69d63bdcc81e84290298784d",
+      "title": "Client Follow-up #24",
+      "description": "Seeded meeting activity",
+      "scheduled_at": "2026-03-21T12:24:25.635Z",
+      "duration_minutes": 61,
+      "meeting_type": "audio",
+      "meeting_id": "SEED-1775651035860-24",
+      "meeting_link": "https://hr.codewithseth.co.ke/meeting/SEED-1775651035860-24",
+      "require_password": false,
+      "status": "scheduled",
+      "organizer_id": "69d63bddc81e84290298784f",
+      "attendees": [
+        {
+          "user_id": "69d648de85b5b46253ae9c68",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-03-21T12:24:25.635Z",
+          "left_at": "2026-03-21T13:36:25.635Z",
+          "duration_minutes": 52,
+          "_id": "69d648f985b5b46253aea190"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c67",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-03-21T12:24:25.635Z",
+          "left_at": "2026-03-21T13:36:25.635Z",
+          "duration_minutes": 58,
+          "_id": "69d648f985b5b46253aea191"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c6a",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": false,
+          "joined_at": "2026-03-21T12:24:25.635Z",
+          "left_at": "2026-03-21T13:36:25.635Z",
+          "duration_minutes": 51,
+          "_id": "69d648f985b5b46253aea192"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c6f",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-03-21T12:24:25.635Z",
+          "left_at": "2026-03-21T13:36:25.635Z",
+          "duration_minutes": 44,
+          "_id": "69d648f985b5b46253aea193"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c63",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": false,
+          "joined_at": "2026-03-21T12:24:25.635Z",
+          "left_at": "2026-03-21T13:36:25.635Z",
+          "duration_minutes": 33,
+          "_id": "69d648f985b5b46253aea194"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c6b",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-03-21T12:24:25.635Z",
+          "left_at": "2026-03-21T13:36:25.635Z",
+          "duration_minutes": 33,
+          "_id": "69d648f985b5b46253aea195"
+        }
+      ],
+      "actual_start_time": "2026-03-21T12:24:25.635Z",
+      "actual_end_time": "2026-03-21T13:36:25.635Z",
+      "transcript": "Seed transcript: reviewed progress, blockers, and action items.",
+      "ai_summary": "Seed AI summary for meeting.",
+      "key_points": [
+        "Reviewed KPIs",
+        "Resolved blockers",
+        "Planned next sprint"
+      ],
+      "action_items": [
+        {
+          "description": "Follow up on assigned tasks",
+          "assigned_to": "69d648de85b5b46253ae9c68",
+          "due_date": "2026-04-15T12:24:25.635Z",
+          "_id": "69d648f985b5b46253aea196"
+        }
+      ],
+      "ai_processed": true,
+      "ai_processing_status": "completed",
+      "__v": 0,
+      "created_at": "2026-04-08T12:24:25.672Z",
+      "updated_at": "2026-04-08T12:24:25.672Z"
+    },
+    {
+      "_id": "69d648f985b5b46253aea1a9",
+      "org_id": "69d63bdcc81e84290298784d",
+      "title": "Sprint Planning #27",
+      "description": "Seeded meeting activity",
+      "scheduled_at": "2026-01-27T12:24:25.635Z",
+      "duration_minutes": 61,
+      "meeting_type": "in-person",
+      "meeting_id": "SEED-1775651035860-27",
+      "meeting_link": "https://hr.codewithseth.co.ke/meeting/SEED-1775651035860-27",
+      "require_password": false,
+      "status": "scheduled",
+      "organizer_id": "69d648de85b5b46253ae9c6e",
+      "attendees": [
+        {
+          "user_id": "69d648de85b5b46253ae9c68",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": false,
+          "joined_at": "2026-01-27T12:24:25.635Z",
+          "left_at": "2026-01-27T13:39:25.635Z",
+          "duration_minutes": 27,
+          "_id": "69d648f985b5b46253aea1aa"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c67",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-01-27T12:24:25.635Z",
+          "left_at": "2026-01-27T13:39:25.635Z",
+          "duration_minutes": 26,
+          "_id": "69d648f985b5b46253aea1ab"
+        },
+        {
+          "user_id": "69d63bddc81e84290298784f",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": false,
+          "joined_at": "2026-01-27T12:24:25.635Z",
+          "left_at": "2026-01-27T13:39:25.635Z",
+          "duration_minutes": 25,
+          "_id": "69d648f985b5b46253aea1ac"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c6a",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": false,
+          "joined_at": "2026-01-27T12:24:25.635Z",
+          "left_at": "2026-01-27T13:39:25.635Z",
+          "duration_minutes": 76,
+          "_id": "69d648f985b5b46253aea1ad"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c6f",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-01-27T12:24:25.635Z",
+          "left_at": "2026-01-27T13:39:25.635Z",
+          "duration_minutes": 63,
+          "_id": "69d648f985b5b46253aea1ae"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c63",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-01-27T12:24:25.635Z",
+          "left_at": "2026-01-27T13:39:25.635Z",
+          "duration_minutes": 23,
+          "_id": "69d648f985b5b46253aea1af"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c6b",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": false,
+          "joined_at": "2026-01-27T12:24:25.635Z",
+          "left_at": "2026-01-27T13:39:25.635Z",
+          "duration_minutes": 67,
+          "_id": "69d648f985b5b46253aea1b0"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c65",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-01-27T12:24:25.635Z",
+          "left_at": "2026-01-27T13:39:25.635Z",
+          "duration_minutes": 39,
+          "_id": "69d648f985b5b46253aea1b1"
+        }
+      ],
+      "actual_start_time": "2026-01-27T12:24:25.635Z",
+      "actual_end_time": "2026-01-27T13:39:25.635Z",
+      "transcript": "Seed transcript: reviewed progress, blockers, and action items.",
+      "ai_summary": "Seed AI summary for meeting.",
+      "key_points": [
+        "Reviewed KPIs",
+        "Resolved blockers",
+        "Planned next sprint"
+      ],
+      "action_items": [
+        {
+          "description": "Follow up on assigned tasks",
+          "assigned_to": "69d63bddc81e84290298784f",
+          "due_date": "2026-04-15T12:24:25.635Z",
+          "_id": "69d648f985b5b46253aea1b2"
+        }
+      ],
+      "ai_processed": true,
+      "ai_processing_status": "completed",
+      "__v": 0,
+      "created_at": "2026-04-08T12:24:25.672Z",
+      "updated_at": "2026-04-08T12:24:25.672Z"
+    },
+    {
+      "_id": "69d648f985b5b46253aea0ef",
+      "org_id": "69d63bdcc81e84290298784d",
+      "title": "Client Follow-up #2",
+      "description": "Seeded meeting activity",
+      "scheduled_at": "2026-01-21T12:24:25.634Z",
+      "duration_minutes": 87,
+      "meeting_type": "in-person",
+      "meeting_id": "SEED-1775651035860-2",
+      "meeting_link": "https://hr.codewithseth.co.ke/meeting/SEED-1775651035860-2",
+      "require_password": false,
+      "status": "cancelled",
+      "organizer_id": "69d648de85b5b46253ae9c6e",
+      "attendees": [
+        {
+          "user_id": "69d648de85b5b46253ae9c68",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-01-21T12:24:25.634Z",
+          "left_at": "2026-01-21T13:42:25.634Z",
+          "duration_minutes": 90,
+          "_id": "69d648f985b5b46253aea0f0"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c67",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-01-21T12:24:25.634Z",
+          "left_at": "2026-01-21T13:42:25.634Z",
+          "duration_minutes": 74,
+          "_id": "69d648f985b5b46253aea0f1"
+        },
+        {
+          "user_id": "69d63bddc81e84290298784f",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-01-21T12:24:25.634Z",
+          "left_at": "2026-01-21T13:42:25.634Z",
+          "duration_minutes": 76,
+          "_id": "69d648f985b5b46253aea0f2"
+        }
+      ],
+      "actual_start_time": "2026-01-21T12:24:25.634Z",
+      "actual_end_time": "2026-01-21T13:42:25.634Z",
+      "transcript": "Seed transcript: reviewed progress, blockers, and action items.",
+      "ai_summary": "Seed AI summary for meeting.",
+      "key_points": [
+        "Reviewed KPIs",
+        "Resolved blockers",
+        "Planned next sprint"
+      ],
+      "action_items": [
+        {
+          "description": "Follow up on assigned tasks",
+          "assigned_to": "69d648de85b5b46253ae9c6c",
+          "due_date": "2026-04-15T12:24:25.634Z",
+          "_id": "69d648f985b5b46253aea0f3"
+        }
+      ],
+      "ai_processed": true,
+      "ai_processing_status": "completed",
+      "__v": 0,
+      "created_at": "2026-04-08T12:24:25.671Z",
+      "updated_at": "2026-04-08T12:24:25.671Z"
+    },
+    {
+      "_id": "69d648f985b5b46253aea0f4",
+      "org_id": "69d63bdcc81e84290298784d",
+      "title": "Performance Coaching #3",
+      "description": "Seeded meeting activity",
+      "scheduled_at": "2026-04-03T12:24:25.635Z",
+      "duration_minutes": 82,
+      "meeting_type": "in-person",
+      "meeting_id": "SEED-1775651035860-3",
+      "meeting_link": "https://hr.codewithseth.co.ke/meeting/SEED-1775651035860-3",
+      "require_password": false,
+      "status": "completed",
+      "organizer_id": "69d648de85b5b46253ae9c62",
+      "attendees": [
+        {
+          "user_id": "69d648de85b5b46253ae9c68",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-04-03T12:24:25.635Z",
+          "left_at": "2026-04-03T13:48:25.635Z",
+          "duration_minutes": 47,
+          "_id": "69d648f985b5b46253aea0f5"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c67",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": false,
+          "joined_at": "2026-04-03T12:24:25.635Z",
+          "left_at": "2026-04-03T13:48:25.635Z",
+          "duration_minutes": 32,
+          "_id": "69d648f985b5b46253aea0f6"
+        },
+        {
+          "user_id": "69d63bddc81e84290298784f",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": false,
+          "joined_at": "2026-04-03T12:24:25.635Z",
+          "left_at": "2026-04-03T13:48:25.635Z",
+          "duration_minutes": 26,
+          "_id": "69d648f985b5b46253aea0f7"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c6a",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": false,
+          "joined_at": "2026-04-03T12:24:25.635Z",
+          "left_at": "2026-04-03T13:48:25.635Z",
+          "duration_minutes": 49,
+          "_id": "69d648f985b5b46253aea0f8"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c6f",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-04-03T12:24:25.635Z",
+          "left_at": "2026-04-03T13:48:25.635Z",
+          "duration_minutes": 90,
+          "_id": "69d648f985b5b46253aea0f9"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c63",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-04-03T12:24:25.635Z",
+          "left_at": "2026-04-03T13:48:25.635Z",
+          "duration_minutes": 22,
+          "_id": "69d648f985b5b46253aea0fa"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c6b",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-04-03T12:24:25.635Z",
+          "left_at": "2026-04-03T13:48:25.635Z",
+          "duration_minutes": 35,
+          "_id": "69d648f985b5b46253aea0fb"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c65",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-04-03T12:24:25.635Z",
+          "left_at": "2026-04-03T13:48:25.635Z",
+          "duration_minutes": 60,
+          "_id": "69d648f985b5b46253aea0fc"
+        }
+      ],
+      "actual_start_time": "2026-04-03T12:24:25.635Z",
+      "actual_end_time": "2026-04-03T13:48:25.635Z",
+      "transcript": "Seed transcript: reviewed progress, blockers, and action items.",
+      "ai_summary": "Seed AI summary for meeting.",
+      "key_points": [
+        "Reviewed KPIs",
+        "Resolved blockers",
+        "Planned next sprint"
+      ],
+      "action_items": [
+        {
+          "description": "Follow up on assigned tasks",
+          "assigned_to": "69d648de85b5b46253ae9c66",
+          "due_date": "2026-04-15T12:24:25.635Z",
+          "_id": "69d648f985b5b46253aea0fd"
+        }
+      ],
+      "ai_processed": true,
+      "ai_processing_status": "completed",
+      "__v": 0,
+      "created_at": "2026-04-08T12:24:25.671Z",
+      "updated_at": "2026-04-08T12:24:25.671Z"
+    },
+    {
+      "_id": "69d648f985b5b46253aea108",
+      "org_id": "69d63bdcc81e84290298784d",
+      "title": "Client Follow-up #6",
+      "description": "Seeded meeting activity",
+      "scheduled_at": "2026-03-16T12:24:25.635Z",
+      "duration_minutes": 82,
+      "meeting_type": "audio",
+      "meeting_id": "SEED-1775651035860-6",
+      "meeting_link": "https://hr.codewithseth.co.ke/meeting/SEED-1775651035860-6",
+      "require_password": false,
+      "status": "completed",
+      "organizer_id": "69d648de85b5b46253ae9c62",
+      "attendees": [
+        {
+          "user_id": "69d648de85b5b46253ae9c68",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-03-16T12:24:25.635Z",
+          "left_at": "2026-03-16T13:19:25.635Z",
+          "duration_minutes": 37,
+          "_id": "69d648f985b5b46253aea109"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c67",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-03-16T12:24:25.635Z",
+          "left_at": "2026-03-16T13:19:25.635Z",
+          "duration_minutes": 68,
+          "_id": "69d648f985b5b46253aea10a"
+        },
+        {
+          "user_id": "69d63bddc81e84290298784f",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-03-16T12:24:25.635Z",
+          "left_at": "2026-03-16T13:19:25.635Z",
+          "duration_minutes": 34,
+          "_id": "69d648f985b5b46253aea10b"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c6a",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-03-16T12:24:25.635Z",
+          "left_at": "2026-03-16T13:19:25.635Z",
+          "duration_minutes": 29,
+          "_id": "69d648f985b5b46253aea10c"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c6f",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-03-16T12:24:25.635Z",
+          "left_at": "2026-03-16T13:19:25.635Z",
+          "duration_minutes": 60,
+          "_id": "69d648f985b5b46253aea10d"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c63",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": false,
+          "joined_at": "2026-03-16T12:24:25.635Z",
+          "left_at": "2026-03-16T13:19:25.635Z",
+          "duration_minutes": 29,
+          "_id": "69d648f985b5b46253aea10e"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c6b",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-03-16T12:24:25.635Z",
+          "left_at": "2026-03-16T13:19:25.635Z",
+          "duration_minutes": 37,
+          "_id": "69d648f985b5b46253aea10f"
+        }
+      ],
+      "actual_start_time": "2026-03-16T12:24:25.635Z",
+      "actual_end_time": "2026-03-16T13:19:25.635Z",
+      "transcript": "Seed transcript: reviewed progress, blockers, and action items.",
+      "ai_summary": "Seed AI summary for meeting.",
+      "key_points": [
+        "Reviewed KPIs",
+        "Resolved blockers",
+        "Planned next sprint"
+      ],
+      "action_items": [
+        {
+          "description": "Follow up on assigned tasks",
+          "assigned_to": "69d648de85b5b46253ae9c63",
+          "due_date": "2026-04-15T12:24:25.635Z",
+          "_id": "69d648f985b5b46253aea110"
+        }
+      ],
+      "ai_processed": true,
+      "ai_processing_status": "completed",
+      "__v": 0,
+      "created_at": "2026-04-08T12:24:25.671Z",
+      "updated_at": "2026-04-08T12:24:25.671Z"
+    },
+    {
+      "_id": "69d648f985b5b46253aea11e",
+      "org_id": "69d63bdcc81e84290298784d",
+      "title": "Performance Coaching #9",
+      "description": "Seeded meeting activity",
+      "scheduled_at": "2026-02-21T12:24:25.635Z",
+      "duration_minutes": 87,
+      "meeting_type": "in-person",
+      "meeting_id": "SEED-1775651035860-9",
+      "meeting_link": "https://hr.codewithseth.co.ke/meeting/SEED-1775651035860-9",
+      "require_password": false,
+      "status": "scheduled",
+      "organizer_id": "69d63bddc81e84290298784f",
+      "attendees": [
+        {
+          "user_id": "69d648de85b5b46253ae9c68",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-02-21T12:24:25.635Z",
+          "left_at": "2026-02-21T13:47:25.635Z",
+          "duration_minutes": 58,
+          "_id": "69d648f985b5b46253aea11f"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c67",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-02-21T12:24:25.635Z",
+          "left_at": "2026-02-21T13:47:25.635Z",
+          "duration_minutes": 80,
+          "_id": "69d648f985b5b46253aea120"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c6a",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-02-21T12:24:25.635Z",
+          "left_at": "2026-02-21T13:47:25.635Z",
+          "duration_minutes": 36,
+          "_id": "69d648f985b5b46253aea121"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c6f",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-02-21T12:24:25.635Z",
+          "left_at": "2026-02-21T13:47:25.635Z",
+          "duration_minutes": 80,
+          "_id": "69d648f985b5b46253aea122"
+        }
+      ],
+      "actual_start_time": "2026-02-21T12:24:25.635Z",
+      "actual_end_time": "2026-02-21T13:47:25.635Z",
+      "transcript": "Seed transcript: reviewed progress, blockers, and action items.",
+      "ai_summary": "Seed AI summary for meeting.",
+      "key_points": [
+        "Reviewed KPIs",
+        "Resolved blockers",
+        "Planned next sprint"
+      ],
+      "action_items": [
+        {
+          "description": "Follow up on assigned tasks",
+          "assigned_to": "69d648de85b5b46253ae9c6e",
+          "due_date": "2026-04-15T12:24:25.635Z",
+          "_id": "69d648f985b5b46253aea123"
+        }
+      ],
+      "ai_processed": true,
+      "ai_processing_status": "completed",
+      "__v": 0,
+      "created_at": "2026-04-08T12:24:25.671Z",
+      "updated_at": "2026-04-08T12:24:25.671Z"
+    },
+    {
+      "_id": "69d648f985b5b46253aea12e",
+      "org_id": "69d63bdcc81e84290298784d",
+      "title": "Ops Standup #11",
+      "description": "Seeded meeting activity",
+      "scheduled_at": "2026-02-04T12:24:25.635Z",
+      "duration_minutes": 67,
+      "meeting_type": "in-person",
+      "meeting_id": "SEED-1775651035860-11",
+      "meeting_link": "https://hr.codewithseth.co.ke/meeting/SEED-1775651035860-11",
+      "require_password": false,
+      "status": "completed",
+      "organizer_id": "69d63bddc81e84290298784f",
+      "attendees": [
+        {
+          "user_id": "69d648de85b5b46253ae9c68",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-02-04T12:24:25.635Z",
+          "left_at": "2026-02-04T13:29:25.635Z",
+          "duration_minutes": 88,
+          "_id": "69d648f985b5b46253aea12f"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c67",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-02-04T12:24:25.635Z",
+          "left_at": "2026-02-04T13:29:25.635Z",
+          "duration_minutes": 84,
+          "_id": "69d648f985b5b46253aea130"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c6a",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-02-04T12:24:25.635Z",
+          "left_at": "2026-02-04T13:29:25.635Z",
+          "duration_minutes": 81,
+          "_id": "69d648f985b5b46253aea131"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c6f",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-02-04T12:24:25.635Z",
+          "left_at": "2026-02-04T13:29:25.635Z",
+          "duration_minutes": 46,
+          "_id": "69d648f985b5b46253aea132"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c63",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-02-04T12:24:25.635Z",
+          "left_at": "2026-02-04T13:29:25.635Z",
+          "duration_minutes": 72,
+          "_id": "69d648f985b5b46253aea133"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c6b",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-02-04T12:24:25.635Z",
+          "left_at": "2026-02-04T13:29:25.635Z",
+          "duration_minutes": 60,
+          "_id": "69d648f985b5b46253aea134"
+        }
+      ],
+      "actual_start_time": "2026-02-04T12:24:25.635Z",
+      "actual_end_time": "2026-02-04T13:29:25.635Z",
+      "transcript": "Seed transcript: reviewed progress, blockers, and action items.",
+      "ai_summary": "Seed AI summary for meeting.",
+      "key_points": [
+        "Reviewed KPIs",
+        "Resolved blockers",
+        "Planned next sprint"
+      ],
+      "action_items": [
+        {
+          "description": "Follow up on assigned tasks",
+          "assigned_to": "69d648de85b5b46253ae9c63",
+          "due_date": "2026-04-15T12:24:25.635Z",
+          "_id": "69d648f985b5b46253aea135"
+        }
+      ],
+      "ai_processed": true,
+      "ai_processing_status": "completed",
+      "__v": 0,
+      "created_at": "2026-04-08T12:24:25.671Z",
+      "updated_at": "2026-04-08T12:24:25.671Z"
+    },
+    {
+      "_id": "69d648f985b5b46253aea136",
+      "org_id": "69d63bdcc81e84290298784d",
+      "title": "Performance Coaching #12",
+      "description": "Seeded meeting activity",
+      "scheduled_at": "2026-02-19T12:24:25.635Z",
+      "duration_minutes": 78,
+      "meeting_type": "audio",
+      "meeting_id": "SEED-1775651035860-12",
+      "meeting_link": "https://hr.codewithseth.co.ke/meeting/SEED-1775651035860-12",
+      "require_password": false,
+      "status": "completed",
+      "organizer_id": "69d648de85b5b46253ae9c62",
+      "attendees": [
+        {
+          "user_id": "69d648de85b5b46253ae9c68",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-02-19T12:24:25.635Z",
+          "left_at": "2026-02-19T13:32:25.635Z",
+          "duration_minutes": 50,
+          "_id": "69d648f985b5b46253aea137"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c67",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-02-19T12:24:25.635Z",
+          "left_at": "2026-02-19T13:32:25.635Z",
+          "duration_minutes": 26,
+          "_id": "69d648f985b5b46253aea138"
+        },
+        {
+          "user_id": "69d63bddc81e84290298784f",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-02-19T12:24:25.635Z",
+          "left_at": "2026-02-19T13:32:25.635Z",
+          "duration_minutes": 40,
+          "_id": "69d648f985b5b46253aea139"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c6a",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-02-19T12:24:25.635Z",
+          "left_at": "2026-02-19T13:32:25.635Z",
+          "duration_minutes": 61,
+          "_id": "69d648f985b5b46253aea13a"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c6f",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-02-19T12:24:25.635Z",
+          "left_at": "2026-02-19T13:32:25.635Z",
+          "duration_minutes": 75,
+          "_id": "69d648f985b5b46253aea13b"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c63",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-02-19T12:24:25.635Z",
+          "left_at": "2026-02-19T13:32:25.635Z",
+          "duration_minutes": 30,
+          "_id": "69d648f985b5b46253aea13c"
+        }
+      ],
+      "actual_start_time": "2026-02-19T12:24:25.635Z",
+      "actual_end_time": "2026-02-19T13:32:25.635Z",
+      "transcript": "Seed transcript: reviewed progress, blockers, and action items.",
+      "ai_summary": "Seed AI summary for meeting.",
+      "key_points": [
+        "Reviewed KPIs",
+        "Resolved blockers",
+        "Planned next sprint"
+      ],
+      "action_items": [
+        {
+          "description": "Follow up on assigned tasks",
+          "assigned_to": "69d648de85b5b46253ae9c65",
+          "due_date": "2026-04-15T12:24:25.635Z",
+          "_id": "69d648f985b5b46253aea13d"
+        }
+      ],
+      "ai_processed": true,
+      "ai_processing_status": "completed",
+      "__v": 0,
+      "created_at": "2026-04-08T12:24:25.671Z",
+      "updated_at": "2026-04-08T12:24:25.671Z"
+    },
+    {
+      "_id": "69d648f985b5b46253aea17b",
+      "org_id": "69d63bdcc81e84290298784d",
+      "title": "Quarterly Review #21",
+      "description": "Seeded meeting activity",
+      "scheduled_at": "2026-03-05T12:24:25.635Z",
+      "duration_minutes": 87,
+      "meeting_type": "video",
+      "meeting_id": "SEED-1775651035860-21",
+      "meeting_link": "https://hr.codewithseth.co.ke/meeting/SEED-1775651035860-21",
+      "require_password": false,
+      "status": "completed",
+      "organizer_id": "69d63bddc81e84290298784f",
+      "attendees": [
+        {
+          "user_id": "69d648de85b5b46253ae9c68",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-03-05T12:24:25.635Z",
+          "left_at": "2026-03-05T13:33:25.635Z",
+          "duration_minutes": 48,
+          "_id": "69d648f985b5b46253aea17c"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c67",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-03-05T12:24:25.635Z",
+          "left_at": "2026-03-05T13:33:25.635Z",
+          "duration_minutes": 84,
+          "_id": "69d648f985b5b46253aea17d"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c6a",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-03-05T12:24:25.635Z",
+          "left_at": "2026-03-05T13:33:25.635Z",
+          "duration_minutes": 54,
+          "_id": "69d648f985b5b46253aea17e"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c6f",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-03-05T12:24:25.635Z",
+          "left_at": "2026-03-05T13:33:25.635Z",
+          "duration_minutes": 50,
+          "_id": "69d648f985b5b46253aea17f"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c63",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-03-05T12:24:25.635Z",
+          "left_at": "2026-03-05T13:33:25.635Z",
+          "duration_minutes": 68,
+          "_id": "69d648f985b5b46253aea180"
+        }
+      ],
+      "actual_start_time": "2026-03-05T12:24:25.635Z",
+      "actual_end_time": "2026-03-05T13:33:25.635Z",
+      "transcript": "Seed transcript: reviewed progress, blockers, and action items.",
+      "ai_summary": "Seed AI summary for meeting.",
+      "key_points": [
+        "Reviewed KPIs",
+        "Resolved blockers",
+        "Planned next sprint"
+      ],
+      "action_items": [
+        {
+          "description": "Follow up on assigned tasks",
+          "assigned_to": "69d648de85b5b46253ae9c6d",
+          "due_date": "2026-04-15T12:24:25.635Z",
+          "_id": "69d648f985b5b46253aea181"
+        }
+      ],
+      "ai_processed": true,
+      "ai_processing_status": "completed",
+      "__v": 0,
+      "created_at": "2026-04-08T12:24:25.672Z",
+      "updated_at": "2026-04-08T12:24:25.672Z"
+    },
+    {
+      "_id": "69d648f985b5b46253aea197",
+      "org_id": "69d63bdcc81e84290298784d",
+      "title": "Quarterly Review #25",
+      "description": "Seeded meeting activity",
+      "scheduled_at": "2026-03-11T12:24:25.635Z",
+      "duration_minutes": 80,
+      "meeting_type": "in-person",
+      "meeting_id": "SEED-1775651035860-25",
+      "meeting_link": "https://hr.codewithseth.co.ke/meeting/SEED-1775651035860-25",
+      "require_password": false,
+      "status": "cancelled",
+      "organizer_id": "69d648de85b5b46253ae9c62",
+      "attendees": [
+        {
+          "user_id": "69d648de85b5b46253ae9c68",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-03-11T12:24:25.635Z",
+          "left_at": "2026-03-11T13:47:25.635Z",
+          "duration_minutes": 23,
+          "_id": "69d648f985b5b46253aea198"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c67",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": false,
+          "joined_at": "2026-03-11T12:24:25.635Z",
+          "left_at": "2026-03-11T13:47:25.635Z",
+          "duration_minutes": 51,
+          "_id": "69d648f985b5b46253aea199"
+        },
+        {
+          "user_id": "69d63bddc81e84290298784f",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-03-11T12:24:25.635Z",
+          "left_at": "2026-03-11T13:47:25.635Z",
+          "duration_minutes": 70,
+          "_id": "69d648f985b5b46253aea19a"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c6a",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-03-11T12:24:25.635Z",
+          "left_at": "2026-03-11T13:47:25.635Z",
+          "duration_minutes": 48,
+          "_id": "69d648f985b5b46253aea19b"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c6f",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-03-11T12:24:25.635Z",
+          "left_at": "2026-03-11T13:47:25.635Z",
+          "duration_minutes": 20,
+          "_id": "69d648f985b5b46253aea19c"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c63",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": false,
+          "joined_at": "2026-03-11T12:24:25.635Z",
+          "left_at": "2026-03-11T13:47:25.635Z",
+          "duration_minutes": 52,
+          "_id": "69d648f985b5b46253aea19d"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c6b",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-03-11T12:24:25.635Z",
+          "left_at": "2026-03-11T13:47:25.635Z",
+          "duration_minutes": 54,
+          "_id": "69d648f985b5b46253aea19e"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c65",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": false,
+          "joined_at": "2026-03-11T12:24:25.635Z",
+          "left_at": "2026-03-11T13:47:25.635Z",
+          "duration_minutes": 77,
+          "_id": "69d648f985b5b46253aea19f"
+        }
+      ],
+      "actual_start_time": "2026-03-11T12:24:25.635Z",
+      "actual_end_time": "2026-03-11T13:47:25.635Z",
+      "transcript": "Seed transcript: reviewed progress, blockers, and action items.",
+      "ai_summary": "Seed AI summary for meeting.",
+      "key_points": [
+        "Reviewed KPIs",
+        "Resolved blockers",
+        "Planned next sprint"
+      ],
+      "action_items": [
+        {
+          "description": "Follow up on assigned tasks",
+          "assigned_to": "69d648de85b5b46253ae9c6e",
+          "due_date": "2026-04-15T12:24:25.635Z",
+          "_id": "69d648f985b5b46253aea1a0"
+        }
+      ],
+      "ai_processed": true,
+      "ai_processing_status": "completed",
+      "__v": 0,
+      "created_at": "2026-04-08T12:24:25.672Z",
+      "updated_at": "2026-04-08T12:24:25.672Z"
+    },
+    {
+      "_id": "69d648f985b5b46253aea1a1",
+      "org_id": "69d63bdcc81e84290298784d",
+      "title": "Client Follow-up #26",
+      "description": "Seeded meeting activity",
+      "scheduled_at": "2026-01-20T12:24:25.635Z",
+      "duration_minutes": 30,
+      "meeting_type": "in-person",
+      "meeting_id": "SEED-1775651035860-26",
+      "meeting_link": "https://hr.codewithseth.co.ke/meeting/SEED-1775651035860-26",
+      "require_password": false,
+      "status": "scheduled",
+      "organizer_id": "69d63bddc81e84290298784f",
+      "attendees": [
+        {
+          "user_id": "69d648de85b5b46253ae9c68",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-01-20T12:24:25.635Z",
+          "left_at": "2026-01-20T13:28:25.635Z",
+          "duration_minutes": 81,
+          "_id": "69d648f985b5b46253aea1a2"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c67",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-01-20T12:24:25.635Z",
+          "left_at": "2026-01-20T13:28:25.635Z",
+          "duration_minutes": 64,
+          "_id": "69d648f985b5b46253aea1a3"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c6a",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-01-20T12:24:25.635Z",
+          "left_at": "2026-01-20T13:28:25.635Z",
+          "duration_minutes": 86,
+          "_id": "69d648f985b5b46253aea1a4"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c6f",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-01-20T12:24:25.635Z",
+          "left_at": "2026-01-20T13:28:25.635Z",
+          "duration_minutes": 40,
+          "_id": "69d648f985b5b46253aea1a5"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c63",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-01-20T12:24:25.635Z",
+          "left_at": "2026-01-20T13:28:25.635Z",
+          "duration_minutes": 58,
+          "_id": "69d648f985b5b46253aea1a6"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c6b",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-01-20T12:24:25.635Z",
+          "left_at": "2026-01-20T13:28:25.635Z",
+          "duration_minutes": 31,
+          "_id": "69d648f985b5b46253aea1a7"
+        }
+      ],
+      "actual_start_time": "2026-01-20T12:24:25.635Z",
+      "actual_end_time": "2026-01-20T13:28:25.635Z",
+      "transcript": "Seed transcript: reviewed progress, blockers, and action items.",
+      "ai_summary": "Seed AI summary for meeting.",
+      "key_points": [
+        "Reviewed KPIs",
+        "Resolved blockers",
+        "Planned next sprint"
+      ],
+      "action_items": [
+        {
+          "description": "Follow up on assigned tasks",
+          "assigned_to": "69d648de85b5b46253ae9c72",
+          "due_date": "2026-04-15T12:24:25.635Z",
+          "_id": "69d648f985b5b46253aea1a8"
+        }
+      ],
+      "ai_processed": true,
+      "ai_processing_status": "completed",
+      "__v": 0,
+      "created_at": "2026-04-08T12:24:25.672Z",
+      "updated_at": "2026-04-08T12:24:25.672Z"
+    },
+    {
+      "_id": "69d648f985b5b46253aea1b9",
+      "org_id": "69d63bdcc81e84290298784d",
+      "title": "Performance Coaching #29",
+      "description": "Seeded meeting activity",
+      "scheduled_at": "2026-02-14T12:24:25.635Z",
+      "duration_minutes": 90,
+      "meeting_type": "in-person",
+      "meeting_id": "SEED-1775651035860-29",
+      "meeting_link": "https://hr.codewithseth.co.ke/meeting/SEED-1775651035860-29",
+      "require_password": false,
+      "status": "cancelled",
+      "organizer_id": "69d648de85b5b46253ae9c62",
+      "attendees": [
+        {
+          "user_id": "69d648de85b5b46253ae9c68",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-02-14T12:24:25.635Z",
+          "left_at": "2026-02-14T12:55:25.635Z",
+          "duration_minutes": 59,
+          "_id": "69d648f985b5b46253aea1ba"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c67",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-02-14T12:24:25.635Z",
+          "left_at": "2026-02-14T12:55:25.635Z",
+          "duration_minutes": 86,
+          "_id": "69d648f985b5b46253aea1bb"
+        },
+        {
+          "user_id": "69d63bddc81e84290298784f",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": false,
+          "joined_at": "2026-02-14T12:24:25.635Z",
+          "left_at": "2026-02-14T12:55:25.635Z",
+          "duration_minutes": 45,
+          "_id": "69d648f985b5b46253aea1bc"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c6a",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-02-14T12:24:25.635Z",
+          "left_at": "2026-02-14T12:55:25.635Z",
+          "duration_minutes": 37,
+          "_id": "69d648f985b5b46253aea1bd"
+        }
+      ],
+      "actual_start_time": "2026-02-14T12:24:25.635Z",
+      "actual_end_time": "2026-02-14T12:55:25.635Z",
+      "transcript": "Seed transcript: reviewed progress, blockers, and action items.",
+      "ai_summary": "Seed AI summary for meeting.",
+      "key_points": [
+        "Reviewed KPIs",
+        "Resolved blockers",
+        "Planned next sprint"
+      ],
+      "action_items": [
+        {
+          "description": "Follow up on assigned tasks",
+          "assigned_to": "69d648de85b5b46253ae9c70",
+          "due_date": "2026-04-15T12:24:25.635Z",
+          "_id": "69d648f985b5b46253aea1be"
+        }
+      ],
+      "ai_processed": true,
+      "ai_processing_status": "completed",
+      "__v": 0,
+      "created_at": "2026-04-08T12:24:25.672Z",
+      "updated_at": "2026-04-08T12:24:25.672Z"
+    },
+    {
+      "_id": "69d648f985b5b46253aea0ea",
+      "org_id": "69d63bdcc81e84290298784d",
+      "title": "Performance Coaching #1",
+      "description": "Seeded meeting activity",
+      "scheduled_at": "2026-04-01T12:24:25.634Z",
+      "duration_minutes": 54,
+      "meeting_type": "audio",
+      "meeting_id": "SEED-1775651035860-1",
+      "meeting_link": "https://hr.codewithseth.co.ke/meeting/SEED-1775651035860-1",
+      "require_password": false,
+      "status": "completed",
+      "organizer_id": "69d648de85b5b46253ae9c62",
+      "attendees": [
+        {
+          "user_id": "69d648de85b5b46253ae9c68",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-04-01T12:24:25.634Z",
+          "left_at": "2026-04-01T13:51:25.634Z",
+          "duration_minutes": 52,
+          "_id": "69d648f985b5b46253aea0eb"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c67",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-04-01T12:24:25.634Z",
+          "left_at": "2026-04-01T13:51:25.634Z",
+          "duration_minutes": 47,
+          "_id": "69d648f985b5b46253aea0ec"
+        },
+        {
+          "user_id": "69d63bddc81e84290298784f",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": false,
+          "joined_at": "2026-04-01T12:24:25.634Z",
+          "left_at": "2026-04-01T13:51:25.634Z",
+          "duration_minutes": 42,
+          "_id": "69d648f985b5b46253aea0ed"
+        }
+      ],
+      "actual_start_time": "2026-04-01T12:24:25.634Z",
+      "actual_end_time": "2026-04-01T13:51:25.634Z",
+      "transcript": "Seed transcript: reviewed progress, blockers, and action items.",
+      "ai_summary": "Seed AI summary for meeting.",
+      "key_points": [
+        "Reviewed KPIs",
+        "Resolved blockers",
+        "Planned next sprint"
+      ],
+      "action_items": [
+        {
+          "description": "Follow up on assigned tasks",
+          "assigned_to": "69d648de85b5b46253ae9c68",
+          "due_date": "2026-04-15T12:24:25.634Z",
+          "_id": "69d648f985b5b46253aea0ee"
+        }
+      ],
+      "ai_processed": true,
+      "ai_processing_status": "completed",
+      "__v": 0,
+      "created_at": "2026-04-08T12:24:25.670Z",
+      "updated_at": "2026-04-08T12:24:25.670Z"
+    },
+    {
+      "_id": "69d648f985b5b46253aea124",
+      "org_id": "69d63bdcc81e84290298784d",
+      "title": "Ops Standup #10",
+      "description": "Seeded meeting activity",
+      "scheduled_at": "2026-03-29T12:24:25.635Z",
+      "duration_minutes": 86,
+      "meeting_type": "in-person",
+      "meeting_id": "SEED-1775651035860-10",
+      "meeting_link": "https://hr.codewithseth.co.ke/meeting/SEED-1775651035860-10",
+      "require_password": false,
+      "status": "scheduled",
+      "organizer_id": "69d648de85b5b46253ae9c62",
+      "attendees": [
+        {
+          "user_id": "69d648de85b5b46253ae9c68",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-03-29T12:24:25.635Z",
+          "left_at": "2026-03-29T13:40:25.635Z",
+          "duration_minutes": 28,
+          "_id": "69d648f985b5b46253aea125"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c67",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-03-29T12:24:25.635Z",
+          "left_at": "2026-03-29T13:40:25.635Z",
+          "duration_minutes": 21,
+          "_id": "69d648f985b5b46253aea126"
+        },
+        {
+          "user_id": "69d63bddc81e84290298784f",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": false,
+          "joined_at": "2026-03-29T12:24:25.635Z",
+          "left_at": "2026-03-29T13:40:25.635Z",
+          "duration_minutes": 56,
+          "_id": "69d648f985b5b46253aea127"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c6a",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-03-29T12:24:25.635Z",
+          "left_at": "2026-03-29T13:40:25.635Z",
+          "duration_minutes": 35,
+          "_id": "69d648f985b5b46253aea128"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c6f",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-03-29T12:24:25.635Z",
+          "left_at": "2026-03-29T13:40:25.635Z",
+          "duration_minutes": 25,
+          "_id": "69d648f985b5b46253aea129"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c63",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-03-29T12:24:25.635Z",
+          "left_at": "2026-03-29T13:40:25.635Z",
+          "duration_minutes": 31,
+          "_id": "69d648f985b5b46253aea12a"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c6b",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-03-29T12:24:25.635Z",
+          "left_at": "2026-03-29T13:40:25.635Z",
+          "duration_minutes": 20,
+          "_id": "69d648f985b5b46253aea12b"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c65",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": false,
+          "joined_at": "2026-03-29T12:24:25.635Z",
+          "left_at": "2026-03-29T13:40:25.635Z",
+          "duration_minutes": 60,
+          "_id": "69d648f985b5b46253aea12c"
+        }
+      ],
+      "actual_start_time": "2026-03-29T12:24:25.635Z",
+      "actual_end_time": "2026-03-29T13:40:25.635Z",
+      "transcript": "Seed transcript: reviewed progress, blockers, and action items.",
+      "ai_summary": "Seed AI summary for meeting.",
+      "key_points": [
+        "Reviewed KPIs",
+        "Resolved blockers",
+        "Planned next sprint"
+      ],
+      "action_items": [
+        {
+          "description": "Follow up on assigned tasks",
+          "assigned_to": "69d648de85b5b46253ae9c6a",
+          "due_date": "2026-04-15T12:24:25.635Z",
+          "_id": "69d648f985b5b46253aea12d"
+        }
+      ],
+      "ai_processed": true,
+      "ai_processing_status": "completed",
+      "__v": 0,
+      "created_at": "2026-04-08T12:24:25.671Z",
+      "updated_at": "2026-04-08T12:24:25.671Z"
+    },
+    {
+      "_id": "69d648f985b5b46253aea143",
+      "org_id": "69d63bdcc81e84290298784d",
+      "title": "Quarterly Review #14",
+      "description": "Seeded meeting activity",
+      "scheduled_at": "2026-01-27T12:24:25.635Z",
+      "duration_minutes": 30,
+      "meeting_type": "in-person",
+      "meeting_id": "SEED-1775651035860-14",
+      "meeting_link": "https://hr.codewithseth.co.ke/meeting/SEED-1775651035860-14",
+      "require_password": false,
+      "status": "cancelled",
+      "organizer_id": "69d648de85b5b46253ae9c62",
+      "attendees": [
+        {
+          "user_id": "69d648de85b5b46253ae9c68",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-01-27T12:24:25.635Z",
+          "left_at": "2026-01-27T13:39:25.635Z",
+          "duration_minutes": 87,
+          "_id": "69d648f985b5b46253aea144"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c67",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-01-27T12:24:25.635Z",
+          "left_at": "2026-01-27T13:39:25.635Z",
+          "duration_minutes": 49,
+          "_id": "69d648f985b5b46253aea145"
+        },
+        {
+          "user_id": "69d63bddc81e84290298784f",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": false,
+          "joined_at": "2026-01-27T12:24:25.635Z",
+          "left_at": "2026-01-27T13:39:25.635Z",
+          "duration_minutes": 45,
+          "_id": "69d648f985b5b46253aea146"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c6a",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-01-27T12:24:25.635Z",
+          "left_at": "2026-01-27T13:39:25.635Z",
+          "duration_minutes": 47,
+          "_id": "69d648f985b5b46253aea147"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c6f",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-01-27T12:24:25.635Z",
+          "left_at": "2026-01-27T13:39:25.635Z",
+          "duration_minutes": 75,
+          "_id": "69d648f985b5b46253aea148"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c63",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-01-27T12:24:25.635Z",
+          "left_at": "2026-01-27T13:39:25.635Z",
+          "duration_minutes": 72,
+          "_id": "69d648f985b5b46253aea149"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c6b",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-01-27T12:24:25.635Z",
+          "left_at": "2026-01-27T13:39:25.635Z",
+          "duration_minutes": 48,
+          "_id": "69d648f985b5b46253aea14a"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c65",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-01-27T12:24:25.635Z",
+          "left_at": "2026-01-27T13:39:25.635Z",
+          "duration_minutes": 24,
+          "_id": "69d648f985b5b46253aea14b"
+        }
+      ],
+      "actual_start_time": "2026-01-27T12:24:25.635Z",
+      "actual_end_time": "2026-01-27T13:39:25.635Z",
+      "transcript": "Seed transcript: reviewed progress, blockers, and action items.",
+      "ai_summary": "Seed AI summary for meeting.",
+      "key_points": [
+        "Reviewed KPIs",
+        "Resolved blockers",
+        "Planned next sprint"
+      ],
+      "action_items": [
+        {
+          "description": "Follow up on assigned tasks",
+          "assigned_to": "69d648de85b5b46253ae9c66",
+          "due_date": "2026-04-15T12:24:25.635Z",
+          "_id": "69d648f985b5b46253aea14c"
+        }
+      ],
+      "ai_processed": true,
+      "ai_processing_status": "completed",
+      "__v": 0,
+      "created_at": "2026-04-08T12:24:25.671Z",
+      "updated_at": "2026-04-08T12:24:25.671Z"
+    },
+    {
+      "_id": "69d648f985b5b46253aea152",
+      "org_id": "69d63bdcc81e84290298784d",
+      "title": "Ops Standup #16",
+      "description": "Seeded meeting activity",
+      "scheduled_at": "2026-01-10T12:24:25.635Z",
+      "duration_minutes": 63,
+      "meeting_type": "in-person",
+      "meeting_id": "SEED-1775651035860-16",
+      "meeting_link": "https://hr.codewithseth.co.ke/meeting/SEED-1775651035860-16",
+      "require_password": false,
+      "status": "completed",
+      "organizer_id": "69d63bddc81e84290298784f",
+      "attendees": [
+        {
+          "user_id": "69d648de85b5b46253ae9c68",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-01-10T12:24:25.635Z",
+          "left_at": "2026-01-10T13:30:25.635Z",
+          "duration_minutes": 77,
+          "_id": "69d648f985b5b46253aea153"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c67",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-01-10T12:24:25.635Z",
+          "left_at": "2026-01-10T13:30:25.635Z",
+          "duration_minutes": 40,
+          "_id": "69d648f985b5b46253aea154"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c6a",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-01-10T12:24:25.635Z",
+          "left_at": "2026-01-10T13:30:25.635Z",
+          "duration_minutes": 61,
+          "_id": "69d648f985b5b46253aea155"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c6f",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-01-10T12:24:25.635Z",
+          "left_at": "2026-01-10T13:30:25.635Z",
+          "duration_minutes": 87,
+          "_id": "69d648f985b5b46253aea156"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c63",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-01-10T12:24:25.635Z",
+          "left_at": "2026-01-10T13:30:25.635Z",
+          "duration_minutes": 72,
+          "_id": "69d648f985b5b46253aea157"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c6b",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": false,
+          "joined_at": "2026-01-10T12:24:25.635Z",
+          "left_at": "2026-01-10T13:30:25.635Z",
+          "duration_minutes": 23,
+          "_id": "69d648f985b5b46253aea158"
+        }
+      ],
+      "actual_start_time": "2026-01-10T12:24:25.635Z",
+      "actual_end_time": "2026-01-10T13:30:25.635Z",
+      "transcript": "Seed transcript: reviewed progress, blockers, and action items.",
+      "ai_summary": "Seed AI summary for meeting.",
+      "key_points": [
+        "Reviewed KPIs",
+        "Resolved blockers",
+        "Planned next sprint"
+      ],
+      "action_items": [
+        {
+          "description": "Follow up on assigned tasks",
+          "assigned_to": "69d648de85b5b46253ae9c63",
+          "due_date": "2026-04-15T12:24:25.635Z",
+          "_id": "69d648f985b5b46253aea159"
+        }
+      ],
+      "ai_processed": true,
+      "ai_processing_status": "completed",
+      "__v": 0,
+      "created_at": "2026-04-08T12:24:25.672Z",
+      "updated_at": "2026-04-08T12:24:25.672Z"
+    },
+    {
+      "_id": "69d648f985b5b46253aea164",
+      "org_id": "69d63bdcc81e84290298784d",
+      "title": "Ops Standup #18",
+      "description": "Seeded meeting activity",
+      "scheduled_at": "2026-03-02T12:24:25.635Z",
+      "duration_minutes": 52,
+      "meeting_type": "in-person",
+      "meeting_id": "SEED-1775651035860-18",
+      "meeting_link": "https://hr.codewithseth.co.ke/meeting/SEED-1775651035860-18",
+      "require_password": false,
+      "status": "completed",
+      "organizer_id": "69d648de85b5b46253ae9c62",
+      "attendees": [
+        {
+          "user_id": "69d648de85b5b46253ae9c68",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-03-02T12:24:25.635Z",
+          "left_at": "2026-03-02T13:26:25.635Z",
+          "duration_minutes": 77,
+          "_id": "69d648f985b5b46253aea165"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c67",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-03-02T12:24:25.635Z",
+          "left_at": "2026-03-02T13:26:25.635Z",
+          "duration_minutes": 64,
+          "_id": "69d648f985b5b46253aea166"
+        },
+        {
+          "user_id": "69d63bddc81e84290298784f",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": false,
+          "joined_at": "2026-03-02T12:24:25.635Z",
+          "left_at": "2026-03-02T13:26:25.635Z",
+          "duration_minutes": 24,
+          "_id": "69d648f985b5b46253aea167"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c6a",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": false,
+          "joined_at": "2026-03-02T12:24:25.635Z",
+          "left_at": "2026-03-02T13:26:25.635Z",
+          "duration_minutes": 37,
+          "_id": "69d648f985b5b46253aea168"
+        }
+      ],
+      "actual_start_time": "2026-03-02T12:24:25.635Z",
+      "actual_end_time": "2026-03-02T13:26:25.635Z",
+      "transcript": "Seed transcript: reviewed progress, blockers, and action items.",
+      "ai_summary": "Seed AI summary for meeting.",
+      "key_points": [
+        "Reviewed KPIs",
+        "Resolved blockers",
+        "Planned next sprint"
+      ],
+      "action_items": [
+        {
+          "description": "Follow up on assigned tasks",
+          "assigned_to": "69d648de85b5b46253ae9c71",
+          "due_date": "2026-04-15T12:24:25.635Z",
+          "_id": "69d648f985b5b46253aea169"
+        }
+      ],
+      "ai_processed": true,
+      "ai_processing_status": "completed",
+      "__v": 0,
+      "created_at": "2026-04-08T12:24:25.672Z",
+      "updated_at": "2026-04-08T12:24:25.672Z"
+    },
+    {
+      "_id": "69d648f985b5b46253aea172",
+      "org_id": "69d63bdcc81e84290298784d",
+      "title": "Sprint Planning #20",
+      "description": "Seeded meeting activity",
+      "scheduled_at": "2026-01-09T12:24:25.635Z",
+      "duration_minutes": 86,
+      "meeting_type": "in-person",
+      "meeting_id": "SEED-1775651035860-20",
+      "meeting_link": "https://hr.codewithseth.co.ke/meeting/SEED-1775651035860-20",
+      "require_password": false,
+      "status": "completed",
+      "organizer_id": "69d648de85b5b46253ae9c6e",
+      "attendees": [
+        {
+          "user_id": "69d648de85b5b46253ae9c68",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-01-09T12:24:25.635Z",
+          "left_at": "2026-01-09T13:09:25.635Z",
+          "duration_minutes": 59,
+          "_id": "69d648f985b5b46253aea173"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c67",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-01-09T12:24:25.635Z",
+          "left_at": "2026-01-09T13:09:25.635Z",
+          "duration_minutes": 65,
+          "_id": "69d648f985b5b46253aea174"
+        },
+        {
+          "user_id": "69d63bddc81e84290298784f",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": false,
+          "joined_at": "2026-01-09T12:24:25.635Z",
+          "left_at": "2026-01-09T13:09:25.635Z",
+          "duration_minutes": 82,
+          "_id": "69d648f985b5b46253aea175"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c6a",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-01-09T12:24:25.635Z",
+          "left_at": "2026-01-09T13:09:25.635Z",
+          "duration_minutes": 52,
+          "_id": "69d648f985b5b46253aea176"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c6f",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-01-09T12:24:25.635Z",
+          "left_at": "2026-01-09T13:09:25.635Z",
+          "duration_minutes": 50,
+          "_id": "69d648f985b5b46253aea177"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c63",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-01-09T12:24:25.635Z",
+          "left_at": "2026-01-09T13:09:25.635Z",
+          "duration_minutes": 37,
+          "_id": "69d648f985b5b46253aea178"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c6b",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": false,
+          "joined_at": "2026-01-09T12:24:25.635Z",
+          "left_at": "2026-01-09T13:09:25.635Z",
+          "duration_minutes": 38,
+          "_id": "69d648f985b5b46253aea179"
+        }
+      ],
+      "actual_start_time": "2026-01-09T12:24:25.635Z",
+      "actual_end_time": "2026-01-09T13:09:25.635Z",
+      "transcript": "Seed transcript: reviewed progress, blockers, and action items.",
+      "ai_summary": "Seed AI summary for meeting.",
+      "key_points": [
+        "Reviewed KPIs",
+        "Resolved blockers",
+        "Planned next sprint"
+      ],
+      "action_items": [
+        {
+          "description": "Follow up on assigned tasks",
+          "assigned_to": "69d648de85b5b46253ae9c69",
+          "due_date": "2026-04-15T12:24:25.635Z",
+          "_id": "69d648f985b5b46253aea17a"
+        }
+      ],
+      "ai_processed": true,
+      "ai_processing_status": "completed",
+      "__v": 0,
+      "created_at": "2026-04-08T12:24:25.672Z",
+      "updated_at": "2026-04-08T12:24:25.672Z"
+    },
+    {
+      "_id": "69d648f985b5b46253aea187",
+      "org_id": "69d63bdcc81e84290298784d",
+      "title": "Performance Coaching #23",
+      "description": "Seeded meeting activity",
+      "scheduled_at": "2026-02-15T12:24:25.635Z",
+      "duration_minutes": 40,
+      "meeting_type": "in-person",
+      "meeting_id": "SEED-1775651035860-23",
+      "meeting_link": "https://hr.codewithseth.co.ke/meeting/SEED-1775651035860-23",
+      "require_password": false,
+      "status": "scheduled",
+      "organizer_id": "69d648de85b5b46253ae9c6e",
+      "attendees": [
+        {
+          "user_id": "69d648de85b5b46253ae9c68",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-02-15T12:24:25.635Z",
+          "left_at": "2026-02-15T13:40:25.635Z",
+          "duration_minutes": 34,
+          "_id": "69d648f985b5b46253aea188"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c67",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-02-15T12:24:25.635Z",
+          "left_at": "2026-02-15T13:40:25.635Z",
+          "duration_minutes": 89,
+          "_id": "69d648f985b5b46253aea189"
+        },
+        {
+          "user_id": "69d63bddc81e84290298784f",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-02-15T12:24:25.635Z",
+          "left_at": "2026-02-15T13:40:25.635Z",
+          "duration_minutes": 22,
+          "_id": "69d648f985b5b46253aea18a"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c6a",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-02-15T12:24:25.635Z",
+          "left_at": "2026-02-15T13:40:25.635Z",
+          "duration_minutes": 54,
+          "_id": "69d648f985b5b46253aea18b"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c6f",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-02-15T12:24:25.635Z",
+          "left_at": "2026-02-15T13:40:25.635Z",
+          "duration_minutes": 70,
+          "_id": "69d648f985b5b46253aea18c"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c63",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-02-15T12:24:25.635Z",
+          "left_at": "2026-02-15T13:40:25.635Z",
+          "duration_minutes": 50,
+          "_id": "69d648f985b5b46253aea18d"
+        }
+      ],
+      "actual_start_time": "2026-02-15T12:24:25.635Z",
+      "actual_end_time": "2026-02-15T13:40:25.635Z",
+      "transcript": "Seed transcript: reviewed progress, blockers, and action items.",
+      "ai_summary": "Seed AI summary for meeting.",
+      "key_points": [
+        "Reviewed KPIs",
+        "Resolved blockers",
+        "Planned next sprint"
+      ],
+      "action_items": [
+        {
+          "description": "Follow up on assigned tasks",
+          "assigned_to": "69d648de85b5b46253ae9c6c",
+          "due_date": "2026-04-15T12:24:25.635Z",
+          "_id": "69d648f985b5b46253aea18e"
+        }
+      ],
+      "ai_processed": true,
+      "ai_processing_status": "completed",
+      "__v": 0,
+      "created_at": "2026-04-08T12:24:25.672Z",
+      "updated_at": "2026-04-08T12:24:25.672Z"
+    },
+    {
+      "_id": "69d648f985b5b46253aea1b3",
+      "org_id": "69d63bdcc81e84290298784d",
+      "title": "Client Follow-up #28",
+      "description": "Seeded meeting activity",
+      "scheduled_at": "2026-04-04T12:24:25.635Z",
+      "duration_minutes": 77,
+      "meeting_type": "audio",
+      "meeting_id": "SEED-1775651035860-28",
+      "meeting_link": "https://hr.codewithseth.co.ke/meeting/SEED-1775651035860-28",
+      "require_password": false,
+      "status": "completed",
+      "organizer_id": "69d63bddc81e84290298784f",
+      "attendees": [
+        {
+          "user_id": "69d648de85b5b46253ae9c68",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-04-04T12:24:25.635Z",
+          "left_at": "2026-04-04T13:24:25.635Z",
+          "duration_minutes": 69,
+          "_id": "69d648f985b5b46253aea1b4"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c67",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-04-04T12:24:25.635Z",
+          "left_at": "2026-04-04T13:24:25.635Z",
+          "duration_minutes": 32,
+          "_id": "69d648f985b5b46253aea1b5"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c6a",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-04-04T12:24:25.635Z",
+          "left_at": "2026-04-04T13:24:25.635Z",
+          "duration_minutes": 89,
+          "_id": "69d648f985b5b46253aea1b6"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c6f",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-04-04T12:24:25.635Z",
+          "left_at": "2026-04-04T13:24:25.635Z",
+          "duration_minutes": 78,
+          "_id": "69d648f985b5b46253aea1b7"
+        }
+      ],
+      "actual_start_time": "2026-04-04T12:24:25.635Z",
+      "actual_end_time": "2026-04-04T13:24:25.635Z",
+      "transcript": "Seed transcript: reviewed progress, blockers, and action items.",
+      "ai_summary": "Seed AI summary for meeting.",
+      "key_points": [
+        "Reviewed KPIs",
+        "Resolved blockers",
+        "Planned next sprint"
+      ],
+      "action_items": [
+        {
+          "description": "Follow up on assigned tasks",
+          "assigned_to": "69d648de85b5b46253ae9c73",
+          "due_date": "2026-04-15T12:24:25.635Z",
+          "_id": "69d648f985b5b46253aea1b8"
+        }
+      ],
+      "ai_processed": true,
+      "ai_processing_status": "completed",
+      "__v": 0,
+      "created_at": "2026-04-08T12:24:25.672Z",
+      "updated_at": "2026-04-08T12:24:25.672Z"
+    },
+    {
+      "_id": "69d648f985b5b46253aea111",
+      "org_id": "69d63bdcc81e84290298784d",
+      "title": "Ops Standup #7",
+      "description": "Seeded meeting activity",
+      "scheduled_at": "2026-01-13T12:24:25.635Z",
+      "duration_minutes": 65,
+      "meeting_type": "audio",
+      "meeting_id": "SEED-1775651035860-7",
+      "meeting_link": "https://hr.codewithseth.co.ke/meeting/SEED-1775651035860-7",
+      "require_password": false,
+      "status": "scheduled",
+      "organizer_id": "69d63bddc81e84290298784f",
+      "attendees": [
+        {
+          "user_id": "69d648de85b5b46253ae9c68",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-01-13T12:24:25.635Z",
+          "left_at": "2026-01-13T13:15:25.635Z",
+          "duration_minutes": 63,
+          "_id": "69d648f985b5b46253aea112"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c67",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-01-13T12:24:25.635Z",
+          "left_at": "2026-01-13T13:15:25.635Z",
+          "duration_minutes": 38,
+          "_id": "69d648f985b5b46253aea113"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c6a",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-01-13T12:24:25.635Z",
+          "left_at": "2026-01-13T13:15:25.635Z",
+          "duration_minutes": 71,
+          "_id": "69d648f985b5b46253aea114"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c6f",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-01-13T12:24:25.635Z",
+          "left_at": "2026-01-13T13:15:25.635Z",
+          "duration_minutes": 80,
+          "_id": "69d648f985b5b46253aea115"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c63",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": false,
+          "joined_at": "2026-01-13T12:24:25.635Z",
+          "left_at": "2026-01-13T13:15:25.635Z",
+          "duration_minutes": 42,
+          "_id": "69d648f985b5b46253aea116"
+        }
+      ],
+      "actual_start_time": "2026-01-13T12:24:25.635Z",
+      "actual_end_time": "2026-01-13T13:15:25.635Z",
+      "transcript": "Seed transcript: reviewed progress, blockers, and action items.",
+      "ai_summary": "Seed AI summary for meeting.",
+      "key_points": [
+        "Reviewed KPIs",
+        "Resolved blockers",
+        "Planned next sprint"
+      ],
+      "action_items": [
+        {
+          "description": "Follow up on assigned tasks",
+          "assigned_to": "69d648de85b5b46253ae9c64",
+          "due_date": "2026-04-15T12:24:25.635Z",
+          "_id": "69d648f985b5b46253aea117"
+        }
+      ],
+      "ai_processed": true,
+      "ai_processing_status": "completed",
+      "__v": 0,
+      "created_at": "2026-04-08T12:24:25.671Z",
+      "updated_at": "2026-04-08T12:24:25.671Z"
+    },
+    {
+      "_id": "69d648f985b5b46253aea118",
+      "org_id": "69d63bdcc81e84290298784d",
+      "title": "Performance Coaching #8",
+      "description": "Seeded meeting activity",
+      "scheduled_at": "2026-02-23T12:24:25.635Z",
+      "duration_minutes": 53,
+      "meeting_type": "video",
+      "meeting_id": "SEED-1775651035860-8",
+      "meeting_link": "https://hr.codewithseth.co.ke/meeting/SEED-1775651035860-8",
+      "require_password": false,
+      "status": "completed",
+      "organizer_id": "69d648de85b5b46253ae9c62",
+      "attendees": [
+        {
+          "user_id": "69d648de85b5b46253ae9c68",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-02-23T12:24:25.635Z",
+          "left_at": "2026-02-23T13:34:25.635Z",
+          "duration_minutes": 26,
+          "_id": "69d648f985b5b46253aea119"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c67",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-02-23T12:24:25.635Z",
+          "left_at": "2026-02-23T13:34:25.635Z",
+          "duration_minutes": 86,
+          "_id": "69d648f985b5b46253aea11a"
+        },
+        {
+          "user_id": "69d63bddc81e84290298784f",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-02-23T12:24:25.635Z",
+          "left_at": "2026-02-23T13:34:25.635Z",
+          "duration_minutes": 66,
+          "_id": "69d648f985b5b46253aea11b"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c6a",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-02-23T12:24:25.635Z",
+          "left_at": "2026-02-23T13:34:25.635Z",
+          "duration_minutes": 56,
+          "_id": "69d648f985b5b46253aea11c"
+        }
+      ],
+      "actual_start_time": "2026-02-23T12:24:25.635Z",
+      "actual_end_time": "2026-02-23T13:34:25.635Z",
+      "transcript": "Seed transcript: reviewed progress, blockers, and action items.",
+      "ai_summary": "Seed AI summary for meeting.",
+      "key_points": [
+        "Reviewed KPIs",
+        "Resolved blockers",
+        "Planned next sprint"
+      ],
+      "action_items": [
+        {
+          "description": "Follow up on assigned tasks",
+          "assigned_to": "69d63bddc81e84290298784f",
+          "due_date": "2026-04-15T12:24:25.635Z",
+          "_id": "69d648f985b5b46253aea11d"
+        }
+      ],
+      "ai_processed": true,
+      "ai_processing_status": "completed",
+      "__v": 0,
+      "created_at": "2026-04-08T12:24:25.671Z",
+      "updated_at": "2026-04-08T12:24:25.671Z"
+    },
+    {
+      "_id": "69d648f985b5b46253aea13e",
+      "org_id": "69d63bdcc81e84290298784d",
+      "title": "Ops Standup #13",
+      "description": "Seeded meeting activity",
+      "scheduled_at": "2026-02-14T12:24:25.635Z",
+      "duration_minutes": 49,
+      "meeting_type": "video",
+      "meeting_id": "SEED-1775651035860-13",
+      "meeting_link": "https://hr.codewithseth.co.ke/meeting/SEED-1775651035860-13",
+      "require_password": false,
+      "status": "cancelled",
+      "organizer_id": "69d648de85b5b46253ae9c62",
+      "attendees": [
+        {
+          "user_id": "69d648de85b5b46253ae9c68",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-02-14T12:24:25.635Z",
+          "left_at": "2026-02-14T13:43:25.635Z",
+          "duration_minutes": 26,
+          "_id": "69d648f985b5b46253aea13f"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c67",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-02-14T12:24:25.635Z",
+          "left_at": "2026-02-14T13:43:25.635Z",
+          "duration_minutes": 78,
+          "_id": "69d648f985b5b46253aea140"
+        },
+        {
+          "user_id": "69d63bddc81e84290298784f",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-02-14T12:24:25.635Z",
+          "left_at": "2026-02-14T13:43:25.635Z",
+          "duration_minutes": 90,
+          "_id": "69d648f985b5b46253aea141"
+        }
+      ],
+      "actual_start_time": "2026-02-14T12:24:25.635Z",
+      "actual_end_time": "2026-02-14T13:43:25.635Z",
+      "transcript": "Seed transcript: reviewed progress, blockers, and action items.",
+      "ai_summary": "Seed AI summary for meeting.",
+      "key_points": [
+        "Reviewed KPIs",
+        "Resolved blockers",
+        "Planned next sprint"
+      ],
+      "action_items": [
+        {
+          "description": "Follow up on assigned tasks",
+          "assigned_to": "69d648de85b5b46253ae9c6a",
+          "due_date": "2026-04-15T12:24:25.635Z",
+          "_id": "69d648f985b5b46253aea142"
+        }
+      ],
+      "ai_processed": true,
+      "ai_processing_status": "completed",
+      "__v": 0,
+      "created_at": "2026-04-08T12:24:25.671Z",
+      "updated_at": "2026-04-08T12:24:25.671Z"
+    },
+    {
+      "_id": "69d648f985b5b46253aea14d",
+      "org_id": "69d63bdcc81e84290298784d",
+      "title": "Client Follow-up #15",
+      "description": "Seeded meeting activity",
+      "scheduled_at": "2026-02-22T12:24:25.635Z",
+      "duration_minutes": 33,
+      "meeting_type": "video",
+      "meeting_id": "SEED-1775651035860-15",
+      "meeting_link": "https://hr.codewithseth.co.ke/meeting/SEED-1775651035860-15",
+      "require_password": false,
+      "status": "completed",
+      "organizer_id": "69d648de85b5b46253ae9c62",
+      "attendees": [
+        {
+          "user_id": "69d648de85b5b46253ae9c68",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-02-22T12:24:25.635Z",
+          "left_at": "2026-02-22T13:03:25.635Z",
+          "duration_minutes": 84,
+          "_id": "69d648f985b5b46253aea14e"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c67",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-02-22T12:24:25.635Z",
+          "left_at": "2026-02-22T13:03:25.635Z",
+          "duration_minutes": 47,
+          "_id": "69d648f985b5b46253aea14f"
+        },
+        {
+          "user_id": "69d63bddc81e84290298784f",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-02-22T12:24:25.635Z",
+          "left_at": "2026-02-22T13:03:25.635Z",
+          "duration_minutes": 49,
+          "_id": "69d648f985b5b46253aea150"
+        }
+      ],
+      "actual_start_time": "2026-02-22T12:24:25.635Z",
+      "actual_end_time": "2026-02-22T13:03:25.635Z",
+      "transcript": "Seed transcript: reviewed progress, blockers, and action items.",
+      "ai_summary": "Seed AI summary for meeting.",
+      "key_points": [
+        "Reviewed KPIs",
+        "Resolved blockers",
+        "Planned next sprint"
+      ],
+      "action_items": [
+        {
+          "description": "Follow up on assigned tasks",
+          "assigned_to": "69d63bddc81e84290298784f",
+          "due_date": "2026-04-15T12:24:25.635Z",
+          "_id": "69d648f985b5b46253aea151"
+        }
+      ],
+      "ai_processed": true,
+      "ai_processing_status": "completed",
+      "__v": 0,
+      "created_at": "2026-04-08T12:24:25.671Z",
+      "updated_at": "2026-04-08T12:24:25.671Z"
+    },
+    {
+      "_id": "69d648f985b5b46253aea15a",
+      "org_id": "69d63bdcc81e84290298784d",
+      "title": "Ops Standup #17",
+      "description": "Seeded meeting activity",
+      "scheduled_at": "2026-02-20T12:24:25.635Z",
+      "duration_minutes": 43,
+      "meeting_type": "video",
+      "meeting_id": "SEED-1775651035860-17",
+      "meeting_link": "https://hr.codewithseth.co.ke/meeting/SEED-1775651035860-17",
+      "require_password": false,
+      "status": "completed",
+      "organizer_id": "69d63bddc81e84290298784f",
+      "attendees": [
+        {
+          "user_id": "69d648de85b5b46253ae9c68",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-02-20T12:24:25.635Z",
+          "left_at": "2026-02-20T13:07:25.635Z",
+          "duration_minutes": 48,
+          "_id": "69d648f985b5b46253aea15b"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c67",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": false,
+          "joined_at": "2026-02-20T12:24:25.635Z",
+          "left_at": "2026-02-20T13:07:25.635Z",
+          "duration_minutes": 38,
+          "_id": "69d648f985b5b46253aea15c"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c6a",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-02-20T12:24:25.635Z",
+          "left_at": "2026-02-20T13:07:25.635Z",
+          "duration_minutes": 54,
+          "_id": "69d648f985b5b46253aea15d"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c6f",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-02-20T12:24:25.635Z",
+          "left_at": "2026-02-20T13:07:25.635Z",
+          "duration_minutes": 71,
+          "_id": "69d648f985b5b46253aea15e"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c63",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-02-20T12:24:25.635Z",
+          "left_at": "2026-02-20T13:07:25.635Z",
+          "duration_minutes": 79,
+          "_id": "69d648f985b5b46253aea15f"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c6b",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-02-20T12:24:25.635Z",
+          "left_at": "2026-02-20T13:07:25.635Z",
+          "duration_minutes": 59,
+          "_id": "69d648f985b5b46253aea160"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c65",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-02-20T12:24:25.635Z",
+          "left_at": "2026-02-20T13:07:25.635Z",
+          "duration_minutes": 58,
+          "_id": "69d648f985b5b46253aea161"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c71",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-02-20T12:24:25.635Z",
+          "left_at": "2026-02-20T13:07:25.635Z",
+          "duration_minutes": 83,
+          "_id": "69d648f985b5b46253aea162"
+        }
+      ],
+      "actual_start_time": "2026-02-20T12:24:25.635Z",
+      "actual_end_time": "2026-02-20T13:07:25.635Z",
+      "transcript": "Seed transcript: reviewed progress, blockers, and action items.",
+      "ai_summary": "Seed AI summary for meeting.",
+      "key_points": [
+        "Reviewed KPIs",
+        "Resolved blockers",
+        "Planned next sprint"
+      ],
+      "action_items": [
+        {
+          "description": "Follow up on assigned tasks",
+          "assigned_to": "69d648de85b5b46253ae9c69",
+          "due_date": "2026-04-15T12:24:25.635Z",
+          "_id": "69d648f985b5b46253aea163"
+        }
+      ],
+      "ai_processed": true,
+      "ai_processing_status": "completed",
+      "__v": 0,
+      "created_at": "2026-04-08T12:24:25.672Z",
+      "updated_at": "2026-04-08T12:24:25.672Z"
+    },
+    {
+      "_id": "69d648f985b5b46253aea16a",
+      "org_id": "69d63bdcc81e84290298784d",
+      "title": "Sprint Planning #19",
+      "description": "Seeded meeting activity",
+      "scheduled_at": "2026-02-27T12:24:25.635Z",
+      "duration_minutes": 75,
+      "meeting_type": "video",
+      "meeting_id": "SEED-1775651035860-19",
+      "meeting_link": "https://hr.codewithseth.co.ke/meeting/SEED-1775651035860-19",
+      "require_password": false,
+      "status": "cancelled",
+      "organizer_id": "69d63bddc81e84290298784f",
+      "attendees": [
+        {
+          "user_id": "69d648de85b5b46253ae9c68",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-02-27T12:24:25.635Z",
+          "left_at": "2026-02-27T13:49:25.635Z",
+          "duration_minutes": 46,
+          "_id": "69d648f985b5b46253aea16b"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c67",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": false,
+          "joined_at": "2026-02-27T12:24:25.635Z",
+          "left_at": "2026-02-27T13:49:25.635Z",
+          "duration_minutes": 45,
+          "_id": "69d648f985b5b46253aea16c"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c6a",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-02-27T12:24:25.635Z",
+          "left_at": "2026-02-27T13:49:25.635Z",
+          "duration_minutes": 29,
+          "_id": "69d648f985b5b46253aea16d"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c6f",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": false,
+          "joined_at": "2026-02-27T12:24:25.635Z",
+          "left_at": "2026-02-27T13:49:25.635Z",
+          "duration_minutes": 58,
+          "_id": "69d648f985b5b46253aea16e"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c63",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-02-27T12:24:25.635Z",
+          "left_at": "2026-02-27T13:49:25.635Z",
+          "duration_minutes": 70,
+          "_id": "69d648f985b5b46253aea16f"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c6b",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": false,
+          "joined_at": "2026-02-27T12:24:25.635Z",
+          "left_at": "2026-02-27T13:49:25.635Z",
+          "duration_minutes": 68,
+          "_id": "69d648f985b5b46253aea170"
+        }
+      ],
+      "actual_start_time": "2026-02-27T12:24:25.635Z",
+      "actual_end_time": "2026-02-27T13:49:25.635Z",
+      "transcript": "Seed transcript: reviewed progress, blockers, and action items.",
+      "ai_summary": "Seed AI summary for meeting.",
+      "key_points": [
+        "Reviewed KPIs",
+        "Resolved blockers",
+        "Planned next sprint"
+      ],
+      "action_items": [
+        {
+          "description": "Follow up on assigned tasks",
+          "assigned_to": "69d648de85b5b46253ae9c64",
+          "due_date": "2026-04-15T12:24:25.635Z",
+          "_id": "69d648f985b5b46253aea171"
+        }
+      ],
+      "ai_processed": true,
+      "ai_processing_status": "completed",
+      "__v": 0,
+      "created_at": "2026-04-08T12:24:25.672Z",
+      "updated_at": "2026-04-08T12:24:25.672Z"
+    },
+    {
+      "_id": "69d648f985b5b46253aea1bf",
+      "org_id": "69d63bdcc81e84290298784d",
+      "title": "Sprint Planning #30",
+      "description": "Seeded meeting activity",
+      "scheduled_at": "2026-02-24T12:24:25.635Z",
+      "duration_minutes": 80,
+      "meeting_type": "video",
+      "meeting_id": "SEED-1775651035860-30",
+      "meeting_link": "https://hr.codewithseth.co.ke/meeting/SEED-1775651035860-30",
+      "require_password": false,
+      "status": "completed",
+      "organizer_id": "69d648de85b5b46253ae9c62",
+      "attendees": [
+        {
+          "user_id": "69d648de85b5b46253ae9c68",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-02-24T12:24:25.635Z",
+          "left_at": "2026-02-24T13:06:25.635Z",
+          "duration_minutes": 37,
+          "_id": "69d648f985b5b46253aea1c0"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c67",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-02-24T12:24:25.635Z",
+          "left_at": "2026-02-24T13:06:25.635Z",
+          "duration_minutes": 89,
+          "_id": "69d648f985b5b46253aea1c1"
+        },
+        {
+          "user_id": "69d63bddc81e84290298784f",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-02-24T12:24:25.635Z",
+          "left_at": "2026-02-24T13:06:25.635Z",
+          "duration_minutes": 46,
+          "_id": "69d648f985b5b46253aea1c2"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c6a",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": true,
+          "joined_at": "2026-02-24T12:24:25.635Z",
+          "left_at": "2026-02-24T13:06:25.635Z",
+          "duration_minutes": 69,
+          "_id": "69d648f985b5b46253aea1c3"
+        },
+        {
+          "user_id": "69d648de85b5b46253ae9c6f",
+          "is_guest": false,
+          "status": "accepted",
+          "attended": false,
+          "joined_at": "2026-02-24T12:24:25.635Z",
+          "left_at": "2026-02-24T13:06:25.635Z",
+          "duration_minutes": 59,
+          "_id": "69d648f985b5b46253aea1c4"
+        }
+      ],
+      "actual_start_time": "2026-02-24T12:24:25.635Z",
+      "actual_end_time": "2026-02-24T13:06:25.635Z",
+      "transcript": "Seed transcript: reviewed progress, blockers, and action items.",
+      "ai_summary": "Seed AI summary for meeting.",
+      "key_points": [
+        "Reviewed KPIs",
+        "Resolved blockers",
+        "Planned next sprint"
+      ],
+      "action_items": [
+        {
+          "description": "Follow up on assigned tasks",
+          "assigned_to": "69d648de85b5b46253ae9c6c",
+          "due_date": "2026-04-15T12:24:25.635Z",
+          "_id": "69d648f985b5b46253aea1c5"
+        }
+      ],
+      "ai_processed": true,
+      "ai_processing_status": "completed",
+      "__v": 0,
+      "created_at": "2026-04-08T12:24:25.672Z",
+      "updated_at": "2026-04-08T12:24:25.672Z"
+    }
+  ],
+  "summary": {
+    "meetings": 30
+  }
+}

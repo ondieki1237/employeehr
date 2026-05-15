@@ -1,8 +1,8 @@
 import bcrypt from "bcryptjs"
-import jwt from "jsonwebtoken"
-import { User } from "../models/User"
-import { Company } from "../models/Company"
+import prisma from "../lib/prisma"
+import { splitName, toLegacyCompany, toLegacyUser } from "../lib/mysqlAdapters"
 import { generateToken } from "../config/auth"
+import type { Prisma } from "@prisma/client"
 import type { IUser, ICompany, IJWTPayload, IAPIResponse } from "../types/interfaces"
 import { emailService } from "./emailService"
 
@@ -12,8 +12,19 @@ export class AuthService {
     data: Partial<ICompany> & { adminEmail: string; adminPassword: string; adminName: string },
   ): Promise<IAPIResponse<{ company: ICompany; user: IUser; token: string }>> {
     try {
+      const companyEmail = String(data.email || "").toLowerCase().trim()
+      const adminEmail = String(data.adminEmail || "").toLowerCase().trim()
+      const companyName = String(data.name || "").trim()
+
+      if (!companyName || !String(data.industry || "").trim() || !Number(data.employeeCount) || !adminEmail || !data.adminPassword || !String(data.adminName || "").trim()) {
+        return {
+          success: false,
+          message: "Company name, industry, employee count, admin name, admin email, and admin password are required",
+        }
+      }
+
       // Check if company email already exists
-      const existingCompany = await Company.findOne({ email: data.email })
+      const existingCompany = await prisma.company.findUnique({ where: { email: companyEmail } })
       if (existingCompany) {
         return {
           success: false,
@@ -22,7 +33,7 @@ export class AuthService {
       }
 
       // Generate unique slug from company name
-      const baseSlug = data.name
+      const baseSlug = companyName
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, "-")
         .replace(/^-+|-+$/g, "")
@@ -31,47 +42,48 @@ export class AuthService {
       let slugCounter = 1
       
       // Ensure slug is unique
-      while (await Company.findOne({ slug })) {
+      while (await prisma.company.findUnique({ where: { slug } })) {
         slug = `${baseSlug}-${slugCounter}`
         slugCounter++
       }
 
-      // Create company
-      const company = new Company({
-        name: data.name,
-        slug,
-        email: data.email,
-        phone: data.phone,
-        website: data.website,
-        industry: data.industry,
-        employeeCount: data.employeeCount,
-      })
-
-      const savedCompany = await company.save()
-
-      // Create admin user
       const hashedPassword = await bcrypt.hash(data.adminPassword, 10)
-      const [firstName, ...lastNameParts] = data.adminName.split(" ")
-      const lastName = lastNameParts.join(" ") || "Admin"
+      const { firstName, lastName } = splitName(data.adminName)
 
-      const user = new User({
-        org_id: savedCompany._id.toString(),
-        firstName,
-        lastName,
-        email: data.adminEmail,
-        password: hashedPassword,
-        role: "company_admin",
-        status: "active",
+      const saved = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+        const company = await tx.company.create({
+          data: {
+            name: companyName,
+            slug,
+            email: companyEmail,
+            phone: data.phone || null,
+            website: data.website || null,
+            industry: String(data.industry || "").trim(),
+            employeeCount: Number(data.employeeCount || 0),
+          },
+        })
+
+        const user = await tx.user.create({
+          data: {
+            orgId: company.id,
+            firstName,
+            lastName,
+            email: adminEmail,
+            password: hashedPassword,
+            role: "company_admin",
+            status: "active",
+          },
+        })
+
+        return { company, user }
       })
-
-      const savedUser = await user.save()
 
       // Generate token
       const payload: IJWTPayload = {
-        userId: savedUser._id.toString(),
-        org_id: savedCompany._id.toString(),
-        email: savedUser.email,
-        role: savedUser.role,
+        userId: saved.user.id,
+        org_id: saved.company.id,
+        email: saved.user.email,
+        role: saved.user.role,
       }
 
       const token = generateToken(payload)
@@ -80,8 +92,12 @@ export class AuthService {
         success: true,
         message: "Company registered successfully",
         data: {
-          company: savedCompany.toObject(),
-          user: { ...savedUser.toObject(), password: undefined },
+          company: toLegacyCompany(saved.company),
+          user: (() => {
+            const legacyUser = toLegacyUser(saved.user)
+            delete (legacyUser as unknown as { password?: string }).password
+            return legacyUser
+          })(),
           token,
         },
       }
@@ -97,7 +113,7 @@ export class AuthService {
   // User Login
   static async login(email: string, password: string): Promise<IAPIResponse<{ user: IUser; token: string }>> {
     try {
-      const user = await User.findOne({ email: email.toLowerCase() })
+      const user = await prisma.user.findUnique({ where: { email: email.toLowerCase() } })
 
       if (!user) {
         return {
@@ -124,7 +140,7 @@ export class AuthService {
       }
 
       // Check if company is frozen
-      const company = await Company.findById(user.org_id)
+      const company = await prisma.company.findUnique({ where: { id: user.orgId } })
       if (company?.isFrozen) {
         return {
           success: false,
@@ -134,8 +150,8 @@ export class AuthService {
 
       // Generate token
       const payload: IJWTPayload = {
-        userId: user._id.toString(),
-        org_id: user.org_id,
+        userId: user.id,
+        org_id: user.orgId,
         email: user.email,
         role: user.role,
       }
@@ -146,7 +162,11 @@ export class AuthService {
         success: true,
         message: "Login successful",
         data: {
-          user: { ...user.toObject(), password: undefined },
+          user: (() => {
+            const legacyUser = toLegacyUser(user)
+            delete (legacyUser as unknown as { password?: string }).password
+            return legacyUser
+          })(),
           token,
         },
       }
@@ -165,11 +185,10 @@ export class AuthService {
     data: Partial<IUser> & { email: string; password?: string; inviter_name?: string },
   ): Promise<IAPIResponse<IUser>> {
     try {
+      const email = String(data.email || "").toLowerCase().trim()
+
       // Check if user already exists
-      const existingUser = await User.findOne({
-        org_id,
-        email: data.email.toLowerCase(),
-      })
+      const existingUser = await prisma.user.findUnique({ where: { email } })
 
       if (existingUser) {
         return {
@@ -182,22 +201,22 @@ export class AuthService {
       const hashedPassword = await bcrypt.hash(tempPassword, 10)
 
       // Support both camelCase and snake_case field names
-      const firstName = data.firstName || (data as any).first_name
-      const lastName = data.lastName || (data as any).last_name
+      const firstName = String(data.firstName || (data as any).first_name || "").trim() || "Employee"
+      const lastName = String(data.lastName || (data as any).last_name || "").trim() || "User"
 
-      const user = new User({
-        org_id,
-        firstName,
-        lastName,
-        email: data.email.toLowerCase(),
-        password: hashedPassword,
-        role: data.role || "employee",
-        department: data.department,
-        manager_id: data.manager_id,
-        status: "active",
+      const savedUser = await prisma.user.create({
+        data: {
+          orgId: org_id,
+          firstName,
+          lastName,
+          email,
+          password: hashedPassword,
+          role: data.role || "employee",
+          department: data.department || null,
+          managerId: data.manager_id || null,
+          status: "active",
+        },
       })
-
-      const savedUser = await user.save()
 
       // Send invitation email
       try {
@@ -220,7 +239,11 @@ export class AuthService {
       return {
         success: true,
         message: "Employee created successfully",
-        data: { ...savedUser.toObject(), password: undefined } as IUser,
+        data: (() => {
+          const legacyUser = toLegacyUser(savedUser)
+          delete (legacyUser as unknown as { password?: string }).password
+          return legacyUser
+        })() as IUser,
       }
     } catch (error) {
       return {
@@ -234,7 +257,7 @@ export class AuthService {
   // Change Password
   static async changePassword(userId: string, oldPassword: string, newPassword: string): Promise<IAPIResponse<null>> {
     try {
-      const user = await User.findById(userId)
+      const user = await prisma.user.findUnique({ where: { id: userId } })
 
       if (!user) {
         return {
@@ -254,8 +277,10 @@ export class AuthService {
 
       // Hash and save new password
       const hashedPassword = await bcrypt.hash(newPassword, 10)
-      user.password = hashedPassword
-      await user.save()
+      await prisma.user.update({
+        where: { id: userId },
+        data: { password: hashedPassword },
+      })
 
       return {
         success: true,
@@ -278,7 +303,7 @@ export class AuthService {
   ): Promise<IAPIResponse<{ user: IUser; token: string; company: ICompany }>> {
     try {
       // First, find the company by slug
-      const company = await Company.findOne({ slug: slug.toLowerCase() })
+      const company = await prisma.company.findUnique({ where: { slug: slug.toLowerCase() } })
 
       if (!company) {
         return {
@@ -303,9 +328,11 @@ export class AuthService {
       }
 
       // Find user in that company
-      const user = await User.findOne({
-        email: email.toLowerCase(),
-        org_id: company._id.toString(),
+      const user = await prisma.user.findFirst({
+        where: {
+          email: email.toLowerCase(),
+          orgId: company.id,
+        },
       })
 
       if (!user) {
@@ -334,8 +361,8 @@ export class AuthService {
 
       // Generate token
       const payload: IJWTPayload = {
-        userId: user._id.toString(),
-        org_id: user.org_id,
+        userId: user.id,
+        org_id: user.orgId,
         email: user.email,
         role: user.role,
       }
@@ -346,9 +373,9 @@ export class AuthService {
         success: true,
         message: "Login successful",
         data: {
-          user: { ...user.toObject(), password: undefined } as any,
+          user: { ...toLegacyUser(user), password: undefined } as any,
           token,
-          company: { ...company.toObject() } as ICompany,
+          company: toLegacyCompany(company),
         },
       }
     } catch (error) {
@@ -363,10 +390,10 @@ export class AuthService {
   // Validate company exists
   static async validateCompany(slug: string): Promise<IAPIResponse<{ company: Partial<ICompany> }>> {
     try {
-      const company = await Company.findOne(
-        { slug: slug.toLowerCase() },
-        { name: 1, slug: 1, logo: 1, primaryColor: 1, secondaryColor: 1, status: 1 }
-      )
+      const company = await prisma.company.findUnique({
+        where: { slug: slug.toLowerCase() },
+        select: { name: true, slug: true, logo: true, primaryColor: true, secondaryColor: true, status: true },
+      })
 
       if (!company) {
         return {
@@ -386,7 +413,7 @@ export class AuthService {
         success: true,
         message: "Company found",
         data: {
-          company: company.toObject() as any,
+          company: company as any,
         },
       }
     } catch (error) {
@@ -405,7 +432,9 @@ export class AuthService {
   ): Promise<IAPIResponse<{ user: IUser; token: string; company: ICompany }>> {
     try {
       // Find user by employee_id
-      const user = await User.findOne({ employee_id: employee_id.toUpperCase() })
+      const user = await prisma.user.findFirst({
+        where: { employeeId: employee_id.toUpperCase() },
+      })
 
       if (!user) {
         return {
@@ -432,7 +461,7 @@ export class AuthService {
       }
 
       // Get company info
-      const company = await Company.findById(user.org_id)
+      const company = await prisma.company.findUnique({ where: { id: user.orgId } })
       if (!company) {
         return {
           success: false,
@@ -449,8 +478,8 @@ export class AuthService {
 
       // Generate token
       const payload: IJWTPayload = {
-        userId: user._id.toString(),
-        org_id: user.org_id,
+        userId: user.id,
+        org_id: user.orgId,
         email: user.email,
         role: user.role,
       }
@@ -461,9 +490,9 @@ export class AuthService {
         success: true,
         message: "Login successful",
         data: {
-          user: { ...user.toObject(), password: undefined } as any,
+          user: { ...toLegacyUser(user), password: undefined } as any,
           token,
-          company: { ...company.toObject() } as ICompany,
+          company: toLegacyCompany(company),
         },
       }
     } catch (error) {

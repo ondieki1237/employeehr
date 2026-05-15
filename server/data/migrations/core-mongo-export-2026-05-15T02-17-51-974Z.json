@@ -1,0 +1,600 @@
+{
+  "exportedAt": "2026-05-15T02:17:51.975Z",
+  "companies": [
+    {
+      "_id": "69d63bdcc81e84290298784d",
+      "name": "accord",
+      "slug": "accord",
+      "email": "bellarinseth@gmail.com",
+      "industry": "healthcare",
+      "employeeCount": 50,
+      "primaryColor": "#2563eb",
+      "secondaryColor": "#059669",
+      "accentColor": "#f59e0b",
+      "backgroundColor": "#ffffff",
+      "textColor": "#1f2937",
+      "borderRadius": "0.5rem",
+      "fontFamily": "system-ui",
+      "buttonStyle": "rounded",
+      "subscription": "starter",
+      "status": "active",
+      "emailConfig": {
+        "enabled": true,
+        "verified": false,
+        "fromName": "accord",
+        "fromEmail": "test@astermedsupplies.co.ke",
+        "smtp": {
+          "host": "mail.astermedsupplies.co.ke",
+          "port": 587,
+          "secure": false,
+          "username": "ACCORD",
+          "password": "seth123qP1"
+        }
+      },
+      "setupProgress": {
+        "steps": {
+          "companyInfo": true,
+          "branding": true,
+          "emailConfig": true,
+          "employees": true,
+          "kpis": true
+        },
+        "completed": true,
+        "currentStep": "companyInfo"
+      },
+      "pageAccessSettings": {
+        "adminSectionsByRole": {
+          "company_admin": [
+            "CORE",
+            "RECRUITMENT",
+            "EMPLOYEE MANAGEMENT",
+            "INVENTORY MANAGER",
+            "PERFORMANCE",
+            "SYSTEM"
+          ],
+          "hr": [
+            "CORE",
+            "RECRUITMENT",
+            "EMPLOYEE MANAGEMENT",
+            "INVENTORY MANAGER",
+            "PERFORMANCE",
+            "SYSTEM"
+          ],
+          "manager": [],
+          "employee": []
+        },
+        "adminSectionsByUser": {}
+      },
+      "createdAt": "2026-04-08T11:28:28.913Z",
+      "updatedAt": "2026-05-13T09:49:43.756Z",
+      "__v": 0,
+      "dispatchSmsSettings": {
+        "messageTemplate": "Hello {{clientName}}, your package for invoice {{invoiceNumber}} (DN {{deliveryNoteNumber}}) has been dispatched. Courier: {{courierName}} ({{courierContactNumber}}). For inquiries, call office: {{officeContactNumber}}. Thank you.",
+        "officePhone": "0723456789"
+      },
+      "invoiceSettings": {
+        "includeDeliveryNoteNumber": true,
+        "includePaymentChannels": true,
+        "includePreparedBy": true,
+        "includeQuotationReference": true,
+        "includeVat": false,
+        "invoiceEmail": "sethtest@gmail.com",
+        "paymentChannels": [
+          {
+            "channelName": "bank test1",
+            "bankName": "equity",
+            "accountName": "bank",
+            "accountNumber": "2332323232323",
+            "branch": "nairobi",
+            "notes": "",
+            "_id": "6a044937ad0f8a7a6769d354"
+          }
+        ],
+        "termsAndConditions": "Payment is due within 7 days from the invoice date. \nAll items remain the property of the company until fully paid.\nGoods once sold are subject to the company return policy.",
+        "contactEmail": "done@gmail.com",
+        "contactPhone": "+254758433906",
+        "officeLocation": "Nairobi baba dogo",
+        "pinNumber": "34567GJSF",
+        "vatNumber": "ERTYUIOPDPOKJH34567",
+        "website": "https://codewithseth.co.ke"
+      },
+      "logo": "logo-1775811776363-458059850.png"
+    },
+    {
+      "_id": "69f9cf05a3122769268f9205",
+      "name": "Accord",
+      "slug": "accord-1",
+      "email": "accord@gmail.com",
+      "industry": "General",
+      "employeeCount": 1,
+      "primaryColor": "#2563eb",
+      "secondaryColor": "#059669",
+      "accentColor": "#f59e0b",
+      "backgroundColor": "#ffffff",
+      "textColor": "#1f2937",
+      "borderRadius": "0.5rem",
+      "fontFamily": "system-ui",
+      "buttonStyle": "rounded",
+      "subscription": "starter",
+      "status": "active",
+      "emailConfig": {
+        "smtp": {
+          "secure": false
+        },
+        "enabled": false,
+        "verified": false
+      },
+      "invoiceSettings": {
+        "includeQuotationReference": true,
+        "includeDeliveryNoteNumber": true,
+        "includePreparedBy": true,
+        "includeVat": true,
+        "includePaymentChannels": true,
+        "paymentChannels": []
+      },
+      "setupProgress": {
+        "steps": {
+          "companyInfo": true,
+          "branding": true,
+          "emailConfig": true,
+          "employees": false,
+          "kpis": false
+        },
+        "completed": true,
+        "currentStep": "companyInfo"
+      },
+      "pageAccessSettings": {
+        "adminSectionsByRole": {
+          "company_admin": [
+            "CORE",
+            "RECRUITMENT",
+            "EMPLOYEE MANAGEMENT",
+            "INVENTORY MANAGER",
+            "ACCOUNTS",
+            "PERFORMANCE",
+            "SYSTEM"
+          ],
+          "hr": [
+            "CORE",
+            "RECRUITMENT",
+            "EMPLOYEE MANAGEMENT",
+            "INVENTORY MANAGER",
+            "ACCOUNTS",
+            "PERFORMANCE",
+            "SYSTEM"
+          ],
+          "manager": [],
+          "employee": []
+        },
+        "adminSectionsByUser": {}
+      },
+      "createdAt": "2026-05-05T11:05:41.848Z",
+      "updatedAt": "2026-05-05T11:45:57.213Z",
+      "__v": 0
+    },
+    {
+      "_id": "6a04a763bac14dd15bcb7e57",
+      "name": "TARUMED SUPPLIES LTD",
+      "slug": "tarumed-supplies-ltd",
+      "email": "info.tarumed@gmail.com",
+      "industry": "healthcare",
+      "employeeCount": 10,
+      "primaryColor": "#273b8d",
+      "secondaryColor": "#00A3E0",
+      "accentColor": "#42b0a7",
+      "backgroundColor": "#ffffff",
+      "textColor": "#1f2937",
+      "borderRadius": "0.5rem",
+      "fontFamily": "system-ui",
+      "buttonStyle": "rounded",
+      "subscription": "starter",
+      "status": "active",
+      "emailConfig": {
+        "smtp": {
+          "secure": false
+        },
+        "enabled": false,
+        "verified": false
+      },
+      "invoiceSettings": {
+        "includeQuotationReference": true,
+        "includeDeliveryNoteNumber": true,
+        "includePreparedBy": true,
+        "includeVat": false,
+        "includePaymentChannels": true,
+        "paymentChannels": [],
+        "contactEmail": "info.tarumed@gmail.com",
+        "contactPhone": "+254715 084 078/ +254704 508 602",
+        "invoiceEmail": "info.tarumed@gmail.com",
+        "officeLocation": "Serani Mall, Plateau Rd 1st floor, Room S11 Eldoret",
+        "pinNumber": "",
+        "termsAndConditions": "Payment is due within 7 days from the invoice date. All items remain the property of the company until fully paid. Goods once sold are subject to the company return policy.",
+        "vatNumber": "",
+        "website": "tarumed.co.ke",
+        "secondLocation": "Standard Business Centre Kenyatta Street, Room 25, Kitale",
+        "useBothLocations": true
+      },
+      "setupProgress": {
+        "steps": {
+          "companyInfo": true,
+          "branding": true,
+          "emailConfig": true,
+          "employees": true,
+          "kpis": true
+        },
+        "completed": true,
+        "currentStep": "companyInfo"
+      },
+      "pageAccessSettings": {
+        "adminSectionsByRole": {
+          "company_admin": [
+            "CORE",
+            "RECRUITMENT",
+            "EMPLOYEE MANAGEMENT",
+            "INVENTORY MANAGER",
+            "ACCOUNTS",
+            "PERFORMANCE",
+            "SYSTEM"
+          ],
+          "hr": [
+            "CORE",
+            "RECRUITMENT",
+            "EMPLOYEE MANAGEMENT",
+            "INVENTORY MANAGER",
+            "ACCOUNTS",
+            "PERFORMANCE",
+            "SYSTEM"
+          ],
+          "manager": [],
+          "employee": []
+        },
+        "adminSectionsByUser": {}
+      },
+      "createdAt": "2026-05-13T16:31:31.587Z",
+      "updatedAt": "2026-05-14T13:00:21.209Z",
+      "__v": 0,
+      "logo": "http://localhost:5010/uploads/logos/tarumedlogo-1778741321378-57400936.png"
+    }
+  ],
+  "users": [
+    {
+      "_id": "69d63bddc81e84290298784f",
+      "org_id": "69d63bdcc81e84290298784d",
+      "firstName": "Admin",
+      "lastName": "Admin",
+      "email": "bellarinseth@gmail.com",
+      "password": "$2a$10$q0IY24qf5CecDCqGCy3jHOeESxsiZkIJco.kLVgShd/65itOv.cOu",
+      "role": "company_admin",
+      "status": "active",
+      "createdAt": "2026-04-08T11:28:29.252Z",
+      "updatedAt": "2026-04-08T11:28:29.252Z",
+      "__v": 0
+    },
+    {
+      "_id": "69d6415fbfd1e682eb830d39",
+      "org_id": "69d63bdcc81e84290298784d",
+      "firstName": "seth",
+      "lastName": "makoriaa",
+      "email": "makoriseth1237@gmail.com",
+      "password": "$2a$10$Fh0TxUzIWy1NoKT9l/VqDe0ecu1ugAKyLR930OH6jmjmyLox86fjK",
+      "role": "employee",
+      "department": "eng",
+      "status": "active",
+      "createdAt": "2026-04-08T11:51:59.066Z",
+      "updatedAt": "2026-04-09T06:11:48.482Z",
+      "__v": 0,
+      "phone": "+254759433906"
+    },
+    {
+      "_id": "69d648de85b5b46253ae9c68",
+      "org_id": "69d63bdcc81e84290298784d",
+      "firstName": "Ava",
+      "lastName": "Mutua",
+      "email": "ava.mutua.1775651035860.6@seed.local",
+      "password": "$2a$10$wYhUVk/wrFJkwovy/kDk9.Ci2tX8ThQtixs758Dt6F4n/MV3JERUC",
+      "role": "employee",
+      "department": "Sales",
+      "position": "Staff",
+      "status": "active",
+      "__v": 0,
+      "createdAt": "2026-04-08T12:23:58.754Z",
+      "updatedAt": "2026-05-14T08:26:49.633Z",
+      "promptStampOnPdf": false
+    },
+    {
+      "_id": "69d648de85b5b46253ae9c6a",
+      "org_id": "69d63bdcc81e84290298784d",
+      "firstName": "Emma",
+      "lastName": "Mwangi",
+      "email": "emma.mwangi.1775651035860.8@seed.local",
+      "password": "$2a$10$wYhUVk/wrFJkwovy/kDk9.Ci2tX8ThQtixs758Dt6F4n/MV3JERUC",
+      "role": "employee",
+      "department": "Finance",
+      "position": "Staff",
+      "status": "active",
+      "__v": 0,
+      "createdAt": "2026-04-08T12:23:58.754Z",
+      "updatedAt": "2026-04-08T12:23:58.754Z"
+    },
+    {
+      "_id": "69d648de85b5b46253ae9c6c",
+      "org_id": "69d63bdcc81e84290298784d",
+      "firstName": "Jay",
+      "lastName": "Njoroge",
+      "email": "jay.njoroge.1775651035860.10@seed.local",
+      "password": "$2a$10$wYhUVk/wrFJkwovy/kDk9.Ci2tX8ThQtixs758Dt6F4n/MV3JERUC",
+      "role": "employee",
+      "department": "Operations",
+      "position": "Staff",
+      "status": "active",
+      "__v": 0,
+      "createdAt": "2026-04-08T12:23:58.754Z",
+      "updatedAt": "2026-04-08T12:23:58.754Z"
+    },
+    {
+      "_id": "69d648de85b5b46253ae9c71",
+      "org_id": "69d63bdcc81e84290298784d",
+      "firstName": "Grace",
+      "lastName": "Njoroge",
+      "email": "grace.njoroge.1775651035860.15@seed.local",
+      "password": "$2a$10$wYhUVk/wrFJkwovy/kDk9.Ci2tX8ThQtixs758Dt6F4n/MV3JERUC",
+      "role": "employee",
+      "department": "Finance",
+      "position": "Staff",
+      "status": "active",
+      "__v": 0,
+      "createdAt": "2026-04-08T12:23:58.754Z",
+      "updatedAt": "2026-04-08T12:23:58.754Z"
+    },
+    {
+      "_id": "69d648de85b5b46253ae9c62",
+      "org_id": "69d63bdcc81e84290298784d",
+      "firstName": "Noah",
+      "lastName": "Maina",
+      "email": "noah.maina.1775651035860.0@seed.local",
+      "password": "$2a$10$wYhUVk/wrFJkwovy/kDk9.Ci2tX8ThQtixs758Dt6F4n/MV3JERUC",
+      "role": "manager",
+      "department": "Sales",
+      "position": "Team Lead",
+      "status": "active",
+      "__v": 0,
+      "createdAt": "2026-04-08T12:23:58.753Z",
+      "updatedAt": "2026-04-08T12:23:58.753Z"
+    },
+    {
+      "_id": "69d648de85b5b46253ae9c6d",
+      "org_id": "69d63bdcc81e84290298784d",
+      "firstName": "Mia",
+      "lastName": "Kariuki",
+      "email": "mia.kariuki.1775651035860.11@seed.local",
+      "password": "$2a$10$wYhUVk/wrFJkwovy/kDk9.Ci2tX8ThQtixs758Dt6F4n/MV3JERUC",
+      "role": "employee",
+      "department": "Support",
+      "position": "Staff",
+      "status": "active",
+      "__v": 0,
+      "createdAt": "2026-04-08T12:23:58.754Z",
+      "updatedAt": "2026-04-08T12:23:58.754Z"
+    },
+    {
+      "_id": "69d648de85b5b46253ae9c70",
+      "org_id": "69d63bdcc81e84290298784d",
+      "firstName": "Jay",
+      "lastName": "Maina",
+      "email": "jay.maina.1775651035860.14@seed.local",
+      "password": "$2a$10$wYhUVk/wrFJkwovy/kDk9.Ci2tX8ThQtixs758Dt6F4n/MV3JERUC",
+      "role": "employee",
+      "department": "Finance",
+      "position": "Staff",
+      "status": "active",
+      "__v": 0,
+      "createdAt": "2026-04-08T12:23:58.754Z",
+      "updatedAt": "2026-04-08T12:23:58.754Z"
+    },
+    {
+      "_id": "69d648de85b5b46253ae9c73",
+      "org_id": "69d63bdcc81e84290298784d",
+      "firstName": "Noah",
+      "lastName": "Otieno",
+      "email": "noah.otieno.1775651035860.17@seed.local",
+      "password": "$2a$10$wYhUVk/wrFJkwovy/kDk9.Ci2tX8ThQtixs758Dt6F4n/MV3JERUC",
+      "role": "employee",
+      "department": "Finance",
+      "position": "Staff",
+      "status": "active",
+      "__v": 0,
+      "createdAt": "2026-04-08T12:23:58.755Z",
+      "updatedAt": "2026-04-08T12:23:58.755Z"
+    },
+    {
+      "_id": "69d648de85b5b46253ae9c66",
+      "org_id": "69d63bdcc81e84290298784d",
+      "firstName": "Mia",
+      "lastName": "Kimani",
+      "email": "mia.kimani.1775651035860.4@seed.local",
+      "password": "$2a$10$wYhUVk/wrFJkwovy/kDk9.Ci2tX8ThQtixs758Dt6F4n/MV3JERUC",
+      "role": "employee",
+      "department": "Sales",
+      "position": "Staff",
+      "status": "active",
+      "__v": 0,
+      "createdAt": "2026-04-08T12:23:58.754Z",
+      "updatedAt": "2026-04-08T12:23:58.754Z"
+    },
+    {
+      "_id": "69d648de85b5b46253ae9c72",
+      "org_id": "69d63bdcc81e84290298784d",
+      "firstName": "Seth",
+      "lastName": "Kimani",
+      "email": "seth.kimani.1775651035860.16@seed.local",
+      "password": "$2a$10$wYhUVk/wrFJkwovy/kDk9.Ci2tX8ThQtixs758Dt6F4n/MV3JERUC",
+      "role": "employee",
+      "department": "Operations",
+      "position": "Staff",
+      "status": "active",
+      "__v": 0,
+      "createdAt": "2026-04-08T12:23:58.754Z",
+      "updatedAt": "2026-04-08T12:23:58.754Z"
+    },
+    {
+      "_id": "69d648de85b5b46253ae9c63",
+      "org_id": "69d63bdcc81e84290298784d",
+      "firstName": "Ethan",
+      "lastName": "Maina",
+      "email": "ethan.maina.1775651035860.1@seed.local",
+      "password": "$2a$10$wYhUVk/wrFJkwovy/kDk9.Ci2tX8ThQtixs758Dt6F4n/MV3JERUC",
+      "role": "employee",
+      "department": "HR",
+      "position": "Staff",
+      "status": "active",
+      "__v": 0,
+      "createdAt": "2026-04-08T12:23:58.754Z",
+      "updatedAt": "2026-04-08T12:23:58.754Z"
+    },
+    {
+      "_id": "69d648de85b5b46253ae9c64",
+      "org_id": "69d63bdcc81e84290298784d",
+      "firstName": "Noah",
+      "lastName": "Otieno",
+      "email": "noah.otieno.1775651035860.2@seed.local",
+      "password": "$2a$10$wYhUVk/wrFJkwovy/kDk9.Ci2tX8ThQtixs758Dt6F4n/MV3JERUC",
+      "role": "employee",
+      "department": "Engineering",
+      "position": "Staff",
+      "status": "active",
+      "__v": 0,
+      "createdAt": "2026-04-08T12:23:58.754Z",
+      "updatedAt": "2026-04-08T12:23:58.754Z"
+    },
+    {
+      "_id": "69d648de85b5b46253ae9c65",
+      "org_id": "69d63bdcc81e84290298784d",
+      "firstName": "Grace",
+      "lastName": "Mwangi",
+      "email": "grace.mwangi.1775651035860.3@seed.local",
+      "password": "$2a$10$wYhUVk/wrFJkwovy/kDk9.Ci2tX8ThQtixs758Dt6F4n/MV3JERUC",
+      "role": "employee",
+      "department": "Sales",
+      "position": "Staff",
+      "status": "active",
+      "__v": 0,
+      "createdAt": "2026-04-08T12:23:58.754Z",
+      "updatedAt": "2026-04-08T12:23:58.754Z"
+    },
+    {
+      "_id": "69d648de85b5b46253ae9c67",
+      "org_id": "69d63bdcc81e84290298784d",
+      "firstName": "Ava",
+      "lastName": "Njoroge",
+      "email": "ava.njoroge.1775651035860.5@seed.local",
+      "password": "$2a$10$wYhUVk/wrFJkwovy/kDk9.Ci2tX8ThQtixs758Dt6F4n/MV3JERUC",
+      "role": "employee",
+      "department": "Operations",
+      "position": "Staff",
+      "status": "active",
+      "__v": 0,
+      "createdAt": "2026-04-08T12:23:58.754Z",
+      "updatedAt": "2026-04-08T12:23:58.754Z"
+    },
+    {
+      "_id": "69d648de85b5b46253ae9c69",
+      "org_id": "69d63bdcc81e84290298784d",
+      "firstName": "Seth",
+      "lastName": "Achieng",
+      "email": "seth.achieng.1775651035860.7@seed.local",
+      "password": "$2a$10$wYhUVk/wrFJkwovy/kDk9.Ci2tX8ThQtixs758Dt6F4n/MV3JERUC",
+      "role": "employee",
+      "department": "HR",
+      "position": "Staff",
+      "status": "active",
+      "__v": 0,
+      "createdAt": "2026-04-08T12:23:58.754Z",
+      "updatedAt": "2026-04-08T12:23:58.754Z"
+    },
+    {
+      "_id": "69d648de85b5b46253ae9c6b",
+      "org_id": "69d63bdcc81e84290298784d",
+      "firstName": "Grace",
+      "lastName": "Kimani",
+      "email": "grace.kimani.1775651035860.9@seed.local",
+      "password": "$2a$10$wYhUVk/wrFJkwovy/kDk9.Ci2tX8ThQtixs758Dt6F4n/MV3JERUC",
+      "role": "hr",
+      "department": "HR",
+      "position": "HR Officer",
+      "status": "active",
+      "__v": 0,
+      "createdAt": "2026-04-08T12:23:58.754Z",
+      "updatedAt": "2026-04-08T12:23:58.754Z"
+    },
+    {
+      "_id": "69d648de85b5b46253ae9c6e",
+      "org_id": "69d63bdcc81e84290298784d",
+      "firstName": "Jay",
+      "lastName": "Mutua",
+      "email": "jay.mutua.1775651035860.12@seed.local",
+      "password": "$2a$10$wYhUVk/wrFJkwovy/kDk9.Ci2tX8ThQtixs758Dt6F4n/MV3JERUC",
+      "role": "manager",
+      "department": "Support",
+      "position": "Team Lead",
+      "status": "active",
+      "__v": 0,
+      "createdAt": "2026-04-08T12:23:58.754Z",
+      "updatedAt": "2026-04-08T12:23:58.754Z"
+    },
+    {
+      "_id": "69d648de85b5b46253ae9c6f",
+      "org_id": "69d63bdcc81e84290298784d",
+      "firstName": "Emma",
+      "lastName": "Otieno",
+      "email": "emma.otieno.1775651035860.13@seed.local",
+      "password": "$2a$10$wYhUVk/wrFJkwovy/kDk9.Ci2tX8ThQtixs758Dt6F4n/MV3JERUC",
+      "role": "employee",
+      "department": "Finance",
+      "position": "Staff",
+      "status": "active",
+      "__v": 0,
+      "createdAt": "2026-04-08T12:23:58.754Z",
+      "updatedAt": "2026-04-08T12:23:58.754Z"
+    },
+    {
+      "_id": "69f9cf06a3122769268f9208",
+      "org_id": "69f9cf05a3122769268f9205",
+      "firstName": "Accord",
+      "lastName": "Admin",
+      "email": "accord@gmail.com",
+      "password": "$2a$10$qGAxjuT5Kf/yy1WCwrz3b.vREJZ52K.2CU1eMJbyhKDNrCqDviBB6",
+      "role": "company_admin",
+      "status": "active",
+      "createdAt": "2026-05-05T11:05:42.464Z",
+      "updatedAt": "2026-05-05T11:31:57.438Z",
+      "__v": 0
+    },
+    {
+      "_id": "6a04a763bac14dd15bcb7e59",
+      "org_id": "6a04a763bac14dd15bcb7e57",
+      "firstName": "Admin",
+      "lastName": "Admin",
+      "email": "info.tarumed@gmail.com",
+      "password": "$2a$10$a9wdaZgO1eycwOvgiQJNw.CiM1BUgLNqBzX4lTk4fkyPynjQmTsIW",
+      "role": "company_admin",
+      "status": "active",
+      "createdAt": "2026-05-13T16:31:31.994Z",
+      "updatedAt": "2026-05-13T16:31:31.994Z",
+      "__v": 0
+    },
+    {
+      "_id": "6a05408ee64a1d6a902519c0",
+      "org_id": "69d63bdcc81e84290298784d",
+      "firstName": "john",
+      "lastName": "test",
+      "email": "sethmose31@gmail.com",
+      "password": "$2a$10$3Lioqzw3UJEFX6HmzELpre6ah0VdfGIjbVvcuF40sVNHXJzQ0JdGG",
+      "role": "employee",
+      "department": "sales",
+      "status": "active",
+      "createdAt": "2026-05-14T03:25:02.760Z",
+      "updatedAt": "2026-05-14T03:25:02.760Z",
+      "__v": 0
+    }
+  ]
+}

@@ -1,14 +1,18 @@
-import { User } from "../models/User"
+import prisma from "../lib/prisma"
+import { toLegacyUser } from "../lib/mysqlAdapters"
+import { stripUserPassword } from "../lib/userResponse"
 import type { IUser, IAPIResponse } from "../types/interfaces"
 
 export class UserService {
   static async getAllUsers(org_id: string): Promise<IAPIResponse<IUser[]>> {
     try {
-      const users = await User.find({ org_id }).select("-password")
+      const users = await prisma.user.findMany({
+        where: { orgId: org_id },
+      })
       return {
         success: true,
         message: "Users fetched successfully",
-        data: users.map((u) => u.toObject()),
+        data: users.map((u) => stripUserPassword(toLegacyUser(u))),
       }
     } catch (error) {
       return {
@@ -21,7 +25,9 @@ export class UserService {
 
   static async getUserById(org_id: string, userId: string): Promise<IAPIResponse<IUser>> {
     try {
-      const user = await User.findOne({ _id: userId, org_id }).select("-password")
+      const user = await prisma.user.findFirst({
+        where: { id: userId, orgId: org_id },
+      })
 
       if (!user) {
         return {
@@ -33,7 +39,7 @@ export class UserService {
       return {
         success: true,
         message: "User fetched successfully",
-        data: user.toObject(),
+        data: stripUserPassword(toLegacyUser(user)),
       }
     } catch (error) {
       return {
@@ -46,21 +52,38 @@ export class UserService {
 
   static async updateUser(org_id: string, userId: string, data: Partial<IUser>): Promise<IAPIResponse<IUser>> {
     try {
-      const user = await User.findOneAndUpdate({ _id: userId, org_id }, { $set: data }, { new: true }).select(
-        "-password",
-      )
+      const existing = await prisma.user.findFirst({ where: { id: userId, orgId: org_id } })
 
-      if (!user) {
+      if (!existing) {
         return {
           success: false,
           message: "User not found",
         }
       }
 
+      const user = await prisma.user.update({
+        where: { id: existing.id },
+        data: {
+          firstName: data.firstName ?? undefined,
+          lastName: data.lastName ?? undefined,
+          email: data.email ? data.email.toLowerCase() : undefined,
+          role: data.role ?? undefined,
+          department: data.department ?? undefined,
+          position: data.position ?? undefined,
+          managerId: data.manager_id ?? undefined,
+          avatar: data.avatar ?? undefined,
+          signatureUrl: data.signatureUrl ?? undefined,
+          phone: data.phone ?? undefined,
+          status: data.status ?? undefined,
+          salary: data.salary ?? undefined,
+          bankDetails: data.bankDetails ?? undefined,
+        },
+      })
+
       return {
         success: true,
         message: "User updated successfully",
-        data: user.toObject(),
+        data: stripUserPassword(toLegacyUser(user)),
       }
     } catch (error) {
       return {
@@ -73,11 +96,13 @@ export class UserService {
 
   static async getTeamMembers(org_id: string, managerId: string): Promise<IAPIResponse<IUser[]>> {
     try {
-      const teamMembers = await User.find({ org_id, manager_id: managerId }).select("-password")
+      const teamMembers = await prisma.user.findMany({
+        where: { orgId: org_id, managerId },
+      })
       return {
         success: true,
         message: "Team members fetched successfully",
-        data: teamMembers.map((u) => u.toObject()),
+        data: teamMembers.map((u) => stripUserPassword(toLegacyUser(u))),
       }
     } catch (error) {
       return {
@@ -90,7 +115,7 @@ export class UserService {
 
   static async deleteUser(org_id: string, userId: string): Promise<IAPIResponse<null>> {
     try {
-      const user = await User.findOne({ _id: userId, org_id })
+      const user = await prisma.user.findFirst({ where: { id: userId, orgId: org_id } })
 
       if (!user) {
         return {
@@ -106,7 +131,7 @@ export class UserService {
         }
       }
 
-      await User.deleteOne({ _id: userId, org_id })
+      await prisma.user.delete({ where: { id: user.id } })
 
       return {
         success: true,

@@ -2,7 +2,8 @@ import type { Response } from "express"
 import { UserService } from "../services/userService"
 import { AuthService } from "../services/authService"
 import type { AuthenticatedRequest } from "../middleware/auth"
-import { User } from "../models/User"
+import prisma from "../lib/prisma"
+import { toLegacyUser } from "../lib/mysqlAdapters"
 
 export class UserController {
   private static buildBaseUrl(req: AuthenticatedRequest) {
@@ -146,7 +147,7 @@ export class UserController {
       }
 
       // Get inviter's name from the authenticated user
-      const inviterUser = req.user ? await import("../models/User").then(m => m.User.findById(req.user!.userId)) : null
+      const inviterUser = req.user ? await prisma.user.findUnique({ where: { id: req.user.userId } }) : null
       const inviterName = inviterUser ? `${inviterUser.firstName} ${inviterUser.lastName}` : "Administrator"
 
       const result = await AuthService.createEmployee(req.org_id, {
@@ -242,11 +243,16 @@ export class UserController {
       const baseUrl = UserController.buildBaseUrl(req)
       const signatureUrl = `${baseUrl}/uploads/signatures/${req.file.filename}`
 
-      const user = await User.findOneAndUpdate(
-        { _id: targetUserId, org_id: req.org_id },
-        { $set: { signatureUrl } },
-        { new: true },
-      ).select("-password")
+      const existingUser = await prisma.user.findFirst({ where: { id: targetUserId, orgId: req.org_id } })
+
+      if (!existingUser) {
+        return res.status(404).json({ success: false, message: "User not found" })
+      }
+
+      const user = await prisma.user.update({
+        where: { id: existingUser.id },
+        data: { signatureUrl },
+      })
 
       if (!user) {
         return res.status(404).json({ success: false, message: "User not found" })
@@ -255,7 +261,7 @@ export class UserController {
       return res.status(200).json({
         success: true,
         message: "Signature uploaded successfully",
-        data: user,
+        data: { ...toLegacyUser(user), password: undefined },
       })
     } catch (error) {
       return res.status(500).json({
