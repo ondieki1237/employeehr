@@ -108,7 +108,7 @@ Admin creates a product and selects a category.
 1. Admin fills:
    - name
    - category (dropdown)
-   - starting price
+   - Buying Price
    - selling price
    - min alert quantity
 2. Product saved with currentQuantity = 0

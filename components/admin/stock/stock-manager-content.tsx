@@ -10,6 +10,9 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
 import { useToast } from "@/hooks/use-toast"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { CategoriesManager } from "./categories-manager"
+import { ProductsManager } from "./products-manager"
 
 type StockView = "add-inventory" | "sales" | "status" | "analytics" | "history" | "outsourced"
 
@@ -17,11 +20,14 @@ interface Category {
   _id: string
   name: string
   description?: string
+  parentId?: string
+  level?: number
 }
 
 interface Product {
   _id: string
   name: string
+  sku?: string
   category: string
   startingPrice: number
   sellingPrice: number
@@ -100,6 +106,7 @@ interface Invoice {
 export function StockManagerContent({ view }: { view: StockView }) {
   const { toast } = useToast()
   const [loading, setLoading] = useState(true)
+  const [statusTab, setStatusTab] = useState<"overview" | "categories" | "products">("overview")
   const [categories, setCategories] = useState<Category[]>([])
   const [products, setProducts] = useState<Product[]>([])
   const [employees, setEmployees] = useState<Employee[]>([])
@@ -109,6 +116,8 @@ export function StockManagerContent({ view }: { view: StockView }) {
   const [invoices, setInvoices] = useState<Invoice[]>([])
 
   const [categoryForm, setCategoryForm] = useState({ name: "", description: "" })
+  const [categoryMode, setCategoryMode] = useState<"main" | "sub">("main")
+  const [categoryParentId, setCategoryParentId] = useState("none")
   const [productForm, setProductForm] = useState({
     name: "",
     category: "",
@@ -202,6 +211,24 @@ export function StockManagerContent({ view }: { view: StockView }) {
   const totalSalesValue = sales.reduce((sum, sale) => sum + (sale.quantitySold || 0) * (sale.soldPrice || 0), 0)
   const productNameById = new Map(products.map((product) => [product._id, product.name]))
   const categoryNameById = new Map(categories.map((category) => [category._id, category.name]))
+
+  const getCategoryById = (categoryId: string) => categories.find((category) => category._id === categoryId)
+
+  const getCategoryPath = (categoryId: string) => {
+    const path: string[] = []
+    let currentCategory = getCategoryById(categoryId)
+
+    while (currentCategory) {
+      path.unshift(currentCategory.name)
+      currentCategory = currentCategory.parentId ? getCategoryById(currentCategory.parentId) : undefined
+    }
+
+    return path.length > 0 ? path.join(" / ") : "Uncategorized"
+  }
+
+  const getCreatableParentCategories = () => {
+    return categories.filter((category) => !category.level || category.level < 3)
+  }
 
   const normalizedSalesSearch = salesSearch.trim().toLowerCase()
   const normalizedInventorySearch = inventorySearch.trim().toLowerCase()
@@ -494,10 +521,19 @@ export function StockManagerContent({ view }: { view: StockView }) {
 
   const createCategory = async () => {
     if (!categoryForm.name.trim()) return
+
+    if (categoryMode === "sub" && categoryParentId === "none") {
+      toast({ title: "Category Error", description: "Please select a parent category for the sub category", variant: "destructive" })
+      return
+    }
+
     const response = await fetch(`${API_URL}/api/stock/categories`, {
       method: "POST",
       headers,
-      body: JSON.stringify(categoryForm),
+      body: JSON.stringify({
+        ...categoryForm,
+        parentId: categoryMode === "sub" && categoryParentId !== "none" ? categoryParentId : null,
+      }),
     })
     const result = await response.json()
     if (!response.ok) {
@@ -505,6 +541,8 @@ export function StockManagerContent({ view }: { view: StockView }) {
       return
     }
     setCategoryForm({ name: "", description: "" })
+    setCategoryMode("main")
+    setCategoryParentId("none")
     toast({ title: "Success", description: "Category created" })
     fetchAll()
   }
@@ -638,7 +676,44 @@ export function StockManagerContent({ view }: { view: StockView }) {
                   <Label>Description</Label>
                   <Input value={categoryForm.description} onChange={(event) => setCategoryForm((prev) => ({ ...prev, description: event.target.value }))} />
                 </div>
-                <Button onClick={createCategory}>Add Category</Button>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    type="button"
+                    variant={categoryMode === "main" ? "default" : "outline"}
+                    onClick={() => {
+                      setCategoryMode("main")
+                      setCategoryParentId("none")
+                    }}
+                  >
+                    Add Category
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={categoryMode === "sub" ? "default" : "outline"}
+                    onClick={() => setCategoryMode("sub")}
+                  >
+                    Add a Sub Category
+                  </Button>
+                </div>
+                {categoryMode === "sub" && (
+                  <div className="space-y-2">
+                    <Label>Parent Category</Label>
+                    <Select value={categoryParentId} onValueChange={setCategoryParentId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select parent category" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Select a parent category</SelectItem>
+                        {getCreatableParentCategories().map((category) => (
+                          <SelectItem key={category._id} value={category._id}>
+                            {getCategoryPath(category._id)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                <Button onClick={createCategory}>{categoryMode === "sub" ? "Create Sub Category" : "Add Category"}</Button>
               </CardContent>
             </Card>
 
@@ -755,13 +830,13 @@ export function StockManagerContent({ view }: { view: StockView }) {
                     <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
                     <SelectContent>
                       {categories.map((category) => (
-                        <SelectItem key={category._id} value={category._id}>{category.name}</SelectItem>
+                        <SelectItem key={category._id} value={category._id}>{getCategoryPath(category._id)}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
                 <div>
-                  <Label>Starting Price</Label>
+                  <Label>Buying Price</Label>
                   <Input type="number" min="0" value={productForm.startingPrice} onChange={(event) => setProductForm((prev) => ({ ...prev, startingPrice: event.target.value }))} />
                 </div>
                 <div>
@@ -1013,84 +1088,143 @@ export function StockManagerContent({ view }: { view: StockView }) {
 
       {view === "status" && (
         <>
-          <h1 className="text-2xl font-bold">Inventory Status</h1>
-          <Card>
-            <CardHeader><CardTitle>Search & Export</CardTitle></CardHeader>
-            <CardContent className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-              <div className="w-full md:max-w-md">
-                <Label>Search products or categories</Label>
-                <Input
-                  placeholder="Search by product or category"
-                  value={inventorySearch}
-                  onChange={(event) => setInventorySearch(event.target.value)}
-                />
-              </div>
-              <Button
-                variant="outline"
-                onClick={() =>
-                  exportAsCsv(
-                    "inventory-status.csv",
-                    ["Product", "Category", "Stock", "Min Alert", "Selling Price"],
-                    filteredProductsForInventory.map((product) => [
-                      product.name,
-                      product.categoryDetails?.name || categoryNameById.get(product.category) || "",
-                      product.currentQuantity,
-                      product.minAlertQuantity,
-                      product.sellingPrice,
-                    ]),
-                  )
-                }
-              >
-                Export Inventory (Excel)
-              </Button>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader><CardTitle>Low Stock Alerts</CardTitle></CardHeader>
-            <CardContent>
-              {filteredLowStockProducts.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No low-stock products right now.</p>
-              ) : (
-                <ul className="space-y-2 text-sm">
-                  {filteredLowStockProducts.map((product) => (
-                    <li key={product._id} className="border rounded p-2">
-                      {product.name}: {product.currentQuantity} remaining (alert at {product.minAlertQuantity})
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </CardContent>
-          </Card>
+          <div className="mb-6 space-y-2">
+            <h1 className="text-2xl font-semibold tracking-tight">Inventory Status</h1>
+            <p className="text-sm text-muted-foreground">
+              View stock health, manage category structure, and review products in one place.
+            </p>
+          </div>
 
-          <Card>
-            <CardHeader><CardTitle>Products Overview</CardTitle></CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-left border-b">
-                      <th className="py-2">Product</th>
-                      <th className="py-2">Category</th>
-                      <th className="py-2">Stock</th>
-                      <th className="py-2">Min Alert</th>
-                      <th className="py-2">Selling Price</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredProductsForInventory.map((product) => (
-                      <tr key={product._id} className="border-b">
-                        <td className="py-2">{product.name}</td>
-                        <td className="py-2">{product.categoryDetails?.name || "-"}</td>
-                        <td className="py-2">{product.currentQuantity}</td>
-                        <td className="py-2">{product.minAlertQuantity}</td>
-                        <td className="py-2">{product.sellingPrice}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
+          <Tabs value={statusTab} onValueChange={(value) => setStatusTab(value as "overview" | "categories" | "products")} className="w-full space-y-6">
+            <div className="rounded-xl border bg-card p-2 shadow-sm">
+              <TabsList className="grid h-auto w-full grid-cols-3 gap-2 bg-transparent p-0">
+                <TabsTrigger
+                  value="overview"
+                  className="rounded-lg px-4 py-2.5 text-sm font-medium text-muted-foreground data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm"
+                >
+                  Overview
+                </TabsTrigger>
+                <TabsTrigger
+                  value="categories"
+                  className="rounded-lg px-4 py-2.5 text-sm font-medium text-muted-foreground data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm"
+                >
+                  Categories
+                </TabsTrigger>
+                <TabsTrigger
+                  value="products"
+                  className="rounded-lg px-4 py-2.5 text-sm font-medium text-muted-foreground data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm"
+                >
+                  Products
+                </TabsTrigger>
+              </TabsList>
+            </div>
+
+            <TabsContent value="overview" className="space-y-4">
+              <Card>
+                <CardHeader><CardTitle>Search & Export</CardTitle></CardHeader>
+                <CardContent className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+                  <div className="w-full md:max-w-md">
+                    <Label>Search products or categories</Label>
+                    <Input
+                      placeholder="Search by product or category"
+                      value={inventorySearch}
+                      onChange={(event) => setInventorySearch(event.target.value)}
+                    />
+                  </div>
+                  <Button
+                    variant="outline"
+                    onClick={() =>
+                      exportAsCsv(
+                        "inventory-status.csv",
+                        ["Product", "Category", "Stock", "Min Alert", "Selling Price"],
+                        filteredProductsForInventory.map((product) => [
+                          product.name,
+                          product.categoryDetails?.name || categoryNameById.get(product.category) || "",
+                          product.currentQuantity,
+                          product.minAlertQuantity,
+                          product.sellingPrice,
+                        ]),
+                      )
+                    }
+                  >
+                    Export Inventory (Excel)
+                  </Button>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader><CardTitle>Low Stock Alerts</CardTitle></CardHeader>
+                <CardContent>
+                  {filteredLowStockProducts.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No low-stock products right now.</p>
+                  ) : (
+                    <ul className="space-y-2 text-sm">
+                      {filteredLowStockProducts.map((product) => (
+                        <li key={product._id} className="border rounded p-2">
+                          {product.name}: {product.currentQuantity} remaining (alert at {product.minAlertQuantity})
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader><CardTitle>Products Overview</CardTitle></CardHeader>
+                <CardContent>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="text-left border-b">
+                          <th className="py-2">Product</th>
+                          <th className="py-2">Category</th>
+                          <th className="py-2">Stock</th>
+                          <th className="py-2">Min Alert</th>
+                          <th className="py-2">Selling Price</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredProductsForInventory.map((product) => (
+                          <tr key={product._id} className="border-b">
+                            <td className="py-2">{product.name}</td>
+                            <td className="py-2">{product.categoryDetails?.name ? getCategoryPath(product.category) : "-"}</td>
+                            <td className="py-2">{product.currentQuantity}</td>
+                            <td className="py-2">{product.minAlertQuantity}</td>
+                            <td className="py-2">{product.sellingPrice}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="categories">
+              <CategoriesManager 
+                categories={categories.map(c => ({ id: c._id, name: c.name, description: c.description }))}
+                products={products.map(p => ({ id: p._id, name: p.name, sku: p.sku, category: p.category }))}
+                onRefresh={fetchAll}
+              />
+            </TabsContent>
+
+            <TabsContent value="products">
+              <ProductsManager 
+                products={products.map(p => ({ 
+                  id: p._id, 
+                  name: p.name, 
+                  categoryId: p.category,
+                  category: p.category,
+                  description: p.categoryDetails?.name,
+                  sku: p.sku,
+                  unitPrice: p.sellingPrice,
+                  quantity: p.currentQuantity,
+                  reorderLevel: p.minAlertQuantity,
+                }))}
+                categories={categories.map(c => ({ id: c._id, name: c.name }))}
+                onRefresh={fetchAll}
+              />
+            </TabsContent>
+          </Tabs>
         </>
       )}
 

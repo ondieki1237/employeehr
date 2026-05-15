@@ -2740,4 +2740,110 @@ export class StockController {
       return res.status(500).json({ success: false, message: error.message || "Failed to fetch stock entries" })
     }
   }
+
+  // ==================== NEW: PRISMA-BASED CATEGORY MANAGEMENT ====================
+
+  static async getCategoryById(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = req.user?.org_id
+      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+
+      const { id } = req.params
+      const category = await StockCategory.findOne({ _id: id, org_id }).lean()
+      
+      if (!category) {
+        return res.status(404).json({ success: false, message: "Category not found" })
+      }
+
+      const products = await StockProduct.find({ category: id, org_id })
+        .select("_id name sku startingPrice sellingPrice minAlertQuantity currentQuantity")
+        .lean()
+
+      return res.status(200).json({ 
+        success: true, 
+        data: {
+          ...category,
+          productCount: products.length,
+          products
+        }
+      })
+    } catch (error: any) {
+      return res.status(500).json({ success: false, message: error.message || "Failed to fetch category" })
+    }
+  }
+
+  static async updateCategory(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = req.user?.org_id
+      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+
+      if (!isAdminRole(req.user?.role)) {
+        return res.status(403).json({ success: false, message: "Only admin/HR can update categories" })
+      }
+
+      const { id } = req.params
+      const { name, description } = req.body
+
+      if (!name) {
+        return res.status(400).json({ success: false, message: "Category name is required" })
+      }
+
+      const existing = await StockCategory.findOne({
+        _id: { $ne: id },
+        org_id,
+        name: String(name).trim()
+      })
+
+      if (existing) {
+        return res.status(409).json({ success: false, message: "Category with this name already exists" })
+      }
+
+      const category = await StockCategory.findOneAndUpdate(
+        { _id: id, org_id },
+        {
+          $set: {
+            name: String(name).trim(),
+            ...(description !== undefined && { description: description ? String(description).trim() : null })
+          }
+        },
+        { new: true }
+      )
+
+      if (!category) {
+        return res.status(404).json({ success: false, message: "Category not found" })
+      }
+
+      return res.status(200).json({ success: true, data: category })
+    } catch (error: any) {
+      return res.status(500).json({ success: false, message: error.message || "Failed to update category" })
+    }
+  }
+
+  static async deleteCategory(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = req.user?.org_id
+      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+
+      if (!isAdminRole(req.user?.role)) {
+        return res.status(403).json({ success: false, message: "Only admin/HR can delete categories" })
+      }
+
+      const { id } = req.params
+
+      const productsCount = await StockProduct.countDocuments({ category: id, org_id })
+      if (productsCount > 0) {
+        return res.status(400).json({ success: false, message: `Cannot delete category with ${productsCount} product(s)` })
+      }
+
+      const category = await StockCategory.findOneAndDelete({ _id: id, org_id })
+
+      if (!category) {
+        return res.status(404).json({ success: false, message: "Category not found" })
+      }
+
+      return res.status(200).json({ success: true, message: "Category deleted successfully" })
+    } catch (error: any) {
+      return res.status(500).json({ success: false, message: error.message || "Failed to delete category" })
+    }
+  }
 }

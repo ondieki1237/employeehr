@@ -9,6 +9,9 @@ router.use(authMiddleware, orgMiddleware, tenantIsolation)
 
 router.post("/categories", StockController.createCategory)
 router.get("/categories", StockController.getCategories)
+router.get("/categories/:id", StockController.getCategoryById)
+router.put("/categories/:id", StockController.updateCategory)
+router.delete("/categories/:id", StockController.deleteCategory)
 
 router.post("/quotations", StockController.createQuotation)
 router.get("/quotations", StockController.getQuotations)
