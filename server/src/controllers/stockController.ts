@@ -2434,7 +2434,7 @@ export class StockController {
       const org_id = req.user?.org_id
       if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
 
-      const products = await StockProduct.find({ org_id })
+      const products = await StockProduct.find({ org_id, isActive: { $ne: false } })
         .sort({ createdAt: -1 })
         .lean()
 
@@ -2514,6 +2514,37 @@ export class StockController {
       return res.status(200).json({ success: true, data: product })
     } catch (error: any) {
       return res.status(500).json({ success: false, message: error.message || "Failed to update product" })
+    }
+  }
+
+  static async deleteProduct(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = req.user?.org_id
+      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+
+      if (!isAdminRole(req.user?.role)) {
+        return res.status(403).json({ success: false, message: "Only admin/HR can delete products" })
+      }
+
+      const { id } = req.params
+
+      const product = await StockProduct.findOneAndUpdate(
+        { _id: id, org_id },
+        {
+          $set: {
+            isActive: false,
+          },
+        },
+        { new: true },
+      )
+
+      if (!product) {
+        return res.status(404).json({ success: false, message: "Product not found" })
+      }
+
+      return res.status(200).json({ success: true, message: "Product removed successfully" })
+    } catch (error: any) {
+      return res.status(500).json({ success: false, message: error.message || "Failed to delete product" })
     }
   }
 

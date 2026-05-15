@@ -61,8 +61,8 @@ export class KPIController {
         return res.status(400).json({ success: false, message: "Organization ID required" })
       }
 
-      // Only Company Admin can create KPIs
-      if (req.user.role !== "company_admin" && req.user.role !== "super_admin") {
+      // Only Company Admins and Admin users can create KPIs
+      if (!["company_admin", "admin", "super_admin"].includes(req.user.role)) {
         return res.status(403).json({
           success: false,
           message: "Only Company Admins can create KPIs",
@@ -111,8 +111,8 @@ export class KPIController {
         return res.status(400).json({ success: false, message: "Organization ID required" })
       }
 
-      // Only Company Admin can update KPIs
-      if (req.user.role !== "company_admin" && req.user.role !== "super_admin") {
+      // Only Company Admins and Admin users can update KPIs
+      if (!["company_admin", "admin", "super_admin"].includes(req.user.role)) {
         return res.status(403).json({
           success: false,
           message: "Only Company Admins can update KPIs",
@@ -149,8 +149,8 @@ export class KPIController {
         return res.status(400).json({ success: false, message: "Organization ID required" })
       }
 
-      // Only Company Admin can delete KPIs
-      if (req.user.role !== "company_admin" && req.user.role !== "super_admin") {
+      // Only Company Admins and Admin users can delete KPIs
+      if (!["company_admin", "admin", "super_admin"].includes(req.user.role)) {
         return res.status(403).json({
           success: false,
           message: "Only Company Admins can delete KPIs",

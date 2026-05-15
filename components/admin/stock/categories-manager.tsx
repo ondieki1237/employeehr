@@ -97,6 +97,7 @@ export function CategoriesManager({ categories, products, onRefresh }: Categorie
               </div>
               <div className="flex gap-1 flex-shrink-0">
                 <Button
+                  type="button"
                   variant="ghost"
                   size="sm"
                   onClick={() => handleEditCategory(category)}
@@ -105,10 +106,11 @@ export function CategoriesManager({ categories, products, onRefresh }: Categorie
                   <Edit className="h-4 w-4" />
                 </Button>
                 <Button
+                  type="button"
                   variant="ghost"
                   size="sm"
                   onClick={() => setDeleteConfirm(category)}
-                  disabled={categoryProducts.length > 0 || subcategories.length > 0}
+                  disabled={deleting}
                   title={
                     subcategories.length > 0
                       ? "Cannot delete - has subcategories"
@@ -161,7 +163,16 @@ export function CategoriesManager({ categories, products, onRefresh }: Categorie
   }
 
   const handleDeleteCategory = async (category: Category) => {
+    const subcategories = getSubcategories(category.id)
     const productsInCategory = getProductsInCategory(category.id)
+    if (subcategories.length > 0) {
+      toast({
+        title: "Cannot Delete",
+        description: `This category has ${subcategories.length} subcategory(ies). Remove them first.`,
+        variant: "destructive",
+      })
+      return
+    }
     if (productsInCategory.length > 0) {
       toast({
         title: "Cannot Delete",

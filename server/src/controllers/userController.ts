@@ -26,8 +26,8 @@ export class UserController {
 
       const { role, userId } = req.user
 
-      // 1. Company Admin & HR: View all users
-      if (role === "company_admin" || role === "hr" || role === "super_admin") {
+      // 1. Company Admin, Admin & HR: View all users
+      if (role === "company_admin" || role === "admin" || role === "hr" || role === "super_admin") {
         const result = await UserService.getAllUsers(req.org_id)
         return res.status(result.success ? 200 : 400).json(result)
       }
@@ -93,8 +93,8 @@ export class UserController {
 
       const { userId } = req.params
 
-      // Users can only update themselves unless they're admin
-      if (userId !== req.user.userId && req.user.role !== "company_admin") {
+      // Users can only update themselves unless they're admin or company admin
+      if (userId !== req.user.userId && !["company_admin", "admin"].includes(req.user.role)) {
         return res.status(403).json({
           success: false,
           message: "Unauthorized to update this user",
@@ -229,7 +229,7 @@ export class UserController {
 
       const { userId } = req.params
       const targetUserId = userId || req.user.userId
-      const canManageOthers = ["company_admin", "hr", "super_admin"].includes(req.user.role)
+      const canManageOthers = ["company_admin", "admin", "hr", "super_admin"].includes(req.user.role)
 
       if (!canManageOthers && targetUserId !== req.user.userId) {
         return res.status(403).json({ success: false, message: "Unauthorized to update another user's signature" })

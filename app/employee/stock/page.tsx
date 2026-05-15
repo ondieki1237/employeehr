@@ -17,6 +17,15 @@ interface Product {
   currentQuantity: number
   minAlertQuantity: number
   sellingPrice: number
+  category?: string
+  categoryDetails?: { _id: string; name: string; parentId?: string }
+}
+
+interface Category {
+  _id: string
+  name: string
+  parentId?: string
+  level?: number
 }
 
 interface Employee {
@@ -65,6 +74,7 @@ interface Invoice {
 export default function EmployeeStockPage() {
   const { toast } = useToast()
   const [products, setProducts] = useState<Product[]>([])
+  const [categories, setCategories] = useState<Category[]>([])
   const [employees, setEmployees] = useState<Employee[]>([])
   const [sales, setSales] = useState<Sale[]>([])
   const [quotations, setQuotations] = useState<Quotation[]>([])
@@ -91,7 +101,8 @@ export default function EmployeeStockPage() {
   const fetchData = async () => {
     try {
       setLoading(true)
-      const [productsRes, usersRes, salesRes, quotationsRes, invoicesRes] = await Promise.all([
+      const [categoriesRes, productsRes, usersRes, salesRes, quotationsRes, invoicesRes] = await Promise.all([
+        fetch(`${API_URL}/api/stock/categories`, { headers }),
         fetch(`${API_URL}/api/stock/products`, { headers }),
         fetch(`${API_URL}/api/users`, { headers }),
         fetch(`${API_URL}/api/stock/sales`, { headers }),
@@ -99,7 +110,8 @@ export default function EmployeeStockPage() {
         fetch(`${API_URL}/api/stock/invoices`, { headers }),
       ])
 
-      const [productsJson, usersJson, salesJson, quotationsJson, invoicesJson] = await Promise.all([
+      const [categoriesJson, productsJson, usersJson, salesJson, quotationsJson, invoicesJson] = await Promise.all([
+        categoriesRes.json(),
         productsRes.json(),
         usersRes.json(),
         salesRes.json(),
@@ -107,6 +119,7 @@ export default function EmployeeStockPage() {
         invoicesRes.json(),
       ])
 
+      setCategories(categoriesJson.data || [])
       setProducts(productsJson.data || [])
       setEmployees(usersJson.data || [])
       setSales(salesJson.data || [])
@@ -122,6 +135,20 @@ export default function EmployeeStockPage() {
   useEffect(() => {
     fetchData()
   }, [])
+
+  const getCategoryById = (categoryId: string) => categories.find((category) => category._id === categoryId)
+
+  const getCategoryPath = (categoryId: string) => {
+    const path: string[] = []
+    let current = getCategoryById(categoryId)
+
+    while (current) {
+      path.unshift(current.name)
+      current = current.parentId ? getCategoryById(current.parentId) : undefined
+    }
+
+    return path.length > 0 ? path.join(" / ") : "Uncategorized"
+  }
 
   const addStock = async () => {
     const response = await fetch(`${API_URL}/api/stock/add`, {
@@ -185,7 +212,9 @@ export default function EmployeeStockPage() {
                 <SelectTrigger><SelectValue placeholder="Select product" /></SelectTrigger>
                 <SelectContent>
                   {products.map((product) => (
-                    <SelectItem key={product._id} value={product._id}>{product.name}</SelectItem>
+                    <SelectItem key={product._id} value={product._id}>
+                      {product.name} {product.category ? `(${getCategoryPath(product.category)})` : ""}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -213,7 +242,9 @@ export default function EmployeeStockPage() {
                 <SelectTrigger><SelectValue placeholder="Select product" /></SelectTrigger>
                 <SelectContent>
                   {products.map((product) => (
-                    <SelectItem key={product._id} value={product._id}>{product.name}</SelectItem>
+                    <SelectItem key={product._id} value={product._id}>
+                      {product.name} {product.category ? `(${getCategoryPath(product.category)})` : ""}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -261,6 +292,7 @@ export default function EmployeeStockPage() {
               <thead>
                 <tr className="text-left border-b">
                   <th className="py-2">Name</th>
+                  <th className="py-2">Category</th>
                   <th className="py-2">Stock</th>
                   <th className="py-2">Min Alert</th>
                   <th className="py-2">Price</th>
@@ -270,6 +302,7 @@ export default function EmployeeStockPage() {
                 {products.map((product) => (
                   <tr key={product._id} className="border-b">
                     <td className="py-2">{product.name}</td>
+                    <td className="py-2">{product.category ? getCategoryPath(product.category) : "-"}</td>
                     <td className="py-2">{product.currentQuantity}</td>
                     <td className="py-2">{product.minAlertQuantity}</td>
                     <td className="py-2">{product.sellingPrice}</td>

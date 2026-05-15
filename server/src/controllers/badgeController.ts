@@ -67,7 +67,7 @@ export class BadgeController {
       }
 
       // Check role
-      if (!["admin", "manager"].includes(req.user.role)) {
+      if (!["company_admin", "admin", "manager"].includes(req.user.role)) {
         return res.status(403).json({ success: false, message: "Insufficient permissions" })
       }
 

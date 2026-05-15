@@ -43,7 +43,9 @@ export const roleMiddleware = (...allowedRoles: string[]) => {
       })
     }
 
-    if (!allowedRoles.includes(req.user.role)) {
+    const effectiveRole = req.user.role === "admin" ? "company_admin" : req.user.role
+
+    if (!allowedRoles.includes(effectiveRole)) {
       return res.status(403).json({
         success: false,
         message: "Insufficient permissions",

@@ -7,7 +7,7 @@ export interface IUser {
   lastName: string
   email: string
   password: string
-  role: "super_admin" | "company_admin" | "manager" | "employee" | "hr"
+  role: "super_admin" | "company_admin" | "admin" | "manager" | "employee" | "hr"
   department?: string
   position?: string // Job title
   manager_id?: string
@@ -105,6 +105,7 @@ export interface ICompany {
   pageAccessSettings?: {
     adminSectionsByRole: {
       company_admin: string[]
+      admin: string[]
       hr: string[]
       manager: string[]
       employee: string[]

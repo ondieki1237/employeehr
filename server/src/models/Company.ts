@@ -104,6 +104,7 @@ const companySchema = new Schema<ICompany>(
     pageAccessSettings: {
       adminSectionsByRole: {
         company_admin: { type: [String], default: DEFAULT_ADMIN_SECTIONS },
+        admin: { type: [String], default: DEFAULT_ADMIN_SECTIONS },
         hr: { type: [String], default: DEFAULT_ADMIN_SECTIONS },
         manager: { type: [String], default: [] },
         employee: { type: [String], default: [] },

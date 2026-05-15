@@ -56,6 +56,7 @@ router.post("/couriers", StockController.createCourier)
 router.post("/products", StockController.createProduct)
 router.get("/products", StockController.getProducts)
 router.put("/products/:id", StockController.updateProduct)
+router.delete("/products/:id", StockController.deleteProduct)
 
 router.post("/add", StockController.addStock)
 router.get("/entries", StockController.getStockEntries)

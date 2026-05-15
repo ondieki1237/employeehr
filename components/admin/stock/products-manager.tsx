@@ -183,6 +183,7 @@ export function ProductsManager({ products, categories, onRefresh }: ProductsMan
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1">
                             <Button
+                              type="button"
                               variant="ghost"
                               size="sm"
                               onClick={() => handleEditProduct(product)}
@@ -191,6 +192,7 @@ export function ProductsManager({ products, categories, onRefresh }: ProductsMan
                               <Edit className="h-4 w-4" />
                             </Button>
                             <Button
+                              type="button"
                               variant="ghost"
                               size="sm"
                               onClick={() => setDeleteConfirm(product)}

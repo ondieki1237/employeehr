@@ -300,6 +300,7 @@ export class CompanyController {
 
       const data = company.pageAccessSettings?.adminSectionsByRole || {
         company_admin: ADMIN_SECTION_OPTIONS,
+        admin: ADMIN_SECTION_OPTIONS,
         hr: ADMIN_SECTION_OPTIONS,
         manager: [],
         employee: [],
@@ -324,6 +325,7 @@ export class CompanyController {
         data: {
           adminSectionsByRole: {
             company_admin: data.company_admin || ADMIN_SECTION_OPTIONS,
+            admin: data.admin || ADMIN_SECTION_OPTIONS,
             hr: data.hr || ADMIN_SECTION_OPTIONS,
             manager: data.manager || [],
             employee: data.employee || [],
@@ -353,8 +355,10 @@ export class CompanyController {
         return unique.filter((section) => ADMIN_SECTION_OPTIONS.includes(section))
       }
 
+      const adminSections = sanitizeSections(payload.admin)
       const nextSettings = {
         company_admin: ADMIN_SECTION_OPTIONS,
+        admin: adminSections.length > 0 ? adminSections : ADMIN_SECTION_OPTIONS,
         hr: sanitizeSections(payload.hr),
         manager: sanitizeSections(payload.manager),
         employee: sanitizeSections(payload.employee),

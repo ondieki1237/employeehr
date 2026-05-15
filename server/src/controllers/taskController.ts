@@ -101,7 +101,7 @@ export class TaskController {
       }
 
       // Only admin/manager can create tasks
-      if (!["company_admin", "hr", "manager"].includes(req.user.role)) {
+      if (!['company_admin', 'hr', 'manager', 'admin'].includes(req.user.role)) {
         return res.status(403).json({ success: false, message: "Access denied" })
       }
 
@@ -310,7 +310,7 @@ export class TaskController {
       }
 
       // Only admin/manager can delete
-      if (!["company_admin", "hr", "manager"].includes(req.user.role)) {
+      if (!["company_admin", "hr", "manager", "admin"].includes(req.user.role)) {
         return res.status(403).json({ success: false, message: "Access denied" })
       }
 

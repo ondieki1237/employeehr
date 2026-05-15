@@ -106,7 +106,7 @@ export default function AdminLayout({
         const userId = user._id || user.userId
         const userSections: string[] | undefined = userId ? response.data?.adminSectionsByUser?.[userId] : undefined
         const roleSections: string[] = response.data?.adminSectionsByRole?.[user.role] || []
-        const allowedSections: string[] = Array.isArray(userSections) && userSections.length > 0 ? userSections : roleSections
+        const allowedSections: string[] = Array.from(new Set([...(roleSections || []), ...(userSections || [])]))
         if (!allowedSections.includes(currentSection)) {
           router.push("/admin")
         }

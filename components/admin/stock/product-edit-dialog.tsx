@@ -58,9 +58,9 @@ export function ProductEditDialog({ open, product, categories, onOpenChange, onS
         categoryId: product.categoryId || product.category || "",
         description: product.description || "",
         sku: product.sku || "",
-        unitPrice: product.unitPrice ? String(product.unitPrice) : "",
-        quantity: product.quantity ? String(product.quantity) : "",
-        reorderLevel: product.reorderLevel ? String(product.reorderLevel) : "10",
+        unitPrice: product.unitPrice ?? product.unitPrice === 0 ? String(product.unitPrice) : "",
+        quantity: product.quantity ?? product.quantity === 0 ? String(product.quantity) : "",
+        reorderLevel: product.reorderLevel ?? product.reorderLevel === 0 ? String(product.reorderLevel) : "10",
         supplier: product.supplier || "",
       })
     }

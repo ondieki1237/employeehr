@@ -5,7 +5,7 @@ import {
   Plus, Search, Edit2, Trash2, Lock, Unlock, Eye, FileText, 
   Calendar, Award, BarChart3, MessageSquare, CheckSquare, Mail,
   Phone, MapPin, Briefcase, Clock, Download, Filter, MoreVertical,
-  UserCheck, UserX, Send, TrendingUp, Target, AlertCircle
+  UserCheck, UserX, Send, TrendingUp, Target, AlertCircle, ShieldCheck
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -706,6 +706,10 @@ export default function AdminUsersPage() {
                             Send Message
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
+                          <DropdownMenuItem onClick={() => handleUpdateRole(user._id, 'admin')}>
+                            <ShieldCheck className="h-4 w-4 mr-2" />
+                            Promote to Admin
+                          </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => handleUpdateRole(user._id, 'manager')}>
                             <TrendingUp className="h-4 w-4 mr-2" />
                             Promote to Manager

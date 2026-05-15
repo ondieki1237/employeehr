@@ -324,7 +324,7 @@ export default function AdminSidebar({ isOpen, isCollapsed, onToggle, onCollapse
           const userId = currentUser?._id || (currentUser as any)?.userId
           const userSections = userId ? response.data?.adminSectionsByUser?.[userId] : undefined
           const roleSections = response.data?.adminSectionsByRole?.[role] || []
-          const effectiveSections = Array.isArray(userSections) && userSections.length > 0 ? userSections : roleSections
+          const effectiveSections = Array.from(new Set([...(roleSections || []), ...(userSections || [])]))
           setAllowedSections(new Set(effectiveSections))
         }
       } catch {

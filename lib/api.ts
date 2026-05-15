@@ -336,6 +336,7 @@ export const companyApi = {
     getPageAccess: () => client.get<any>('/api/company/page-access'),
     updatePageAccess: (data: {
         adminSectionsByRole: {
+            admin: string[]
             hr: string[]
             manager: string[]
             employee: string[]

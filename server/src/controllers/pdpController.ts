@@ -14,7 +14,7 @@ export class PDPController {
       const query: any = { org_id: req.org_id }
 
       // Apply role-based filtering
-      if (role === "company_admin" || role === "hr" || role === "super_admin") {
+      if (role === "company_admin" || role === "admin" || role === "hr" || role === "super_admin") {
         // Admins can see all PDPs, optionally filter by userId
         if (userId) query.user_id = userId
       } else if (role === "manager") {
@@ -70,6 +70,7 @@ export class PDPController {
       // Check access: owner, trustee, manager, or admin
       const hasAccess = 
         role === "company_admin" || 
+        role === "admin" || 
         role === "hr" || 
         role === "super_admin" ||
         pdp.user_id === currentUserId ||
@@ -263,7 +264,7 @@ export class PDPController {
       }
 
       // Only Manager, HR, or Company Admin can approve PDPs
-      if (!["manager", "hr", "company_admin", "super_admin"].includes(req.user.role)) {
+        if (!["manager", "hr", "admin", "company_admin", "super_admin"].includes(req.user.role)) {
         return res.status(403).json({
           success: false,
           message: "Only Managers or Admins can approve PDPs",
@@ -314,7 +315,7 @@ export class PDPController {
       }
 
       // Only Manager, HR, or Company Admin can reject PDPs
-      if (!["manager", "hr", "company_admin", "super_admin"].includes(req.user.role)) {
+        if (!["manager", "hr", "admin", "company_admin", "super_admin"].includes(req.user.role)) {
         return res.status(403).json({
           success: false,
           message: "Only Managers or Admins can reject PDPs",

@@ -10,10 +10,11 @@ import { Loader2, ShieldCheck, Save, Lock } from "lucide-react"
 import { companyApi, usersApi } from "@/lib/api"
 import { getUser } from "@/lib/auth"
 
-type RoleKey = "company_admin" | "hr" | "manager" | "employee"
+type RoleKey = "company_admin" | "admin" | "hr" | "manager" | "employee"
 
 interface AccessState {
   company_admin: string[]
+  admin: string[]
   hr: string[]
   manager: string[]
   employee: string[]
@@ -40,6 +41,7 @@ const FALLBACK_SECTIONS = [
 ]
 
 const EDITABLE_ROLES: Array<{ key: Exclude<RoleKey, "company_admin">; label: string }> = [
+  { key: "admin", label: "Admin" },
   { key: "hr", label: "HR" },
   { key: "manager", label: "Manager" },
   { key: "employee", label: "Employee" },
@@ -56,6 +58,7 @@ export default function PageAccessSettingsPage() {
   const [userOverrides, setUserOverrides] = useState<Record<string, string[]>>({})
   const [accessState, setAccessState] = useState<AccessState>({
     company_admin: FALLBACK_SECTIONS,
+    admin: FALLBACK_SECTIONS,
     hr: FALLBACK_SECTIONS,
     manager: [],
     employee: [],
@@ -79,6 +82,7 @@ export default function PageAccessSettingsPage() {
           setAvailableSections(sections)
           setAccessState({
             company_admin: byRole.company_admin || sections,
+            admin: byRole.admin || sections,
             hr: byRole.hr || sections,
             manager: byRole.manager || [],
             employee: byRole.employee || [],
@@ -116,16 +120,26 @@ export default function PageAccessSettingsPage() {
 
   const selectedUserRole = (selectedUser?.role || "") as Exclude<RoleKey, "company_admin"> | ""
 
+  const selectedUserRoleSections = selectedUserRole && selectedUserRole in accessState
+    ? accessState[selectedUserRole as Exclude<RoleKey, "company_admin">]
+    : []
+
+  const selectedUserOverrideSections = selectedUserId ? userOverrides[selectedUserId] || [] : []
+
   const selectedUserEffectiveSections = selectedUserId
-    ? (userOverrides[selectedUserId] && userOverrides[selectedUserId].length > 0
-        ? userOverrides[selectedUserId]
-        : selectedUserRole && selectedUserRole in accessState
-          ? accessState[selectedUserRole as Exclude<RoleKey, "company_admin">]
-          : [])
+    ? Array.from(new Set([...selectedUserRoleSections, ...selectedUserOverrideSections]))
     : []
 
   const toggleSectionForUser = (userId: string, section: string) => {
     if (!canEdit || !userId) return
+
+    const roleSections = selectedUserRole && selectedUserRole in accessState
+      ? accessState[selectedUserRole as Exclude<RoleKey, "company_admin">]
+      : []
+
+    if (roleSections.includes(section)) {
+      return
+    }
 
     setUserOverrides((prev) => {
       const current = prev[userId] || []
@@ -157,6 +171,7 @@ export default function PageAccessSettingsPage() {
 
       const response = await companyApi.updatePageAccess({
         adminSectionsByRole: {
+          admin: accessState.admin,
           hr: accessState.hr,
           manager: accessState.manager,
           employee: accessState.employee,
@@ -299,11 +314,12 @@ export default function PageAccessSettingsPage() {
             {selectedUserId ? (
               <div className="space-y-3">
                 <p className="text-xs text-muted-foreground">
-                  {selectedUserEffectiveSections.length} section(s) visible for this user.
+                  {selectedUserEffectiveSections.length} section(s) visible for this user. Role sections stay enabled and extra sections can be added below.
                 </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   {availableSections.map((section) => {
                     const checked = selectedUserEffectiveSections.includes(section)
+                    const inherited = selectedUserRoleSections.includes(section)
                     return (
                       <label
                         key={`${selectedUserId}-${section}`}
@@ -312,9 +328,12 @@ export default function PageAccessSettingsPage() {
                         <Checkbox
                           checked={checked}
                           onCheckedChange={() => toggleSectionForUser(selectedUserId, section)}
-                          disabled={!canEdit}
+                          disabled={!canEdit || inherited}
                         />
-                        <span className="text-sm">{section}</span>
+                        <span className="text-sm flex items-center gap-2">
+                          {section}
+                          {inherited && <span className="text-[10px] rounded-full bg-muted px-2 py-0.5 text-muted-foreground">role</span>}
+                        </span>
                       </label>
                     )
                   })}
