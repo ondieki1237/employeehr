@@ -50,6 +50,7 @@ import smsWebhookRoutes from "./routes/smsWebhook.routes"
 import mpesaWebhookRoutes from "./routes/mpesaWebhook.routes"
 import shuleRoutes from "./routes/shule.routes"
 import ownerRoutes from "./routes/owner.routes"
+import complaintRoutes from "./routes/complaint.routes"
 import { JobController } from "./controllers/jobController"
 import { JobApplicationController } from "./controllers/jobApplicationController"
 import { ApplicationFormController } from "./controllers/applicationFormController"
@@ -176,6 +177,7 @@ app.use("/api/feedback-360", anonymousFeedbackRoutes)
 app.use("/api/feedback-surveys", feedbackSurveyRoutes)
 app.use("/api/stock", stockRoutes)
 app.use("/api/stamps", stampRoutes)
+app.use("/api/complaints", complaintRoutes)
 app.use("/api", bookingRoutes)
 app.use("/api/shule", shuleRoutes)
 app.use("/api/owner", ownerRoutes)

@@ -100,6 +100,13 @@ class ApiClient {
         })
     }
 
+    async patch<T>(endpoint: string, body?: any): Promise<ApiResponse<T>> {
+        return this.request<T>(endpoint, {
+            method: 'PATCH',
+            body: body ? JSON.stringify(body) : undefined,
+        })
+    }
+
     async delete<T>(endpoint: string): Promise<ApiResponse<T>> {
         return this.request<T>(endpoint, { method: 'DELETE' })
     }
@@ -546,6 +553,8 @@ export const meetingsApi = {
 
 // Stock API
 export const stockApi = {
+    getClients: () => client.get<any[]>('/api/stock/clients'),
+
     getProducts: () => client.get<any[]>('/api/stock/products'),
 
     getInvoices: () => client.get<any[]>('/api/stock/invoices'),
@@ -646,6 +655,37 @@ const stampsApi = {
     },
 }
 
+// Client Complaints API
+const complaintsApi = {
+    getAll: (filters?: Record<string, string>) => {
+        const queryString = filters ? `?${new URLSearchParams(filters).toString()}` : ''
+        return client.get<any>(`/api/complaints${queryString}`)
+    },
+    
+    getById: (id: string) => client.get<any>(`/api/complaints/${id}`),
+    
+    create: (data: any) => client.post<any>('/api/complaints', data),
+    
+    update: (id: string, data: any) => client.put<any>(`/api/complaints/${id}`, data),
+    
+    assign: (id: string, assignedTo: string) => 
+        client.patch<any>(`/api/complaints/${id}/assign`, { assignedTo }),
+    
+    addNote: (id: string, note: string) => 
+        client.post<any>(`/api/complaints/${id}/notes`, { note }),
+    
+    communicate: (id: string, message: string, senderRole: string = 'staff') => 
+        client.post<any>(`/api/complaints/${id}/communicate`, { message, senderRole }),
+    
+    resolve: (id: string, data: any) => 
+        client.patch<any>(`/api/complaints/${id}/resolve`, data),
+    
+    close: (id: string) => 
+        client.patch<any>(`/api/complaints/${id}/close`, {}),
+    
+    getStats: () => client.get<any>('/api/complaints/stats'),
+}
+
 // Export all APIs
 export const api = {
     auth: authApi,
@@ -667,6 +707,7 @@ export const api = {
     stock: stockApi,
     setup: setupApi,
     stamps: stampsApi,
+    complaints: complaintsApi,
 }
 
 export default api

@@ -488,7 +488,7 @@ function drawTotalsSection(
   }
 
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(9);
+  doc.setFontSize(8.5);
   setColorFromHex(doc, DEFAULT_TEXT, "text");
 
   const labelX = boxX + 4;
@@ -505,9 +505,9 @@ function drawTotalsSection(
   }
 
   rowY = y + rowH * (rows - 1) + 4.8;
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(11);
-  setColorFromHex(doc, primary, "text");
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  setColorFromHex(doc, DEFAULT_TEXT, "text");
   doc.text("Grand Total", labelX, rowY);
   doc.text(formatAmount(grandTotal), valueX, rowY, { align: "right" });
 

@@ -190,6 +190,12 @@ const adminMenuItems = [
     section: "ACCOUNTS"
   },
   {
+    label: "Client Complaints",
+    icon: AlertCircle,
+    href: "/admin/accounts/complaints",
+    section: "ACCOUNTS"
+  },
+  {
     label: "Payment Management",
     icon: Banknote,
     href: "/admin/accounts/payments",

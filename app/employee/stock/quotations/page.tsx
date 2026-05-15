@@ -382,7 +382,7 @@ export default function EmployeeQuotationsPage() {
       branding,
       invoiceSettings,
       preparedBy,
-      watermarkText: quotation.status === "draft" ? "DRAFT" : quotation.status === "cancelled" ? "CANCELLED" : undefined,
+      watermarkText: quotation.status === "cancelled" ? "CANCELLED" : undefined,
       autoSave: false,
     })
 

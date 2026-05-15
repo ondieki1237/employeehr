@@ -545,7 +545,7 @@ export default function QuotationsPage() {
       invoiceSettings,
       preparedBy,
       preparedBySignature,
-      watermarkText: quotation.status === "draft" ? "DRAFT" : quotation.status === "cancelled" ? "CANCELLED" : undefined,
+      watermarkText: quotation.status === "cancelled" ? "CANCELLED" : undefined,
       autoSave: false,
     })
 
