@@ -11,6 +11,7 @@ import { errorHandler } from "./middleware/errorHandler"
 import { sanitizeInput } from "./middleware/sanitization.middleware"
 import { apiLimiter } from "./middleware/rateLimit.middleware"
 import { WebRTCSignalingService } from "./services/webrtcSignaling"
+import { runMigrations } from "./scripts/runMigrations"
 
 // Routes
 import authRoutes from "./routes/auth.routes"
@@ -193,20 +194,38 @@ app.use((_req, res) => {
 // Error handler (must be last)
 app.use(errorHandler)
 
-server.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`)
-  console.log(`WebRTC signaling service initialized`)
-
-  const expiryCheckIntervalMs = Number(process.env.STOCK_EXPIRY_CHECK_INTERVAL_MS || 6 * 60 * 60 * 1000)
-
-  setInterval(async () => {
-    try {
-      const result = await StockController.runExpiryReminderCheck()
-      if (result.remindersSent > 0) {
-        console.log(`[stock-expiry] checked=${result.checked}, remindersSent=${result.remindersSent}`)
-      }
-    } catch (error) {
-      console.error("[stock-expiry] automated check failed:", error)
+// Start server with migrations
+async function startServer() {
+  try {
+    // Run Prisma migrations before starting server
+    if (process.env.NODE_ENV !== "development" || process.env.RUN_MIGRATIONS === "true") {
+      console.log("🔄 Running database migrations before startup...")
+      await runMigrations()
     }
-  }, expiryCheckIntervalMs)
-})
+
+    server.listen(PORT, () => {
+      console.log(`✅ Server running on port ${PORT}`)
+      console.log(`🔌 WebRTC signaling service initialized`)
+      console.log(`🗄️  MongoDB: Connected`)
+      console.log(`🗄️  MySQL: Secondary storage ready`)
+
+      const expiryCheckIntervalMs = Number(process.env.STOCK_EXPIRY_CHECK_INTERVAL_MS || 6 * 60 * 60 * 1000)
+
+      setInterval(async () => {
+        try {
+          const result = await StockController.runExpiryReminderCheck()
+          if (result.remindersSent > 0) {
+            console.log(`[stock-expiry] checked=${result.checked}, remindersSent=${result.remindersSent}`)
+          }
+        } catch (error) {
+          console.error("[stock-expiry] automated check failed:", error)
+        }
+      }, expiryCheckIntervalMs)
+    })
+  } catch (error) {
+    console.error("❌ Failed to start server:", error)
+    process.exit(1)
+  }
+}
+
+startServer()

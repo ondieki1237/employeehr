@@ -1,5 +1,4 @@
 import bcrypt from "bcryptjs"
-import jwt from "jsonwebtoken"
 import { User } from "../models/User"
 import { Company } from "../models/Company"
 import { generateToken } from "../config/auth"
@@ -13,6 +12,13 @@ export class AuthService {
     data: Partial<ICompany> & { adminEmail: string; adminPassword: string; adminName: string },
   ): Promise<IAPIResponse<{ company: ICompany; user: IUser; token: string }>> {
     try {
+      if (!data.name) {
+        return {
+          success: false,
+          message: "Company name is required",
+        }
+      }
+
       // Check if company email already exists
       const existingCompany = await Company.findOne({ email: data.email })
       if (existingCompany) {
@@ -82,7 +88,7 @@ export class AuthService {
         message: "Company registered successfully",
         data: {
           company: savedCompany.toObject(),
-          user: { ...savedUser.toObject(), password: undefined },
+          user: savedUser.toObject() as any,
           token,
         },
       }
@@ -147,7 +153,7 @@ export class AuthService {
         success: true,
         message: "Login successful",
         data: {
-          user: { ...user.toObject(), password: undefined },
+          user: user.toObject() as any,
           token,
         },
       }
@@ -202,7 +208,7 @@ export class AuthService {
 
       // Send invitation email
       try {
-                const loginUrl = process.env.FRONTEND_URL || "https://hr.codewithseth.co.ke"
+      const loginUrl = process.env.FRONTEND_URL || "https://hr.codewithseth.co.ke"
         await emailService.sendInvitationEmail({
           recipientEmail: savedUser.email,
           recipientName: `${savedUser.firstName} ${savedUser.lastName}`,
@@ -221,7 +227,7 @@ export class AuthService {
       return {
         success: true,
         message: "Employee created successfully",
-        data: { ...savedUser.toObject(), password: undefined } as IUser,
+        data: savedUser.toObject() as any,
       }
     } catch (error) {
       return {
@@ -289,7 +295,6 @@ export class AuthService {
 
       await PasswordReset.create({ email: user.email.toLowerCase(), otp, expiresAt, used: false })
 
-      const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000"
       const html = `
         <p>Your password reset code is:</p>
         <h2>${otp}</h2>
@@ -438,7 +443,7 @@ export class AuthService {
         success: true,
         message: "Login successful",
         data: {
-          user: { ...user.toObject(), password: undefined } as any,
+          user: user.toObject() as any,
           token,
           company: { ...company.toObject() } as ICompany,
         },
@@ -553,7 +558,7 @@ export class AuthService {
         success: true,
         message: "Login successful",
         data: {
-          user: { ...user.toObject(), password: undefined } as any,
+          user: user.toObject() as any,
           token,
           company: { ...company.toObject() } as ICompany,
         },

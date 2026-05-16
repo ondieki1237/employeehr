@@ -5,16 +5,23 @@
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
-    "dev": "npx tsx watch src/index.ts",
+    "dev": "concurrently \"npm run queue:worker\" \"npx tsx watch src/index.ts\"",
+    "queue:worker": "npx tsx watch src/services/workers/syncWorker.ts",
     "create-owner": "npx tsx ./scripts/create_owner.ts",
-    "create-owner": "npx tsx ./scripts/create_owner.ts",
-    "build": "tsc",
+    "prebuild": "npx prisma generate",
+    "build": "npm run db:push && tsc",
+    "prestart": "npm run db:push",
     "start": "node --experimental-specifier-resolution=node dist/index.js",
+    "db:push": "npx ts-node src/scripts/runMigrations.ts",
+    "db:migrate": "npx prisma migrate dev",
+    "db:reset": "npx prisma migrate reset",
     "lint": "eslint src/**/*.ts"
   },
   "dependencies": {
+    "@prisma/client": "^6.16.2",
     "@types/multer": "^2.0.0",
     "axios": "^1.13.2",
+    "bullmq": "^4.12.0",
     "bcryptjs": "^2.4.3",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.0",
@@ -31,6 +38,7 @@
     "multer": "^2.0.2",
     "nodemailer": "^6.9.7",
     "openai": "^6.15.0",
+    "redis": "^4.7.0",
     "sanitize-html": "^2.11.0",
     "socket.io": "^4.8.2",
     "zod": "^3.22.4"
@@ -46,7 +54,9 @@
     "@types/sanitize-html": "^2.9.3",
     "@typescript-eslint/eslint-plugin": "^6.13.2",
     "@typescript-eslint/parser": "^6.13.2",
+    "concurrently": "^8.2.2",
     "eslint": "^8.55.0",
+    "prisma": "^6.16.2",
     "tsx": "^4.7.0",
     "typescript": "^5.3.3"
   }
