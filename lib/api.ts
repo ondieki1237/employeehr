@@ -119,6 +119,15 @@ export const authApi = {
     login: (data: LoginRequest) =>
         client.post<LoginResponse>('/api/auth/login', data),
 
+    forgotPassword: (data: { email: string }) =>
+        client.post('/api/auth/forgot-password', data),
+
+    verifyOtp: (data: { email: string; otp: string }) =>
+        client.post('/api/auth/verify-otp', data),
+
+    resetPassword: (data: { email: string; otp: string; newPassword: string }) =>
+        client.post('/api/auth/reset-password', data),
+
     registerCompany: (data: RegisterCompanyRequest) =>
         client.post<RegisterCompanyResponse>('/api/auth/register-company', data),
 

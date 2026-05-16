@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { ArrowLeft, Mail } from "lucide-react"
+import { api } from "@/lib/api"
+import { useRouter } from "next/navigation"
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("")
@@ -16,12 +18,27 @@ export default function ForgotPasswordPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (isLoading) return
     setIsLoading(true)
-    // API call would happen here
-    setTimeout(() => {
+    try {
+      const resp = await api.auth.forgotPassword({ email })
+      if (resp && resp.success) {
+        setIsSubmitted(true)
+        // Navigate to verify page
+        const encoded = encodeURIComponent(email)
+        setTimeout(() => {
+          // small delay for UX
+          window.location.href = `/auth/verify-otp?email=${encoded}`
+        }, 800)
+      } else {
+        // still show submitted state to avoid leaking info
+        setIsSubmitted(true)
+      }
+    } catch (err) {
       setIsSubmitted(true)
+    } finally {
       setIsLoading(false)
-    }, 1000)
+    }
   }
 
   return (

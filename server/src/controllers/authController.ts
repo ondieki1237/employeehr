@@ -86,6 +86,51 @@ export class AuthController {
     }
   }
 
+  static async forgotPassword(req: AuthenticatedRequest, res: Response) {
+    try {
+      const { email } = req.body
+
+      if (!email) {
+        return res.status(400).json({ success: false, message: "Email is required" })
+      }
+
+      const result = await AuthService.forgotPassword(email)
+      res.status(result.success ? 200 : 400).json(result)
+    } catch (error) {
+      res.status(500).json({ success: false, message: "Failed", error: error instanceof Error ? error.message : "Unknown error" })
+    }
+  }
+
+  static async verifyOtp(req: AuthenticatedRequest, res: Response) {
+    try {
+      const { email, otp } = req.body
+
+      if (!email || !otp) {
+        return res.status(400).json({ success: false, message: "Email and OTP are required" })
+      }
+
+      const result = await AuthService.verifyOtp(email, otp)
+      res.status(result.success ? 200 : 400).json(result)
+    } catch (error) {
+      res.status(500).json({ success: false, message: "Failed", error: error instanceof Error ? error.message : "Unknown error" })
+    }
+  }
+
+  static async resetPassword(req: AuthenticatedRequest, res: Response) {
+    try {
+      const { email, otp, newPassword } = req.body
+
+      if (!email || !otp || !newPassword) {
+        return res.status(400).json({ success: false, message: "Email, OTP and new password are required" })
+      }
+
+      const result = await AuthService.resetPassword(email, otp, newPassword)
+      res.status(result.success ? 200 : 400).json(result)
+    } catch (error) {
+      res.status(500).json({ success: false, message: "Failed", error: error instanceof Error ? error.message : "Unknown error" })
+    }
+  }
+
   // Company-specific login (for employees via company slug)
   static async companyLogin(req: AuthenticatedRequest, res: Response) {
     try {

@@ -5,6 +5,7 @@ import { Company } from "../models/Company"
 import { generateToken } from "../config/auth"
 import type { IUser, ICompany, IJWTPayload, IAPIResponse } from "../types/interfaces"
 import { emailService } from "./emailService"
+import { PasswordReset } from "../models/PasswordReset"
 
 export class AuthService {
   // Company Registration
@@ -265,6 +266,97 @@ export class AuthService {
       return {
         success: false,
         message: "Failed to change password",
+        error: error instanceof Error ? error.message : "Unknown error",
+      }
+    }
+  }
+
+  // Forgot Password - generate and send OTP
+  static async forgotPassword(email: string): Promise<IAPIResponse<null>> {
+    try {
+      const user = await User.findOne({ email: email.toLowerCase() })
+
+      // Always respond with success to avoid user enumeration
+      if (!user) {
+        return {
+          success: true,
+          message: "If an account with that email exists, an OTP has been sent",
+        }
+      }
+
+      const otp = Math.floor(100000 + Math.random() * 900000).toString()
+      const expiresAt = new Date(Date.now() + 15 * 60 * 1000) // 15 minutes
+
+      await PasswordReset.create({ email: user.email.toLowerCase(), otp, expiresAt, used: false })
+
+      const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000"
+      const html = `
+        <p>Your password reset code is:</p>
+        <h2>${otp}</h2>
+        <p>This code will expire in 15 minutes.</p>
+        <p>If you did not request this, ignore this email.</p>
+      `
+
+      await emailService.sendEmail({ to: user.email, subject: "Password reset code", html, companyId: user.org_id })
+
+      return {
+        success: true,
+        message: "If an account with that email exists, an OTP has been sent",
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: "Failed to process forgot password",
+        error: error instanceof Error ? error.message : "Unknown error",
+      }
+    }
+  }
+
+  // Verify OTP
+  static async verifyOtp(email: string, otp: string): Promise<IAPIResponse<null>> {
+    try {
+      const token = await PasswordReset.findOne({ email: email.toLowerCase(), otp, used: false, expiresAt: { $gt: new Date() } }).sort({ createdAt: -1 })
+
+      if (!token) {
+        return { success: false, message: "Invalid or expired OTP" }
+      }
+
+      return { success: true, message: "OTP verified" }
+    } catch (error) {
+      return {
+        success: false,
+        message: "Failed to verify OTP",
+        error: error instanceof Error ? error.message : "Unknown error",
+      }
+    }
+  }
+
+  // Reset password using OTP
+  static async resetPassword(email: string, otp: string, newPassword: string): Promise<IAPIResponse<null>> {
+    try {
+      const token = await PasswordReset.findOne({ email: email.toLowerCase(), otp, used: false, expiresAt: { $gt: new Date() } }).sort({ createdAt: -1 })
+
+      if (!token) {
+        return { success: false, message: "Invalid or expired OTP" }
+      }
+
+      const user = await User.findOne({ email: email.toLowerCase() })
+      if (!user) {
+        return { success: false, message: "User not found" }
+      }
+
+      const hashed = await bcrypt.hash(newPassword, 10)
+      user.password = hashed
+      await user.save()
+
+      token.used = true
+      await token.save()
+
+      return { success: true, message: "Password reset successfully" }
+    } catch (error) {
+      return {
+        success: false,
+        message: "Failed to reset password",
         error: error instanceof Error ? error.message : "Unknown error",
       }
     }

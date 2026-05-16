@@ -11,6 +11,11 @@ router.post("/company-login", AuthController.companyLogin) // Login for employee
 router.post("/employee-login", AuthController.employeeIdLogin) // Login with employee ID
 router.get("/validate-company/:slug", AuthController.validateCompany) // Validate company exists
 
+// Password reset flow
+router.post("/forgot-password", AuthController.forgotPassword)
+router.post("/verify-otp", AuthController.verifyOtp)
+router.post("/reset-password", AuthController.resetPassword)
+
 // Protected routes
 router.post("/change-password", authMiddleware, AuthController.changePassword)
 
