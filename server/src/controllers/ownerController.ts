@@ -5,14 +5,11 @@ import { Company } from "../models/Company"
 // Fixed owner email from credentials
 const OWNER_EMAIL = "bellarinseth@gmail.com"
 
-export class OwnerController {
-  /**
-   * Check if user is owner
-   */
-  static isOwner(email: string): boolean {
-    return email?.toLowerCase() === OWNER_EMAIL.toLowerCase()
-  }
+const isOwner = (email: string): boolean => {
+  return email?.toLowerCase() === OWNER_EMAIL.toLowerCase()
+}
 
+export class OwnerController {
   /**
    * Get all companies with their details
    */
@@ -20,24 +17,53 @@ export class OwnerController {
     try {
       const userEmail = req.user?.email || ""
 
-      if (!this.isOwner(userEmail)) {
+      if (!isOwner(userEmail)) {
         return res.status(403).json({ success: false, message: "Unauthorized: Owner access required" })
       }
 
+      console.log("📊 [OwnerController] Fetching all companies...")
+
       const companies = await Company.find()
-        .select(
-          "name email slug phone industry status subscription isFrozen frozenReason frozenAt enabledPages pageAccessSettings createdAt updatedAt",
-        )
+        .lean()
         .sort({ createdAt: -1 })
+
+      console.log(`✅ [OwnerController] Found ${companies.length} companies`)
+
+      // Map to include all needed fields with defaults
+      const companiesData = companies.map((company: any) => ({
+        _id: company._id?.toString(),
+        name: company.name,
+        email: company.email,
+        slug: company.slug,
+        phone: company.phone,
+        industry: company.industry,
+        status: company.status,
+        subscription: company.subscription,
+        isFrozen: company.isFrozen || false,
+        frozenReason: company.frozenReason,
+        frozenAt: company.frozenAt,
+        enabledPages: company.enabledPages || [],
+        pageAccessSettings: company.pageAccessSettings,
+        maxEmployees: company.maxEmployees || 100,
+        employeeCount: company.employeeCount || 0,
+        createdAt: company.createdAt,
+        updatedAt: company.updatedAt,
+        primaryColor: company.primaryColor,
+        logo: company.logo,
+      }))
 
       return res.json({
         success: true,
-        data: companies,
-        total: companies.length,
+        data: companiesData,
+        total: companiesData.length,
       })
     } catch (error) {
-      console.error("Error fetching companies:", error)
-      return res.status(500).json({ success: false, message: "Failed to fetch companies" })
+      console.error("❌ [OwnerController] Error fetching companies:", error)
+      return res.status(500).json({
+        success: false,
+        message: "Failed to fetch companies",
+        error: process.env.NODE_ENV === "development" ? (error as any).message : undefined,
+      })
     }
   }
 
@@ -48,7 +74,7 @@ export class OwnerController {
     try {
       const userEmail = req.user?.email || ""
 
-      if (!this.isOwner(userEmail)) {
+      if (!isOwner(userEmail)) {
         return res.status(403).json({ success: false, message: "Unauthorized: Owner access required" })
       }
 
@@ -91,7 +117,7 @@ export class OwnerController {
     try {
       const userEmail = req.user?.email || ""
 
-      if (!this.isOwner(userEmail)) {
+      if (!isOwner(userEmail)) {
         return res.status(403).json({ success: false, message: "Unauthorized: Owner access required" })
       }
 
@@ -134,7 +160,7 @@ export class OwnerController {
     try {
       const userEmail = req.user?.email || ""
 
-      if (!this.isOwner(userEmail)) {
+      if (!isOwner(userEmail)) {
         return res.status(403).json({ success: false, message: "Unauthorized: Owner access required" })
       }
 
@@ -176,7 +202,7 @@ export class OwnerController {
     try {
       const userEmail = req.user?.email || ""
 
-      if (!this.isOwner(userEmail)) {
+      if (!isOwner(userEmail)) {
         return res.status(403).json({ success: false, message: "Unauthorized: Owner access required" })
       }
 
