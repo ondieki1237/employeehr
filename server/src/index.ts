@@ -11,7 +11,7 @@ import { errorHandler } from "./middleware/errorHandler"
 import { sanitizeInput } from "./middleware/sanitization.middleware"
 import { apiLimiter } from "./middleware/rateLimit.middleware"
 import { WebRTCSignalingService } from "./services/webrtcSignaling"
-import { runMigrations } from "./scripts/runMigrations"
+import { runMigrations } from "./scripts/runMigrations.mjs"
 import startSyncScheduler from './services/scheduler/syncScheduler'
 
 // Routes

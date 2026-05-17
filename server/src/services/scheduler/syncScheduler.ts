@@ -1,5 +1,5 @@
 import dotenv from 'dotenv'
-import { runMigrations } from '../../scripts/runMigrations'
+import { runMigrations } from '../../scripts/runMigrations.mjs'
 import { migrateUsers, migrateCompanies } from '../../scripts/syncMongoToMySQL'
 
 dotenv.config()
