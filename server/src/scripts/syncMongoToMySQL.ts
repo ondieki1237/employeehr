@@ -9,6 +9,7 @@ import { User } from "../models/User"
 import { Company } from "../models/Company"
 import { SecondaryStorageService } from "../services/secondaryStorageService"
 import dotenv from "dotenv"
+import { fileURLToPath } from 'url'
 
 dotenv.config()
 
@@ -85,9 +86,9 @@ async function runMigration() {
   }
 }
 
-// Run if executed directly
-if (require.main === module) {
-  runMigration()
+// Run if executed directly (ESM-safe)
+if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+  void runMigration()
 }
 
 export { runMigration, migrateUsers, migrateCompanies }
