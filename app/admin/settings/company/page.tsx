@@ -4,9 +4,10 @@ import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
 import { api } from "@/lib/api"
-import { Loader2, Image as ImageIcon, Palette, RefreshCw, Type, Layout, Eye } from "lucide-react"
+import { Loader2, Image as ImageIcon, Palette, RefreshCw, Type, Layout, Eye, Edit2, Trash2 } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { LocationSelector } from "@/components/ui/location-selector"
 import { Building2 } from "lucide-react"
@@ -36,10 +37,42 @@ export default function CompanySettingsPage() {
   const [city, setCity] = useState("")
   const [countryCode, setCountryCode] = useState("")
   const [syncingHolidays, setSyncingHolidays] = useState(false)
+  const [departments, setDepartments] = useState<any[]>([])
+  const [newDept, setNewDept] = useState("")
+  const [kpis, setKpis] = useState<any[]>([])
+  const [newKpi, setNewKpi] = useState({
+    name: "",
+    description: "",
+    category: "Operations",
+    weight: "50",
+    target: "100",
+    unit: "%",
+    department_id: "",
+  })
 
   useEffect(() => {
     loadBranding()
+    loadDepartments()
+    loadKpis()
   }, [])
+
+  const loadDepartments = async () => {
+    try {
+      const res = await api.company.getDepartments()
+      if (res?.success) setDepartments(res.data || [])
+    } catch (e) {
+      console.error('Failed to load departments', e)
+    }
+  }
+
+  const loadKpis = async () => {
+    try {
+      const res = await api.kpis.getAll()
+      if (res?.success) setKpis(res.data || [])
+    } catch (e) {
+      console.error('Failed to load KPIs', e)
+    }
+  }
 
   const loadBranding = async () => {
     try {
@@ -242,6 +275,141 @@ export default function CompanySettingsPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Departments */}
+        <Card className="border-2">
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">Departments</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <div className="flex gap-2">
+                <Input placeholder="New department name" value={newDept} onChange={(e) => setNewDept(e.target.value)} />
+                <Button onClick={async () => {
+                  if (!newDept.trim()) return
+                  try {
+                    const r = await api.company.createDepartment({ name: newDept.trim() })
+                    if (r?.success) {
+                      setNewDept('')
+                      loadDepartments()
+                      toast({ description: 'Department created' })
+                    }
+                  } catch (err: any) {
+                    toast({ description: err.message || 'Failed to create department', variant: 'destructive' })
+                  }
+                }}>Create</Button>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {departments.map((d: any) => (
+                  <div key={d._id} className="flex items-center gap-2">
+                    <Badge>{d.name}</Badge>
+                    <Button size="sm" variant="outline" onClick={async () => {
+                      const newName = window.prompt('Rename department', d.name)
+                      if (!newName) return
+                      try {
+                        const r = await api.company.updateDepartment(d._id, { name: newName.trim() })
+                        if (r?.success) {
+                          toast({ description: 'Department renamed' })
+                          loadDepartments()
+                        }
+                      } catch (err: any) {
+                        toast({ description: err.message || 'Failed to rename department', variant: 'destructive' })
+                      }
+                    }}>
+                      <Edit2 className="w-3 h-3" />
+                    </Button>
+                    <Button size="sm" variant="ghost" className="text-destructive" onClick={async () => {
+                      if (!confirm(`Delete department "${d.name}"?`)) return
+                      try {
+                        const r = await api.company.deleteDepartment(d._id)
+                        if (r?.success) {
+                          toast({ description: 'Department deleted' })
+                          loadDepartments()
+                        }
+                      } catch (err: any) {
+                        toast({ description: err.message || 'Failed to delete department', variant: 'destructive' })
+                      }
+                    }}>
+                      <Trash2 className="w-3 h-3" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Department KPIs */}
+        <Card className="border-2">
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">Department KPIs</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <Input placeholder="KPI name" value={newKpi.name} onChange={(e) => setNewKpi({ ...newKpi, name: e.target.value })} />
+              <Select value={newKpi.department_id} onValueChange={(v) => setNewKpi({ ...newKpi, department_id: v })}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Department" />
+                </SelectTrigger>
+                <SelectContent>
+                  {departments.map((d: any) => (
+                    <SelectItem key={d._id} value={d._id}>{d.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Input placeholder="Category" value={newKpi.category} onChange={(e) => setNewKpi({ ...newKpi, category: e.target.value })} />
+              <Input placeholder="Unit" value={newKpi.unit} onChange={(e) => setNewKpi({ ...newKpi, unit: e.target.value })} />
+              <Input placeholder="Weight" type="number" value={newKpi.weight} onChange={(e) => setNewKpi({ ...newKpi, weight: e.target.value })} />
+              <Input placeholder="Target" type="number" value={newKpi.target} onChange={(e) => setNewKpi({ ...newKpi, target: e.target.value })} />
+            </div>
+            <Input placeholder="Description" value={newKpi.description} onChange={(e) => setNewKpi({ ...newKpi, description: e.target.value })} />
+            <Button onClick={async () => {
+              if (!newKpi.name.trim()) return
+              try {
+                const r = await api.kpis.create({
+                  name: newKpi.name.trim(),
+                  description: newKpi.description.trim(),
+                  category: newKpi.category.trim(),
+                  weight: Number(newKpi.weight) || 50,
+                  target: Number(newKpi.target) || 100,
+                  unit: newKpi.unit.trim(),
+                  department_id: newKpi.department_id || undefined,
+                } as any)
+                if (r?.success) {
+                  toast({ description: 'KPI created' })
+                  setNewKpi({ name: '', description: '', category: 'Operations', weight: '50', target: '100', unit: '%', department_id: '' })
+                  loadKpis()
+                }
+              } catch (err: any) {
+                toast({ description: err.message || 'Failed to create KPI', variant: 'destructive' })
+              }
+            }}>Create KPI</Button>
+            <div className="space-y-2 max-h-56 overflow-y-auto">
+              {kpis.map((kpi: any) => (
+                <div key={kpi._id} className="flex items-center justify-between gap-2 rounded-md border p-3">
+                  <div>
+                    <div className="font-medium">{kpi.name}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {kpi.category} • {departments.find((d) => d._id === kpi.department_id)?.name || 'All departments'}
+                    </div>
+                  </div>
+                  <Button variant="ghost" className="text-destructive" size="sm" onClick={async () => {
+                    if (!confirm(`Delete KPI \"${kpi.name}\"?`)) return
+                    try {
+                      const r = await api.kpis.delete(kpi._id)
+                      if (r?.success) {
+                        toast({ description: 'KPI deleted' })
+                        loadKpis()
+                      }
+                    } catch (err: any) {
+                      toast({ description: err.message || 'Failed to delete KPI', variant: 'destructive' })
+                    }
+                  }}>Delete</Button>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Location & Holidays */}
         <Card className="md:col-span-2 border-2">
           <CardHeader>
@@ -295,8 +463,10 @@ export default function CompanySettingsPage() {
                   className="w-20 h-20 border rounded object-contain"
                   crossOrigin="anonymous"
                   onError={(e) => {
-                    console.error('Logo load error:', logo, e)
+                    console.warn('Logo failed to load:', logo)
+                    // hide the broken image and clear the logo state so UI shows placeholder
                     e.currentTarget.style.display = 'none'
+                    setLogo(undefined)
                   }}
                 />
               ) : (

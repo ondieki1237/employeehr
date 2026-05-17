@@ -174,11 +174,11 @@ export const awardsApi = {
 
 // KPIs API
 export const kpisApi = {
-    getAll: () => client.get<KPI[]>('/api/kpis'),
+    getAll: (departmentId?: string) => client.get<KPI[]>(`/api/kpis${departmentId ? `?departmentId=${encodeURIComponent(departmentId)}` : ''}`),
 
     getById: (id: string) => client.get<KPI>(`/api/kpis/${id}`),
 
-    create: (data: CreateKPIRequest) =>
+    create: (data: CreateKPIRequest & { department_id?: string }) =>
         client.post<KPI>('/api/kpis', data),
 
     update: (id: string, data: Partial<CreateKPIRequest>) =>
@@ -423,6 +423,11 @@ export const companyApi = {
 
     // Email configuration
     getEmailConfig: () => client.get<any>('/api/company/email-config'),
+    // Departments
+    getDepartments: () => client.get<any[]>('/api/company/departments'),
+    createDepartment: (data: { name: string }) => client.post<any>('/api/company/departments', data),
+    updateDepartment: (id: string, data: { name?: string; managerId?: string }) => client.put<any>(`/api/company/departments/${id}`, data),
+    deleteDepartment: (id: string) => client.delete<any>(`/api/company/departments/${id}`),
     
     updateEmailConfig: (data: {
         smtpHost?: string

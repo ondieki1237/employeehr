@@ -11,6 +11,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
+import { api } from '@/lib/api';
 import {
   Dialog,
   DialogContent,
@@ -80,6 +82,7 @@ export default function AdminUsersPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [departments, setDepartments] = useState<string[]>([]);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
@@ -97,19 +100,14 @@ export default function AdminUsersPage() {
   const [employeeAwards, setEmployeeAwards] = useState<any[]>([]);
   const [employeeAlerts, setEmployeeAlerts] = useState<any[]>([]);
 
-  // Create user form state
+  // Create user form state (simplified)
   const [newUser, setNewUser] = useState({
-    firstName: '',
-    lastName: '',
+    fullName: '',
     email: '',
     employee_id: '',
-    role: 'employee',
     department: '',
-    position: '',
-    phone: '',
-    location: '',
-    hireDate: '',
-    manager: '',
+    role: 'employee',
+    isManager: false,
   });
 
   // Message dialog
@@ -118,6 +116,14 @@ export default function AdminUsersPage() {
 
   useEffect(() => {
     fetchUsers();
+    (async () => {
+      try {
+        const r = await api.company.getDepartments()
+        if (r?.success) setDepartments(r.data || [])
+      } catch (err) {
+        console.error('Failed to load departments', err)
+      }
+    })()
   }, []);
 
   const fetchUsers = async () => {
@@ -210,35 +216,46 @@ export default function AdminUsersPage() {
 
   const handleCreateUser = async () => {
     try {
+      const names = newUser.fullName.trim().split(/\s+/)
+      const firstName = names.shift() || ''
+      const lastName = names.join(' ') || ''
+      const selectedDept = departments.find((d) => d._id === newUser.department)
+      const role = newUser.role === 'admin' ? 'admin' : newUser.isManager ? 'manager' : 'employee'
+      const payload = {
+        firstName,
+        lastName,
+        email: newUser.email,
+        employee_id: newUser.employee_id,
+        department: selectedDept?.name || newUser.department,
+        role,
+      }
+
       const response = await fetch(`${API_URL}/api/users`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${getToken()}`,
         },
-        body: JSON.stringify(newUser),
+        body: JSON.stringify(payload),
       });
 
       if (response.ok) {
-        toast({
-          title: 'Success',
-          description: 'User created successfully',
-        });
-        setIsCreateDialogOpen(false);
-        setNewUser({
-          firstName: '',
-          lastName: '',
-          email: '',
-          employee_id: '',
-          role: 'employee',
-          department: '',
-          position: '',
-          phone: '',
-          location: '',
-          hireDate: '',
-          manager: '',
-        });
-        fetchUsers();
+        const body = await response.json()
+        const created = body.data || body
+        // If marked as manager, assign to department
+        if (role === 'manager' && newUser.department && created && created._id) {
+          try {
+            await api.company.updateDepartment(newUser.department, { managerId: created._id })
+            toast({ description: 'Assigned manager to department' })
+          } catch (err) {
+            console.error('Failed to assign manager to department', err)
+          }
+        }
+
+        toast({ title: 'Success', description: 'User created successfully' })
+        setIsCreateDialogOpen(false)
+        setNewUser({ fullName: '', email: '', employee_id: '', department: '', role: 'employee', isManager: false })
+        fetchUsers()
       } else {
         throw new Error('Failed to create user');
       }
@@ -361,7 +378,7 @@ export default function AdminUsersPage() {
     return matchesSearch && matchesRole && matchesDepartment && matchesStatus;
   });
 
-  const departments = Array.from(new Set(users.map(u => u.department).filter(Boolean)));
+  
 
   if (loading) {
     return (
@@ -465,8 +482,8 @@ export default function AdminUsersPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Departments</SelectItem>
-                  {departments.map(dept => (
-                    <SelectItem key={dept} value={dept}>{dept}</SelectItem>
+                  {departments.map((dept) => (
+                    <SelectItem key={dept._id} value={dept.name}>{dept.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -494,126 +511,89 @@ export default function AdminUsersPage() {
                   <DialogHeader>
                     <DialogTitle>Add New Employee</DialogTitle>
                     <DialogDescription>
-                      Create a new employee account with detailed information
+                        Create a new employee with minimal required details
                     </DialogDescription>
                   </DialogHeader>
-                  <div className="grid gap-4 py-4">
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid gap-4 py-4">
                       <div className="space-y-2">
-                        <Label htmlFor="firstName">First Name *</Label>
+                        <Label htmlFor="fullName">Employee Name *</Label>
                         <Input
-                          id="firstName"
-                          value={newUser.firstName}
-                          onChange={(e) => setNewUser({ ...newUser, firstName: e.target.value })}
-                          placeholder="John"
+                          id="fullName"
+                          value={newUser.fullName}
+                          onChange={(e) => setNewUser({ ...newUser, fullName: e.target.value })}
+                          placeholder="Jane Doe"
                         />
                       </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="lastName">Last Name *</Label>
-                        <Input
-                          id="lastName"
-                          value={newUser.lastName}
-                          onChange={(e) => setNewUser({ ...newUser, lastName: e.target.value })}
-                          placeholder="Doe"
-                        />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="email">Email *</Label>
-                      <Input
-                        id="email"
-                        type="email"
-                        value={newUser.email}
-                        onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
-                        placeholder="john.doe@company.com"
-                      />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="employee_id">Employee ID *</Label>
-                        <Input
-                          id="employee_id"
-                          value={newUser.employee_id}
-                          onChange={(e) => setNewUser({ ...newUser, employee_id: e.target.value })}
-                          placeholder="EMP001"
-                        />
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="employee_id">Phone Number *</Label>
+                          <Input
+                            id="employee_id"
+                            value={newUser.employee_id}
+                            onChange={(e) => setNewUser({ ...newUser, employee_id: e.target.value })}
+                            placeholder="+25400000000"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="email">Email *</Label>
+                          <Input
+                            id="email"
+                            type="email"
+                            value={newUser.email}
+                            onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
+                            placeholder="jane.doe@company.com"
+                          />
+                        </div>
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="phone">Phone</Label>
-                        <Input
-                          id="phone"
-                          value={newUser.phone}
-                          onChange={(e) => setNewUser({ ...newUser, phone: e.target.value })}
-                          placeholder="+1 234 567 8900"
-                        />
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="role">Role *</Label>
-                        <Select
-                          value={newUser.role}
-                          onValueChange={(value) => setNewUser({ ...newUser, role: value })}
-                        >
+                        <Label htmlFor="department">Department *</Label>
+                        <Select value={newUser.department} onValueChange={(v) => setNewUser({ ...newUser, department: v })}>
                           <SelectTrigger>
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="employee">Employee</SelectItem>
-                            <SelectItem value="manager">Manager</SelectItem>
-                            <SelectItem value="admin">Admin</SelectItem>
+                            {departments.map((d) => (
+                              <SelectItem key={d._id} value={d._id}>{d.name}</SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="department">Department *</Label>
-                        <Input
-                          id="department"
-                          value={newUser.department}
-                          onChange={(e) => setNewUser({ ...newUser, department: e.target.value })}
-                          placeholder="Engineering"
+                        <Label>Role</Label>
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            type="button"
+                            variant={newUser.role === 'employee' ? 'default' : 'outline'}
+                            onClick={() => setNewUser({ ...newUser, role: 'employee', isManager: false })}
+                          >
+                            Employee
+                          </Button>
+                          <Button
+                            type="button"
+                            variant={newUser.role === 'manager' ? 'default' : 'outline'}
+                            onClick={() => setNewUser({ ...newUser, role: 'manager', isManager: true })}
+                          >
+                            Manager
+                          </Button>
+                          <Button
+                            type="button"
+                            variant={newUser.role === 'admin' ? 'default' : 'outline'}
+                            onClick={() => setNewUser({ ...newUser, role: 'admin', isManager: false })}
+                          >
+                            Admin
+                          </Button>
+                        </div>
+                        <p className="text-xs text-muted-foreground">Admin has full access to all areas and cannot be a manager.</p>
+                      </div>
+                      <div className="flex items-center gap-2 mt-2">
+                        <Checkbox
+                          checked={newUser.isManager}
+                          disabled={newUser.role === 'admin'}
+                          onCheckedChange={(v: any) => setNewUser({ ...newUser, isManager: !!v, role: v ? 'manager' : newUser.role === 'admin' ? 'admin' : 'employee' })}
                         />
+                        <Label>Assign as department manager</Label>
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="position">Position *</Label>
-                        <Input
-                          id="position"
-                          value={newUser.position}
-                          onChange={(e) => setNewUser({ ...newUser, position: e.target.value })}
-                          placeholder="Software Engineer"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="hireDate">Hire Date</Label>
-                        <Input
-                          id="hireDate"
-                          type="date"
-                          value={newUser.hireDate}
-                          onChange={(e) => setNewUser({ ...newUser, hireDate: e.target.value })}
-                        />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="location">Location</Label>
-                      <Input
-                        id="location"
-                        value={newUser.location}
-                        onChange={(e) => setNewUser({ ...newUser, location: e.target.value })}
-                        placeholder="New York, NY"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="manager">Manager</Label>
-                      <Input
-                        id="manager"
-                        value={newUser.manager}
-                        onChange={(e) => setNewUser({ ...newUser, manager: e.target.value })}
-                        placeholder="Manager Name"
-                      />
-                    </div>
-                  </div>
                   <DialogFooter>
                     <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
                       Cancel
@@ -667,7 +647,7 @@ export default function AdminUsersPage() {
                           {user.department && (
                             <div className="flex items-center gap-1">
                               <MapPin className="h-3 w-3" />
-                              {user.department}
+                              {departments.find((d) => d._id === user.department)?.name || user.department}
                             </div>
                           )}
                           {user.position && (

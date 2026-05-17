@@ -9,7 +9,10 @@ export class KPIController {
         return res.status(400).json({ success: false, message: "Organization ID required" })
       }
 
-      const kpis = await KPI.find({ org_id: req.org_id })
+      const { departmentId } = req.query as { departmentId?: string }
+      const filter: Record<string, any> = { org_id: req.org_id }
+      if (departmentId) filter.department_id = departmentId
+      const kpis = await KPI.find(filter)
 
       res.status(200).json({
         success: true,
@@ -69,7 +72,7 @@ export class KPIController {
         })
       }
 
-      const { name, description, category, weight, target, unit } = req.body
+      const { name, description, category, weight, target, unit, department_id } = req.body
 
       // Validate required fields
       if (!name || !category || !unit) {
@@ -87,6 +90,7 @@ export class KPIController {
         weight: weight || 50,
         target: target || 100,
         unit,
+        department_id: department_id || undefined,
       })
 
       const savedKPI = await kpi.save()

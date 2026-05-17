@@ -39,17 +39,14 @@ export default function ManagerLayout({
 
   const getTitle = () => {
     if (pathname === "/manager") return "Dashboard"
-    if (pathname.includes("/students")) return "Students"
-    if (pathname.includes("/facilitators")) return "Facilitators"
-    if (pathname.includes("/resources")) return "Resources"
-    if (pathname.includes("/examinations")) return "Examinations"
-    if (pathname.includes("/library")) return "Library"
-    if (pathname.includes("/fees")) return "Fee Management"
-    if (pathname.includes("/supervision")) return "Supervision"
-    if (pathname.includes("/evaluations")) return "Evaluations"
-    if (pathname.includes("/pdp-reviews")) return "PDP Reviews"
-    if (pathname.includes("/feedback")) return "Feedback"
+    if (pathname.includes("/team")) return "Team Members"
+    if (pathname.includes("/approvals")) return "Approvals"
+    if (pathname.includes("/performance")) return "Performance"
+    if (pathname.includes("/evaluations")) return "Employee Evaluations"
+    if (pathname.includes("/pdp-reviews")) return "Development Plans"
+    if (pathname.includes("/feedback")) return "Feedback & Communication"
     if (pathname.includes("/leave-requests")) return "Leave Requests"
+    if (pathname.includes("/reports")) return "Reports"
     return "Manager Workspace"
   }
 

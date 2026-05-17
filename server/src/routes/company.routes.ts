@@ -3,6 +3,7 @@ import { authMiddleware, orgMiddleware, roleMiddleware } from "../middleware/aut
 import { tenantIsolation } from "../middleware/tenantIsolation.middleware"
 import { CompanyController } from "../controllers/companyController"
 import { CompanyEmailController } from "../controllers/companyEmailController"
+import { DepartmentController } from "../controllers/departmentController"
 import { uploadLogo } from "../middleware/upload.middleware"
 
 const router = Router()
@@ -30,5 +31,11 @@ router.get("/email-config", roleMiddleware("company_admin", "hr"), CompanyEmailC
 router.post("/email-config", roleMiddleware("company_admin", "hr"), CompanyEmailController.updateEmailConfig)
 router.post("/email-config/verify", roleMiddleware("company_admin", "hr"), CompanyEmailController.verifyEmailConfig)
 router.post("/email-config/disable", roleMiddleware("company_admin", "hr"), CompanyEmailController.disableEmailConfig)
+
+// Departments
+router.get('/departments', roleMiddleware('company_admin', 'hr', 'manager'), DepartmentController.list)
+router.post('/departments', roleMiddleware('company_admin', 'hr'), DepartmentController.create)
+router.put('/departments/:id', roleMiddleware('company_admin', 'hr'), DepartmentController.update)
+router.delete('/departments/:id', roleMiddleware('company_admin', 'hr'), DepartmentController.remove)
 
 export default router

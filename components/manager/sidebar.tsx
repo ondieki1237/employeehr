@@ -8,13 +8,13 @@ import { logout } from "@/lib/auth"
 
 const links = [
   { href: "/manager", label: "Dashboard" },
-  { href: "/manager/students", label: "Students" },
-  { href: "/manager/facilitators", label: "Facilitators" },
-  { href: "/manager/resources", label: "Resources" },
-  { href: "/manager/examinations", label: "Examinations" },
-  { href: "/manager/library", label: "Library" },
-  { href: "/manager/fees", label: "Fee Management" },
-  { href: "/manager/supervision", label: "Supervision" },
+  { href: "/manager/team", label: "Team Members" },
+  { href: "/manager/approvals", label: "Approvals" },
+  { href: "/manager/performance", label: "Performance" },
+  { href: "/manager/leave-requests", label: "Leave Requests" },
+  { href: "/manager/evaluations", label: "Evaluations" },
+  { href: "/manager/pdp-reviews", label: "Development Plans" },
+  { href: "/manager/reports", label: "Reports" },
 ]
 
 export default function ManagerSidebar({ onNavigate }: { onNavigate?: () => void }) {
@@ -28,10 +28,10 @@ export default function ManagerSidebar({ onNavigate }: { onNavigate?: () => void
     <aside className="flex h-full w-72 flex-col border-r bg-white">
       <div className="border-b px-6 py-5">
         <div className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
-          School Enterprise
+          Company Management
         </div>
         <h2 className="mt-1 text-lg font-semibold text-slate-900">Manager Portal</h2>
-        <p className="mt-1 text-sm text-slate-600">Operational control for school leadership</p>
+        <p className="mt-1 text-sm text-slate-600">Team & operational management</p>
       </div>
 
       <nav className="flex-1 space-y-1 px-4 py-5">

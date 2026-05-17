@@ -126,6 +126,7 @@ export interface ICompany {
 export interface IKPI {
   _id?: string
   org_id: string
+  department_id?: string
   name: string
   description: string
   category: string // Sales, Quality, Attendance, Customer Service, etc.

@@ -3,28 +3,27 @@
 import Link from "next/link"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Users, BookOpen, Calculator, GraduationCap, Library, ClipboardList, ShieldCheck } from "lucide-react"
+import { Users, CheckCircle2, BarChart3, FileText, Clock, MessageSquare, Award, TrendingUp } from "lucide-react"
 
 export default function ManagerDashboard() {
   return (
     <div className="space-y-8">
       <section className="space-y-3">
         <div className="inline-flex rounded-full border bg-white px-3 py-1 text-xs font-medium text-slate-600 shadow-sm">
-          School Enterprise / Manager Dashboard
+          Company / Manager Dashboard
         </div>
         <h1 className="text-3xl font-semibold tracking-tight text-slate-900">Manager Dashboard</h1>
         <p className="max-w-3xl text-sm leading-6 text-slate-600">
-          Oversee students, facilitators, learning resources, examinations, the library, fee management, and other
-          supervisory operations from one place.
+          Manage and oversee your team members, track performance, handle approvals, and manage company operations from one central hub.
         </p>
       </section>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {[
-          { label: "Students", value: "128", note: "Active learners" },
-          { label: "Facilitators", value: "18", note: "Teachers and mentors" },
-          { label: "Examinations", value: "6", note: "Scheduled this term" },
-          { label: "Outstanding Fees", value: "24", note: "Pending records" },
+          { label: "Team Members", value: "24", note: "Active employees" },
+          { label: "Pending Approvals", value: "5", note: "Awaiting action" },
+          { label: "Leave Requests", value: "3", note: "This month" },
+          { label: "Performance Reviews", value: "8", note: "Due this quarter" },
         ].map((item) => (
           <Card key={item.label} className="border-border/70 bg-white p-5 shadow-sm">
             <p className="text-sm text-slate-600">{item.label}</p>
@@ -36,13 +35,12 @@ export default function ManagerDashboard() {
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {[
-          { title: "Students", desc: "Admissions, profiles, attendance, and progress tracking.", href: "/manager/students", icon: Users },
-          { title: "Facilitators", desc: "Teacher allocation, timetables, and supervision support.", href: "/manager/facilitators", icon: GraduationCap },
-          { title: "Resources", desc: "Learning materials, assets, and operational resources.", href: "/manager/resources", icon: BookOpen },
-          { title: "Examinations", desc: "Exam setup, results workflow, and performance review.", href: "/manager/examinations", icon: ClipboardList },
-          { title: "Library", desc: "Catalog, borrowing, returns, and resource access.", href: "/manager/library", icon: Library },
-          { title: "Fee Management", desc: "Billing, payments, balances, and reconciliation.", href: "/manager/fees", icon: Calculator },
-          { title: "Supervision", desc: "Approvals, discipline, and general oversight tasks.", href: "/manager/supervision", icon: ShieldCheck },
+          { title: "Team Members", desc: "View team roster, profiles, roles, and contact information.", href: "/manager/team", icon: Users },
+          { title: "Approvals", desc: "Review and approve leave requests, expense claims, and time-off.", href: "/manager/approvals", icon: CheckCircle2 },
+          { title: "Performance", desc: "Track KPIs, manage evaluations, and conduct reviews.", href: "/manager/performance", icon: TrendingUp },
+          { title: "Leave Management", desc: "Monitor team leave schedules and balance.", href: "/manager/leave-requests", icon: Clock },
+          { title: "Reports", desc: "Generate compliance, attendance, and performance reports.", href: "/manager/reports", icon: BarChart3 },
+          { title: "Feedback & Communication", desc: "Share feedback, announcements, and team messages.", href: "/manager/feedback", icon: MessageSquare },
         ].map((item) => {
           const Icon = item.icon
           return (
@@ -68,13 +66,13 @@ export default function ManagerDashboard() {
           <Link href="/manager/evaluations">Employee Evaluations</Link>
         </Button>
         <Button asChild variant="outline">
-          <Link href="/manager/pdp-reviews">PDP Reviews</Link>
-        </Button>
-        <Button asChild variant="outline">
-          <Link href="/manager/feedback">Feedback</Link>
+          <Link href="/manager/pdp-reviews">Development Plans</Link>
         </Button>
         <Button asChild variant="outline">
           <Link href="/manager/leave-requests">Leave Requests</Link>
+        </Button>
+        <Button asChild variant="default">
+          <Link href="/manager/team">View Full Team</Link>
         </Button>
       </div>
     </div>

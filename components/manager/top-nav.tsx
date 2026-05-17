@@ -24,7 +24,7 @@ export default function ManagerTopNav({
       </div>
 
       <Button asChild variant="outline" size="sm" className="hidden sm:inline-flex">
-        <Link href="/shule">School Enterprise</Link>
+        <Link href="/admin">Company Dashboard</Link>
       </Button>
     </header>
   )
