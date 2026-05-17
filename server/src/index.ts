@@ -12,6 +12,7 @@ import { sanitizeInput } from "./middleware/sanitization.middleware"
 import { apiLimiter } from "./middleware/rateLimit.middleware"
 import { WebRTCSignalingService } from "./services/webrtcSignaling"
 import { runMigrations } from "./scripts/runMigrations"
+import startSyncScheduler from './services/scheduler/syncScheduler'
 
 // Routes
 import authRoutes from "./routes/auth.routes"
@@ -221,6 +222,9 @@ async function startServer() {
           console.error("[stock-expiry] automated check failed:", error)
         }
       }, expiryCheckIntervalMs)
+
+      // Start automatic sync scheduler (migrations + Mongo->MySQL sync every 5 minutes)
+      void startSyncScheduler()
     })
   } catch (error) {
     console.error("❌ Failed to start server:", error)
