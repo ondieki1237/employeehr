@@ -10,6 +10,8 @@ router.use(authMiddleware, orgMiddleware, tenantIsolation)
 router.post("/categories", StockController.createCategory)
 router.get("/categories", StockController.getCategories)
 router.get("/categories/:id", StockController.getCategoryById)
+router.get("/categories/:id/sales", StockController.getCategorySales)
+router.get("/categories/sales", StockController.getAllCategorySales)
 router.put("/categories/:id", StockController.updateCategory)
 router.delete("/categories/:id", StockController.deleteCategory)
 

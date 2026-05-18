@@ -2909,6 +2909,73 @@ export class StockController {
     }
   }
 
+  static async getCategorySales(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = req.user?.org_id
+      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+
+      const { id } = req.params
+
+      const products = await StockProduct.find({ category: id, org_id }).select("_id name").lean()
+      const productIds = products.map((p) => String(p._id))
+
+      const sales = await StockSale.find({ org_id, productId: { $in: productIds } }).sort({ createdAt: -1 }).lean()
+
+      const totalRevenue = sales.reduce((sum: number, s: any) => sum + Number(s.quantitySold || 0) * Number(s.soldPrice || 0), 0)
+      const totalUnits = sales.reduce((sum: number, s: any) => sum + Number(s.quantitySold || 0), 0)
+
+      // Monthly trend
+      const monthMap = new Map<string, { units: number; revenue: number }>()
+      sales.forEach((s: any) => {
+        const m = new Date(s.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "short" })
+        const cur = monthMap.get(m) || { units: 0, revenue: 0 }
+        cur.units += Number(s.quantitySold || 0)
+        cur.revenue += Number(s.quantitySold || 0) * Number(s.soldPrice || 0)
+        monthMap.set(m, cur)
+      })
+
+      const monthlyTrend = Array.from(monthMap.entries()).map(([month, data]) => ({ month, ...data }))
+
+      return res.status(200).json({ success: true, data: { products, sales, totalRevenue, totalUnits, monthlyTrend } })
+    } catch (error: any) {
+      return res.status(500).json({ success: false, message: error.message || "Failed to fetch category sales" })
+    }
+  }
+
+  static async getAllCategorySales(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = req.user?.org_id
+      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+
+      const [categories, products, sales] = await Promise.all([
+        StockCategory.find({ org_id }).lean(),
+        StockProduct.find({ org_id }).select("_id category name").lean(),
+        StockSale.find({ org_id }).lean(),
+      ])
+
+      const productMap = new Map(products.map((p: any) => [String(p._id), p]))
+
+      const categoryMap = new Map<string, { id: string; name: string; units: number; revenue: number }>()
+      categories.forEach((c: any) => categoryMap.set(String(c._id), { id: String(c._id), name: c.name, units: 0, revenue: 0 }))
+
+      sales.forEach((s: any) => {
+        const prod = productMap.get(String(s.productId))
+        if (!prod) return
+        const catId = String(prod.category || "")
+        if (!categoryMap.has(catId)) return
+        const entry = categoryMap.get(catId)!
+        entry.units += Number(s.quantitySold || 0)
+        entry.revenue += Number(s.quantitySold || 0) * Number(s.soldPrice || 0)
+      })
+
+      const result = Array.from(categoryMap.values()).sort((a, b) => b.revenue - a.revenue)
+
+      return res.status(200).json({ success: true, data: result })
+    } catch (error: any) {
+      return res.status(500).json({ success: false, message: error.message || "Failed to fetch categories sales" })
+    }
+  }
+
   static async updateCategory(req: AuthenticatedRequest, res: Response) {
     try {
       const org_id = req.user?.org_id

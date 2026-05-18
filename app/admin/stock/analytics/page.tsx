@@ -1,5 +1,5 @@
-import { StockManagerContent } from "@/components/admin/stock/stock-manager-content"
+import { redirect } from "next/navigation"
 
 export default function InventoryAnalyticsPage() {
-  return <StockManagerContent view="analytics" />
+  redirect("/admin/stock/analytics/product")
 }

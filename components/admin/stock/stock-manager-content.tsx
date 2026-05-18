@@ -13,6 +13,18 @@ import { useToast } from "@/hooks/use-toast"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { CategoriesManager } from "./categories-manager"
 import { ProductsManager } from "./products-manager"
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  CartesianGrid,
+  XAxis,
+  YAxis,
+  Tooltip,
+  Legend,
+  LineChart,
+  Line,
+} from "recharts"
 
 type StockView = "add-inventory" | "sales" | "status" | "analytics" | "history" | "outsourced"
 
@@ -157,6 +169,9 @@ export function StockManagerContent({ view }: { view: StockView }) {
   const [saleProductSearch, setSaleProductSearch] = useState("")
   const [salesSearch, setSalesSearch] = useState("")
   const [inventorySearch, setInventorySearch] = useState("")
+  const [selectedAnalyticsProductId, setSelectedAnalyticsProductId] = useState("")
+  const [analyticsDateStart, setAnalyticsDateStart] = useState("")
+  const [analyticsDateEnd, setAnalyticsDateEnd] = useState("")
 
   const headers = useMemo(
     () => ({
@@ -206,6 +221,22 @@ export function StockManagerContent({ view }: { view: StockView }) {
   useEffect(() => {
     fetchAll()
   }, [])
+
+  useEffect(() => {
+    if (!selectedAnalyticsProductId && products.length > 0) {
+      setSelectedAnalyticsProductId(products[0]._id)
+    }
+  }, [products, selectedAnalyticsProductId])
+
+  useEffect(() => {
+    if (!analyticsDateStart && !analyticsDateEnd) {
+      const end = new Date()
+      const start = new Date()
+      start.setMonth(start.getMonth() - 11)
+      setAnalyticsDateStart(start.toISOString().slice(0, 10))
+      setAnalyticsDateEnd(end.toISOString().slice(0, 10))
+    }
+  }, [analyticsDateStart, analyticsDateEnd])
 
   const lowStockProducts = products.filter((product) => product.currentQuantity <= product.minAlertQuantity)
   const totalInventoryUnits = products.reduce((sum, product) => sum + (product.currentQuantity || 0), 0)
@@ -305,6 +336,156 @@ export function StockManagerContent({ view }: { view: StockView }) {
       .map(([productId, data]) => ({ productId, ...data }))
       .sort((a, b) => b.quantitySold - a.quantitySold)
   }, [sales])
+
+  const selectedAnalyticsProduct = useMemo(
+    () => products.find((product) => product._id === selectedAnalyticsProductId) || null,
+    [products, selectedAnalyticsProductId],
+  )
+
+  const selectedProductSales = useMemo(() => {
+    if (!selectedAnalyticsProductId) return []
+    return sales.filter((sale) => String(sale.product?._id || "") === selectedAnalyticsProductId)
+  }, [sales, selectedAnalyticsProductId])
+
+  const selectedProductSalesInRange = useMemo(() => {
+    if (!selectedProductSales.length) return []
+
+    const start = analyticsDateStart ? new Date(`${analyticsDateStart}T00:00:00.000`) : null
+    const end = analyticsDateEnd ? new Date(`${analyticsDateEnd}T23:59:59.999`) : null
+
+    return selectedProductSales.filter((sale) => {
+      const saleDate = new Date(sale.createdAt)
+      if (start && saleDate < start) return false
+      if (end && saleDate > end) return false
+      return true
+    })
+  }, [analyticsDateEnd, analyticsDateStart, selectedProductSales])
+
+  const selectedProductAnalytics = useMemo(() => {
+    const allSalesTotalQty = sales.reduce((sum, sale) => sum + Number(sale.quantitySold || 0), 0)
+    const allSalesTotalRevenue = totalSalesValue
+
+    const totalQuantitySold = selectedProductSalesInRange.reduce((sum, sale) => sum + Number(sale.quantitySold || 0), 0)
+    const totalRevenueGenerated = selectedProductSalesInRange.reduce((sum, sale) => sum + Number(sale.quantitySold || 0) * Number(sale.soldPrice || 0), 0)
+    const totalCostBasis = selectedProductSalesInRange.reduce((sum, sale) => sum + Number(sale.quantitySold || 0) * Number(selectedAnalyticsProduct?.startingPrice || 0), 0)
+    const grossProfit = totalRevenueGenerated - totalCostBasis
+    const grossMarginPercent = totalRevenueGenerated > 0 ? (grossProfit / totalRevenueGenerated) * 100 : 0
+    const averageSoldPrice = selectedProductSalesInRange.length > 0 ? totalRevenueGenerated / totalQuantitySold : 0
+    const lowestSoldPrice = selectedProductSalesInRange.length > 0 ? Math.min(...selectedProductSalesInRange.map((sale) => Number(sale.soldPrice || 0))) : 0
+    const highestSoldPrice = selectedProductSalesInRange.length > 0 ? Math.max(...selectedProductSalesInRange.map((sale) => Number(sale.soldPrice || 0))) : 0
+
+    const clientMap = new Map<string, {
+      name: string
+      number: string
+      location: string
+      units: number
+      revenue: number
+      visits: number
+    }>()
+
+    const priceMap = new Map<number, { price: number; units: number; revenue: number; salesCount: number }>()
+
+    selectedProductSalesInRange.forEach((sale) => {
+      const clientName = sale.isWalkInClient ? "Walk-in Client" : sale.buyerName || "Unknown"
+      const clientNumber = sale.buyerNumber || ""
+      const clientLocation = sale.buyerLocation || ""
+      const clientKey = `${clientName}|${clientNumber}|${clientLocation}`
+      const qty = Number(sale.quantitySold || 0)
+      const revenue = qty * Number(sale.soldPrice || 0)
+
+      const existingClient = clientMap.get(clientKey) || {
+        name: clientName,
+        number: clientNumber,
+        location: clientLocation,
+        units: 0,
+        revenue: 0,
+        visits: 0,
+      }
+      existingClient.units += qty
+      existingClient.revenue += revenue
+      existingClient.visits += 1
+      clientMap.set(clientKey, existingClient)
+
+      const price = Number(sale.soldPrice || 0)
+      const existingPrice = priceMap.get(price) || { price, units: 0, revenue: 0, salesCount: 0 }
+      existingPrice.units += qty
+      existingPrice.revenue += revenue
+      existingPrice.salesCount += 1
+      priceMap.set(price, existingPrice)
+    })
+
+    const topClients = Array.from(clientMap.values())
+      .sort((a, b) => b.revenue - a.revenue)
+      .slice(0, 5)
+
+    const priceBreakdown = Array.from(priceMap.values())
+      .sort((a, b) => b.revenue - a.revenue)
+
+    const productRankByRevenue = [...salesByProduct].sort((a, b) => b.salesValue - a.salesValue)
+    const productRankByQuantity = [...salesByProduct].sort((a, b) => b.quantitySold - a.quantitySold)
+    const revenueRank = productRankByRevenue.findIndex((row) => row.productId === selectedAnalyticsProductId) + 1
+    const quantityRank = productRankByQuantity.findIndex((row) => row.productId === selectedAnalyticsProductId) + 1
+    const revenueShare = allSalesTotalRevenue > 0 ? (totalRevenueGenerated / allSalesTotalRevenue) * 100 : 0
+    const quantityShare = allSalesTotalQty > 0 ? (totalQuantitySold / allSalesTotalQty) * 100 : 0
+
+    const comparisonRows = productRankByRevenue.slice(0, 5).map((row) => ({
+      name: row.productName,
+      revenue: Number(row.salesValue || 0),
+      quantity: Number(row.quantitySold || 0),
+      isSelected: row.productId === selectedAnalyticsProductId,
+    }))
+
+    return {
+      totalQuantitySold,
+      totalRevenueGenerated,
+      totalCostBasis,
+      grossProfit,
+      grossMarginPercent,
+      averageSoldPrice,
+      lowestSoldPrice,
+      highestSoldPrice,
+      revenueShare,
+      quantityShare,
+      revenueRank: revenueRank || null,
+      quantityRank: quantityRank || null,
+      topClients,
+      priceBreakdown,
+      comparisonRows,
+    }
+  }, [sales, selectedAnalyticsProductId, selectedProductSalesInRange, salesByProduct, totalSalesValue, selectedAnalyticsProduct])
+
+  const selectedProductHistory = useMemo(() => {
+    return [...selectedProductSalesInRange]
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, 12)
+  }, [selectedProductSalesInRange])
+
+  const selectedProductTrendData = useMemo(() => {
+    const monthlyMap = new Map<string, { month: string; units: number; revenue: number; profit: number }>()
+    selectedProductSalesInRange.forEach((sale) => {
+      const date = new Date(sale.createdAt)
+      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`
+      const monthLabel = date.toLocaleString(undefined, { month: "short", year: "numeric" })
+      const qty = Number(sale.quantitySold || 0)
+      const revenue = qty * Number(sale.soldPrice || 0)
+      const profit = qty * (Number(sale.soldPrice || 0) - Number(selectedAnalyticsProduct?.startingPrice || 0))
+
+      const existing = monthlyMap.get(key) || { month: monthLabel, units: 0, revenue: 0, profit: 0 }
+      existing.units += qty
+      existing.revenue += revenue
+      existing.profit += profit
+      monthlyMap.set(key, existing)
+    })
+
+    return Array.from(monthlyMap.entries())
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([, value]) => ({
+        month: value.month,
+        units: value.units,
+        revenue: Number(value.revenue.toFixed(2)),
+        profit: Number(value.profit.toFixed(2)),
+      }))
+  }, [selectedAnalyticsProduct?.startingPrice, selectedProductSalesInRange])
 
   const projectionRows = useMemo(() => {
     const now = new Date()
@@ -1457,64 +1638,354 @@ export function StockManagerContent({ view }: { view: StockView }) {
       )}
 
       {view === "analytics" && (
-        <>
-          <h1 className="text-2xl font-bold">Inventory Analytics</h1>
+        <div className="space-y-6">
+          <div className="rounded-3xl border border-slate-200 bg-gradient-to-br from-white to-slate-50/70 p-5 shadow-sm md:p-6">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+              <div className="max-w-2xl space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Inventory analytics</p>
+                <h1 className="text-2xl font-semibold tracking-tight text-slate-900 md:text-3xl">Single product performance</h1>
+                <p className="text-sm leading-6 text-slate-600">
+                  Pick a product, review its sales history, pricing, margins, and compare it against the rest of the catalogue.
+                </p>
+              </div>
+              {selectedAnalyticsProduct && (
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:w-auto">
+                  <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                    <p className="text-xs text-slate-500">Revenue</p>
+                    <p className="mt-1 text-lg font-semibold text-slate-900">{selectedProductAnalytics.totalRevenueGenerated.toFixed(2)}</p>
+                  </div>
+                  <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                    <p className="text-xs text-slate-500">Qty sold</p>
+                    <p className="mt-1 text-lg font-semibold text-slate-900">{selectedProductAnalytics.totalQuantitySold}</p>
+                  </div>
+                  <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                    <p className="text-xs text-slate-500">Margin</p>
+                    <p className="mt-1 text-lg font-semibold text-slate-900">{selectedProductAnalytics.grossMarginPercent.toFixed(1)}%</p>
+                  </div>
+                  <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                    <p className="text-xs text-slate-500">Rank</p>
+                    <p className="mt-1 text-lg font-semibold text-slate-900">#{selectedProductAnalytics.revenueRank || "N/A"}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <Card className="overflow-hidden border-slate-200 shadow-sm">
+            <CardHeader className="border-b bg-slate-50/80">
+              <CardTitle className="text-base font-semibold text-slate-900">Single Product Analytics</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-5 p-5 md:p-6">
+              <div className="grid gap-3 md:grid-cols-[1fr_auto] md:items-end">
+                <div>
+                  <Label>Select product</Label>
+                  <Select value={selectedAnalyticsProductId} onValueChange={setSelectedAnalyticsProductId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Choose a product" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {products.map((product) => (
+                        <SelectItem key={product._id} value={product._id}>
+                          {product.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="text-sm text-muted-foreground md:text-right">
+                  {selectedAnalyticsProduct ? (
+                    <>
+                      <p className="font-medium text-foreground">{selectedAnalyticsProduct.name}</p>
+                      <p>{selectedAnalyticsProduct.categoryDetails?.name || categoryNameById.get(selectedAnalyticsProduct.category) || "Uncategorized"}</p>
+                      <p>Current stock: {selectedAnalyticsProduct.currentQuantity}</p>
+                    </>
+                  ) : (
+                    <p>Select a product to see analytics.</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto] md:items-end">
+                <div>
+                  <Label>From</Label>
+                  <Input type="date" value={analyticsDateStart} onChange={(e) => setAnalyticsDateStart(e.target.value)} />
+                </div>
+                <div>
+                  <Label>To</Label>
+                  <Input type="date" value={analyticsDateEnd} onChange={(e) => setAnalyticsDateEnd(e.target.value)} />
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    const end = new Date()
+                    const start = new Date()
+                    start.setMonth(start.getMonth() - 11)
+                    setAnalyticsDateStart(start.toISOString().slice(0, 10))
+                    setAnalyticsDateEnd(end.toISOString().slice(0, 10))
+                  }}
+                >
+                  Reset range
+                </Button>
+              </div>
+
+              {selectedAnalyticsProduct && (
+                <div className="space-y-5">
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    {[
+                      { label: "Avg sold price", value: selectedProductAnalytics.averageSoldPrice.toFixed(2) },
+                      { label: "Stock left", value: selectedAnalyticsProduct.currentQuantity },
+                      { label: "Gross profit", value: selectedProductAnalytics.grossProfit.toFixed(2) },
+                      { label: "Cost basis", value: selectedProductAnalytics.totalCostBasis.toFixed(2) },
+                    ].map((item) => (
+                      <div key={item.label} className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+                        <p className="text-xs text-slate-500">{item.label}</p>
+                        <p className="mt-1 text-lg font-semibold text-slate-900">{item.value}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    {[
+                      { label: "Price range", value: `${selectedProductAnalytics.lowestSoldPrice.toFixed(2)} - ${selectedProductAnalytics.highestSoldPrice.toFixed(2)}` },
+                      { label: "Profit margin", value: `${selectedProductAnalytics.grossMarginPercent.toFixed(1)}%` },
+                      { label: "Revenue share", value: `${selectedProductAnalytics.revenueShare.toFixed(1)}%` },
+                      { label: "Quantity share", value: `${selectedProductAnalytics.quantityShare.toFixed(1)}%` },
+                    ].map((item) => (
+                      <div key={item.label} className="rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3">
+                        <p className="text-xs text-slate-500">{item.label}</p>
+                        <p className="mt-1 text-lg font-semibold text-slate-900">{item.value}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="grid gap-4 lg:grid-cols-2">
+                    <Card className="border-slate-200 shadow-sm">
+                      <CardHeader className="border-b bg-slate-50/70">
+                        <CardTitle className="text-base">Monthly trend</CardTitle>
+                      </CardHeader>
+                      <CardContent className="h-80 p-4">
+                        {selectedProductTrendData.length === 0 ? (
+                          <p className="text-sm text-muted-foreground">No trend data in this date range.</p>
+                        ) : (
+                          <ResponsiveContainer width="100%" height="100%">
+                            <LineChart data={selectedProductTrendData}>
+                              <CartesianGrid strokeDasharray="3 3" />
+                              <XAxis dataKey="month" tick={{ fontSize: 12 }} />
+                              <YAxis />
+                              <Tooltip />
+                              <Legend />
+                              <Line type="monotone" dataKey="units" stroke="#2563eb" name="Units Sold" strokeWidth={2} />
+                              <Line type="monotone" dataKey="revenue" stroke="#10b981" name="Revenue" strokeWidth={2} />
+                              <Line type="monotone" dataKey="profit" stroke="#f59e0b" name="Profit" strokeWidth={2} />
+                            </LineChart>
+                          </ResponsiveContainer>
+                        )}
+                      </CardContent>
+                    </Card>
+
+                    <Card className="border-slate-200 shadow-sm">
+                      <CardHeader className="border-b bg-slate-50/70"><CardTitle className="text-base">Profit margin by product</CardTitle></CardHeader>
+                      <CardContent className="p-4">
+                        <div className="space-y-2">
+                          {salesByProduct.slice(0, 8).map((item) => {
+                            const product = products.find((p) => p._id === item.productId)
+                            const productRevenue = Number(item.salesValue || 0)
+                            const costBasis = Number(item.quantitySold || 0) * Number(product?.startingPrice || 0)
+                            const profit = productRevenue - costBasis
+                            const margin = productRevenue > 0 ? (profit / productRevenue) * 100 : 0
+                            return (
+                              <div key={item.productId} className={`rounded border px-3 py-2 text-sm ${item.productId === selectedAnalyticsProductId ? "border-blue-500 bg-blue-50/50" : ""}`}>
+                                <div className="flex items-center justify-between gap-3">
+                                  <div>
+                                    <p className="font-medium">{item.productName}</p>
+                                    <p className="text-muted-foreground">Qty {item.quantitySold} · Revenue {productRevenue.toFixed(2)}</p>
+                                  </div>
+                                  <div className="text-right">
+                                    <p className="font-medium">{margin.toFixed(1)}%</p>
+                                    <p className="text-muted-foreground">Profit {profit.toFixed(2)}</p>
+                                  </div>
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  <div className="grid gap-4 lg:grid-cols-2">
+                    <Card className="border-slate-200 shadow-sm">
+                      <CardHeader className="border-b bg-slate-50/70"><CardTitle className="text-base">Product vs top products</CardTitle></CardHeader>
+                      <CardContent className="h-80 p-4">
+                        {selectedProductAnalytics.comparisonRows.length === 0 ? (
+                          <p className="text-sm text-muted-foreground">No comparison data yet.</p>
+                        ) : (
+                          <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={selectedProductAnalytics.comparisonRows}>
+                              <CartesianGrid strokeDasharray="3 3" />
+                              <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                              <YAxis />
+                              <Tooltip />
+                              <Legend />
+                              <Bar dataKey="revenue" fill="#2563eb" name="Revenue" />
+                              <Bar dataKey="quantity" fill="#10b981" name="Quantity" />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        )}
+                      </CardContent>
+                    </Card>
+
+                    <Card className="border-slate-200 shadow-sm">
+                      <CardHeader className="border-b bg-slate-50/70"><CardTitle className="text-base">Price breakdown</CardTitle></CardHeader>
+                      <CardContent className="p-4">
+                        {selectedProductAnalytics.priceBreakdown.length === 0 ? (
+                          <p className="text-sm text-muted-foreground">No price history yet.</p>
+                        ) : (
+                          <div className="space-y-2">
+                            {selectedProductAnalytics.priceBreakdown.map((row) => (
+                              <div key={row.price} className="flex items-center justify-between rounded border px-3 py-2 text-sm">
+                                <div>
+                                  <p className="font-medium">{row.price.toFixed(2)}</p>
+                                  <p className="text-muted-foreground">{row.salesCount} sale(s)</p>
+                                </div>
+                                <div className="text-right">
+                                  <p className="font-medium">Qty {row.units}</p>
+                                  <p className="text-muted-foreground">Revenue {row.revenue.toFixed(2)}</p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  <div className="grid gap-4 lg:grid-cols-2">
+                    <Card className="border-slate-200 shadow-sm">
+                      <CardHeader className="border-b bg-slate-50/70"><CardTitle className="text-base">Top clients</CardTitle></CardHeader>
+                      <CardContent className="p-4">
+                        {selectedProductAnalytics.topClients.length === 0 ? (
+                          <p className="text-sm text-muted-foreground">No client history yet.</p>
+                        ) : (
+                          <div className="space-y-2">
+                            {selectedProductAnalytics.topClients.map((client) => (
+                              <div key={`${client.name}-${client.number}-${client.location}`} className="rounded border px-3 py-2 text-sm">
+                                <div className="flex items-center justify-between gap-3">
+                                  <div>
+                                    <p className="font-medium">{client.name}</p>
+                                    <p className="text-muted-foreground">{client.number || "-"} {client.location ? `· ${client.location}` : ""}</p>
+                                  </div>
+                                  <div className="text-right">
+                                    <p className="font-medium">{client.revenue.toFixed(2)}</p>
+                                    <p className="text-muted-foreground">{client.units} unit(s)</p>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+
+                    <Card className="border-slate-200 shadow-sm">
+                      <CardHeader className="border-b bg-slate-50/70"><CardTitle className="text-base">Sales history</CardTitle></CardHeader>
+                      <CardContent className="p-4">
+                        {selectedProductHistory.length === 0 ? (
+                          <p className="text-sm text-muted-foreground">No sales history for this product.</p>
+                        ) : (
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                              <thead>
+                                <tr className="text-left border-b">
+                                  <th className="py-2">Date</th>
+                                  <th className="py-2">Receipt</th>
+                                  <th className="py-2">Qty</th>
+                                  <th className="py-2">Price</th>
+                                  <th className="py-2">Revenue</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {selectedProductHistory.map((sale) => {
+                                  const revenue = Number(sale.quantitySold || 0) * Number(sale.soldPrice || 0)
+                                  return (
+                                    <tr key={sale._id} className="border-b">
+                                      <td className="py-2">{new Date(sale.createdAt).toLocaleDateString()}</td>
+                                      <td className="py-2">{sale.receiptNumber || "-"}</td>
+                                      <td className="py-2">{sale.quantitySold}</td>
+                                      <td className="py-2">{Number(sale.soldPrice || 0).toFixed(2)}</td>
+                                      <td className="py-2">{revenue.toFixed(2)}</td>
+                                    </tr>
+                                  )
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <Card><CardHeader><CardTitle className="text-sm">Total Products</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold">{products.length}</p></CardContent></Card>
-            <Card><CardHeader><CardTitle className="text-sm">Inventory Units</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold">{totalInventoryUnits}</p></CardContent></Card>
-            <Card><CardHeader><CardTitle className="text-sm">Low Stock Items</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold">{lowStockProducts.length}</p></CardContent></Card>
-            <Card><CardHeader><CardTitle className="text-sm">Sales Value</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold">{totalSalesValue.toFixed(2)}</p></CardContent></Card>
+            <Card className="border-slate-200 shadow-sm"><CardHeader className="pb-2"><CardTitle className="text-sm text-slate-500">Total products</CardTitle></CardHeader><CardContent><p className="text-2xl font-semibold text-slate-900">{products.length}</p></CardContent></Card>
+            <Card className="border-slate-200 shadow-sm"><CardHeader className="pb-2"><CardTitle className="text-sm text-slate-500">Inventory units</CardTitle></CardHeader><CardContent><p className="text-2xl font-semibold text-slate-900">{totalInventoryUnits}</p></CardContent></Card>
+            <Card className="border-slate-200 shadow-sm"><CardHeader className="pb-2"><CardTitle className="text-sm text-slate-500">Low stock items</CardTitle></CardHeader><CardContent><p className="text-2xl font-semibold text-slate-900">{lowStockProducts.length}</p></CardContent></Card>
+            <Card className="border-slate-200 shadow-sm"><CardHeader className="pb-2"><CardTitle className="text-sm text-slate-500">Sales value</CardTitle></CardHeader><CardContent><p className="text-2xl font-semibold text-slate-900">{totalSalesValue.toFixed(2)}</p></CardContent></Card>
           </div>
 
           <div className="grid gap-4 md:grid-cols-3">
-            <Card>
-              <CardHeader><CardTitle className="text-sm">Estimated Inventory Value</CardTitle></CardHeader>
-              <CardContent><p className="text-3xl font-bold">{totalStockValue.toFixed(2)}</p></CardContent>
+            <Card className="border-slate-200 shadow-sm">
+              <CardHeader className="pb-2"><CardTitle className="text-sm text-slate-500">Estimated inventory value</CardTitle></CardHeader>
+              <CardContent><p className="text-3xl font-semibold text-slate-900">{totalStockValue.toFixed(2)}</p></CardContent>
             </Card>
-            <Card>
-              <CardHeader><CardTitle className="text-sm">Average Selling Price</CardTitle></CardHeader>
-              <CardContent><p className="text-3xl font-bold">{avgSellingPrice.toFixed(2)}</p></CardContent>
+            <Card className="border-slate-200 shadow-sm">
+              <CardHeader className="pb-2"><CardTitle className="text-sm text-slate-500">Average selling price</CardTitle></CardHeader>
+              <CardContent><p className="text-3xl font-semibold text-slate-900">{avgSellingPrice.toFixed(2)}</p></CardContent>
             </Card>
-            <Card>
-              <CardHeader><CardTitle className="text-sm">Average Margin %</CardTitle></CardHeader>
-              <CardContent><p className="text-3xl font-bold">{avgMarginPercent.toFixed(1)}%</p></CardContent>
+            <Card className="border-slate-200 shadow-sm">
+              <CardHeader className="pb-2"><CardTitle className="text-sm text-slate-500">Average margin %</CardTitle></CardHeader>
+              <CardContent><p className="text-3xl font-semibold text-slate-900">{avgMarginPercent.toFixed(1)}%</p></CardContent>
             </Card>
           </div>
 
           <div className="grid gap-4 lg:grid-cols-2">
-            <Card>
-              <CardHeader><CardTitle>Top products by stock value</CardTitle></CardHeader>
-              <CardContent>
+            <Card className="border-slate-200 shadow-sm">
+              <CardHeader className="border-b bg-slate-50/70"><CardTitle className="text-base">Top products by stock value</CardTitle></CardHeader>
+              <CardContent className="p-4">
                 <div className="space-y-2 text-sm">
                   {topStockValueProducts.map((product) => (
-                    <div key={product._id} className="flex items-center justify-between border rounded px-3 py-2">
-                      <span>{product.name}</span>
-                      <span className="font-medium">{product.stockValue.toFixed(2)}</span>
+                    <div key={product._id} className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2.5">
+                      <span className="text-slate-700">{product.name}</span>
+                      <span className="font-medium text-slate-900">{product.stockValue.toFixed(2)}</span>
                     </div>
                   ))}
                 </div>
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader><CardTitle>Top selling products</CardTitle></CardHeader>
-              <CardContent>
+            <Card className="border-slate-200 shadow-sm">
+              <CardHeader className="border-b bg-slate-50/70"><CardTitle className="text-base">Top selling products</CardTitle></CardHeader>
+              <CardContent className="p-4">
                 <div className="space-y-2 text-sm">
                   {salesByProduct.slice(0, 8).map((item) => (
-                    <div key={item.productId} className="flex items-center justify-between border rounded px-3 py-2">
-                      <span>{item.productName}</span>
-                      <span className="font-medium">{item.quantitySold} sold</span>
+                    <div key={item.productId} className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2.5">
+                      <span className="text-slate-700">{item.productName}</span>
+                      <span className="font-medium text-slate-900">{item.quantitySold} sold</span>
                     </div>
                   ))}
-                  {salesByProduct.length === 0 && <p className="text-muted-foreground">No sales yet.</p>}
+                  {salesByProduct.length === 0 && <p className="text-sm text-slate-500">No sales yet.</p>}
                 </div>
               </CardContent>
             </Card>
           </div>
 
-          <Card>
-            <CardHeader><CardTitle>30-day stock projection</CardTitle></CardHeader>
-            <CardContent>
+          <Card className="border-slate-200 shadow-sm">
+            <CardHeader className="border-b bg-slate-50/70"><CardTitle className="text-base">30-day stock projection</CardTitle></CardHeader>
+            <CardContent className="p-4 md:p-5">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
@@ -1543,7 +2014,7 @@ export function StockManagerContent({ view }: { view: StockView }) {
               </div>
             </CardContent>
           </Card>
-        </>
+        </div>
       )}
 
       {view === "outsourced" && (

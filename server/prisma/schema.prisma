@@ -119,3 +119,4 @@ model AnalyticsSnapshot {
   @@index([date])
   @@map("analytics_snapshots")
 }
+
