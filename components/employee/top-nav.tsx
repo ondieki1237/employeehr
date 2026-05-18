@@ -67,12 +67,6 @@ export function EmployeeTopNav({ onMenuClick }: EmployeeTopNavProps) {
 
       {/* User Info */}
       <div className="flex items-center gap-4">
-        <Button asChild variant="outline" size="sm" className="hidden sm:inline-flex">
-          <Link href="/shule">
-            School Enterprise
-          </Link>
-        </Button>
-
         {/* Notifications */}
         <Button variant="ghost" size="icon" className="relative">
           <Bell className="h-5 w-5" />

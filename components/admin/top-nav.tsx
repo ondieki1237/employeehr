@@ -43,12 +43,6 @@ export default function AdminTopNav({ onMenuClick, onSidebarCollapseToggle, isSi
       </div>
 
       <div className="flex items-center gap-4">
-        <Button asChild variant="outline" size="sm" className="hidden md:inline-flex">
-          <Link href="/shule">
-            School Enterprise
-          </Link>
-        </Button>
-
         <Button variant="ghost" size="sm" className="relative">
           <Bell size={20} />
           <span className="absolute top-1 right-1 w-2 h-2 bg-destructive rounded-full"></span>

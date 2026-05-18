@@ -325,6 +325,31 @@ export default function AdminSidebar({ isOpen, isCollapsed, onToggle, onCollapse
           const userSections = userId ? response.data?.adminSectionsByUser?.[userId] : undefined
           const roleSections = response.data?.adminSectionsByRole?.[role] || []
           const effectiveSections = Array.from(new Set([...(roleSections || []), ...(userSections || [])]))
+
+          // If current user is a manager, respect department-level sidebar allocations.
+          if (role === 'manager') {
+            try {
+              const deptsRes = await companyApi.getDepartments()
+              if (deptsRes?.success && Array.isArray(deptsRes.data)) {
+                // collect sections for departments where this user is manager
+                const deptSections = new Set<string>()
+                const uid = userId
+                deptsRes.data.forEach((d: any) => {
+                  if (d?.managerId && uid && String(d.managerId) === String(uid) && Array.isArray(d.sidebarSections)) {
+                    d.sidebarSections.forEach((s: string) => deptSections.add(s))
+                  }
+                })
+                // If department-level allocations exist, only allow those sections
+                if (deptSections.size > 0) {
+                  setAllowedSections(deptSections)
+                  return
+                }
+              }
+            } catch (e) {
+              // fallback to role/user based sections if fetching departments fails
+            }
+          }
+
           setAllowedSections(new Set(effectiveSections))
         }
       } catch {

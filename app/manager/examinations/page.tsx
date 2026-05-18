@@ -5,16 +5,16 @@ import ManagerSectionPage from "@/components/manager/section-page"
 export default function ExaminationsPage() {
   return (
     <ManagerSectionPage
-      title="Examinations"
-      description="Plan examinations, monitor results, and support academic assessment workflows."
+      title="Evaluations"
+      description="Plan evaluations, monitor results, and support employee assessment workflows."
       actions={[
-        { label: "Results Summary", href: "/manager/supervision" },
-        { label: "Student Records", href: "/manager/students" },
+        { label: "Results Summary", href: "/manager/performance" },
+        { label: "Employee Records", href: "/manager/team" },
       ]}
       items={[
-        { title: "Exam Setup", description: "Create schedules and define assessment windows." },
-        { title: "Marking", description: "Coordinate marking, moderation, and review." },
-        { title: "Results", description: "Publish results and track performance trends." },
+        { title: "Review Setup", description: "Create schedules and define review windows." },
+        { title: "Feedback", description: "Coordinate review, moderation, and manager feedback." },
+        { title: "Results", description: "Track scores and performance trends." },
       ]}
     />
   )

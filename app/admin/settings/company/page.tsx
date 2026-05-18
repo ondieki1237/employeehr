@@ -9,9 +9,12 @@ import { useToast } from "@/hooks/use-toast"
 import { api } from "@/lib/api"
 import { Loader2, Image as ImageIcon, Palette, RefreshCw, Type, Layout, Eye, Edit2, Trash2 } from "lucide-react"
 import { Label } from "@/components/ui/label"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from "@/components/ui/dialog"
+import { Checkbox } from "@/components/ui/checkbox"
 import { LocationSelector } from "@/components/ui/location-selector"
 import { Building2 } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { MANAGER_SECTION_OPTIONS } from "@/lib/manager-access"
 
 export default function CompanySettingsPage() {
   const { toast } = useToast()
@@ -38,6 +41,9 @@ export default function CompanySettingsPage() {
   const [countryCode, setCountryCode] = useState("")
   const [syncingHolidays, setSyncingHolidays] = useState(false)
   const [departments, setDepartments] = useState<any[]>([])
+  const [allocatingDept, setAllocatingDept] = useState<any | null>(null)
+  const [allocOpen, setAllocOpen] = useState(false)
+  const [selectedSections, setSelectedSections] = useState<string[]>([])
   const [newDept, setNewDept] = useState("")
   const [kpis, setKpis] = useState<any[]>([])
   const [newKpi, setNewKpi] = useState({
@@ -331,6 +337,52 @@ export default function CompanySettingsPage() {
                     }}>
                       <Trash2 className="w-3 h-3" />
                     </Button>
+                    <Dialog open={allocOpen && allocatingDept?._id === d._id} onOpenChange={(open) => {
+                      setAllocOpen(open)
+                      if (!open) setAllocatingDept(null)
+                    }}>
+                      <DialogTrigger asChild>
+                        <Button size="sm" variant="outline" onClick={() => {
+                          setAllocatingDept(d)
+                          setSelectedSections(Array.isArray(d.sidebarSections) ? d.sidebarSections : [])
+                          setAllocOpen(true)
+                        }}>Allocate Sidebar</Button>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Allocate Sidebar Access — {d.name}</DialogTitle>
+                          <DialogDescription>Select which sidebar sections should be available to this department's managers.</DialogDescription>
+                        </DialogHeader>
+                        <div className="space-y-2 py-2">
+                          {MANAGER_SECTION_OPTIONS.map((s) => (
+                            <div key={s} className="flex items-center gap-3">
+                              <Checkbox checked={selectedSections.includes(s)} onCheckedChange={(val) => {
+                                const checked = !!val
+                                setSelectedSections((prev) => checked ? Array.from(new Set([...prev, s])) : prev.filter(x => x !== s))
+                              }} />
+                              <div className="text-sm">{s}</div>
+                            </div>
+                          ))}
+                        </div>
+                        <DialogFooter>
+                          <Button variant="outline" onClick={() => { setAllocOpen(false); setAllocatingDept(null) }}>Cancel</Button>
+                          <Button onClick={async () => {
+                            if (!allocatingDept) return
+                            try {
+                              const res = await api.company.updateDepartment(allocatingDept._id, { sidebarSections: selectedSections })
+                              if (res?.success) {
+                                toast({ description: 'Sidebar access updated' })
+                                loadDepartments()
+                                setAllocOpen(false)
+                                setAllocatingDept(null)
+                              }
+                            } catch (err: any) {
+                              toast({ description: err.message || 'Failed to update sidebar access', variant: 'destructive' })
+                            }
+                          }}>Save</Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
                   </div>
                 ))}
               </div>

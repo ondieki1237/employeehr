@@ -1,8 +1,52 @@
 "use client"
 
-import { Card } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { FileText, BarChart3, Download } from "lucide-react"
+import { BarChart3, FileText, Download } from "lucide-react"
+
+const reports = [
+  { id: 1, name: "Attendance Report", desc: "Team attendance and lateness summary", icon: BarChart3 },
+  { id: 2, name: "Performance Report", desc: "Department KPI and rating summary", icon: FileText },
+  { id: 3, name: "Leave Report", desc: "Approved, pending, and used leave", icon: FileText },
+  { id: 4, name: "Compliance Report", desc: "Policy and operational compliance overview", icon: FileText },
+]
 
 export default function ReportsPage() {
-  const reports = [\n    { id: 1, name: \"Attendance Report\", desc: \"Team attendance and tardiness metrics\", icon: BarChart3 },\n    { id: 2, name: \"Performance Summary\", desc: \"Quarterly performance metrics and ratings\", icon: FileText },\n    { id: 3, name: \"Leave Balance\", desc: \"Team leave utilization and balance\", icon: FileText },\n    { id: 4, name: \"Compliance Report\", desc: \"HR compliance and policy adherence\", icon: FileText },\n  ]\n\n  return (\n    <div className=\"space-y-6\">\n      <div>\n        <h2 className=\"text-2xl font-semibold text-slate-900\">Reports</h2>\n        <p className=\"mt-1 text-sm text-slate-600\">Generate and download team and performance reports</p>\n      </div>\n\n      <div className=\"grid gap-4 md:grid-cols-2\">\n        {reports.map((report) => {\n          const Icon = report.icon\n          return (\n            <Card key={report.id} className=\"border-border/70 bg-white p-5 shadow-sm\">\n              <div className=\"flex items-start justify-between gap-4\">\n                <div className=\"flex-1\">\n                  <div className=\"flex items-center gap-2 mb-1\">\n                    <Icon className=\"h-5 w-5 text-slate-600\" />\n                    <h3 className=\"font-semibold text-slate-900\">{report.name}</h3>\n                  </div>\n                  <p className=\"text-sm text-slate-600\">{report.desc}</p>\n                </div>\n              </div>\n              <div className=\"mt-4\">\n                <Button size=\"sm\" variant=\"outline\" className=\"w-full\">\n                  <Download className=\"h-4 w-4 mr-2\" />\n                  Generate Report\n                </Button>\n              </div>\n            </Card>\n          )\n        })}\n      </div>\n    </div>\n  )\n}\n"
+  return (
+    <div className="space-y-6">
+      <Card className="border-border/70 bg-white shadow-sm">
+        <CardHeader>
+          <CardTitle className="text-2xl">Reports</CardTitle>
+          <p className="text-sm text-muted-foreground">Generate company-style departmental reports for your team and operations.</p>
+        </CardHeader>
+      </Card>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        {reports.map((report) => {
+          const Icon = report.icon
+          return (
+            <Card key={report.id} className="border-border/70 bg-white shadow-sm">
+              <CardContent className="p-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <Icon className="h-5 w-5 text-slate-700" />
+                      <h3 className="font-semibold text-slate-900">{report.name}</h3>
+                    </div>
+                    <p className="mt-2 text-sm text-muted-foreground">{report.desc}</p>
+                  </div>
+                </div>
+                <div className="mt-4">
+                  <Button variant="outline" className="w-full gap-2">
+                    <Download className="h-4 w-4" />
+                    Generate Report
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )
+        })}
+      </div>
+    </div>
+  )
+}

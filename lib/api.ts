@@ -426,7 +426,7 @@ export const companyApi = {
     // Departments
     getDepartments: () => client.get<any[]>('/api/company/departments'),
     createDepartment: (data: { name: string }) => client.post<any>('/api/company/departments', data),
-    updateDepartment: (id: string, data: { name?: string; managerId?: string }) => client.put<any>(`/api/company/departments/${id}`, data),
+    updateDepartment: (id: string, data: { name?: string; managerId?: string; sidebarSections?: string[] }) => client.put<any>(`/api/company/departments/${id}`, data),
     deleteDepartment: (id: string) => client.delete<any>(`/api/company/departments/${id}`),
     
     updateEmailConfig: (data: {

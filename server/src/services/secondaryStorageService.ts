@@ -73,9 +73,7 @@ export class SecondaryStorageService {
         logo: mongoCompany.logo || null,
       }
 
-      if (action === "CREATE") {
-        await prisma.company.create({ data: companyData as any })
-      } else if (action === "UPDATE") {
+      if (action === "CREATE" || action === "UPDATE") {
         await prisma.company.upsert({
           where: { id },
           update: companyData as any,

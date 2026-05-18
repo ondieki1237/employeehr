@@ -4,7 +4,8 @@ import { useEffect, useState } from "react"
 import { usePathname, useRouter } from "next/navigation"
 import { getUser } from "@/lib/auth"
 import ManagerSidebar from "@/components/manager/sidebar"
-import ManagerTopNav from "@/components/manager/top-nav"
+import TopNav from "@/components/admin/top-nav"
+import { getManagerSectionForPath } from "@/lib/manager-access"
 
 export default function ManagerLayout({
   children,
@@ -14,7 +15,23 @@ export default function ManagerLayout({
   const router = useRouter()
   const pathname = usePathname()
   const [loading, setLoading] = useState(true)
-  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+
+  useEffect(() => {
+    const saved = typeof window !== "undefined" ? localStorage.getItem("admin_sidebar_collapsed") : null
+    if (saved === "1") setSidebarCollapsed(true)
+  }, [])
+
+  const toggleSidebarCollapsed = () => {
+    setSidebarCollapsed((prev) => {
+      const next = !prev
+      if (typeof window !== "undefined") {
+        localStorage.setItem("admin_sidebar_collapsed", next ? "1" : "0")
+      }
+      return next
+    })
+  }
 
   useEffect(() => {
     const user = getUser()
@@ -37,18 +54,29 @@ export default function ManagerLayout({
     setLoading(false)
   }, [router])
 
-  const getTitle = () => {
-    if (pathname === "/manager") return "Dashboard"
-    if (pathname.includes("/team")) return "Team Members"
-    if (pathname.includes("/approvals")) return "Approvals"
-    if (pathname.includes("/performance")) return "Performance"
-    if (pathname.includes("/evaluations")) return "Employee Evaluations"
-    if (pathname.includes("/pdp-reviews")) return "Development Plans"
-    if (pathname.includes("/feedback")) return "Feedback & Communication"
-    if (pathname.includes("/leave-requests")) return "Leave Requests"
-    if (pathname.includes("/reports")) return "Reports"
-    return "Manager Workspace"
-  }
+  useEffect(() => {
+    const user = getUser()
+    if (!user || user.role === "company_admin" || user.role === "hr" || user.role === "employee") return
+
+    let cancelled = false
+    const enforcePermissions = async () => {
+      const { getManagerAllowedSections } = await import("@/lib/manager-access")
+      const allowedSections = await getManagerAllowedSections()
+      const currentSection = getManagerSectionForPath(pathname)
+
+      if (cancelled || !currentSection || !allowedSections) return
+
+      if (!allowedSections.has(currentSection)) {
+        router.replace("/manager")
+      }
+    }
+
+    enforcePermissions()
+
+    return () => {
+      cancelled = true
+    }
+  }, [pathname, router])
 
   if (loading) {
     return (
@@ -59,23 +87,20 @@ export default function ManagerLayout({
   }
 
   return (
-    <div className="flex h-screen bg-slate-50">
-      <div className="hidden lg:block">
-        <ManagerSidebar />
-      </div>
-
-      {sidebarOpen ? (
-        <div className="fixed inset-0 z-40 lg:hidden">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setSidebarOpen(false)} />
-          <div className="absolute inset-y-0 left-0 w-72">
-            <ManagerSidebar onNavigate={() => setSidebarOpen(false)} />
-          </div>
-        </div>
-      ) : null}
-
-      <div className="flex min-w-0 flex-1 flex-col">
-        <ManagerTopNav title={getTitle()} onMenuClick={() => setSidebarOpen(true)} />
-        <main className="min-w-0 flex-1 overflow-auto p-4 sm:p-6 lg:p-8">{children}</main>
+    <div className="flex h-screen bg-background">
+      <ManagerSidebar
+        isOpen={sidebarOpen}
+        isCollapsed={sidebarCollapsed}
+        onToggle={() => setSidebarOpen(!sidebarOpen)}
+        onCollapseToggle={toggleSidebarCollapsed}
+      />
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <TopNav
+          onMenuClick={() => setSidebarOpen(!sidebarOpen)}
+          onSidebarCollapseToggle={toggleSidebarCollapsed}
+          isSidebarCollapsed={sidebarCollapsed}
+        />
+        <main className="flex-1 overflow-auto">{children}</main>
       </div>
     </div>
   )

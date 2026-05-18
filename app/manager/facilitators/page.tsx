@@ -5,15 +5,15 @@ import ManagerSectionPage from "@/components/manager/section-page"
 export default function FacilitatorsPage() {
   return (
     <ManagerSectionPage
-      title="Facilitators"
-      description="Manage teachers, teaching allocations, timetables, and supervisory support."
+      title="Department Leads"
+      description="Manage team leads, work allocations, schedules, and supervisory support."
       actions={[
-        { label: "Assign Classes", href: "/manager/resources" },
-        { label: "Review Performance", href: "/manager/evaluations" },
+        { label: "Assign Work", href: "/manager/team" },
+        { label: "Review Performance", href: "/manager/performance" },
       ]}
       items={[
-        { title: "Teacher Allocation", description: "Assign facilitators to classes and sessions." },
-        { title: "Timetables", description: "Organize lesson schedules and availability." },
+        { title: "Work Allocation", description: "Assign leads to projects, tasks, and sessions." },
+        { title: "Schedules", description: "Organize schedules and availability." },
         { title: "Support", description: "Track supervision and ongoing staff needs." },
       ]}
     />

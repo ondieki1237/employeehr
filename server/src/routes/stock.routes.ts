@@ -25,6 +25,7 @@ router.get("/clients", StockController.getClients)
 router.post("/accounts/clients", StockController.createOrUpdateClient)
 
 router.get("/invoices", StockController.getInvoices)
+router.post("/invoices/create", StockController.createInvoiceFromItems)
 router.get("/invoices/:invoiceId", StockController.getInvoiceById)
 router.get("/accounts/posts", StockController.getAccountsPosts)
 router.get("/accounts/clients", StockController.getAccountsClients)

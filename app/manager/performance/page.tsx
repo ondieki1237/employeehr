@@ -1,3 +1,60 @@
 "use client"
 
-import { Card } from \"@/components/ui/card\"\nimport { Badge } from \"@/components/ui/badge\"\nimport { TrendingUp, Clock } from \"lucide-react\"\n\nexport default function PerformancePage() {\n  const employees = [\n    { id: 1, name: \"John Doe\", role: \"Senior Developer\", rating: 4.5, nextReview: \"2026-06-15\" },\n    { id: 2, name: \"Jane Smith\", role: \"Product Manager\", rating: 4.8, nextReview: \"2026-06-20\" },\n    { id: 3, name: \"Mike Johnson\", role: \"Designer\", rating: 4.2, nextReview: \"2026-07-10\" },\n  ]\n\n  return (\n    <div className=\"space-y-6\">\n      <div>\n        <h2 className=\"text-2xl font-semibold text-slate-900\">Performance Management</h2>\n        <p className=\"mt-1 text-sm text-slate-600\">Track KPIs and manage employee evaluations</p>\n      </div>\n\n      <div className=\"space-y-4\">\n        {employees.map((emp) => (\n          <Card key={emp.id} className=\"border-border/70 bg-white p-5 shadow-sm\">\n            <div className=\"flex items-start justify-between gap-4\">\n              <div className=\"flex-1\">\n                <div className=\"flex items-center gap-2 mb-1\">\n                  <h3 className=\"font-semibold text-slate-900\">{emp.name}</h3>\n                </div>\n                <p className=\"text-sm text-slate-600\">{emp.role}</p>\n                <div className=\"flex items-center gap-2 mt-2\">\n                  <Badge className=\"bg-blue-100 text-blue-700\">\n                    <TrendingUp className=\"h-3 w-3 mr-1\" />\n                    Rating: {emp.rating}/5.0\n                  </Badge>\n                </div>\n              </div>\n              <div className=\"text-right\">\n                <p className=\"text-sm text-slate-600 flex items-center justify-end gap-1\">\n                  <Clock className=\"h-4 w-4\" />\n                  Next Review\n                </p>\n                <p className=\"text-xs text-slate-500\">{new Date(emp.nextReview).toLocaleDateString()}</p>\n              </div>\n            </div>\n          </Card>\n        ))}\n      </div>\n    </div>\n  )\n}\n"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Progress } from "@/components/ui/progress"
+import { Target, TrendingUp } from "lucide-react"
+
+const employees = [
+  { id: 1, name: "Jane Doe", role: "Account Executive", score: 86, progress: 74 },
+  { id: 2, name: "John Smith", role: "Operations Officer", score: 91, progress: 88 },
+  { id: 3, name: "Mary Wanjiku", role: "Customer Support", score: 79, progress: 61 },
+]
+
+export default function PerformancePage() {
+  return (
+    <div className="space-y-6">
+      <Card className="border-border/70 bg-white shadow-sm">
+        <CardHeader>
+          <Badge className="w-fit bg-slate-100 text-slate-800 hover:bg-slate-200">Performance</Badge>
+          <CardTitle className="text-2xl">Department Performance</CardTitle>
+          <p className="text-sm text-muted-foreground">Track employee KPIs and departmental targets created by admin.</p>
+        </CardHeader>
+      </Card>
+
+      <div className="grid gap-4 lg:grid-cols-3">
+        {employees.map((employee) => (
+          <Card key={employee.id} className="border-border/70 bg-white shadow-sm">
+            <CardContent className="space-y-4 p-5">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="font-semibold text-slate-900">{employee.name}</h3>
+                  <p className="text-sm text-muted-foreground">{employee.role}</p>
+                </div>
+                <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-200">{employee.score}/100</Badge>
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">KPI progress</span>
+                  <span className="font-medium">{employee.progress}%</span>
+                </div>
+                <Progress value={employee.progress} />
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" className="gap-2">
+                  <Target className="h-4 w-4" />
+                  View KPIs
+                </Button>
+                <Button variant="outline" size="sm" className="gap-2">
+                  <TrendingUp className="h-4 w-4" />
+                  Review
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    </div>
+  )
+}

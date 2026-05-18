@@ -18,13 +18,13 @@ export default function ManagerTopNav({
           <Menu className="h-5 w-5" />
         </Button>
         <div>
-          <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Manager Workspace</p>
+          <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Company Manager</p>
           <h1 className="text-base font-semibold text-slate-900">{title}</h1>
         </div>
       </div>
 
       <Button asChild variant="outline" size="sm" className="hidden sm:inline-flex">
-        <Link href="/admin">Company Dashboard</Link>
+        <Link href="/admin">Admin Dashboard</Link>
       </Button>
     </header>
   )

@@ -153,6 +153,8 @@ export function StockManagerContent({ view }: { view: StockView }) {
     buyerNumber: "",
     buyerLocation: "",
   })
+  const [saleItems, setSaleItems] = useState<QuotationItem[]>([])
+  const [saleProductSearch, setSaleProductSearch] = useState("")
   const [salesSearch, setSalesSearch] = useState("")
   const [inventorySearch, setInventorySearch] = useState("")
 
@@ -655,6 +657,103 @@ export function StockManagerContent({ view }: { view: StockView }) {
     fetchAll()
   }
 
+  const addItemToInvoice = () => {
+    if (!saleForm.productId) {
+      toast({ title: "Validation", description: "Select a product before adding", variant: "destructive" })
+      return
+    }
+    const qty = Number(saleForm.quantitySold)
+    const price = Number(saleForm.soldPrice)
+    if (!Number.isFinite(qty) || qty <= 0) {
+      toast({ title: "Validation", description: "Quantity must be a positive number", variant: "destructive" })
+      return
+    }
+    if (!Number.isFinite(price) || price < 0) {
+      toast({ title: "Validation", description: "Sold price must be a non-negative number", variant: "destructive" })
+      return
+    }
+
+    const item: QuotationItem = {
+      productId: saleForm.productId,
+      productName: productNameById.get(saleForm.productId) || "Unknown",
+      quantity: qty,
+      unitPrice: price,
+      lineTotal: Number((qty * price).toFixed(2)),
+    }
+
+    setSaleItems((prev) => [...prev, item])
+    setSaleForm((prev) => ({ ...prev, productId: "", quantitySold: "", soldPrice: "" }))
+    setSaleProductSearch("")
+  }
+
+  const clearInvoice = () => setSaleItems([])
+
+  const removeInvoiceItem = (index: number) => {
+    setSaleItems((prev) => prev.filter((_, itemIndex) => itemIndex !== index))
+  }
+
+  const payCashForInvoice = async () => {
+    // allow paying cash for either accumulated saleItems OR the current single-item form
+    const itemsToSend: QuotationItem[] = saleItems.length
+      ? saleItems
+      : (saleForm.productId && saleForm.quantitySold && saleForm.soldPrice)
+        ? [
+            {
+              productId: saleForm.productId,
+              productName: productNameById.get(saleForm.productId) || "Unknown",
+              quantity: Number(saleForm.quantitySold),
+              unitPrice: Number(saleForm.soldPrice),
+              lineTotal: Number((Number(saleForm.quantitySold) * Number(saleForm.soldPrice)).toFixed(2)),
+            },
+          ]
+        : []
+
+    if (!itemsToSend.length) {
+      toast({ title: "Invoice", description: "Add at least one item to invoice or fill the form", variant: "destructive" })
+      return
+    }
+
+    const clientName = saleForm.isWalkInClient ? "Walk-in Client" : saleForm.buyerName || "Walk-in Client"
+    const clientNumber = saleForm.isWalkInClient ? "" : saleForm.buyerNumber || ""
+    const clientLocation = saleForm.isWalkInClient ? "" : saleForm.buyerLocation || ""
+
+    try {
+      const response = await fetch(`${API_URL}/api/stock/invoices/create`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          clientName,
+          clientNumber,
+          clientLocation,
+          items: itemsToSend,
+          payNow: true,
+        }),
+      })
+      const result = await response.json()
+      if (!response.ok) {
+        toast({ title: "Invoice Error", description: result.message || "Failed to create invoice", variant: "destructive" })
+        return
+      }
+
+      toast({ title: "Success", description: "Invoice created and paid (cash)" })
+      clearInvoice()
+      setSaleForm({
+        productId: "",
+        quantitySold: "",
+        soldPrice: "",
+        isSalesCompany: false,
+        salesEmployeeId: "",
+        isWalkInClient: false,
+        buyerName: "",
+        buyerNumber: "",
+        buyerLocation: "",
+      })
+      fetchAll()
+    } catch (err) {
+      toast({ title: "Invoice Error", description: "Failed to reach server", variant: "destructive" })
+    }
+  }
+
   if (loading) {
     return <div>Loading inventory manager...</div>
   }
@@ -986,23 +1085,96 @@ export function StockManagerContent({ view }: { view: StockView }) {
             <CardContent className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               <div>
                 <Label>Product</Label>
-                <Select value={saleForm.productId} onValueChange={(value) => setSaleForm((prev) => ({ ...prev, productId: value }))}>
-                  <SelectTrigger><SelectValue placeholder="Select product" /></SelectTrigger>
-                  <SelectContent>
-                    {filteredProductsForSales.map((product) => (
-                      <SelectItem key={product._id} value={product._id}>{product.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Input
+                  placeholder="Search product to add"
+                  value={saleProductSearch}
+                  onChange={(e) => setSaleProductSearch(e.target.value)}
+                />
+                {saleForm.productId && (
+                  <div className="mt-2 rounded-md border bg-muted/30 p-3 text-sm">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="font-medium">Selected product</p>
+                        <p className="text-muted-foreground">{productNameById.get(saleForm.productId) || "Unknown product"}</p>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setSaleForm((prev) => ({ ...prev, productId: "", quantitySold: "", soldPrice: "" }))}
+                      >
+                        Clear
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                <div className="mt-2">
+                  <div className="max-h-40 overflow-auto rounded border">
+                    {(saleProductSearch.trim() ? products : filteredProductsForSales)
+                      .filter((p) => {
+                        const q = saleProductSearch.trim().toLowerCase()
+                        if (!q) return true
+                        return p.name.toLowerCase().includes(q) || (p.sku || "").toLowerCase().includes(q)
+                      })
+                      .slice(0, 50)
+                      .map((product) => (
+                        <button
+                          key={product._id}
+                          type="button"
+                          className={`w-full text-left px-3 py-2 hover:bg-gray-50 ${saleForm.productId === product._id ? "bg-gray-100" : ""}`}
+                          onClick={() => {
+                            setSaleForm((prev) => ({ ...prev, productId: product._id, soldPrice: String(product.sellingPrice) }))
+                            setSaleProductSearch("")
+                          }}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="truncate">{product.name}</div>
+                            <div className="text-sm text-muted-foreground">{product.sellingPrice.toFixed(2)}</div>
+                          </div>
+                        </button>
+                      ))}
+                  </div>
+                </div>
               </div>
               <div>
                 <Label>Quantity Sold</Label>
-                <Input type="number" min="1" value={saleForm.quantitySold} onChange={(event) => setSaleForm((prev) => ({ ...prev, quantitySold: event.target.value }))} />
+                <Input
+                  type="number"
+                  min="1"
+                  value={saleForm.quantitySold}
+                  onChange={(event) => setSaleForm((prev) => ({ ...prev, quantitySold: event.target.value }))}
+                  placeholder={saleForm.productId ? "Enter quantity for selected product" : "Select a product first"}
+                />
               </div>
               <div>
                 <Label>Sold Price</Label>
-                <Input type="number" min="0" value={saleForm.soldPrice} onChange={(event) => setSaleForm((prev) => ({ ...prev, soldPrice: event.target.value }))} />
+                <Input
+                  type="number"
+                  min="0"
+                  value={saleForm.soldPrice}
+                  onChange={(event) => setSaleForm((prev) => ({ ...prev, soldPrice: event.target.value }))}
+                  placeholder={saleForm.productId ? "Price for selected product" : "Select a product first"}
+                />
               </div>
+              {saleForm.productId && saleForm.quantitySold && saleForm.soldPrice && (
+                <div className="md:col-span-2 lg:col-span-3 rounded-md border p-3 text-sm bg-blue-50/60">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="font-medium">Ready to add this item</p>
+                      <p className="text-muted-foreground">
+                        {productNameById.get(saleForm.productId) || "Selected product"} · Qty {saleForm.quantitySold} · Total {Number(saleForm.quantitySold || 0) * Number(saleForm.soldPrice || 0)}
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      onClick={() => addItemToInvoice()}
+                      className="h-9 px-3"
+                    >
+                      ✓
+                    </Button>
+                  </div>
+                </div>
+              )}
               <label className="flex items-center gap-2 text-sm md:col-span-2 lg:col-span-3">
                 <Checkbox checked={saleForm.isWalkInClient} onCheckedChange={(value) => setSaleForm((prev) => ({ ...prev, isWalkInClient: Boolean(value) }))} />
                 <span>Walk-in client (no buyer details)</span>
@@ -1041,10 +1213,66 @@ export function StockManagerContent({ view }: { view: StockView }) {
                 </div>
               )}
               <div className="md:col-span-2 lg:col-span-3">
-                <Button onClick={recordSale}>Save Sale</Button>
+                <div className="flex gap-2">
+                  <Button onClick={recordSale}>Save Sale</Button>
+                  <Button
+                    onClick={() => {
+                      addItemToInvoice()
+                    }}
+                    variant="outline"
+                  >
+                    Add item
+                  </Button>
+                  <Button onClick={payCashForInvoice} variant="secondary">Paying cash</Button>
+                </div>
               </div>
             </CardContent>
           </Card>
+
+          {saleItems.length > 0 && (
+            <Card>
+              <CardHeader><CardTitle>Invoice Preview</CardTitle></CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left border-b">
+                        <th className="py-2">Product</th>
+                        <th className="py-2">Qty</th>
+                        <th className="py-2">Unit</th>
+                        <th className="py-2">Line Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {saleItems.map((item, idx) => (
+                        <tr key={`${item.productId}-${idx}`} className="border-b">
+                          <td className="py-2">{item.productName}</td>
+                          <td className="py-2">{item.quantity}</td>
+                          <td className="py-2">{item.unitPrice}</td>
+                          <td className="py-2 flex items-center gap-2">
+                            <span>{item.lineTotal.toFixed(2)}</span>
+                            <Button type="button" variant="ghost" size="sm" onClick={() => removeInvoiceItem(idx)}>
+                              Delete
+                            </Button>
+                          </td>
+                        </tr>
+                      ))}
+                      <tr className="font-semibold">
+                        <td className="py-2">Total</td>
+                        <td className="py-2" />
+                        <td className="py-2" />
+                        <td className="py-2">{saleItems.reduce((s, it) => s + Number(it.lineTotal || 0), 0).toFixed(2)}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <div className="mt-3 flex gap-2">
+                  <Button onClick={payCashForInvoice}>Paying cash</Button>
+                  <Button variant="outline" onClick={clearInvoice}>Clear</Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           <Card>
             <CardHeader><CardTitle>Sales History</CardTitle></CardHeader>

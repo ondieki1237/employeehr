@@ -40,6 +40,7 @@ export class DepartmentController {
       const payload: any = {}
       if (typeof req.body?.name === 'string') payload.name = String(req.body.name).trim()
       if (typeof req.body?.managerId === 'string') payload.managerId = req.body.managerId || undefined
+      if (Array.isArray(req.body?.sidebarSections)) payload.sidebarSections = req.body.sidebarSections
 
       const dept = await Department.findById(id)
       if (!dept) return res.status(404).json({ success: false, message: "Department not found" })

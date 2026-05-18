@@ -5,16 +5,16 @@ import ManagerSectionPage from "@/components/manager/section-page"
 export default function StudentsPage() {
   return (
     <ManagerSectionPage
-      title="Students"
-      description="Manage admissions, profiles, attendance, performance, and student support records."
+      title="Department Employees"
+      description="Manage employees in your department, review profiles, attendance, and support records."
       actions={[
-        { label: "Add Student", href: "/manager/evaluations" },
-        { label: "Attendance Overview", href: "/manager/supervision" },
+        { label: "Open Team", href: "/manager/team" },
+        { label: "Attendance Overview", href: "/manager/performance" },
       ]}
       items={[
-        { title: "Admissions", description: "Track new admissions and enrollment status." },
-        { title: "Profiles", description: "Maintain student records and academic details." },
-        { title: "Attendance", description: "Review daily attendance and exception cases." },
+        { title: "Onboarding", description: "Track new employee setup and readiness." },
+        { title: "Profiles", description: "Maintain employee records and job details." },
+        { title: "Attendance", description: "Review attendance and exception cases." },
       ]}
     />
   )

@@ -481,11 +481,6 @@ export default function AdminDashboard() {
             <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-600">
               Updated every 30s
             </span>
-            <Link href="/shule">
-              <Button variant="outline" className="bg-white text-slate-700">
-                School
-              </Button>
-            </Link>
             <Button variant="outline" className="bg-white text-slate-700" onClick={loadDashboard}>
               <RefreshCw className="w-4 h-4 mr-2" />
               Refresh

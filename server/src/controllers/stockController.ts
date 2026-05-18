@@ -1683,6 +1683,112 @@ export class StockController {
     }
   }
 
+  static async createInvoiceFromItems(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = req.user?.org_id
+      const actorId = req.user?.userId
+      if (!org_id || !actorId) return res.status(401).json({ success: false, message: "Unauthorized" })
+
+      const { clientName, clientNumber, clientLocation, items, payNow = false } = req.body || {}
+      if (!Array.isArray(items) || items.length === 0) {
+        return res.status(400).json({ success: false, message: "At least one item is required" })
+      }
+
+      const normalizedItems = await buildQuotationItems(org_id, items || [])
+      const subTotal = Number(normalizedItems.reduce((sum, item) => sum + item.lineTotal, 0).toFixed(2))
+
+      const invoice = await StockInvoice.create({
+        org_id,
+        invoiceNumber: generateDocumentNumber("INV"),
+        deliveryNoteNumber: generateDocumentNumber("DN"),
+        client: {
+          name: String(clientName || "Walk-in Client").trim(),
+          number: String(clientNumber || "").trim(),
+          location: String(clientLocation || "").trim() || "",
+        },
+        items: normalizedItems,
+        subTotal,
+        status: payNow ? "paid" : "issued",
+        dispatch: {
+          status: "not_assigned",
+          packingItems: normalizedItems.map((item: any) => ({ productId: item.productId, productName: item.productName, requiredQuantity: item.quantity, packedQuantity: 0 })),
+          packingCompleted: false,
+          inquiries: [],
+        },
+        createdBy: String(actorId),
+      })
+
+      // Handle stock-managed items → create StockSale records and decrement stock
+      const stockManagedItems = normalizedItems.filter((i: any) => !i.isOutsourced)
+      const productIds = [...new Set(stockManagedItems.map((item: any) => item.productId).filter(Boolean))]
+      const products = await StockProduct.find({ _id: { $in: productIds }, org_id })
+      const productMap = new Map(products.map((p) => [String(p._id), p]))
+
+      for (const item of stockManagedItems) {
+        const product = productMap.get(String(item.productId))
+        if (!product) {
+          return res.status(400).json({ success: false, message: `Product not found: ${item.productName}` })
+        }
+        if (product.currentQuantity < item.quantity) {
+          return res.status(400).json({ success: false, message: `Insufficient stock for ${item.productName}. Available: ${product.currentQuantity}, requested: ${item.quantity}` })
+        }
+      }
+
+      const receiptNumber = generateDocumentNumber("RCP")
+
+      const salesToCreate = stockManagedItems.map((item: any) => {
+        const product = productMap.get(String(item.productId))!
+        product.currentQuantity -= item.quantity
+
+        return {
+          org_id,
+          productId: item.productId,
+          quantitySold: item.quantity,
+          soldPrice: item.unitPrice,
+          soldBy: actorId,
+          buyerName: invoice.client.name,
+          buyerNumber: invoice.client.number,
+          buyerLocation: invoice.client.location,
+          isWalkInClient: invoice.client.name === "Walk-in Client",
+          isSalesCompany: false,
+          quotationId: undefined,
+          invoiceId: String(invoice._id),
+          receiptNumber,
+          remainingQuantity: product.currentQuantity,
+        }
+      })
+
+      if (products.length > 0) {
+        await Promise.all(products.map((p) => p.save()))
+        await Promise.all(products.map((p) => sendLowStockAlert(p, org_id)))
+      }
+
+      if (salesToCreate.length > 0) {
+        await StockSale.insertMany(salesToCreate)
+      }
+
+      // If payNow requested, create a payment record marking invoice fully paid
+      let payment: any = null
+      if (payNow) {
+        payment = await StockInvoicePayment.create({
+          org_id,
+          invoiceId: String(invoice._id),
+          invoiceNumber: String(invoice.invoiceNumber),
+          amount: Number(subTotal.toFixed(2)),
+          paymentMethod: "cash",
+          reference: receiptNumber,
+          paidAt: new Date(),
+          receivedBy: String(actorId),
+        })
+        await StockInvoice.updateOne({ _id: invoice._id, org_id }, { $set: { status: "paid" } })
+      }
+
+      return res.status(201).json({ success: true, data: { invoice, payment } })
+    } catch (error: any) {
+      return res.status(500).json({ success: false, message: error.message || "Failed to create invoice from items" })
+    }
+  }
+
   static async addQuotationFollowUp(req: AuthenticatedRequest, res: Response) {
     try {
       const org_id = req.user?.org_id
