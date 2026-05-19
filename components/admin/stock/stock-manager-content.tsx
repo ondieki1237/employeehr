@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox"
 import { useToast } from "@/hooks/use-toast"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion"
 import { CategoriesManager } from "./categories-manager"
 import { ProductsManager } from "./products-manager"
 import {
@@ -291,6 +292,7 @@ export function StockManagerContent({ view }: { view: StockView }) {
 
   const filteredProductsForInventory = products.filter((product) => matchesProductAndCategory(product, normalizedInventorySearch))
   const filteredLowStockProducts = lowStockProducts.filter((product) => matchesProductAndCategory(product, normalizedInventorySearch))
+  const filteredOutOfStockProducts = products.filter((product) => product.currentQuantity <= 0 && matchesProductAndCategory(product, normalizedInventorySearch))
   const filteredEntries = entries.filter((entry) => {
     if (!normalizedInventorySearch) return true
     const productName = (productNameById.get(entry.productId) || "").toLowerCase()
@@ -1560,20 +1562,33 @@ export function StockManagerContent({ view }: { view: StockView }) {
                   </Button>
                 </CardContent>
               </Card>
+
+
               <Card>
-                <CardHeader><CardTitle>Low Stock Alerts</CardTitle></CardHeader>
-                <CardContent>
-                  {filteredLowStockProducts.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No low-stock products right now.</p>
-                  ) : (
-                    <ul className="space-y-2 text-sm">
-                      {filteredLowStockProducts.map((product) => (
-                        <li key={product._id} className="border rounded p-2">
-                          {product.name}: {product.currentQuantity} remaining (alert at {product.minAlertQuantity})
-                        </li>
-                      ))}
-                    </ul>
-                  )}
+                <CardContent className="p-0">
+                  <Accordion type="single" collapsible className="w-full">
+                    <AccordionItem value="out-of-stock" className="border-b-0">
+                      <AccordionTrigger className="px-6 py-4 hover:no-underline">
+                        <div className="flex items-center gap-2 text-red-500 font-semibold text-lg">
+                          Products Out of Stock ({filteredOutOfStockProducts.length})
+                        </div>
+                      </AccordionTrigger>
+                      <AccordionContent className="px-6 pb-4">
+                        {filteredOutOfStockProducts.length === 0 ? (
+                          <p className="text-sm text-muted-foreground">No products are currently out of stock.</p>
+                        ) : (
+                          <ul className="space-y-2 text-sm max-h-[300px] overflow-y-auto pr-2">
+                            {filteredOutOfStockProducts.map((product) => (
+                              <li key={product._id} className="border border-red-100 bg-red-50/50 rounded p-3 flex justify-between items-center">
+                                <span className="font-medium text-red-600">{product.name}</span>
+                                <span className="text-muted-foreground text-xs">{product.categoryDetails?.name ? getCategoryPath(product.category) : "-"}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </AccordionContent>
+                    </AccordionItem>
+                  </Accordion>
                 </CardContent>
               </Card>
 
