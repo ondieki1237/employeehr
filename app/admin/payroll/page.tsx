@@ -216,6 +216,29 @@ export default function AdminPayrollPage() {
         if (!salary && !editId) {
             setGenSalary("")
         }
+
+        // Fetch last payslip to pre-fill deductions
+        const fetchLastPayslip = async () => {
+            if (editId) return // Don't override when editing existing
+            try {
+                const res = await api.payroll.getMyPayslips()
+                if (res.success && res.data && res.data.length > 0) {
+                    const lastSlip = res.data[0]
+                    // Pre-fill overrides for standard deductions if they were overridden
+                    if (lastSlip.standard_deduction_overrides) {
+                        setStandardDeductionOverrides(lastSlip.standard_deduction_overrides)
+                    }
+                    // Pre-fill other items
+                    setOtherDeductionItems(lastSlip.deduction_items.filter((item: any) => 
+                        !DEFAULT_DEDUCTION_RULES.some(r => r.name === item.name)
+                    ))
+                    setOtherBonusItems(lastSlip.other_bonus_items || [])
+                }
+            } catch (error) {
+                console.error("Failed to fetch last payslip:", error)
+            }
+        }
+        fetchLastPayslip()
     }, [genEmployeeId, employees, selectedEmployee, editId])
 
     const calculatorRules = useMemo(() => [...DEFAULT_DEDUCTION_RULES, ...customRules], [customRules])
@@ -435,14 +458,14 @@ export default function AdminPayrollPage() {
 
             setGenerating(true)
 
-            // Save employee details first
+                    // Save employee details first
             await saveEmployeeDetails()
 
             const payload = {
                 user_id: genEmployeeId,
                 month: selectedMonth,
                 base_salary: Number(calculatorResult.gross || genSalary || 0),
-                bonus: Number(genBonus) + otherBonusItems.reduce((sum, item) => sum + Number(item.amount || 0), 0),
+                bonus: otherBonusItems.reduce((sum, item) => sum + Number(item.amount || 0), 0),
                 other_bonus_items: otherBonusItems,
                 deduction_items: calculatorResult.items,
                 standard_deduction_overrides: standardDeductionOverrides,
@@ -538,217 +561,191 @@ export default function AdminPayrollPage() {
                                 <Plus className="w-4 h-4" /> Generate Payslip
                             </Button>
                         </DialogTrigger>
-                        <DialogContent className="max-w-7xl w-[95vw] max-h-[90vh] overflow-y-auto">
+                        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
                             <DialogHeader>
                                 <DialogTitle>{editId ? "Edit Payslip" : "Generate Payslip"} for {selectedMonth}</DialogTitle>
                             </DialogHeader>
                             
-                            <div className="space-y-6 py-4">
-                                {/* Employee Selector */}
-                                <div className="space-y-2">
-                                    <Label className="text-sm font-semibold">Select Employee</Label>
-                                    <Select value={genEmployeeId} onValueChange={setGenEmployeeId}>
-                                        <SelectTrigger className="h-10 text-base">
-                                            <SelectValue placeholder="Choose an employee..." />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {employees.map(emp => (
-                                                <SelectItem key={emp._id} value={emp._id}>
-                                                    {emp.firstName} {emp.lastName}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
+                            <div className="space-y-8 py-4">
+                                {/* Top Settings: Employee & Salary */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="space-y-2">
+                                        <Label className="text-sm font-semibold">Select Employee</Label>
+                                        <Select value={genEmployeeId} onValueChange={setGenEmployeeId}>
+                                            <SelectTrigger className="h-10">
+                                                <SelectValue placeholder="Choose an employee..." />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {employees.map(emp => (
+                                                    <SelectItem key={emp._id} value={emp._id}>
+                                                        {emp.firstName} {emp.lastName}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <div className="flex items-center justify-between">
+                                            <Label className="text-sm font-semibold">{salaryMode === "gross" ? "Gross Salary" : "Net Salary"}</Label>
+                                            <div className="flex gap-2">
+                                                <Button type="button" size="sm" variant={salaryMode === "gross" ? "default" : "outline"} onClick={() => setSalaryMode("gross")} className="h-6 text-[10px] px-2 h-auto py-0.5">Gross</Button>
+                                                <Button type="button" size="sm" variant={salaryMode === "net" ? "default" : "outline"} onClick={() => setSalaryMode("net")} className="h-6 text-[10px] px-2 h-auto py-0.5">Net</Button>
+                                            </div>
+                                        </div>
+                                        <Input
+                                            type="number"
+                                            value={salaryInput}
+                                            onChange={(e) => {
+                                                const value = e.target.value
+                                                setSalaryInput(value)
+                                                setGenSalary(value)
+                                            }}
+                                            placeholder={salaryMode === "gross" ? "Enter gross salary" : "Enter net salary"}
+                                            className="h-10"
+                                        />
+                                    </div>
                                 </div>
 
-                                {/* 3-Column Layout */}
-                                <div className="grid grid-cols-3 gap-6">
-                                    {/* LEFT: Employee Compliance Details */}
-                                    <div className="rounded-lg border bg-slate-50 p-6 space-y-5">
-                                        <div>
-                                            <p className="font-bold text-base mb-2">Employee Details</p>
-                                            <p className="text-sm text-muted-foreground">
-                                                {selectedEmployee ? `${selectedEmployee.position || "Employee"} · ${selectedEmployee.department || "No dept"}` : "Select employee to populate"}
-                                            </p>
-                                        </div>
-
-                                        <div className="space-y-4">
-                                            <div className="space-y-2">
-                                                <Label className="text-sm font-medium">SHA ID</Label>
-                                                <Input value={employeeDetails.shaId} onChange={(e) => setEmployeeDetails((prev) => ({ ...prev, shaId: e.target.value }))} placeholder="e.g., SH12345" className="text-base h-10" />
-                                            </div>
-                                            <div className="space-y-2">
-                                                <Label className="text-sm font-medium">KRA PIN</Label>
-                                                <Input value={employeeDetails.kraPin} onChange={(e) => setEmployeeDetails((prev) => ({ ...prev, kraPin: e.target.value }))} placeholder="e.g., A001234567K" className="text-base h-10" />
-                                            </div>
-                                            <div className="space-y-2">
-                                                <Label className="text-sm font-medium">National ID</Label>
-                                                <Input value={employeeDetails.nationalId} onChange={(e) => setEmployeeDetails((prev) => ({ ...prev, nationalId: e.target.value }))} placeholder="e.g., 12345678" className="text-base h-10" />
-                                            </div>
-                                            <div className="space-y-2">
-                                                <Label className="text-sm font-medium">NSSF Number</Label>
-                                                <Input value={employeeDetails.nssf} onChange={(e) => setEmployeeDetails((prev) => ({ ...prev, nssf: e.target.value }))} placeholder="e.g., 50/5967/5967" className="text-base h-10" />
-                                            </div>
-                                            <div className="space-y-2">
-                                                <Label className="text-sm font-medium">Bank Name</Label>
-                                                <Input value={employeeDetails.bankName} onChange={(e) => setEmployeeDetails((prev) => ({ ...prev, bankName: e.target.value }))} placeholder="e.g., Equity Bank" className="text-base h-10" />
-                                            </div>
-                                            <div className="space-y-2">
-                                                <Label className="text-sm font-medium">Bank Branch</Label>
-                                                <Input value={employeeDetails.bankBranch} onChange={(e) => setEmployeeDetails((prev) => ({ ...prev, bankBranch: e.target.value }))} placeholder="e.g., Nairobi CBD" className="text-base h-10" />
-                                            </div>
-                                            <div className="space-y-2">
-                                                <Label className="text-sm font-medium">Account Number</Label>
-                                                <Input value={employeeDetails.accountNumber} onChange={(e) => setEmployeeDetails((prev) => ({ ...prev, accountNumber: e.target.value }))} placeholder="e.g., 0123456789" className="text-base h-10" />
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* MIDDLE: Salary Calculator */}
-                                    <div className="rounded-lg border bg-white p-6 space-y-5">
-                                        <div>
-                                            <p className="font-bold text-base mb-4">Salary Calculator</p>
-                                            <div className="flex gap-3 mb-4">
-                                                <Button type="button" size="lg" variant={salaryMode === "gross" ? "default" : "outline"} onClick={() => setSalaryMode("gross")} className="text-base h-10 flex-1">Gross</Button>
-                                                <Button type="button" size="lg" variant={salaryMode === "net" ? "default" : "outline"} onClick={() => setSalaryMode("net")} className="text-base h-10 flex-1">Net</Button>
-                                            </div>
-                                        </div>
-
-                                        <div className="space-y-3">
-                                            <div className="space-y-2">
-                                                <Label className="text-sm font-medium">{salaryMode === "gross" ? "Gross Salary" : "Net Salary"}</Label>
-                                                <Input
-                                                    type="number"
-                                                    value={salaryInput}
-                                                    onChange={(e) => {
-                                                        const value = e.target.value
-                                                        setSalaryInput(value)
-                                                        setGenSalary(value)
-                                                    }}
-                                                    placeholder={salaryMode === "gross" ? "Enter gross salary" : "Enter net salary"}
-                                                    className="text-base h-10"
-                                                />
-                                            </div>
-                                            <div className="space-y-2">
-                                                <Label className="text-sm font-medium">Bonus (Optional)</Label>
-                                                <Input type="number" value={genBonus} onChange={(e) => setGenBonus(e.target.value)} placeholder="Enter bonus amount" className="text-base h-10" />
-                                            </div>
-                                        </div>
-
-                                        <div className="grid grid-cols-2 gap-3">
-                                            <div className="rounded-md border bg-blue-50 p-4">
-                                                <p className="text-xs text-blue-700 font-semibold">GROSS SALARY</p>
-                                                <p className="font-bold text-lg mt-2">KES {calculatorResult.gross.toLocaleString()}</p>
-                                            </div>
-                                            <div className="rounded-md border bg-green-50 p-4">
-                                                <p className="text-xs text-green-700 font-semibold">NET SALARY</p>
-                                                <p className="font-bold text-lg text-green-700 mt-2">KES {calculatorResult.net.toLocaleString()}</p>
-                                            </div>
-                                            <div className="rounded-md border bg-red-50 p-4">
-                                                <p className="text-xs text-red-700 font-semibold">TOTAL DEDUCTIONS</p>
-                                                <p className="font-bold text-lg text-red-600 mt-2">KES {calculatorResult.totalDeductions.toLocaleString()}</p>
-                                            </div>
-                                            <div className="rounded-md border bg-amber-50 p-4">
-                                                <p className="text-xs text-amber-700 font-semibold">BONUS</p>
-                                                <p className="font-bold text-lg mt-2">KES {Number(genBonus || 0).toLocaleString()}</p>
-                                            </div>
-                                        </div>
-
-                                        <div className="border-t pt-4">
-                                            <p className="text-sm font-semibold text-slate-700 mb-3">Deduction Breakdown</p>
-                                            <div className="space-y-2 max-h-[200px] overflow-y-auto">
-                                                {calculatorResult.items.length === 0 ? (
-                                                    <p className="text-sm text-muted-foreground">Enter salary to see breakdown</p>
-                                                ) : (
-                                                    calculatorResult.items.map((item) => (
-                                                        <div key={item.name} className="flex justify-between text-sm bg-slate-50 p-3 rounded">
-                                                            <span className="font-medium">{item.name}</span>
-                                                            <span className="font-semibold text-red-600">-KES {item.amount.toLocaleString()}</span>
-                                                        </div>
-                                                    ))
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* RIGHT: Summary & Controls */}
-                                    <div className="rounded-lg border bg-white p-6 space-y-5 flex flex-col">
-                                        <div>
-                                            <p className="font-bold text-base mb-4">Summary & Actions</p>
-                                        </div>
-
-                                        <div className="border-b pb-4">
-                                            <div className="rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 border border-blue-400 p-5 text-white">
-                                                <p className="text-sm font-semibold opacity-90">ESTIMATED NET PAY</p>
-                                                <p className="text-4xl font-bold mt-3">KES {calculatorResult.net.toLocaleString()}</p>
-                                            </div>
-                                        </div>
-
-                                        <div className="space-y-3">
-                                            <div className="flex items-center justify-between gap-4">
-                                                <div>
-                                                    <Label className="text-sm font-medium">HELB Deduction</Label>
-                                                    <p className="text-xs text-muted-foreground mt-1">Higher Education Loans Board</p>
-                                                </div>
-                                                <Button type="button" variant={deductHelb ? "default" : "outline"} onClick={toggleHelb} className="h-9 px-6">
-                                                    {deductHelb ? "Enabled" : "Disabled"}
-                                                </Button>
-                                            </div>
-                                            {deductHelb && (
-                                                <Input
-                                                    type="number"
-                                                    value={helbAmount}
-                                                    onChange={(e) => setHelbAmount(e.target.value)}
-                                                    placeholder="Enter HELB amount"
-                                                    className="text-base h-10"
-                                                />
-                                            )}
-                                        </div>
-
-                                        {otherDeductionItems.length > 0 && (
-                                            <div className="space-y-3 border-t pt-3">
-                                                <p className="text-sm font-semibold text-slate-700">Other Deductions</p>
-                                                {otherDeductionItems.map((item, idx) => (
-                                                    <div key={idx} className="flex items-center justify-between text-sm bg-slate-50 p-3 rounded-md">
-                                                        <span className="font-medium">{item.name}</span>
-                                                        <div className="flex items-center gap-3">
-                                                            <span className="text-red-600 font-semibold">-KES {item.amount.toLocaleString()}</span>
-                                                            <Button size="sm" variant="ghost" onClick={() => removeOtherDeduction(idx)} className="h-7 w-7 p-0 text-gray-500 hover:text-red-600">
-                                                                <Trash2 className="w-4 h-4" />
-                                                            </Button>
-                                                        </div>
+                                <div className="border-t pt-6">
+                                    <h3 className="text-sm font-semibold mb-4 text-muted-foreground uppercase tracking-wider">Standard Deductions</h3>
+                                    <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-4">
+                                        {DEFAULT_DEDUCTION_RULES.map((rule) => {
+                                            const calculatedAmount = getRuleAmount(rule, Number(calculatorResult.gross || 0))
+                                            const currentOverride = standardDeductionOverrides[rule.id]
+                                            
+                                            return (
+                                                <div key={rule.id} className="space-y-1.5">
+                                                    <div className="flex justify-between items-center">
+                                                        <Label className="text-xs">{rule.name}</Label>
                                                     </div>
-                                                ))}
+                                                    <div className="relative">
+                                                        <Input
+                                                            type="number"
+                                                            value={currentOverride !== undefined ? currentOverride : roundCurrency(calculatedAmount)}
+                                                            onChange={(e) => setStandardDeductionOverrides(prev => ({
+                                                                ...prev,
+                                                                [rule.id]: e.target.value
+                                                            }))}
+                                                            className="h-9 pr-7 text-sm"
+                                                        />
+                                                        {currentOverride !== undefined && (
+                                                            <Button 
+                                                                size="sm" 
+                                                                variant="ghost" 
+                                                                className="absolute right-0 top-0 h-9 w-7 p-0 text-muted-foreground hover:text-red-500"
+                                                                onClick={() => setStandardDeductionOverrides(prev => {
+                                                                    const next = { ...prev }
+                                                                    delete next[rule.id]
+                                                                    return next
+                                                                })}
+                                                            >
+                                                                <Trash2 className="h-3 w-3" />
+                                                            </Button>
+                                                        )}
+                                                    </div>
+                                                    {currentOverride !== undefined && (
+                                                        <p className="text-[10px] text-amber-600">Default: KES {roundCurrency(calculatedAmount).toLocaleString()}</p>
+                                                    )}
+                                                </div>
+                                            )
+                                        })}
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 border-t pt-6">
+                                    {/* Bonuses */}
+                                    <div className="space-y-4">
+                                        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Other Bonuses</h3>
+                                        <div className="space-y-2">
+                                            {otherBonusItems.map((item, idx) => (
+                                                <div key={idx} className="flex items-center justify-between text-sm py-2 border-b">
+                                                    <span>{item.name}</span>
+                                                    <div className="flex items-center gap-3">
+                                                        <span className="text-green-600">+KES {item.amount.toLocaleString()}</span>
+                                                        <Button size="sm" variant="ghost" onClick={() => removeOtherBonus(idx)} className="h-6 w-6 p-0 text-muted-foreground hover:text-red-500">
+                                                            <Trash2 className="w-3 h-3" />
+                                                        </Button>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                            <div className="flex gap-2 pt-2">
+                                                <Input
+                                                    value={newOtherBonusName}
+                                                    onChange={(e) => setNewOtherBonusName(e.target.value)}
+                                                    placeholder="Bonus name"
+                                                    className="h-9 text-sm flex-1"
+                                                />
+                                                <Input
+                                                    type="number"
+                                                    value={newOtherBonusAmount}
+                                                    onChange={(e) => setNewOtherBonusAmount(e.target.value)}
+                                                    placeholder="Amount"
+                                                    className="h-9 text-sm w-24"
+                                                />
+                                                <Button size="sm" type="button" onClick={addOtherBonus} disabled={!newOtherBonusName || !newOtherBonusAmount} className="h-9">Add</Button>
                                             </div>
-                                        )}
+                                        </div>
+                                    </div>
 
-                                        <div className="flex-1" />
+                                    {/* Deductions */}
+                                    <div className="space-y-4">
+                                        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Other Deductions</h3>
+                                        <div className="space-y-2">
+                                            <div className="flex items-center justify-between text-sm py-2 border-b">
+                                                <span>HELB Deduction</span>
+                                                <div className="flex items-center gap-2">
+                                                    {deductHelb && (
+                                                        <Input
+                                                            type="number"
+                                                            value={helbAmount}
+                                                            onChange={(e) => setHelbAmount(e.target.value)}
+                                                            placeholder="Amount"
+                                                            className="h-8 text-xs w-24"
+                                                        />
+                                                    )}
+                                                    <Button type="button" size="sm" variant={deductHelb ? "default" : "outline"} onClick={toggleHelb} className="h-8 text-xs px-2">
+                                                        {deductHelb ? "Added" : "Add"}
+                                                    </Button>
+                                                </div>
+                                            </div>
 
-                                        <div className="space-y-3 border-t pt-3">
-                                            <p className="text-sm font-semibold text-slate-700">Add Deduction</p>
-                                            <div className="flex gap-2">
+                                            {otherDeductionItems.map((item, idx) => (
+                                                <div key={idx} className="flex items-center justify-between text-sm py-2 border-b">
+                                                    <span>{item.name}</span>
+                                                    <div className="flex items-center gap-3">
+                                                        <span className="text-red-600">-KES {item.amount.toLocaleString()}</span>
+                                                        <Button size="sm" variant="ghost" onClick={() => removeOtherDeduction(idx)} className="h-6 w-6 p-0 text-muted-foreground hover:text-red-500">
+                                                            <Trash2 className="w-3 h-3" />
+                                                        </Button>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                            <div className="flex gap-2 pt-2">
                                                 <Input
                                                     value={newOtherDeductionName}
                                                     onChange={(e) => setNewOtherDeductionName(e.target.value)}
-                                                    placeholder="Name"
-                                                    className="text-sm h-10 flex-1"
+                                                    placeholder="Deduction name"
+                                                    className="h-9 text-sm flex-1"
                                                 />
                                                 <Input
                                                     type="number"
                                                     value={newOtherDeductionAmount}
                                                     onChange={(e) => setNewOtherDeductionAmount(e.target.value)}
                                                     placeholder="Amount"
-                                                    className="text-sm h-10 w-32"
+                                                    className="h-9 text-sm w-24"
                                                 />
-                                                <Button size="lg" type="button" onClick={addOtherDeduction} disabled={!newOtherDeductionName || !newOtherDeductionAmount} className="h-10 px-5">Add</Button>
+                                                <Button size="sm" type="button" onClick={addOtherDeduction} disabled={!newOtherDeductionName || !newOtherDeductionAmount} className="h-9">Add</Button>
                                             </div>
                                         </div>
-
-                                        <Button className="w-full h-12 text-base font-semibold mt-4" onClick={handleGenerate} disabled={generating || !genSalary}>
-                                            {generating && <Loader2 className="mr-2 w-5 h-5 animate-spin" />}
-                                            {editId ? "Update Payroll" : "Generate Payroll"}
-                                        </Button>
                                     </div>
+                                </div>
+
+                                <div className="border-t pt-6 flex justify-end">
+                                    <Button className="w-full sm:w-auto h-11 px-8" onClick={handleGenerate} disabled={generating || !genSalary}>
+                                        {generating && <Loader2 className="mr-2 w-4 h-4 animate-spin" />}
+                                        {editId ? "Save Changes" : "Generate Payslip"}
+                                    </Button>
                                 </div>
                             </div>
                         </DialogContent>

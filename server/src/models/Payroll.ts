@@ -6,11 +6,13 @@ export interface IPayroll extends Document {
     month: string // YYYY-MM
     base_salary: number
     bonus: number
+    other_bonus_items: { name: string; amount: number }[]
     deduction_items: { name: string; amount: number }[]
     total_deductions: number
     net_pay: number
     status: 'draft' | 'processed' | 'paid'
     generated_at: Date
+    standard_deduction_overrides: Record<string, any>
     // createdAt and updatedAt are added by timestamps: true
     createdAt: Date
     updatedAt: Date
@@ -23,6 +25,10 @@ const payrollSchema = new Schema<IPayroll>(
         month: { type: String, required: true },
         base_salary: { type: Number, required: true },
         bonus: { type: Number, default: 0 },
+        other_bonus_items: [{
+            name: { type: String, required: true },
+            amount: { type: Number, required: true }
+        }],
         deduction_items: [{
             name: { type: String, required: true },
             amount: { type: Number, required: true }
@@ -35,6 +41,7 @@ const payrollSchema = new Schema<IPayroll>(
             default: "processed", // Changed default from "draft" to "processed"
         },
         generated_at: { type: Date, default: Date.now },
+        standard_deduction_overrides: { type: Schema.Types.Mixed, default: {} },
     },
     { timestamps: true },
 )

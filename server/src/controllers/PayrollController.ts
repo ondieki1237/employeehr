@@ -8,7 +8,7 @@ export class PayrollController {
     // Generate Payroll (Admin)
     static async generate(req: AuthenticatedRequest, res: Response) {
         try {
-            const { user_id, month, bonus = 0, deduction_items = [], base_salary } = req.body
+            const { user_id, month, bonus = 0, other_bonus_items = [], deduction_items = [], base_salary, standard_deduction_overrides = {} } = req.body
             const org_id = req.user?.org_id
 
             const user = await User.findById(user_id)
@@ -41,7 +41,9 @@ export class PayrollController {
                 month,
                 base_salary: salaryToUse,
                 bonus: Number(bonus),
+                other_bonus_items,
                 deduction_items,
+                standard_deduction_overrides,
                 total_deductions,
                 net_pay,
                 status: 'processed'
@@ -59,7 +61,7 @@ export class PayrollController {
     static async update(req: AuthenticatedRequest, res: Response) {
         try {
             const { id } = req.params
-            const { base_salary, bonus, deduction_items, status } = req.body
+            const { base_salary, bonus, other_bonus_items, deduction_items, standard_deduction_overrides, status } = req.body
 
             const payroll = await Payroll.findById(id)
             if (!payroll) {
@@ -69,6 +71,8 @@ export class PayrollController {
             // Update fields if provided
             if (base_salary !== undefined) payroll.base_salary = Number(base_salary)
             if (bonus !== undefined) payroll.bonus = Number(bonus)
+            if (other_bonus_items !== undefined) payroll.other_bonus_items = other_bonus_items
+            if (standard_deduction_overrides !== undefined) payroll.standard_deduction_overrides = standard_deduction_overrides
             if (deduction_items !== undefined) {
                 payroll.deduction_items = deduction_items
                 payroll.total_deductions = deduction_items.reduce((sum: number, item: any) => sum + Number(item.amount), 0)
