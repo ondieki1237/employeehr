@@ -214,6 +214,12 @@ const adminMenuItems = [
     section: "ACCOUNTS"
   },
   {
+    label: "Renumeration Reports",
+    icon: BarChart3,
+    href: "/admin/accounts/remuneration-reports",
+    section: "ACCOUNTS"
+  },
+  {
     label: "Stamps",
     icon: Stamp,
     href: "/admin/stamps",
