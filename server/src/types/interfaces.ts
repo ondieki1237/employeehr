@@ -17,10 +17,15 @@ export interface IUser {
   dateOfJoining?: Date
   status: "active" | "inactive" | "pending"
   salary?: number
+  sha_id?: string
+  kra_pin?: string
+  national_id?: string
+  nssf_number?: string
   bankDetails?: {
     accountName: string
     accountNumber: string
     bankName: string
+    bankBranch?: string
   }
   createdAt?: Date
   updatedAt?: Date

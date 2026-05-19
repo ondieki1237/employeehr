@@ -13,6 +13,16 @@ export interface User {
     manager_id?: string
     hire_date?: string
     status: 'active' | 'inactive'
+    sha_id?: string
+    kra_pin?: string
+    national_id?: string
+    nssf_number?: string
+    bankDetails?: {
+        accountName?: string
+        accountNumber?: string
+        bankName?: string
+        bankBranch?: string
+    }
     createdAt: string
     updatedAt: string
 }
@@ -28,6 +38,16 @@ export interface BackendUser {
     department?: string
     manager_id?: string
     status: 'active' | 'inactive'
+    sha_id?: string
+    kra_pin?: string
+    national_id?: string
+    nssf_number?: string
+    bankDetails?: {
+        accountName?: string
+        accountNumber?: string
+        bankName?: string
+        bankBranch?: string
+    }
     createdAt: string
     updatedAt: string
 }
@@ -227,6 +247,16 @@ export interface UpdateUserRequest {
     position?: string
     manager_id?: string
     status?: User['status']
+    sha_id?: string
+    kra_pin?: string
+    national_id?: string
+    nssf_number?: string
+    bankDetails?: {
+        accountName?: string
+        accountNumber?: string
+        bankName?: string
+        bankBranch?: string
+    }
 }
 
 export interface CreateAwardRequest {
