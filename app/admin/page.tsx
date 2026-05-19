@@ -101,6 +101,7 @@ export default function AdminDashboard() {
   const [error, setError] = useState<string | null>(null)
   const [data, setData] = useState<DashboardData>(DEFAULT_DATA)
   const [branding, setBranding] = useState<Branding | null>(null)
+  const [isRefreshing, setIsRefreshing] = useState(false)
 
   useEffect(() => {
     if (!currentUser) {
@@ -109,7 +110,10 @@ export default function AdminDashboard() {
     }
 
     loadDashboard()
-    const interval = setInterval(loadDashboard, 30000)
+    // Refresh every 2 minutes instead of 30 seconds for better performance
+    const interval = setInterval(() => {
+      loadDashboard()
+    }, 120000)
     return () => clearInterval(interval)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -141,88 +145,135 @@ export default function AdminDashboard() {
 
   const loadDashboard = async () => {
     try {
-      setLoading(true)
+      setIsRefreshing(true)
       setError(null)
 
       const currentMonth = new Date()
 
-      const [
-        usersRes,
-        kpisRes,
-        awardsRes,
-        perfRes,
-        attendRes,
-        leaveRes,
-        payrollRes,
-        meetingsRes,
-        reportsRes,
-        feedbackRes,
-        pdpRes,
-        stockInvoicesRes,
-        stockProductsRes,
-        stockQuotationsRes,
-      ] = await Promise.allSettled([
-        api.users.getAll(),
-        api.kpis.getAll(),
-        api.awards.getAll(),
-        api.performance.getAll(),
-        api.attendance.getAll(),
-        api.leave.getAllRequests(),
-        api.payroll.getAll(`${currentMonth.getFullYear()}-${String(currentMonth.getMonth() + 1).padStart(2, '0')}`),
-        api.meetings.getAll(),
-        api.reports.getAllSubmitted(undefined, undefined),
-        api.feedback.getAll(),
-        api.pdps.getAll(),
-        api.stock.getInvoices(),
-        api.stock.getProducts(),
-        api.stock.getQuotations(),
-      ])
+      // API calls with labels for better error tracking
+      const apiCalls = [
+        { label: 'Users', call: api.users.getAll() },
+        { label: 'KPIs', call: api.kpis.getAll() },
+        { label: 'Awards', call: api.awards.getAll() },
+        { label: 'Performance', call: api.performance.getAll() },
+        { label: 'Attendance', call: api.attendance.getAll() },
+        { label: 'Leave Requests', call: api.leave.getAllRequests() },
+        { label: 'Payroll', call: api.payroll.getAll(`${currentMonth.getFullYear()}-${String(currentMonth.getMonth() + 1).padStart(2, '0')}`) },
+        { label: 'Meetings', call: api.meetings.getAll() },
+        { label: 'Reports', call: api.reports.getAllSubmitted(undefined, undefined) },
+        { label: 'Feedback', call: api.feedback.getAll() },
+        { label: 'PDPs', call: api.pdps.getAll() },
+        { label: 'Stock Invoices', call: api.stock.getInvoices() },
+        { label: 'Stock Products', call: api.stock.getProducts() },
+        { label: 'Stock Quotations', call: api.stock.getQuotations() },
+      ]
 
-      const resolve = async (result: PromiseSettledResult<any>) => {
-        if (result.status === 'fulfilled') return result.value
+      const results = await Promise.allSettled(apiCalls.map(api => api.call))
+
+      // Check for any rejected promises and log details with labels
+      const failedApis = results
+        .map((result, index) => ({
+          label: apiCalls[index].label,
+          result: result,
+        }))
+        .filter(({ result }) => result.status === 'rejected')
+      
+      if (failedApis.length > 0) {
+        const failureDetails = failedApis.map(({ label, result }) => ({
+          api: label,
+          error: result.reason instanceof Error ? result.reason.message : String(result.reason),
+          timestamp: new Date().toISOString(),
+        }))
+        console.error('Dashboard API failures:', failureDetails)
+        
+        // Only show error if critical APIs failed (Users, KPIs, Performance)
+        const criticalApis = ['Users', 'KPIs', 'Performance']
+        const criticalFailures = failureDetails.filter(f => criticalApis.includes(f.api))
+        if (criticalFailures.length > 0) {
+          console.warn('Critical APIs failed:', criticalFailures)
+        }
+      }
+
+      // Map results back to individual variables with better error handling
+      const usersRes = results[0]
+      const kpisRes = results[1]
+      const awardsRes = results[2]
+      const perfRes = results[3]
+      const attendRes = results[4]
+      const leaveRes = results[5]
+      const payrollRes = results[6]
+      const meetingsRes = results[7]
+      const reportsRes = results[8]
+      const feedbackRes = results[9]
+      const pdpRes = results[10]
+      const stockInvoicesRes = results[11]
+      const stockProductsRes = results[12]
+      const stockQuotationsRes = results[13]
+
+      // Safe data extraction from results
+      const extractData = (result: PromiseSettledResult<any>) => {
+        if (result.status === 'fulfilled') return result.value?.data || null
         return null
       }
 
-      const [usersApiRes, kpisApiRes, awardsApiRes, perfApiRes, attendApiRes, leaveApiRes, payrollApiRes, meetingsApiRes, reportsApiRes, feedbackApiRes, pdpApiRes] = await Promise.all([
-        resolve(usersRes),
-        resolve(kpisRes),
-        resolve(awardsRes),
-        resolve(perfRes),
-        resolve(attendRes),
-        resolve(leaveRes),
-        resolve(payrollRes),
-        resolve(meetingsRes),
-        resolve(reportsRes),
-        resolve(feedbackRes),
-        resolve(pdpRes),
-      ])
-
-      const stockInvoicesApiRes = stockInvoicesRes.status === 'fulfilled' ? stockInvoicesRes.value : null
-      const stockProductsApiRes = stockProductsRes.status === 'fulfilled' ? stockProductsRes.value : null
-      const stockQuotationsApiRes = stockQuotationsRes.status === 'fulfilled' ? stockQuotationsRes.value : null
+      const usersApiRes = extractData(usersRes)
+      const kpisApiRes = extractData(kpisRes)
+      const awardsApiRes = extractData(awardsRes)
+      const perfApiRes = extractData(perfRes)
+      const attendApiRes = extractData(attendRes)
+      const leaveApiRes = extractData(leaveRes)
+      const payrollApiRes = extractData(payrollRes)
+      const meetingsApiRes = extractData(meetingsRes)
+      const reportsApiRes = extractData(reportsRes)
+      const feedbackApiRes = extractData(feedbackRes)
+      const pdpApiRes = extractData(pdpRes)
+      const stockInvoicesApiRes = extractData(stockInvoicesRes)
+      const stockProductsApiRes = extractData(stockProductsRes)
+      const stockQuotationsApiRes = extractData(stockQuotationsRes)
 
       setData({
-        users: usersApiRes?.data || [],
-        kpis: kpisApiRes?.data || [],
-        awards: awardsApiRes?.data || [],
-        performances: perfApiRes?.data || [],
-        attendance: attendApiRes?.data || [],
-        leaveRequests: leaveApiRes?.data || [],
-        payroll: payrollApiRes?.data || [],
-        meetings: meetingsApiRes?.data || [],
-        reports: reportsApiRes?.data || [],
-        feedback: feedbackApiRes?.data || [],
-        pdps: pdpApiRes?.data || [],
-        stockInvoices: stockInvoicesApiRes?.data || [],
-        stockProducts: stockProductsApiRes?.data || [],
-        stockQuotations: stockQuotationsApiRes?.data || [],
+        users: usersApiRes || [],
+        kpis: kpisApiRes || [],
+        awards: awardsApiRes || [],
+        performances: perfApiRes || [],
+        attendance: attendApiRes || [],
+        leaveRequests: leaveApiRes || [],
+        payroll: payrollApiRes || [],
+        meetings: meetingsApiRes || [],
+        reports: reportsApiRes || [],
+        feedback: feedbackApiRes || [],
+        pdps: pdpApiRes || [],
+        stockInvoices: stockInvoicesApiRes || [],
+        stockProducts: stockProductsApiRes || [],
+        stockQuotations: stockQuotationsApiRes || [],
       })
 
     } catch (err: any) {
-      console.error('Dashboard error:', err)
-      setError(err.message || 'Failed to load dashboard data')
+      console.error('Dashboard error:', {
+        message: err?.message || 'Unknown error',
+        name: err?.name,
+        stack: err?.stack,
+      })
+      
+      // Check if this is an auth-related error
+      const errorMsg = err?.message || ''
+      const isAuthError = errorMsg.includes('Session expired') || 
+                          errorMsg.includes('Unauthorized') || 
+                          errorMsg.includes('Invalid user ID') ||
+                          errorMsg.includes('invalid token')
+      
+      if (isAuthError) {
+        console.warn('Auth error detected, redirecting to login')
+        router.push('/auth/login')
+        return
+      }
+      
+      setError(err?.message || 'Failed to load dashboard data')
     } finally {
-      setLoading(false)
+      if (loading) {
+        setLoading(false)
+      }
+      setIsRefreshing(false)
     }
   }
 

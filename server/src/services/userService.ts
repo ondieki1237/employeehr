@@ -1,4 +1,5 @@
 import { User } from "../models/User"
+import { Types } from "mongoose"
 import type { IUser, IAPIResponse } from "../types/interfaces"
 
 export class UserService {
@@ -21,6 +22,14 @@ export class UserService {
 
   static async getUserById(org_id: string, userId: string): Promise<IAPIResponse<IUser>> {
     try {
+      // Validate userId is a valid MongoDB ObjectId
+      if (!userId || !Types.ObjectId.isValid(userId)) {
+        return {
+          success: false,
+          message: "Invalid user ID format",
+        }
+      }
+
       const user = await User.findOne({ _id: userId, org_id }).select("-password")
 
       if (!user) {
@@ -46,6 +55,14 @@ export class UserService {
 
   static async updateUser(org_id: string, userId: string, data: Partial<IUser>): Promise<IAPIResponse<IUser>> {
     try {
+      // Validate userId is a valid MongoDB ObjectId
+      if (!userId || !Types.ObjectId.isValid(userId)) {
+        return {
+          success: false,
+          message: "Invalid user ID format",
+        }
+      }
+
       const user = await User.findOneAndUpdate({ _id: userId, org_id }, { $set: data }, { new: true }).select(
         "-password",
       )
@@ -90,6 +107,14 @@ export class UserService {
 
   static async deleteUser(org_id: string, userId: string): Promise<IAPIResponse<null>> {
     try {
+      // Validate userId is a valid MongoDB ObjectId
+      if (!userId || !Types.ObjectId.isValid(userId)) {
+        return {
+          success: false,
+          message: "Invalid user ID format",
+        }
+      }
+
       const user = await User.findOne({ _id: userId, org_id })
 
       if (!user) {

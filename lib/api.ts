@@ -65,19 +65,58 @@ class ApiClient {
             if (response.status === 401) {
                 const isAuthEndpoint = endpoint.startsWith('/api/auth/')
                 if (!isAuthEndpoint && token) {
+                    console.error('Auth failed - logging out user', { endpoint, message: data?.message })
                     logout()
-                    throw new Error('Session expired. Please login again.')
+                    throw new Error('Session expired or invalid. Please login again.')
                 }
                 throw new Error(data?.message || data?.error || 'Unauthorized')
             }
 
             if (!response.ok) {
-                throw new Error(data.message || data.error || 'Request failed')
+                // Log more details about the error for debugging
+                const errorInfo = {
+                    endpoint: endpoint || 'unknown',
+                    status: response.status || 'unknown',
+                    statusText: response.statusText || 'unknown',
+                    message: data?.message || null,
+                    error: data?.error || null,
+                    success: data?.success || null,
+                    headers: {
+                        contentType: response.headers?.get?.('content-type'),
+                    },
+                    timestamp: new Date().toISOString(),
+                }
+                console.error('API request failed:', errorInfo)
+                console.error('Full response data:', data)
+                
+                // Provide better error messages based on status code
+                let errorMessage = 'Request failed'
+                if (response.status === 400) {
+                    errorMessage = data?.message || 'Bad request'
+                } else if (response.status === 403) {
+                    errorMessage = data?.message || 'Access denied'
+                } else if (response.status === 404) {
+                    errorMessage = `Endpoint not found: ${endpoint}`
+                } else if (response.status === 500) {
+                    errorMessage = data?.message || 'Server error'
+                } else if (response.status >= 500) {
+                    errorMessage = `Server error (${response.status})`
+                }
+                
+                throw new Error(data?.message || data?.error || errorMessage)
             }
 
             return data
         } catch (error) {
-            console.error('API Error:', error)
+            const errorMessage = error instanceof Error ? error.message : String(error)
+            const fullError = error instanceof Error ? error : new Error(String(error))
+            
+            console.error('API Error:', {
+                endpoint,
+                message: errorMessage,
+                name: fullError.name,
+                stack: fullError.stack,
+            })
             throw error
         }
     }

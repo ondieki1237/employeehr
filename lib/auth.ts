@@ -17,13 +17,55 @@ export interface AuthUser {
 // Token management
 export const setToken = (token: string): void => {
     if (typeof window !== 'undefined') {
+        // Validate token before storing - check if it's a valid MongoDB ObjectId in payload
+        try {
+            const parts = token.split('.')
+            if (parts.length === 3) {
+                // Use atob for browser compatibility
+                const payload = JSON.parse(atob(parts[1]))
+                const userId = payload.userId || payload.sub
+                // MongoDB ObjectId: 24 hex characters
+                if (!userId || !/^[0-9a-f]{24}$/i.test(userId)) {
+                    console.error('Rejected invalid token: userId is not a valid ObjectId', { userId })
+                    return
+                }
+            }
+        } catch (e) {
+            console.error('Failed to validate token structure', e)
+            return
+        }
         localStorage.setItem(TOKEN_KEY, token)
     }
 }
 
 export const getToken = (): string | null => {
     if (typeof window !== 'undefined') {
-        return localStorage.getItem(TOKEN_KEY)
+        const token = localStorage.getItem(TOKEN_KEY)
+        
+        // If token exists but looks invalid, remove it
+        if (token) {
+            try {
+                const parts = token.split('.')
+                if (parts.length === 3) {
+                    // Use atob for browser compatibility
+                    const payload = JSON.parse(atob(parts[1]))
+                    const userId = payload.userId || payload.sub
+                    if (!userId || !/^[0-9a-f]{24}$/i.test(userId)) {
+                        console.warn('Stored token has invalid userId format, clearing it', { userId })
+                        localStorage.removeItem(TOKEN_KEY)
+                        localStorage.removeItem(USER_KEY)
+                        return null
+                    }
+                }
+            } catch (e) {
+                console.warn('Failed to validate stored token, clearing it', e)
+                localStorage.removeItem(TOKEN_KEY)
+                localStorage.removeItem(USER_KEY)
+                return null
+            }
+        }
+        
+        return token
     }
     return null
 }

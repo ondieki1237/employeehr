@@ -38,7 +38,10 @@ const userSchema = new Schema<IUser>(
   { timestamps: true },
 )
 
-// Compound index for org_id and email
-userSchema.index({ org_id: 1, email: 1 })
+// Indexes for better query performance
+userSchema.index({ org_id: 1 }) // For getAllUsers query
+userSchema.index({ org_id: 1, email: 1 }) // Compound index for org_id and email
+userSchema.index({ org_id: 1, manager_id: 1 }) // For getTeamMembers query
+userSchema.index({ org_id: 1, status: 1 }) // For filtering by status
 
 export const User = mongoose.model<IUser>("User", userSchema)
