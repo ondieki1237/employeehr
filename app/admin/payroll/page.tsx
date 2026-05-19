@@ -107,6 +107,10 @@ export default function AdminPayrollPage() {
     const [otherDeductionItems, setOtherDeductionItems] = useState<DeductionItem[]>([])
     const [newOtherDeductionName, setNewOtherDeductionName] = useState("")
     const [newOtherDeductionAmount, setNewOtherDeductionAmount] = useState("")
+    const [otherBonusItems, setOtherBonusItems] = useState<DeductionItem[]>([])
+    const [newOtherBonusName, setNewOtherBonusName] = useState("")
+    const [newOtherBonusAmount, setNewOtherBonusAmount] = useState("")
+    const [standardDeductionOverrides, setStandardDeductionOverrides] = useState<Record<string, string>>({})
 
     const [employeeDetails, setEmployeeDetails] = useState<PayrollEmployeeDetails>({
         shaId: "",
@@ -216,14 +220,26 @@ export default function AdminPayrollPage() {
 
     const calculatorRules = useMemo(() => [...DEFAULT_DEDUCTION_RULES, ...customRules], [customRules])
 
+    const standardDeductionRules = useMemo(() => {
+        return calculatorRules.filter((rule) => rule.enabled && rule.type === "progressive" || rule.type === "percentage" || rule.type === "fixed")
+    }, [calculatorRules])
+
     const calculatorResult = useMemo(() => {
         const inputAmount = Number(salaryInput || 0)
         const bonusAmount = Number(genBonus || 0)
+        const otherBonusTotal = roundCurrency(otherBonusItems.reduce((sum, item) => sum + Number(item.amount || 0), 0))
 
         const buildItems = (gross: number) => {
             const standardItems = calculatorRules
                 .filter((rule) => rule.enabled)
-                .map((rule) => ({ name: rule.name, amount: roundCurrency(getRuleAmount(rule, gross)) }))
+                .map((rule) => ({
+                    name: rule.name,
+                    amount: roundCurrency(
+                        standardDeductionOverrides[rule.id] !== undefined && standardDeductionOverrides[rule.id] !== ""
+                            ? Number(standardDeductionOverrides[rule.id])
+                            : getRuleAmount(rule, gross)
+                    ),
+                }))
 
             const helbItems = deductHelb && helbAmount
                 ? [{ name: "HELB", amount: roundCurrency(Number(helbAmount)) }]
@@ -240,7 +256,7 @@ export default function AdminPayrollPage() {
         const computeFromGross = (gross: number) => {
             const items = buildItems(gross)
             const totalDeductions = roundCurrency(items.reduce((sum, item) => sum + item.amount, 0))
-            const net = roundCurrency(gross + bonusAmount - totalDeductions)
+            const net = roundCurrency(gross + bonusAmount + otherBonusTotal - totalDeductions)
             return { gross: roundCurrency(gross), net, totalDeductions, items }
         }
 
@@ -271,7 +287,7 @@ export default function AdminPayrollPage() {
         }
 
         return computeFromGross(high)
-    }, [salaryInput, salaryMode, genBonus, calculatorRules, deductHelb, helbAmount, otherDeductionItems])
+    }, [salaryInput, salaryMode, genBonus, calculatorRules, deductHelb, helbAmount, otherDeductionItems, otherBonusItems, standardDeductionOverrides])
 
     const applyCalculatorToPayrollForm = () => {
         if (!salaryInput) return
@@ -320,6 +336,20 @@ export default function AdminPayrollPage() {
         setNewOtherDeductionAmount("")
     }
 
+    const addOtherBonus = () => {
+        if (!newOtherBonusName.trim() || !newOtherBonusAmount) return
+        setOtherBonusItems((prev) => [
+            ...prev,
+            { name: newOtherBonusName.trim(), amount: Number(newOtherBonusAmount) },
+        ])
+        setNewOtherBonusName("")
+        setNewOtherBonusAmount("")
+    }
+
+    const removeOtherBonus = (index: number) => {
+        setOtherBonusItems((prev) => prev.filter((_, idx) => idx !== index))
+    }
+
     const removeOtherDeduction = (index: number) => {
         setOtherDeductionItems((prev) => prev.filter((_, idx) => idx !== index))
     }
@@ -336,6 +366,7 @@ export default function AdminPayrollPage() {
         setSalaryMode("gross")
         setGenBonus(payroll.bonus.toString())
         setOtherDeductionItems(payroll.deduction_items || [])
+        setOtherBonusItems(payroll.other_bonus_items || [])
         setSidebarOpen(true)
     }
 
@@ -351,6 +382,10 @@ export default function AdminPayrollPage() {
             setOtherDeductionItems([])
             setNewOtherDeductionName("")
             setNewOtherDeductionAmount("")
+            setOtherBonusItems([])
+            setNewOtherBonusName("")
+            setNewOtherBonusAmount("")
+            setStandardDeductionOverrides({})
             setEmployeeDetails({
                 shaId: "",
                 kraPin: "",
@@ -407,8 +442,10 @@ export default function AdminPayrollPage() {
                 user_id: genEmployeeId,
                 month: selectedMonth,
                 base_salary: Number(calculatorResult.gross || genSalary || 0),
-                bonus: Number(genBonus),
+                bonus: Number(genBonus) + otherBonusItems.reduce((sum, item) => sum + Number(item.amount || 0), 0),
+                other_bonus_items: otherBonusItems,
                 deduction_items: calculatorResult.items,
+                standard_deduction_overrides: standardDeductionOverrides,
             }
 
             if (editId) {

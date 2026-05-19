@@ -3034,11 +3034,6 @@ export class StockController {
 
       const { id } = req.params
 
-      const productsCount = await StockProduct.countDocuments({ category: id, org_id })
-      if (productsCount > 0) {
-        return res.status(400).json({ success: false, message: `Cannot delete category with ${productsCount} product(s)` })
-      }
-
       const category = await StockCategory.findOneAndDelete({ _id: id, org_id })
 
       if (!category) {
