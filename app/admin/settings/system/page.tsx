@@ -3,7 +3,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { useRouter } from "next/navigation"
-import { Settings, ShieldCheck, FileText } from "lucide-react"
+import { Settings, ShieldCheck, FileText, MapPin } from "lucide-react"
 
 export default function SystemSettingsPage() {
   const router = useRouter()
@@ -54,6 +54,19 @@ export default function SystemSettingsPage() {
             <Button onClick={() => router.push("/admin/settings/system/page-access")} className="gap-2">
               <ShieldCheck className="w-4 h-4" />
               Manage Page Access
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Branch Management</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm text-muted-foreground">
+            <p>Create and manage multiple office/branch locations. Assign branch managers and track stock, analytics, and attendance per branch.</p>
+            <Button onClick={() => router.push("/admin/settings/system/branches")} className="gap-2">
+              <MapPin className="w-4 h-4" />
+              Manage Branches
             </Button>
           </CardContent>
         </Card>

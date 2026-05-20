@@ -127,6 +127,7 @@ export function StockManagerContent({ view }: { view: StockView }) {
   const [entries, setEntries] = useState<StockEntry[]>([])
   const [quotations, setQuotations] = useState<Quotation[]>([])
   const [invoices, setInvoices] = useState<Invoice[]>([])
+  const [branches, setBranches] = useState<any[]>([])
 
   const [categoryForm, setCategoryForm] = useState({ name: "", description: "" })
   const [categoryMode, setCategoryMode] = useState<"main" | "sub">("main")
@@ -154,6 +155,7 @@ export function StockManagerContent({ view }: { view: StockView }) {
     expiryEnabled: false,
     expiryDate: "",
     expiryReminderDays: "7",
+    branchId: "",
   })
   const [saleForm, setSaleForm] = useState({
     productId: "",
@@ -185,7 +187,7 @@ export function StockManagerContent({ view }: { view: StockView }) {
   const fetchAll = async () => {
     try {
       setLoading(true)
-      const [categoriesRes, productsRes, usersRes, salesRes, entriesRes, quotationsRes, invoicesRes] = await Promise.all([
+      const [categoriesRes, productsRes, usersRes, salesRes, entriesRes, quotationsRes, invoicesRes, branchesRes] = await Promise.all([
         fetch(`${API_URL}/api/stock/categories`, { headers }),
         fetch(`${API_URL}/api/stock/products`, { headers }),
         fetch(`${API_URL}/api/users`, { headers }),
@@ -193,9 +195,10 @@ export function StockManagerContent({ view }: { view: StockView }) {
         fetch(`${API_URL}/api/stock/entries`, { headers }),
         fetch(`${API_URL}/api/stock/quotations`, { headers }),
         fetch(`${API_URL}/api/stock/invoices`, { headers }),
+        fetch(`${API_URL}/api/branches`, { headers }),
       ])
 
-      const [categoriesJson, productsJson, usersJson, salesJson, entriesJson, quotationsJson, invoicesJson] = await Promise.all([
+      const [categoriesJson, productsJson, usersJson, salesJson, entriesJson, quotationsJson, invoicesJson, branchesJson] = await Promise.all([
         categoriesRes.json(),
         productsRes.json(),
         usersRes.json(),
@@ -203,6 +206,7 @@ export function StockManagerContent({ view }: { view: StockView }) {
         entriesRes.json(),
         quotationsRes.json(),
         invoicesRes.json(),
+        branchesRes.json(),
       ])
 
       setCategories(categoriesJson.data || [])
@@ -212,6 +216,7 @@ export function StockManagerContent({ view }: { view: StockView }) {
       setEntries(entriesJson.data || [])
       setQuotations(quotationsJson.data || [])
       setInvoices(invoicesJson.data || [])
+      setBranches((branchesJson.data || []).filter((branch: any) => branch.isActive))
     } catch {
       toast({ title: "Error", description: "Failed to load inventory data", variant: "destructive" })
     } finally {
@@ -782,6 +787,7 @@ export function StockManagerContent({ view }: { view: StockView }) {
         expiryEnabled: stockForm.expiryEnabled,
         expiryDate: stockForm.expiryEnabled ? stockForm.expiryDate : undefined,
         expiryReminderDays: Number(stockForm.expiryReminderDays || 0),
+        branchId: stockForm.branchId || undefined,
       }),
     })
     const result = await response.json()
@@ -799,6 +805,7 @@ export function StockManagerContent({ view }: { view: StockView }) {
       expiryEnabled: false,
       expiryDate: "",
       expiryReminderDays: "7",
+      branchId: "",
     })
     toast({ title: "Success", description: "Stock added" })
     fetchAll()
@@ -1032,6 +1039,20 @@ export function StockManagerContent({ view }: { view: StockView }) {
                   <Label>Quantity Added</Label>
                   <Input type="number" min="1" value={stockForm.quantityAdded} onChange={(event) => setStockForm((prev) => ({ ...prev, quantityAdded: event.target.value }))} />
                 </div>
+                {branches.length > 0 && (
+                  <div>
+                    <Label>Branch (Optional)</Label>
+                    <Select value={stockForm.branchId} onValueChange={(value) => setStockForm((prev) => ({ ...prev, branchId: value }))}>
+                      <SelectTrigger><SelectValue placeholder="Select branch (optional)" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">-- No specific branch --</SelectItem>
+                        {branches.map((branch) => (
+                          <SelectItem key={branch._id} value={branch._id}>{branch.name} ({branch.code})</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
                 <div>
                   <Label>Note</Label>
                   <Input value={stockForm.note} onChange={(event) => setStockForm((prev) => ({ ...prev, note: event.target.value }))} />

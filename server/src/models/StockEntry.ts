@@ -3,6 +3,7 @@ import mongoose, { Schema } from "mongoose"
 export interface IStockEntry {
   _id?: string
   org_id: string
+  branchId?: string // New: branch identifier for multi-location support
   productId: string
   quantityAdded: number
   isOutsourced?: boolean
@@ -19,6 +20,7 @@ export interface IStockEntry {
 const stockEntrySchema = new Schema<IStockEntry>(
   {
     org_id: { type: String, required: true, index: true },
+    branchId: { type: String, default: null, index: true },
     productId: { type: String, required: true, index: true },
     quantityAdded: { type: Number, required: true, min: 1 },
     isOutsourced: { type: Boolean, default: false },
@@ -32,6 +34,7 @@ const stockEntrySchema = new Schema<IStockEntry>(
   { timestamps: true },
 )
 
+stockEntrySchema.index({ org_id: 1, branchId: 1, productId: 1, createdAt: -1 })
 stockEntrySchema.index({ org_id: 1, productId: 1, createdAt: -1 })
 
 export const StockEntry = mongoose.model<IStockEntry>("StockEntry", stockEntrySchema)

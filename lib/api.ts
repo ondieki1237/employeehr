@@ -740,6 +740,53 @@ const complaintsApi = {
     getStats: () => client.get<any>('/api/complaints/stats'),
 }
 
+// Branches API for multi-location management
+const branchesApi = {
+    getAll: (filters?: { active?: boolean }) => {
+        const query = new URLSearchParams()
+        if (filters?.active !== undefined) query.append('active', String(filters.active))
+        const queryStr = query.toString()
+        return client.get<any[]>(`/api/branches${queryStr ? '?' + queryStr : ''}`)
+    },
+
+    getById: (id: string) => client.get<any>(`/api/branches/${id}`),
+
+    create: (data: {
+        name: string
+        code: string
+        location: string
+        city?: string
+        state?: string
+        country?: string
+        phone?: string
+        email?: string
+        description?: string
+    }) => client.post<any>('/api/branches', data),
+
+    update: (id: string, data: Partial<{
+        name: string
+        code: string
+        location: string
+        city: string
+        state: string
+        country: string
+        phone: string
+        email: string
+        description: string
+        isActive: boolean
+    }>) => client.put<any>(`/api/branches/${id}`, data),
+
+    allocateManager: (branchId: string, managerId: string) =>
+        client.post<any>('/api/branches/allocate', { branchId, managerId }),
+
+    removeManager: (branchId: string) =>
+        client.post<any>(`/api/branches/${branchId}/remove-manager`, {}),
+
+    delete: (id: string) => client.delete<any>(`/api/branches/${id}`),
+
+    getAnalytics: (branchId: string) => client.get<any>(`/api/branches/${branchId}/analytics`),
+}
+
 // Export all APIs
 export const api = {
     auth: authApi,
@@ -762,6 +809,7 @@ export const api = {
     setup: setupApi,
     stamps: stampsApi,
     complaints: complaintsApi,
+    branches: branchesApi,
 }
 
 export default api

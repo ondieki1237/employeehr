@@ -53,6 +53,7 @@ import mpesaWebhookRoutes from "./routes/mpesaWebhook.routes"
 import shuleRoutes from "./routes/shule.routes"
 import ownerRoutes from "./routes/owner.routes"
 import complaintRoutes from "./routes/complaint.routes"
+import branchRoutes from "./routes/branch.routes"
 import { JobController } from "./controllers/jobController"
 import { JobApplicationController } from "./controllers/jobApplicationController"
 import { ApplicationFormController } from "./controllers/applicationFormController"
@@ -149,6 +150,7 @@ app.use("/api/mpesa", mpesaWebhookRoutes)
 // API Routes
 app.use("/api/auth", authRoutes)
 app.use("/api/users", userRoutes)
+app.use("/api/branches", branchRoutes)
 app.use("/api/performance", performanceRoutes)
 app.use("/api/kpis", kpiRoutes)
 app.use("/api/pdps", pdpRoutes)
