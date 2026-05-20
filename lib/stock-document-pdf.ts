@@ -272,7 +272,7 @@ function drawPartiesSection(
   const boxH = Math.max(leftHeight, rightHeight, headerH + 12);
 
   setColorFromHex(doc, primary, "draw");
-  doc.setLineWidth(0.5);
+  doc.setLineWidth(0.35);
   doc.rect(leftX, boxY, boxW, boxH);
   doc.rect(rightX, boxY, boxW, boxH);
   setColorFromHex(doc, DEFAULT_LIGHT, "fill");
@@ -375,7 +375,7 @@ function drawItemsTable(
     });
 
     setColorFromHex(doc, primary, "draw");
-    doc.setLineWidth(0.8);
+    doc.setLineWidth(0.45);
     doc.rect(tableX, headerY, tableWidth, headerHeight);
     columns.forEach((_, index) => {
       if (index === 0) return;
@@ -480,7 +480,7 @@ function drawTotalsSection(
   // Totals table with better spacing and hierarchy
   doc.setFillColor(255, 255, 255);
   setColorFromHex(doc, primary, "draw");
-  doc.setLineWidth(0.8);
+  doc.setLineWidth(0.45);
   doc.rect(boxX, y, boxW, boxH, "FD");
   doc.line(splitX, y, splitX, y + boxH);
   for (let i = 1; i < rows; i += 1) {
@@ -615,88 +615,45 @@ function drawPreparedBySignatureBlock(
   preparedBy: string,
   signatureDataUrl?: string,
 ) {
-  const y = Math.min(Math.max(startY + 6, 226), 246)
+  // Move up to be above Terms & Conditions (which usually sit around 262)
+  const y = Math.min(Math.max(startY + 10, 232), 242);
 
-  // Positions: left for name, right for signature. Align both to same baseline.
-  const leftX = 24
-  const rightX = 150
-  const signatureW = 30
-  const signatureH = 10
+  const signatureW = 32;
+  const signatureH = 12;
+  const leftEdge = 12;
 
-  doc.setFont("helvetica", "normal")
-  doc.setFontSize(9)
-  setColorFromHex(doc, DEFAULT_GRAY, "text")
-  // small centered label above the signing area
-  try {
-    doc.text("Prepared By", 105, y)
-  } catch {}
+  // Left-aligned small label
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  setColorFromHex(doc, DEFAULT_GRAY, "text");
+  doc.text("Prepared & Signed By", leftEdge, y);
 
-  // Baseline for name and signature underline
-  const baselineY = y + 10
+  // Draw primary signature line (left-aligned)
+  const lineW = 60;
+  const lineRight = leftEdge + lineW;
+  
+  setColorFromHex(doc, "#94a3b8", "draw");
+  doc.setLineWidth(0.35);
+  doc.line(leftEdge, y + 14, lineRight, y + 14);
 
-  // Render prepared by name on the left (compact) at baseline
-  doc.setFontSize(8)
-  setColorFromHex(doc, DEFAULT_TEXT, "text")
-  doc.text(preparedBy || "", leftX, baselineY)
-
-  // underline (shared baseline + offset)
-  const underlineY = baselineY + 2
-  setColorFromHex(doc, "#94a3b8", "draw")
-  doc.setLineWidth(0.35)
-  doc.line(leftX, underlineY, leftX + 60, underlineY)
-
-  // Render smaller signature image on the right, vertically positioned so its bottom aligns with underlineY
+  // If signature image exists, draw it above the line (left-aligned)
   if (signatureDataUrl) {
     try {
-      const lower = signatureDataUrl.toLowerCase()
-      const format = lower.includes("jpeg") || lower.includes("jpg") ? "JPEG" : "PNG"
-      const sigY = underlineY - signatureH // signature top so its bottom sits at underlineY
-      doc.addImage(signatureDataUrl, format, rightX, sigY, signatureW, signatureH)
-    } catch {
-      // ignore invalid signature image
-    }
-  }
-  // underline under signature (same line)
-  setColorFromHex(doc, "#94a3b8", "draw")
-  doc.setLineWidth(0.35)
-  doc.line(rightX, underlineY, rightX + signatureW, underlineY)
-
-  // If the user wants the delivery-note style alignment, render same structure: centered label,
-  // signature line on the right, name below. We'll mirror that here so PDFs look identical.
-  // Clean up left-hand name rendering and instead follow delivery-note style: name under line on right.
-  try {
-    // Centered small label
-    doc.setFontSize(9)
-    setColorFromHex(doc, DEFAULT_GRAY, "text")
-    doc.text("Prepared By", 105, y)
-  } catch {}
-
-  // Draw primary signature line on the right (match delivery note positions)
-  const lineLeft = 110
-  const lineRight = 190
-  setColorFromHex(doc, "#94a3b8", "draw")
-  doc.setLineWidth(0.35)
-  doc.line(lineLeft, y + 12, lineRight, y + 12)
-
-  // If signature image exists, draw it above the line and centered within the line bounds
-  if (signatureDataUrl) {
-    try {
-      const lower = signatureDataUrl.toLowerCase()
-      const format = lower.includes("jpeg") || lower.includes("jpg") ? "JPEG" : "PNG"
-      const sigW = Math.min(signatureW, lineRight - lineLeft)
-      const sigH = signatureH
-      const sigX = lineLeft + (lineRight - lineLeft - sigW) / 2
-      const sigY = y + 2
-      doc.addImage(signatureDataUrl, format, sigX, sigY, sigW, sigH)
+      const lower = signatureDataUrl.toLowerCase();
+      const format = lower.includes("jpeg") || lower.includes("jpg") ? "JPEG" : "PNG";
+      const sigX = leftEdge + 2; // small padding from left
+      const sigY = y + 2; // signature image top
+      doc.addImage(signatureDataUrl, format, sigX, sigY, signatureW, signatureH);
     } catch {
       // ignore
     }
   }
 
-  // Render name below the line (right-aligned with the line start)
-  doc.setFontSize(8)
-  setColorFromHex(doc, DEFAULT_TEXT, "text")
-  doc.text(preparedBy || "", lineLeft, y + 18)
+  // Render name below the line (left-aligned)
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(8.5);
+  setColorFromHex(doc, DEFAULT_TEXT, "text");
+  doc.text(preparedBy || "", leftEdge, y + 19);
 }
 
 export function generateQuotationPdf(params: {
@@ -729,6 +686,14 @@ export function generateQuotationPdf(params: {
   const endY = drawItemsTable(doc, tableY, params.items, params.branding);
 
   const totalsY = drawTotalsSection(doc, params.subTotal, endY, params.branding, params.invoiceSettings);
+  
+  if (params.invoiceSettings?.includePreparedBy !== false) {
+    drawPreparedBySignatureBlock(doc, totalsY, params.preparedBy, params.preparedBySignature);
+  }
+
+  // Include terms and payment channels for visual balance
+  drawTermsAndPaymentChannelsSection(doc, totalsY, params.invoiceSettings, params.branding);
+
   drawBottomFooter(doc, params.branding, params.invoiceSettings, params.preparedBy);
 
   if (params.autoSave !== false) {
@@ -802,6 +767,10 @@ export function generateInvoicePdf(params: {
 
   const totalsY = drawTotalsSection(doc, params.subTotal, endY, params.branding, params.invoiceSettings);
   const termsEndY = drawTermsAndPaymentChannelsSection(doc, totalsY, params.invoiceSettings, params.branding)
+
+  if (params.invoiceSettings?.includePreparedBy !== false) {
+    drawPreparedBySignatureBlock(doc, totalsY, params.preparedBy, params.preparedBySignature);
+  }
 
   drawBottomFooter(
     doc,

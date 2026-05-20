@@ -15,8 +15,8 @@ export default function AdminTopNav({ onMenuClick, onSidebarCollapseToggle, isSi
   const user = getUser()
 
   return (
-    <header className="h-16 border-b border-border bg-card flex items-center justify-between px-6">
-      <div className="flex items-center gap-4">
+    <header className="h-16 border-b border-border bg-card flex items-center justify-between px-3 sm:px-6">
+      <div className="flex items-center gap-2 sm:gap-4 min-w-0">
         <Button
           variant="ghost"
           size="sm"
@@ -34,21 +34,21 @@ export default function AdminTopNav({ onMenuClick, onSidebarCollapseToggle, isSi
         >
           {isSidebarCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
         </Button>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
           <div className="w-8 h-8 bg-center bg-no-repeat bg-contain" style={{ backgroundImage: 'var(--company-logo-url)' }}></div>
-          <div className="text-sm text-muted-foreground">
+          <div className="text-sm text-muted-foreground hidden sm:block truncate">
             <span className="font-semibold text-foreground">Admin Panel</span> / Organization Management
           </div>
         </div>
       </div>
 
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-2 sm:gap-4">
         <Button variant="ghost" size="sm" className="relative">
           <Bell size={20} />
           <span className="absolute top-1 right-1 w-2 h-2 bg-destructive rounded-full"></span>
         </Button>
 
-        <div className="flex items-center gap-3 pl-4 border-l border-border">
+        <div className="flex items-center gap-2 sm:gap-3 pl-2 sm:pl-4 border-l border-border">
           <div className="text-right hidden sm:block">
             <p className="text-sm font-medium">
               {user?.first_name} {user?.last_name}

@@ -38,6 +38,12 @@ export default function AdminLayout({
     if (saved === "1") setSidebarCollapsed(true)
   }, [])
 
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.innerWidth <= 768) {
+      setSidebarOpen(false)
+    }
+  }, [])
+
   const toggleSidebarCollapsed = () => {
     setSidebarCollapsed((prev) => {
       const next = !prev
@@ -117,6 +123,12 @@ export default function AdminLayout({
 
     enforcePageAccess()
   }, [pathname, router])
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.innerWidth <= 768) {
+      setSidebarOpen(false)
+    }
+  }, [pathname])
 
   if (loading) {
     return (

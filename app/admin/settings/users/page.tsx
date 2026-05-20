@@ -80,6 +80,22 @@ export default function AdminUserSettings() {
     }
   }
 
+  const updateUserName = async (userId: string, firstName: string, lastName: string) => {
+    try {
+      const res = await fetch(`${API_URL}/api/users/${userId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ firstName, lastName }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.message || "Failed to update user")
+      toast({ title: "Updated", description: "User name updated successfully" })
+      loadUsers()
+    } catch (err: any) {
+      toast({ title: "Error", description: err?.message || "Failed to update user name", variant: "destructive" })
+    }
+  }
+
   if (loading) return <div className="p-6">Loading users...</div>
 
   return (
@@ -94,23 +110,70 @@ export default function AdminUserSettings() {
         <CardContent>
           <div className="space-y-4">
             {users.map((user) => (
-              <div key={user._id} className="flex items-center gap-4 rounded-md border p-3">
-                <div className="flex-1">
-                  <div className="font-medium">{user.firstName} {user.lastName}</div>
-                  <div className="text-xs text-muted-foreground">{user.email} {user.role ? `· ${user.role}` : ""}</div>
-                </div>
-
-                <div className="w-48">
-                  <Label>Signature</Label>
-                  <div className="flex items-center gap-2">
-                    <Input type="file" accept="image/*" onChange={(e) => uploadSignature(user._id, e.target.files?.[0] || null)} />
+              <div key={user._id} className="flex flex-col gap-4 rounded-md border p-4">
+                <div className="flex flex-wrap items-end gap-4">
+                  <div className="flex-1 min-w-[200px]">
+                    <Label className="text-xs">User Information</Label>
+                    <div className="font-medium text-sm">{user.email}</div>
+                    <div className="text-xs text-muted-foreground capitalize">{user.role || "No Role Assigned"}</div>
                   </div>
-                  {user.signatureUrl ? <div className="text-xs text-muted-foreground mt-1">Uploaded</div> : <div className="text-xs text-muted-foreground mt-1">Not set</div>}
+
+                  <div className="w-40">
+                    <Label className="text-xs">First Name</Label>
+                    <Input 
+                      defaultValue={user.firstName} 
+                      placeholder="First Name" 
+                      id={`fname-${user._id}`}
+                      className="h-8 text-sm"
+                    />
+                  </div>
+
+                  <div className="w-40">
+                    <Label className="text-xs">Last Name</Label>
+                    <Input 
+                      defaultValue={user.lastName} 
+                      placeholder="Last Name" 
+                      id={`lname-${user._id}`}
+                      className="h-8 text-sm"
+                    />
+                  </div>
+
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    className="h-8"
+                    onClick={() => {
+                      const f = (document.getElementById(`fname-${user._id}`) as HTMLInputElement)?.value || ""
+                      const l = (document.getElementById(`lname-${user._id}`) as HTMLInputElement)?.value || ""
+                      updateUserName(user._id, f, l)
+                    }}
+                  >
+                    Save Name
+                  </Button>
                 </div>
 
-                <div className="w-48 flex items-center gap-2">
-                  <Label className="mb-0">Prompt Stamp</Label>
-                  <Switch checked={!!user.promptStampOnPdf} onCheckedChange={(val) => toggleStampPref(user._id, Boolean(val))} />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t mt-2">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Digital Signature</Label>
+                    <div className="flex items-center gap-2">
+                      <Input 
+                        type="file" 
+                        accept="image/*" 
+                        className="h-8 text-xs cursor-pointer"
+                        onChange={(e) => uploadSignature(user._id, e.target.files?.[0] || null)} 
+                      />
+                    </div>
+                    {user.signatureUrl ? (
+                      <div className="text-[10px] text-green-600 font-medium">Signature Set</div>
+                    ) : (
+                      <div className="text-[10px] text-muted-foreground">No Signature Uploaded</div>
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-end gap-3">
+                    <Label className="mb-0 text-xs text-muted-foreground">Always Prompt Stamp on PDF</Label>
+                    <Switch checked={!!user.promptStampOnPdf} onCheckedChange={(val) => toggleStampPref(user._id, Boolean(val))} />
+                  </div>
                 </div>
               </div>
             ))}
