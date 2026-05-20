@@ -26,6 +26,20 @@ interface Product {
   categoryDetails?: { _id: string; name: string }
 }
 
+interface User {
+  _id: string
+  firstName: string
+  lastName: string
+  role: string
+}
+
+interface Branch {
+  _id: string
+  name: string
+  code: string
+  managerId?: string
+}
+
 interface Client {
   name: string
   number: string
@@ -55,6 +69,10 @@ interface Quotation {
   subTotal: number
   createdBy: string
   createdByName?: string
+  ownerUserId?: string
+  ownerUserName?: string
+  branchId?: string
+  branchName?: string
   convertedInvoiceId?: string
   createdAt: string
 }
@@ -81,6 +99,8 @@ export default function QuotationsPage() {
   const { toast } = useToast()
   const [loading, setLoading] = useState(true)
   const [products, setProducts] = useState<Product[]>([])
+  const [users, setUsers] = useState<User[]>([])
+  const [branches, setBranches] = useState<Branch[]>([])
   const [clients, setClients] = useState<Client[]>([])
   const [quotations, setQuotations] = useState<Quotation[]>([])
   const [branding, setBranding] = useState<TenantBranding>({})
@@ -96,6 +116,9 @@ export default function QuotationsPage() {
   const [clientContactPerson, setClientContactPerson] = useState("")
   const [selectedExistingClient, setSelectedExistingClient] = useState("")
   const [existingClientSearch, setExistingClientSearch] = useState("")
+  const [quotationOwnerId, setQuotationOwnerId] = useState("")
+  const [quotationBranchId, setQuotationBranchId] = useState("")
+  const [branchHint, setBranchHint] = useState("")
 
   const [productSearch, setProductSearch] = useState("")
   const [itemQuantity, setItemQuantity] = useState("1")
@@ -129,25 +152,30 @@ export default function QuotationsPage() {
   const loadData = async () => {
     try {
       setLoading(true)
-      const [productsRes, quotationsRes, clientsRes, brandingRes, invoiceSettingsRes, usersRes] = await Promise.all([
+      const [productsRes, quotationsRes, clientsRes, brandingRes, invoiceSettingsRes, usersRes, branchesRes] = await Promise.all([
         fetch(`${API_URL}/api/stock/products`, { headers: getAuthHeaders() }),
         fetch(`${API_URL}/api/stock/quotations`, { headers: getAuthHeaders() }),
         fetch(`${API_URL}/api/stock/clients`, { headers: getAuthHeaders() }),
         fetch(`${API_URL}/api/company/branding`, { headers: getAuthHeaders() }),
         fetch(`${API_URL}/api/company/invoice-settings`, { headers: getAuthHeaders() }),
         fetch(`${API_URL}/api/users`, { headers: getAuthHeaders() }),
+        fetch(`${API_URL}/api/branches`, { headers: getAuthHeaders() }),
       ])
-      const [productsJson, quotationsJson, clientsJson, brandingJson, invoiceSettingsJson] = await Promise.all([
+      const [productsJson, quotationsJson, clientsJson, brandingJson, invoiceSettingsJson, usersJson, branchesJson] = await Promise.all([
         productsRes.json(),
         quotationsRes.json(),
         clientsRes.json(),
         brandingRes.json(),
         invoiceSettingsRes.json(),
+        usersRes.json(),
+        branchesRes.json(),
       ])
 
       setProducts(productsJson.data || [])
       setQuotations(quotationsJson.data || [])
       setClients(clientsJson.data || [])
+      setUsers(usersJson.data || [])
+      setBranches(branchesJson.data || [])
       setBranding(brandingJson.data || {})
       setInvoiceSettings(invoiceSettingsJson.data || {})
       // quotation page no longer manages prepared-by selection here; rely on user profile and admin user settings
@@ -244,6 +272,9 @@ export default function QuotationsPage() {
     setClientContactPerson("")
     setSelectedExistingClient("")
     setExistingClientSearch("")
+    setQuotationOwnerId("")
+    setQuotationBranchId("")
+    setBranchHint("")
     setProductSearch("")
     setItemQuantity("1")
     setItemUnitPrice("")
@@ -392,6 +423,8 @@ export default function QuotationsPage() {
           clientNumber,
           clientLocation: clientLocation || "N/A",
           clientContactPerson: clientContactPerson || "",
+          ownerUserId: quotationOwnerId || undefined,
+          branchId: quotationBranchId || undefined,
           items,
         }),
       })
@@ -432,6 +465,9 @@ export default function QuotationsPage() {
     setClientLocation(quotation.client.location)
     setClientContactPerson(quotation.client.contactPerson || "")
     setSelectedExistingClient("")
+    setQuotationOwnerId(quotation.ownerUserId || "")
+    setQuotationBranchId(quotation.branchId || "")
+    setBranchHint(quotation.branchName || "")
     setItems(
       quotation.items.map((item) => ({
         productId: item.productId,
@@ -523,6 +559,25 @@ export default function QuotationsPage() {
     }
 
     return { stampId: stamps[index]._id, date: selectedDate || defaultDate }
+  }
+
+  const knowBranch = () => {
+    if (!quotationOwnerId) {
+      toast({ title: "Select owner first", description: "Choose whose quotation it is before finding the branch", variant: "destructive" })
+      return
+    }
+
+    const matchedBranch = branches.find((branch) => branch.managerId === quotationOwnerId)
+    if (!matchedBranch) {
+      setQuotationBranchId("")
+      setBranchHint("No branch matched for the selected owner")
+      toast({ title: "Branch not found", description: "No branch is assigned to that user yet", variant: "destructive" })
+      return
+    }
+
+    setQuotationBranchId(matchedBranch._id)
+    setBranchHint(`${matchedBranch.name} (${matchedBranch.code})`)
+    toast({ title: "Branch found", description: `Quotation branch: ${matchedBranch.name} (${matchedBranch.code})` })
   }
 
   const downloadQuotationPdf = async (quotation: Quotation) => {
@@ -664,6 +719,52 @@ export default function QuotationsPage() {
               <div>
                 <Label>Contact Person (optional)</Label>
                 <Input value={clientContactPerson} onChange={(event) => setClientContactPerson(event.target.value)} />
+              </div>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <div>
+                <Label>Quotation Owner</Label>
+                <select
+                  className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                  value={quotationOwnerId}
+                  onChange={(event) => {
+                    setQuotationOwnerId(event.target.value)
+                    setBranchHint("")
+                  }}
+                >
+                  <option value="">-- Select who this quotation is for --</option>
+                  {users
+                    .filter((user) => ["employee", "manager", "admin", "company_admin", "hr"].includes(user.role))
+                    .map((user) => (
+                      <option key={user._id} value={user._id}>
+                        {user.firstName} {user.lastName} ({user.role})
+                      </option>
+                    ))}
+                </select>
+              </div>
+              <div>
+                <Label>Branch</Label>
+                <div className="flex gap-2">
+                  <select
+                    className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                    value={quotationBranchId}
+                    onChange={(event) => setQuotationBranchId(event.target.value)}
+                  >
+                    <option value="">-- Select branch --</option>
+                    {branches.map((branch) => (
+                      <option key={branch._id} value={branch._id}>
+                        {branch.name} ({branch.code})
+                      </option>
+                    ))}
+                  </select>
+                  <Button type="button" variant="outline" onClick={knowBranch}>
+                    Know Branch
+                  </Button>
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {branchHint || "Choose a user and click Know Branch to auto-fill their assigned branch."}
+                </p>
               </div>
             </div>
 
@@ -810,6 +911,7 @@ export default function QuotationsPage() {
                     <th className="py-2">Quotation No</th>
                     <th className="py-2">Client</th>
                     <th className="py-2">Owner</th>
+                    <th className="py-2">Branch</th>
                     <th className="py-2">Amount</th>
                     <th className="py-2">Actions</th>
                   </tr>
@@ -819,7 +921,8 @@ export default function QuotationsPage() {
                     <tr key={quotation._id} className="border-b">
                       <td className="py-2">{quotation.quotationNumber}</td>
                       <td className="py-2">{quotation.client.name}</td>
-                      <td className="py-2">{quotation.createdByName || quotation.createdBy}</td>
+                      <td className="py-2">{quotation.ownerUserName || quotation.createdByName || quotation.createdBy}</td>
+                      <td className="py-2">{quotation.branchName || "-"}</td>
                       <td className="py-2">{quotation.subTotal.toFixed(2)}</td>
                       <td className="py-2">
                         <div className="flex flex-col">
@@ -857,6 +960,7 @@ export default function QuotationsPage() {
                   <th className="py-2">Quotation No</th>
                   <th className="py-2">Client</th>
                   <th className="py-2">Owner</th>
+                    <th className="py-2">Branch</th>
                   <th className="py-2">Items</th>
                   <th className="py-2">Amount</th>
                   <th className="py-2">Status</th>
@@ -868,7 +972,8 @@ export default function QuotationsPage() {
                   <tr key={quotation._id} className="border-b">
                     <td className="py-2">{quotation.quotationNumber}</td>
                     <td className="py-2">{quotation.client.name}</td>
-                    <td className="py-2">{quotation.createdByName || quotation.createdBy}</td>
+                    <td className="py-2">{quotation.ownerUserName || quotation.createdByName || quotation.createdBy}</td>
+                    <td className="py-2">{quotation.branchName || "-"}</td>
                     <td className="py-2">{quotation.items.length}</td>
                     <td className="py-2">{quotation.subTotal.toFixed(2)}</td>
                     <td className="py-2 capitalize">{quotation.status.replace("_", " ")}</td>

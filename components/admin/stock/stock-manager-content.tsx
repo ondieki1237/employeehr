@@ -81,11 +81,13 @@ interface Sale {
 interface StockEntry {
   _id: string
   productId: string
+  branchId?: string
   quantityAdded: number
   isOutsourced?: boolean
   outsourcedCompany?: string
   addedBy: string
   note?: string
+  entryDate?: string
   createdAt: string
 }
 
@@ -156,6 +158,8 @@ export function StockManagerContent({ view }: { view: StockView }) {
     expiryDate: "",
     expiryReminderDays: "7",
     branchId: "",
+    backdateEnabled: false,
+    entryDate: "",
   })
   const [saleForm, setSaleForm] = useState({
     productId: "",
@@ -172,6 +176,7 @@ export function StockManagerContent({ view }: { view: StockView }) {
   const [saleProductSearch, setSaleProductSearch] = useState("")
   const [salesSearch, setSalesSearch] = useState("")
   const [inventorySearch, setInventorySearch] = useState("")
+  const [inventoryBranchFilter, setInventoryBranchFilter] = useState("all")
   const [selectedAnalyticsProductId, setSelectedAnalyticsProductId] = useState("")
   const [analyticsDateStart, setAnalyticsDateStart] = useState("")
   const [analyticsDateEnd, setAnalyticsDateEnd] = useState("")
@@ -250,6 +255,65 @@ export function StockManagerContent({ view }: { view: StockView }) {
   const totalSalesValue = sales.reduce((sum, sale) => sum + (sale.quantitySold || 0) * (sale.soldPrice || 0), 0)
   const productNameById = new Map(products.map((product) => [product._id, product.name]))
   const categoryNameById = new Map(categories.map((category) => [category._id, category.name]))
+  const branchNameById = new Map(branches.map((branch) => [branch._id, `${branch.name} (${branch.code})`]))
+  const branchStockByProductId = new Map<string, Map<string, number>>()
+  const unassignedStockByProductId = new Map<string, number>()
+
+  entries.forEach((entry) => {
+    const productStocks = branchStockByProductId.get(entry.productId) || new Map<string, number>()
+    const branchKey = entry.branchId ? String(entry.branchId) : "none"
+    productStocks.set(branchKey, (productStocks.get(branchKey) || 0) + Number(entry.quantityAdded || 0))
+    branchStockByProductId.set(entry.productId, productStocks)
+
+    if (!entry.branchId) {
+      unassignedStockByProductId.set(entry.productId, (unassignedStockByProductId.get(entry.productId) || 0) + Number(entry.quantityAdded || 0))
+    }
+  })
+
+  const branchLabelForId = (branchId: string) => branchNameById.get(branchId) || branchId
+
+  const getBranchStock = (productId: string, branchId: string) => {
+    const productStocks = branchStockByProductId.get(productId)
+    return Number(productStocks?.get(branchId) || 0)
+  }
+
+  const getDisplayedBranchStock = (productId: string) => {
+    if (inventoryBranchFilter === "none") return Number(unassignedStockByProductId.get(productId) || 0)
+    if (inventoryBranchFilter !== "all") return getBranchStock(productId, inventoryBranchFilter)
+
+    const productStocks = branchStockByProductId.get(productId)
+    if (!productStocks) return 0
+    return Array.from(productStocks.values()).reduce((sum, qty) => sum + Number(qty || 0), 0)
+  }
+
+  const getDisplayedBranchSummary = (productId: string) => {
+    if (inventoryBranchFilter === "none") {
+      return `No branch: ${getDisplayedBranchStock(productId)}`
+    }
+
+    if (inventoryBranchFilter !== "all") {
+      return `${branchLabelForId(inventoryBranchFilter)}: ${getDisplayedBranchStock(productId)}`
+    }
+
+    const productStocks = branchStockByProductId.get(productId)
+    if (!productStocks) return "-"
+
+    const parts = Array.from(productStocks.entries()).map(([branchId, qty]) => {
+      const label = branchId === "none" ? "No branch" : branchLabelForId(branchId)
+      return `${label}: ${qty}`
+    })
+
+    return parts.length > 0 ? parts.join(" | ") : "-"
+  }
+
+  const visibleBranchColumns = inventoryBranchFilter === "all"
+    ? branches
+    : inventoryBranchFilter === "none"
+      ? []
+      : branches.filter((branch) => branch._id === inventoryBranchFilter)
+
+  const shouldIncludeUnassignedColumn = inventoryBranchFilter === "all" || inventoryBranchFilter === "none"
+  const visibleStockColumnCount = visibleBranchColumns.length + (shouldIncludeUnassignedColumn ? 1 : 0)
 
   const getCategoryById = (categoryId: string) => categories.find((category) => category._id === categoryId)
 
@@ -295,13 +359,30 @@ export function StockManagerContent({ view }: { view: StockView }) {
     )
   })
 
-  const filteredProductsForInventory = products.filter((product) => matchesProductAndCategory(product, normalizedInventorySearch))
-  const filteredLowStockProducts = lowStockProducts.filter((product) => matchesProductAndCategory(product, normalizedInventorySearch))
-  const filteredOutOfStockProducts = products.filter((product) => product.currentQuantity <= 0 && matchesProductAndCategory(product, normalizedInventorySearch))
+  const filteredProductsForInventory = products.filter((product) => {
+    if (!matchesProductAndCategory(product, normalizedInventorySearch)) return false
+    if (inventoryBranchFilter === "all") return true
+    return getDisplayedBranchStock(product._id) > 0
+  })
+  const filteredLowStockProducts = filteredProductsForInventory.filter((product) => getDisplayedBranchStock(product._id) <= product.minAlertQuantity)
+  const filteredOutOfStockProducts = filteredProductsForInventory.filter((product) => getDisplayedBranchStock(product._id) <= 0)
+  const inventoryScopedProducts = inventoryBranchFilter === "all"
+    ? products
+    : products.filter((product) => getDisplayedBranchStock(product._id) > 0)
+  const inventoryScopedUnits = inventoryScopedProducts.reduce((sum, product) => sum + getDisplayedBranchStock(product._id), 0)
+  const inventoryScopedLowStockCount = inventoryScopedProducts.filter((product) => getDisplayedBranchStock(product._id) <= product.minAlertQuantity).length
   const filteredEntries = entries.filter((entry) => {
+    const matchesBranchFilter =
+      inventoryBranchFilter === "all" ||
+      (inventoryBranchFilter === "none" ? !entry.branchId : entry.branchId === inventoryBranchFilter)
+
+    if (!matchesBranchFilter) return false
+
     if (!normalizedInventorySearch) return true
+
     const productName = (productNameById.get(entry.productId) || "").toLowerCase()
-    return productName.includes(normalizedInventorySearch)
+    const branchName = (branchNameById.get(entry.branchId || "") || "").toLowerCase()
+    return productName.includes(normalizedInventorySearch) || branchName.includes(normalizedInventorySearch)
   })
 
   const avgSellingPrice = products.length > 0
@@ -788,6 +869,7 @@ export function StockManagerContent({ view }: { view: StockView }) {
         expiryDate: stockForm.expiryEnabled ? stockForm.expiryDate : undefined,
         expiryReminderDays: Number(stockForm.expiryReminderDays || 0),
         branchId: stockForm.branchId || undefined,
+        entryDate: stockForm.backdateEnabled && stockForm.entryDate ? stockForm.entryDate : undefined,
       }),
     })
     const result = await response.json()
@@ -806,6 +888,8 @@ export function StockManagerContent({ view }: { view: StockView }) {
       expiryDate: "",
       expiryReminderDays: "7",
       branchId: "",
+      backdateEnabled: false,
+      entryDate: "",
     })
     toast({ title: "Success", description: "Stock added" })
     fetchAll()
@@ -1042,10 +1126,18 @@ export function StockManagerContent({ view }: { view: StockView }) {
                 {branches.length > 0 && (
                   <div>
                     <Label>Branch (Optional)</Label>
-                    <Select value={stockForm.branchId} onValueChange={(value) => setStockForm((prev) => ({ ...prev, branchId: value }))}>
+                    <Select
+                      value={stockForm.branchId}
+                      onValueChange={(value) =>
+                        setStockForm((prev) => ({
+                          ...prev,
+                          branchId: value === "none" ? "" : value,
+                        }))
+                      }
+                    >
                       <SelectTrigger><SelectValue placeholder="Select branch (optional)" /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">-- No specific branch --</SelectItem>
+                        <SelectItem value="none">-- No specific branch --</SelectItem>
                         {branches.map((branch) => (
                           <SelectItem key={branch._id} value={branch._id}>{branch.name} ({branch.code})</SelectItem>
                         ))}
@@ -1057,6 +1149,29 @@ export function StockManagerContent({ view }: { view: StockView }) {
                   <Label>Note</Label>
                   <Input value={stockForm.note} onChange={(event) => setStockForm((prev) => ({ ...prev, note: event.target.value }))} />
                 </div>
+                <label className="flex items-center gap-2 text-sm">
+                  <Checkbox
+                    checked={stockForm.backdateEnabled}
+                    onCheckedChange={(value) =>
+                      setStockForm((prev) => ({
+                        ...prev,
+                        backdateEnabled: Boolean(value),
+                        entryDate: value ? prev.entryDate : "",
+                      }))
+                    }
+                  />
+                  <span>Backdate this stock entry</span>
+                </label>
+                {stockForm.backdateEnabled && (
+                  <div>
+                    <Label>Backdate</Label>
+                    <Input
+                      type="date"
+                      value={stockForm.entryDate}
+                      onChange={(event) => setStockForm((prev) => ({ ...prev, entryDate: event.target.value }))}
+                    />
+                  </div>
+                )}
                 <label className="flex items-center gap-2 text-sm">
                   <Checkbox
                     checked={stockForm.isOutsourced}
@@ -1555,23 +1670,45 @@ export function StockManagerContent({ view }: { view: StockView }) {
               <Card>
                 <CardHeader><CardTitle>Search & Export</CardTitle></CardHeader>
                 <CardContent className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-                  <div className="w-full md:max-w-md">
-                    <Label>Search products or categories</Label>
-                    <Input
-                      placeholder="Search by product or category"
-                      value={inventorySearch}
-                      onChange={(event) => setInventorySearch(event.target.value)}
-                    />
+                  <div className="w-full md:max-w-md space-y-3">
+                    <div>
+                      <Label>Search products, categories, or branches</Label>
+                      <Input
+                        placeholder="Search by product, category, or branch"
+                        value={inventorySearch}
+                        onChange={(event) => setInventorySearch(event.target.value)}
+                      />
+                    </div>
+                    {branches.length > 0 && (
+                      <div>
+                        <Label>Branch filter</Label>
+                        <Select value={inventoryBranchFilter} onValueChange={setInventoryBranchFilter}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Filter by branch" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All branches</SelectItem>
+                            <SelectItem value="none">No branch assigned</SelectItem>
+                            {branches.map((branch) => (
+                              <SelectItem key={branch._id} value={branch._id}>
+                                {branch.name} ({branch.code})
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
                   </div>
                   <Button
                     variant="outline"
                     onClick={() =>
                       exportAsCsv(
                         "inventory-status.csv",
-                        ["Product", "Category", "Stock", "Min Alert", "Selling Price"],
+                        ["Product", "Category", "Branch Stock", "Total Stock", "Min Alert", "Selling Price"],
                         filteredProductsForInventory.map((product) => [
                           product.name,
                           product.categoryDetails?.name || categoryNameById.get(product.category) || "",
+                          getDisplayedBranchSummary(product._id),
                           product.currentQuantity,
                           product.minAlertQuantity,
                           product.sellingPrice,
@@ -1622,7 +1759,11 @@ export function StockManagerContent({ view }: { view: StockView }) {
                         <tr className="text-left border-b">
                           <th className="py-2">Product</th>
                           <th className="py-2">Category</th>
-                          <th className="py-2">Stock</th>
+                          {shouldIncludeUnassignedColumn && <th className="py-2">No Branch</th>}
+                          {visibleBranchColumns.map((branch) => (
+                            <th key={branch._id} className="py-2">{branch.name}<br /><span className="text-xs text-muted-foreground">{branch.code}</span></th>
+                          ))}
+                          <th className="py-2">Total Stock</th>
                           <th className="py-2">Min Alert</th>
                           <th className="py-2">Selling Price</th>
                         </tr>
@@ -1632,6 +1773,10 @@ export function StockManagerContent({ view }: { view: StockView }) {
                           <tr key={product._id} className="border-b">
                             <td className="py-2">{product.name}</td>
                             <td className="py-2">{product.categoryDetails?.name ? getCategoryPath(product.category) : "-"}</td>
+                            {shouldIncludeUnassignedColumn && <td className="py-2">{getBranchStock(product._id, "none")}</td>}
+                            {visibleBranchColumns.map((branch) => (
+                              <td key={branch._id} className="py-2">{getBranchStock(product._id, branch._id)}</td>
+                            ))}
                             <td className="py-2">{product.currentQuantity}</td>
                             <td className="py-2">{product.minAlertQuantity}</td>
                             <td className="py-2">{product.sellingPrice}</td>
@@ -1967,9 +2112,9 @@ export function StockManagerContent({ view }: { view: StockView }) {
           </Card>
 
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <Card className="border-slate-200 shadow-sm"><CardHeader className="pb-2"><CardTitle className="text-sm text-slate-500">Total products</CardTitle></CardHeader><CardContent><p className="text-2xl font-semibold text-slate-900">{products.length}</p></CardContent></Card>
-            <Card className="border-slate-200 shadow-sm"><CardHeader className="pb-2"><CardTitle className="text-sm text-slate-500">Inventory units</CardTitle></CardHeader><CardContent><p className="text-2xl font-semibold text-slate-900">{totalInventoryUnits}</p></CardContent></Card>
-            <Card className="border-slate-200 shadow-sm"><CardHeader className="pb-2"><CardTitle className="text-sm text-slate-500">Low stock items</CardTitle></CardHeader><CardContent><p className="text-2xl font-semibold text-slate-900">{lowStockProducts.length}</p></CardContent></Card>
+            <Card className="border-slate-200 shadow-sm"><CardHeader className="pb-2"><CardTitle className="text-sm text-slate-500">Total products</CardTitle></CardHeader><CardContent><p className="text-2xl font-semibold text-slate-900">{inventoryScopedProducts.length}</p></CardContent></Card>
+            <Card className="border-slate-200 shadow-sm"><CardHeader className="pb-2"><CardTitle className="text-sm text-slate-500">Inventory units</CardTitle></CardHeader><CardContent><p className="text-2xl font-semibold text-slate-900">{inventoryScopedUnits}</p></CardContent></Card>
+            <Card className="border-slate-200 shadow-sm"><CardHeader className="pb-2"><CardTitle className="text-sm text-slate-500">Low stock items</CardTitle></CardHeader><CardContent><p className="text-2xl font-semibold text-slate-900">{inventoryScopedLowStockCount}</p></CardContent></Card>
             <Card className="border-slate-200 shadow-sm"><CardHeader className="pb-2"><CardTitle className="text-sm text-slate-500">Sales value</CardTitle></CardHeader><CardContent><p className="text-2xl font-semibold text-slate-900">{totalSalesValue.toFixed(2)}</p></CardContent></Card>
           </div>
 
@@ -2270,10 +2415,11 @@ export function StockManagerContent({ view }: { view: StockView }) {
                 onClick={() =>
                   exportAsCsv(
                     "inventory-entries.csv",
-                    ["Date", "Product", "Quantity Added", "Outsourced", "Outsourced Company", "Note"],
+                    ["Date", "Product", "Branch", "Quantity Added", "Outsourced", "Outsourced Company", "Note"],
                     filteredEntries.map((entry) => [
-                      new Date(entry.createdAt).toISOString(),
+                      new Date(entry.entryDate || entry.createdAt).toISOString(),
                       productNameById.get(entry.productId) || entry.productId,
+                      entry.branchId ? branchNameById.get(entry.branchId) || entry.branchId : "",
                       entry.quantityAdded,
                       entry.isOutsourced ? "Yes" : "No",
                       entry.outsourcedCompany || "",
@@ -2316,6 +2462,7 @@ export function StockManagerContent({ view }: { view: StockView }) {
                     <tr className="text-left border-b">
                       <th className="py-2">Date</th>
                       <th className="py-2">Product</th>
+                      <th className="py-2">Branch</th>
                       <th className="py-2">Quantity Added</th>
                       <th className="py-2">Outsourced</th>
                       <th className="py-2">Outsourced Company</th>
@@ -2325,8 +2472,9 @@ export function StockManagerContent({ view }: { view: StockView }) {
                   <tbody>
                     {filteredEntries.map((entry) => (
                       <tr key={entry._id} className="border-b">
-                        <td className="py-2">{new Date(entry.createdAt).toLocaleString()}</td>
+                        <td className="py-2">{new Date(entry.entryDate || entry.createdAt).toLocaleString()}</td>
                         <td className="py-2">{productNameById.get(entry.productId) || entry.productId}</td>
+                        <td className="py-2">{entry.branchId ? branchNameById.get(entry.branchId) || entry.branchId : "-"}</td>
                         <td className="py-2">{entry.quantityAdded}</td>
                         <td className="py-2">{entry.isOutsourced ? "Yes" : "No"}</td>
                         <td className="py-2">{entry.outsourcedCompany || "-"}</td>

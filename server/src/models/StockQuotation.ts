@@ -27,6 +27,8 @@ export interface IStockQuotation {
   subTotal: number
   status: "draft" | "pending_approval" | "converted" | "cancelled"
   createdBy: string
+  ownerUserId?: string
+  branchId?: string
   approvedBy?: string
   approvedAt?: Date
   convertedInvoiceId?: string
@@ -66,6 +68,8 @@ const stockQuotationSchema = new Schema<IStockQuotation>(
       default: "draft",
     },
     createdBy: { type: String, required: true },
+    ownerUserId: { type: String, index: true },
+    branchId: { type: String, index: true },
     approvedBy: { type: String },
     approvedAt: { type: Date },
     convertedInvoiceId: { type: String },

@@ -13,6 +13,7 @@ export interface IStockEntry {
   expiryReminderDays?: number
   addedBy: string
   note?: string
+  entryDate?: Date
   createdAt?: Date
   updatedAt?: Date
 }
@@ -30,11 +31,13 @@ const stockEntrySchema = new Schema<IStockEntry>(
     expiryReminderDays: { type: Number, min: 0, default: 7 },
     addedBy: { type: String, required: true },
     note: { type: String, trim: true },
+    entryDate: { type: Date, default: null, index: true },
   },
   { timestamps: true },
 )
 
 stockEntrySchema.index({ org_id: 1, branchId: 1, productId: 1, createdAt: -1 })
+stockEntrySchema.index({ org_id: 1, entryDate: -1 })
 stockEntrySchema.index({ org_id: 1, productId: 1, createdAt: -1 })
 
 export const StockEntry = mongoose.model<IStockEntry>("StockEntry", stockEntrySchema)

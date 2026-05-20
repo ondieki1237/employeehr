@@ -15,6 +15,7 @@ import { StockInvoicePayment } from "../models/StockInvoicePayment"
 import { DispatchNotification } from "../models/DispatchNotification"
 import { Task } from "../models/Task"
 import { Company } from "../models/Company"
+import { Branch } from "../models/Branch"
 import { User } from "../models/User"
 import emailService from "../services/email.service"
 import { smsService } from "../services/sms.service"
@@ -571,9 +572,23 @@ export class StockController {
       const createdBy = req.user?.userId
       if (!org_id || !createdBy) return res.status(401).json({ success: false, message: "Unauthorized" })
 
-      const { clientName, clientNumber, clientLocation, clientContactPerson, items } = req.body
+      const { clientName, clientNumber, clientLocation, clientContactPerson, items, ownerUserId, branchId } = req.body
       if (!clientName || !clientNumber) {
         return res.status(400).json({ success: false, message: "Client name and phone number are required" })
+      }
+
+      if (ownerUserId) {
+        const owner = await User.findOne({ _id: String(ownerUserId).trim(), org_id }).select("_id firstName lastName role").lean()
+        if (!owner) {
+          return res.status(404).json({ success: false, message: "Selected quotation owner not found" })
+        }
+      }
+
+      if (branchId) {
+        const branch = await Branch.findOne({ _id: String(branchId).trim(), org_id }).select("_id name code").lean()
+        if (!branch) {
+          return res.status(404).json({ success: false, message: "Selected branch not found" })
+        }
       }
 
       const normalizedLocation = String(clientLocation || "N/A").trim() || "N/A"
@@ -595,6 +610,8 @@ export class StockController {
         subTotal,
         status: req.user?.role === "employee" ? "pending_approval" : "draft",
         createdBy,
+        ownerUserId: ownerUserId ? String(ownerUserId).trim() : undefined,
+        branchId: branchId ? String(branchId).trim() : undefined,
       })
 
       return res.status(201).json({ success: true, data: quotation })
@@ -619,12 +636,22 @@ export class StockController {
       const quotations = await StockQuotation.find(query).sort({ createdAt: -1 }).lean()
 
       const creatorIds = [...new Set(quotations.map((quotation: any) => String(quotation.createdBy || "")).filter(Boolean))]
-      const creators = await User.find({ _id: { $in: creatorIds } }).select("firstName lastName").lean()
+      const ownerIds = [...new Set(quotations.map((quotation: any) => String(quotation.ownerUserId || "")).filter(Boolean))]
+      const branchIds = [...new Set(quotations.map((quotation: any) => String(quotation.branchId || "")).filter(Boolean))]
+      const [creators, owners, branches] = await Promise.all([
+        creatorIds.length ? User.find({ _id: { $in: creatorIds } }).select("firstName lastName").lean() : Promise.resolve([]),
+        ownerIds.length ? User.find({ _id: { $in: ownerIds } }).select("firstName lastName").lean() : Promise.resolve([]),
+        branchIds.length ? Branch.find({ _id: { $in: branchIds } }).select("name code").lean() : Promise.resolve([]),
+      ])
       const creatorMap = new Map(creators.map((user: any) => [String(user._id), `${user.firstName || ""} ${user.lastName || ""}`.trim()]))
+      const ownerMap = new Map(owners.map((user: any) => [String(user._id), `${user.firstName || ""} ${user.lastName || ""}`.trim()]))
+      const branchMap = new Map(branches.map((branch: any) => [String(branch._id), `${branch.name || ""} (${branch.code || ""})`.trim()]))
 
       const enriched = quotations.map((quotation: any) => ({
         ...quotation,
         createdByName: creatorMap.get(String(quotation.createdBy || "")) || undefined,
+        ownerUserName: ownerMap.get(String(quotation.ownerUserId || "")) || undefined,
+        branchName: branchMap.get(String(quotation.branchId || "")) || undefined,
       }))
 
       return res.status(200).json({ success: true, data: enriched })
@@ -2670,6 +2697,7 @@ export class StockController {
         expiryEnabled,
         expiryDate,
         expiryReminderDays,
+        branchId,
       } = req.body
 
       if (!productId || Number(quantityAdded) <= 0) {
@@ -2682,6 +2710,13 @@ export class StockController {
 
       const product = await StockProduct.findOne({ _id: productId, org_id })
       if (!product) return res.status(404).json({ success: false, message: "Product not found" })
+
+      if (branchId) {
+        const branch = await Branch.findOne({ _id: String(branchId).trim(), org_id })
+        if (!branch) {
+          return res.status(404).json({ success: false, message: "Branch not found" })
+        }
+      }
 
       const canManage =
         isAdminRole(req.user?.role) ||
@@ -2717,6 +2752,7 @@ export class StockController {
       const stockEntry = await StockEntry.create({
         org_id,
         productId,
+        branchId: branchId ? String(branchId).trim() : undefined,
         quantityAdded: Number(quantityAdded),
         isOutsourced: Boolean(isOutsourced),
         outsourcedCompany: Boolean(isOutsourced) ? String(outsourcedCompany).trim() : undefined,
@@ -2725,6 +2761,7 @@ export class StockController {
         expiryReminderDays: Number(product.expiryReminderDays || 7),
         addedBy: actorId,
         note: note ? String(note) : undefined,
+        entryDate: req.body?.entryDate ? new Date(req.body.entryDate) : undefined,
       })
 
       await sendLowStockAlert(product, org_id)
