@@ -148,6 +148,12 @@ const adminMenuItems = [
     section: "INVENTORY MANAGER"
   },
   {
+    label: "Credit Notes",
+    icon: FileText,
+    href: "/admin/stock/credit-notes",
+    section: "INVENTORY MANAGER"
+  },
+  {
     label: "Dispatch",
     icon: Package,
     href: "/admin/stock/dispatch",

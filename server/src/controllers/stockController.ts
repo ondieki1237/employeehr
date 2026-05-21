@@ -835,6 +835,30 @@ export class StockController {
     }
   }
 
+  static async getSavedClients(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = req.user?.org_id
+      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+
+      const profiles = await StockClient.find({ org_id })
+        .select("sourceName sourceNumber sourceLocation legalName contactPerson")
+        .sort({ updatedAt: -1, createdAt: -1 })
+        .lean()
+
+      const clients = profiles.map((profile: any) => ({
+        key: `${String(profile.sourceName || "").trim().toLowerCase()}|${String(profile.sourceNumber || "").trim().toLowerCase()}|${String(profile.sourceLocation || "").trim().toLowerCase()}`,
+        name: String(profile.sourceName || profile.legalName || "").trim(),
+        number: String(profile.sourceNumber || "").trim(),
+        location: String(profile.sourceLocation || "").trim(),
+        contactPerson: profile.contactPerson,
+      }))
+
+      return res.status(200).json({ success: true, data: clients })
+    } catch (error: any) {
+      return res.status(500).json({ success: false, message: error.message || "Failed to fetch saved clients" })
+    }
+  }
+
   static async getAccountsPosts(req: AuthenticatedRequest, res: Response) {
     try {
       const org_id = req.user?.org_id

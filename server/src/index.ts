@@ -54,6 +54,7 @@ import shuleRoutes from "./routes/shule.routes"
 import ownerRoutes from "./routes/owner.routes"
 import complaintRoutes from "./routes/complaint.routes"
 import branchRoutes from "./routes/branch.routes"
+import creditNoteRoutes from "./routes/creditNote.routes"
 import { JobController } from "./controllers/jobController"
 import { JobApplicationController } from "./controllers/jobApplicationController"
 import { ApplicationFormController } from "./controllers/applicationFormController"
@@ -180,6 +181,7 @@ app.use("/api/setup", setupRoutes)
 app.use("/api/feedback-360", anonymousFeedbackRoutes)
 app.use("/api/feedback-surveys", feedbackSurveyRoutes)
 app.use("/api/stock", stockRoutes)
+app.use("/api/stock/credit-notes", creditNoteRoutes)
 app.use("/api/stamps", stampRoutes)
 app.use("/api/complaints", complaintRoutes)
 app.use("/api", bookingRoutes)

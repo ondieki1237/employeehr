@@ -853,6 +853,90 @@ export function generateDeliveryNotePdf(params: {
   return doc;
 }
 
+export function generateCreditNotePdf(params: {
+  creditNoteNumber: string;
+  invoiceNumber: string;
+  createdAt: string;
+  client: DocumentClient;
+  items: DocumentItem[];
+  subTotal: number;
+  reason: string;
+  reasonDetails?: string;
+  branding?: TenantBranding;
+  invoiceSettings?: InvoiceDocumentSettings;
+  preparedBy?: string;
+  watermarkText?: string;
+  autoSave?: boolean;
+}) {
+  const doc = new jsPDF({ unit: "mm", format: "a4" });
+
+  drawWatermark(doc, params.watermarkText || "CREDIT NOTE");
+
+  drawModernHeader(doc, {
+    title: "Credit Note",
+    numberLabel: "Credit Note No",
+    numberValue: params.creditNoteNumber,
+    createdAt: params.createdAt,
+    branding: params.branding,
+  });
+
+  const contactBottom = drawContactSlotBelowLogo(doc, params.branding, params.invoiceSettings);
+
+  let tableY = drawPartiesSection(
+    doc,
+    params.client,
+    undefined,
+    {
+      ...params.branding,
+      invoiceEmail: params.invoiceSettings?.invoiceEmail || params.branding?.invoiceEmail,
+    },
+    "Credit Note Info",
+    contactBottom + 1,
+  );
+
+  // Add reference to original invoice
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  setColorFromHex(doc, DEFAULT_GRAY, "text");
+  doc.text(`Reference Invoice: ${params.invoiceNumber}`, 12, tableY + 1);
+  
+  // Add reason section
+  const reasonY = tableY + 8;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(9);
+  setColorFromHex(doc, DEFAULT_TEXT, "text");
+  doc.text("Reason for Credit:", 12, reasonY);
+  
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8.5);
+  setColorFromHex(doc, DEFAULT_GRAY, "text");
+  doc.text(params.reason, 15, reasonY + 5);
+  
+  if (params.reasonDetails) {
+    const detailsLines = doc.splitTextToSize(params.reasonDetails, 180);
+    doc.text("Details: " + detailsLines[0], 15, reasonY + 9);
+    if (detailsLines.length > 1) {
+      detailsLines.slice(1).forEach((line: string, idx: number) => {
+        doc.text(line, 15, reasonY + 13 + idx * 4);
+      });
+    }
+  }
+
+  tableY = reasonY + (params.reasonDetails ? 20 : 12);
+
+  const endY = drawItemsTable(doc, tableY, params.items, params.branding);
+
+  const totalsY = drawTotalsSection(doc, params.subTotal, endY, params.branding, params.invoiceSettings);
+
+  drawBottomFooter(doc, params.branding, params.invoiceSettings, params.preparedBy);
+
+  if (params.autoSave !== false) {
+    doc.save(`credit-note-${params.creditNoteNumber}.pdf`);
+  }
+
+  return doc;
+}
+
 /**
  * Apply a stamp to an existing PDF document
  * @param doc - jsPDF document instance

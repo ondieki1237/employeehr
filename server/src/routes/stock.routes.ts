@@ -24,6 +24,7 @@ router.post("/quotations/:quotationId/convert", StockController.convertQuotation
 router.post("/quotations/:quotationId/followups", StockController.addQuotationFollowUp)
 router.get("/quotations/:quotationId/followups", StockController.getQuotationFollowUps)
 router.get("/clients", StockController.getClients)
+router.get("/clients/saved", StockController.getSavedClients)
 router.post("/accounts/clients", StockController.createOrUpdateClient)
 
 router.get("/invoices", StockController.getInvoices)

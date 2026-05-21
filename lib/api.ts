@@ -612,6 +612,7 @@ export const meetingsApi = {
 // Stock API
 export const stockApi = {
     getClients: () => client.get<any[]>('/api/stock/clients'),
+    getSavedClients: () => client.get<any[]>('/api/stock/clients/saved'),
 
     getProducts: () => client.get<any[]>('/api/stock/products'),
 
@@ -791,6 +792,80 @@ const branchesApi = {
     getAnalytics: (branchId: string) => client.get<any>(`/api/branches/${branchId}/analytics`),
 }
 
+// Credit Notes API for invoice adjustments
+const creditNoteApi = {
+    getInvoicesForCreditNote: () => client.get<any[]>('/api/stock/credit-notes/invoices-for-credit-note'),
+
+    getReasons: () => client.get<Record<string, string>>('/api/stock/credit-notes/reasons'),
+
+    create: (data: {
+        invoiceId: string
+        items: Array<{
+            productId: string
+            productName: string
+            quantity: number
+            unitPrice: number
+        }>
+        reason: string
+        reasonDetails?: string
+    }) => client.post<any>('/api/stock/credit-notes', data),
+
+    getAll: (filters?: { status?: string; page?: number; limit?: number }) => {
+        const query = new URLSearchParams()
+        if (filters?.status) query.append('status', filters.status)
+        if (filters?.page) query.append('page', String(filters.page))
+        if (filters?.limit) query.append('limit', String(filters.limit))
+        const queryStr = query.toString()
+        return client.get<any>(`/api/stock/credit-notes${queryStr ? '?' + queryStr : ''}`)
+    },
+
+    getById: (id: string) => client.get<any>(`/api/stock/credit-notes/${id}`),
+
+    update: (id: string, data: {
+        items?: Array<any>
+        reason?: string
+        reasonDetails?: string
+        status?: string
+    }) => client.put<any>(`/api/stock/credit-notes/${id}`, data),
+
+    issue: (id: string) => client.post<any>(`/api/stock/credit-notes/${id}/issue`, {}),
+
+    downloadPdf: async (id: string) => {
+        const token = getToken()
+        const headers: Record<string, string> = {
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        }
+
+        try {
+            const response = await fetch(`${API_URL}/api/stock/credit-notes/${id}/pdf`, {
+                method: 'GET',
+                headers,
+            })
+
+            if (!response.ok) {
+                throw new Error('Failed to download PDF')
+            }
+
+            const blob = await response.blob()
+            const url = window.URL.createObjectURL(blob)
+            const link = document.createElement('a')
+            link.href = url
+            link.download = `credit-note-${id}.pdf`
+            document.body.appendChild(link)
+            link.click()
+            document.body.removeChild(link)
+            window.URL.revokeObjectURL(url)
+
+            return { success: true }
+        } catch (error) {
+            console.error('Error downloading PDF:', error)
+            throw error
+        }
+    },
+
+    delete: (id: string) => client.delete<any>(`/api/stock/credit-notes/${id}`),
+}
+
 // Export all APIs
 export const api = {
     auth: authApi,
@@ -810,6 +885,7 @@ export const api = {
     payroll: payrollApi,
     meetings: meetingsApi,
     stock: stockApi,
+    creditNotes: creditNoteApi,
     setup: setupApi,
     stamps: stampsApi,
     complaints: complaintsApi,

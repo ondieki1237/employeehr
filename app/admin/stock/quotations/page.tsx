@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { useToast } from "@/hooks/use-toast"
+import { stockApi } from "@/lib/api"
 import {
   applyStampToPdf,
   generateQuotationPdf,
@@ -41,6 +42,7 @@ interface Branch {
 }
 
 interface Client {
+  key?: string
   name: string
   number: string
   location: string
@@ -152,19 +154,21 @@ export default function QuotationsPage() {
   const loadData = async () => {
     try {
       setLoading(true)
-      const [productsRes, quotationsRes, clientsRes, brandingRes, invoiceSettingsRes, usersRes, branchesRes] = await Promise.all([
+      const [productsRes, quotationsRes, activityClientsRes, savedClientsRes, brandingRes, invoiceSettingsRes, usersRes, branchesRes] = await Promise.all([
         fetch(`${API_URL}/api/stock/products`, { headers: getAuthHeaders() }),
         fetch(`${API_URL}/api/stock/quotations`, { headers: getAuthHeaders() }),
-        fetch(`${API_URL}/api/stock/clients`, { headers: getAuthHeaders() }),
+        stockApi.getClients(),
+        stockApi.getSavedClients(),
         fetch(`${API_URL}/api/company/branding`, { headers: getAuthHeaders() }),
         fetch(`${API_URL}/api/company/invoice-settings`, { headers: getAuthHeaders() }),
         fetch(`${API_URL}/api/users`, { headers: getAuthHeaders() }),
         fetch(`${API_URL}/api/branches`, { headers: getAuthHeaders() }),
       ])
-      const [productsJson, quotationsJson, clientsJson, brandingJson, invoiceSettingsJson, usersJson, branchesJson] = await Promise.all([
+      const [productsJson, quotationsJson, activityClientsResp, savedClientsResp, brandingJson, invoiceSettingsJson, usersJson, branchesJson] = await Promise.all([
         productsRes.json(),
         quotationsRes.json(),
-        clientsRes.json(),
+        Promise.resolve(activityClientsRes),
+        Promise.resolve(savedClientsRes),
         brandingRes.json(),
         invoiceSettingsRes.json(),
         usersRes.json(),
@@ -173,7 +177,20 @@ export default function QuotationsPage() {
 
       setProducts(productsJson.data || [])
       setQuotations(quotationsJson.data || [])
-      setClients(clientsJson.data || [])
+      const activityClients = (activityClientsResp.data || []) as Client[]
+      const savedClients = (savedClientsResp.data || []) as Client[]
+      const mergedClientsMap = new Map<string, Client>()
+      for (const client of activityClients) {
+        const key = `${String(client.name || "").trim().toLowerCase()}|${String(client.number || "").trim().toLowerCase()}|${String(client.location || "").trim().toLowerCase()}`
+        if (!key) continue
+        mergedClientsMap.set(key, { ...client, key })
+      }
+      for (const client of savedClients) {
+        const key = `${String(client.name || "").trim().toLowerCase()}|${String(client.number || "").trim().toLowerCase()}|${String(client.location || "").trim().toLowerCase()}`
+        if (!key || mergedClientsMap.has(key)) continue
+        mergedClientsMap.set(key, { ...client, key })
+      }
+      setClients(Array.from(mergedClientsMap.values()))
       setUsers(usersJson.data || [])
       setBranches(branchesJson.data || [])
       setBranding(brandingJson.data || {})
@@ -678,28 +695,56 @@ export default function QuotationsPage() {
           <CardContent className="space-y-4">
             <div className="grid gap-4 md:grid-cols-2">
               <div>
-                <Label>Use Existing Client</Label>
+                <Label>Search Existing Clients</Label>
                 <Input
                   className="mb-2"
                   placeholder="Search client by name, location, number or contact person"
                   value={existingClientSearch}
                   onChange={(event) => setExistingClientSearch(event.target.value)}
                 />
-                <select
-                  className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-                  value={selectedExistingClient}
-                  onChange={(event) => selectExistingClient(event.target.value)}
-                >
-                  <option value="">-- Select existing client --</option>
-                  {filteredClients.map((client) => {
-                    const value = JSON.stringify(client)
-                    return (
-                      <option key={value} value={value}>
-                        {client.name} - {client.location}
-                      </option>
-                    )
-                  })}
-                </select>
+                <div className="max-h-64 overflow-auto rounded-md border">
+                  <div className="flex items-center justify-between border-b bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+                    <span>{filteredClients.length} client(s) found</span>
+                    <button
+                      type="button"
+                      className="underline"
+                      onClick={() => {
+                        setExistingClientSearch("")
+                        setSelectedExistingClient("")
+                        setClientName("")
+                        setClientNumber("")
+                        setClientLocation("")
+                        setClientContactPerson("")
+                      }}
+                    >
+                      Clear
+                    </button>
+                  </div>
+                  {filteredClients.length === 0 ? (
+                    <div className="p-3 text-sm text-muted-foreground">No saved clients match your search.</div>
+                  ) : (
+                    <div className="divide-y">
+                      {filteredClients.map((client) => {
+                        const value = JSON.stringify(client)
+                        const isSelected = selectedExistingClient === value
+                        return (
+                          <button
+                            key={value}
+                            type="button"
+                            onClick={() => selectExistingClient(value)}
+                            className={`w-full px-3 py-2 text-left text-sm transition hover:bg-muted/60 ${isSelected ? "bg-muted/80" : "bg-background"}`}
+                          >
+                            <div className="font-medium">{client.name}</div>
+                            <div className="text-xs text-muted-foreground">
+                              {client.number} · {client.location}
+                              {client.contactPerson ? ` · ${client.contactPerson}` : ""}
+                            </div>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
