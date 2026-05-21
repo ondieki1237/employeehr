@@ -518,32 +518,21 @@ export function MeetingList({
       {/* Create Meeting Dialog */}
       <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
         <DialogContent className="max-h-[90vh] overflow-y-auto">
-          <DialogHeader
-            style={{
-              background: `linear-gradient(135deg, ${brandingColors?.primary || '#2563eb'}, ${brandingColors?.secondary || '#059669'})`,
-            }}
-            className="-mx-6 -mt-6 px-6 pt-6 pb-4 rounded-t-lg"
-          >
-            <DialogTitle className="text-white text-xl flex items-center gap-2">
-              <Plus className="w-5 h-5" />
+          <DialogHeader>
+            <DialogTitle className="text-xl flex items-center gap-2">
+              <Plus className="w-5 h-5 text-muted-foreground" />
               Schedule New Meeting
             </DialogTitle>
-            <DialogDescription className="text-opacity-90" style={{ color: 'rgba(255,255,255,0.9)' }}>
-              Create a professional meeting and invite your team members
+            <DialogDescription>
+              Create a professional meeting and invite your team members.
             </DialogDescription>
           </DialogHeader>
 
           <form onSubmit={handleCreateMeeting} className="space-y-6 mt-4">
             {/* Meeting Details Section */}
-            <div
-              className="space-y-4 p-4 rounded-lg border-2"
-              style={{
-                backgroundColor: `${brandingColors?.primary || '#2563eb'}15`,
-                borderColor: brandingColors?.primary || '#2563eb',
-              }}
-            >
-              <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-                <Calendar className="w-4 h-4" style={{ color: brandingColors?.primary || '#2563eb' }} />
+            <div className="space-y-4 p-4 rounded-lg border bg-muted/40">
+              <h3 className="font-semibold text-foreground flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-primary" />
                 Meeting Details
               </h3>
 
@@ -616,30 +605,24 @@ export function MeetingList({
                     }
                     className="w-full px-3 py-2 border border-blue-200 rounded-md focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                   >
-                    <option value="video">🎥 Video</option>
-                    <option value="audio">🎙️ Audio Only</option>
-                    <option value="in-person">📍 In Person</option>
+                    <option value="video">Video</option>
+                    <option value="audio">Audio Only</option>
+                    <option value="in-person">In Person</option>
                   </select>
                 </div>
               </div>
             </div>
 
             {/* Security Section */}
-            <div
-              className="space-y-4 p-4 rounded-lg border-2"
-              style={{
-                backgroundColor: `${brandingColors?.secondary || '#059669'}15`,
-                borderColor: brandingColors?.secondary || '#059669',
-              }}
-            >
-              <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-                <Shield className="w-4 h-4" style={{ color: brandingColors?.secondary || '#059669' }} />
+            <div className="space-y-4 p-4 rounded-lg border bg-muted/40">
+              <h3 className="font-semibold text-foreground flex items-center gap-2">
+                <Shield className="w-4 h-4 text-primary" />
                 Security Settings
               </h3>
 
-              <div className="flex items-center justify-between p-3 bg-white rounded-lg border-2" style={{ borderColor: brandingColors?.secondary || '#059669' }}>
+              <div className="flex items-center justify-between p-3 rounded-lg border bg-background">
                 <div className="flex items-center gap-2">
-                  <Lock className="w-4 h-4" style={{ color: brandingColors?.secondary || '#059669' }} />
+                  <Lock className="w-4 h-4 text-muted-foreground" />
                   <Label htmlFor="require-password" className="cursor-pointer font-medium">
                     Require Password
                   </Label>
@@ -663,31 +646,23 @@ export function MeetingList({
                     }
                     placeholder="Create a strong password"
                     required={formData.require_password}
-                    className="border-2"
-                    style={{ borderColor: brandingColors?.secondary || '#059669' }}
                   />
-                  <p className="text-xs mt-2" style={{ color: brandingColors?.secondary || '#059669' }}>
-                    💡 Password will be automatically sent to all attendees
+                  <p className="text-xs text-muted-foreground mt-2">
+                    * Password will be included in the invitation email.
                   </p>
                 </div>
               )}
             </div>
 
             {/* Attendees Section */}
-            <div
-              className="space-y-4 p-4 rounded-lg border-2"
-              style={{
-                backgroundColor: `${brandingColors?.primary || '#2563eb'}15`,
-                borderColor: brandingColors?.primary || '#2563eb',
-              }}
-            >
-              <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-                <Users className="w-4 h-4" style={{ color: brandingColors?.primary || '#2563eb' }} />
+            <div className="space-y-4 p-4 rounded-lg border bg-muted/40">
+              <h3 className="font-semibold text-foreground flex items-center gap-2">
+                <Users className="w-4 h-4 text-primary" />
                 Invite Attendees
               </h3>
               
-              <div className="text-sm text-gray-600">
-                <span className="font-semibold" style={{ color: brandingColors?.primary || '#2563eb' }}>{selectedAttendees.length}</span> team member(s) selected
+              <div className="text-sm text-muted-foreground">
+                <span className="font-semibold text-foreground">{selectedAttendees.length}</span> team member(s) selected
               </div>
 
               {loadingUsers ? (
@@ -696,7 +671,7 @@ export function MeetingList({
                   Loading team members...
                 </div>
               ) : (
-                <div className="max-h-48 overflow-y-auto space-y-2 p-2 bg-white rounded-lg border-2" style={{ borderColor: brandingColors?.primary || '#2563eb' }}>
+                <div className="max-h-48 overflow-y-auto space-y-2 p-2 bg-background border rounded-lg">
                   {availableUsers.length === 0 ? (
                     <p className="text-sm text-gray-500 p-2">No team members available</p>
                   ) : (
@@ -722,16 +697,16 @@ export function MeetingList({
                   )}
                 </div>
               )}
-              <p className="text-xs" style={{ color: brandingColors?.primary || '#2563eb' }}>
-                ✓ Selected attendees will receive email invitations with all meeting details and access links
+              <p className="text-xs text-muted-foreground">
+                Attendees will receive an email invitation with access links.
               </p>
             </div>
 
             {/* AI Processing Alert */}
-            <Alert className="border-2" style={{ backgroundColor: `${brandingColors?.primary || '#2563eb'}10`, borderColor: brandingColors?.primary || '#2563eb' }}>
-              <Zap className="h-4 w-4" style={{ color: brandingColors?.primary || '#2563eb' }} />
-              <AlertDescription style={{ color: brandingColors?.text || '#1f2937' }} className="font-medium">
-                AI will automatically transcribe this meeting, create action items, and generate a comprehensive report.
+            <Alert className="bg-primary/5 text-primary border-primary/20">
+              <Zap className="h-4 w-4 text-primary" />
+              <AlertDescription className="font-medium text-sm">
+                This meeting will be automatically transcribed and summarized using AI.
               </AlertDescription>
             </Alert>
 
@@ -747,10 +722,7 @@ export function MeetingList({
               <Button 
                 type="submit" 
                 disabled={isLoading}
-                className="gap-2 text-white"
-                style={{
-                  background: `linear-gradient(135deg, ${brandingColors?.primary || '#2563eb'}, ${brandingColors?.secondary || '#059669'})`,
-                }}
+                className="gap-2"
               >
                 {isLoading ? (
                   <>
