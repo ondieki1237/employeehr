@@ -26,10 +26,14 @@ const DEFAULT_INVOICE_TERMS = [
 ].join(" ")
 
 const normalizePaymentChannel = (value: any) => ({
+  paymentType: String(value?.paymentType || "bank").trim(),
+  mpesaMode: String(value?.mpesaMode || "").trim(),
   channelName: String(value?.channelName || value?.name || "").trim(),
   bankName: String(value?.bankName || "").trim(),
   accountName: String(value?.accountName || "").trim(),
   accountNumber: String(value?.accountNumber || "").trim(),
+  paybillNumber: String(value?.paybillNumber || "").trim(),
+  tillNumber: String(value?.tillNumber || "").trim(),
   branch: String(value?.branch || "").trim(),
   notes: String(value?.notes || "").trim(),
 })

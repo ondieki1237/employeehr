@@ -75,10 +75,14 @@ const companySchema = new Schema<ICompany>(
       paymentChannels: {
         type: [
           {
+            paymentType: { type: String, default: "bank" },
+            mpesaMode: { type: String },
             channelName: { type: String },
             bankName: { type: String },
             accountName: { type: String },
             accountNumber: { type: String },
+            paybillNumber: { type: String },
+            tillNumber: { type: String },
             branch: { type: String },
             notes: { type: String },
           },

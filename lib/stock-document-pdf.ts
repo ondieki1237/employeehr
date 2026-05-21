@@ -31,10 +31,14 @@ export interface InvoiceDocumentSettings {
   includeVat?: boolean;
   includePaymentChannels?: boolean;
   paymentChannels?: Array<{
+    paymentType?: string;
+    mpesaMode?: string;
     channelName?: string;
     bankName?: string;
     accountName?: string;
     accountNumber?: string;
+    paybillNumber?: string;
+    tillNumber?: string;
     branch?: string;
     notes?: string;
   }>;
@@ -577,11 +581,33 @@ function drawTermsAndPaymentChannelsSection(
     doc.setFontSize(7)
     setColorFromHex(doc, DEFAULT_GRAY, "text")
     channels.slice(0, 2).forEach((channel) => {
-      const title = channel.channelName || channel.bankName || "Payment Channel"
+      const isMpesa = String(channel.paymentType || "").toLowerCase() === "mpesa" || /mpesa/i.test(`${channel.channelName || ""} ${channel.bankName || ""}`)
+      const mpesaMode = String(channel.mpesaMode || "").toLowerCase()
+      const title = channel.channelName || channel.bankName || (isMpesa ? "M-Pesa" : "Payment Channel")
       doc.text(title, rightX, cy)
       cy += lineH
-      if (channel.accountNumber) {
+      if (isMpesa) {
+        if ((mpesaMode === "paybill" || channel.paybillNumber) && channel.paybillNumber) {
+          doc.text(`Paybill: ${channel.paybillNumber}`, rightX, cy)
+          cy += lineH
+        }
+        if (channel.accountNumber) {
+          doc.text(`Account No: ${channel.accountNumber}`, rightX, cy)
+          cy += lineH
+        }
+        if (mpesaMode === "till" || channel.tillNumber) {
+          const till = channel.tillNumber || channel.accountNumber
+          if (till) {
+            doc.text(`Till No: ${till}`, rightX, cy)
+            cy += lineH
+          }
+        }
+      } else if (channel.accountNumber) {
         doc.text(`A/C: ${channel.accountNumber}`, rightX, cy)
+        cy += lineH
+      }
+      if (channel.notes) {
+        doc.text(channel.notes, rightX, cy)
         cy += lineH
       }
     })

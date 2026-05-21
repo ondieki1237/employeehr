@@ -14,10 +14,14 @@ import { api } from "@/lib/api"
 import type { TenantBranding } from "@/lib/stock-document-pdf"
 
 interface PaymentChannel {
+  paymentType: "bank" | "mpesa"
+  mpesaMode?: "paybill" | "till"
   channelName: string
   bankName: string
   accountName: string
   accountNumber: string
+  paybillNumber: string
+  tillNumber: string
   branch: string
   notes: string
 }
@@ -44,13 +48,44 @@ interface InvoiceSettings {
 }
 
 const blankChannel = (): PaymentChannel => ({
+  paymentType: "bank",
+  mpesaMode: "paybill",
   channelName: "",
   bankName: "",
   accountName: "",
   accountNumber: "",
+  paybillNumber: "",
+  tillNumber: "",
   branch: "",
   notes: "",
 })
+
+const createMpesaChannel = (mode: "paybill" | "till" = "paybill"): PaymentChannel =>
+  mode === "paybill"
+    ? {
+        paymentType: "mpesa",
+        mpesaMode: "paybill",
+        channelName: "M-Pesa Paybill",
+        bankName: "Safaricom M-Pesa",
+        accountName: "Account No",
+        accountNumber: "149570",
+        paybillNumber: "516600",
+        tillNumber: "",
+        branch: "",
+        notes: "Mpesa Paybill with Account No 149570",
+      }
+    : {
+        paymentType: "mpesa",
+        mpesaMode: "till",
+        channelName: "M-Pesa Till Number",
+        bankName: "Safaricom M-Pesa",
+        accountName: "Till Number",
+        accountNumber: "",
+        paybillNumber: "",
+        tillNumber: "",
+        branch: "",
+        notes: "Enter the M-Pesa till number here",
+      }
 
 export default function InvoiceGenerationSettingsPage() {
   const router = useRouter()
@@ -110,7 +145,14 @@ export default function InvoiceGenerationSettingsPage() {
             includePreparedBy: settingsRes.data.includePreparedBy ?? true,
             includeVat: settingsRes.data.includeVat ?? false,
             includePaymentChannels: settingsRes.data.includePaymentChannels ?? true,
-            paymentChannels: (settingsRes.data.paymentChannels || []).length ? settingsRes.data.paymentChannels : [blankChannel()],
+            paymentChannels: (settingsRes.data.paymentChannels || []).length
+              ? settingsRes.data.paymentChannels.map((channel: any) => ({
+                  ...blankChannel(),
+                  ...channel,
+                  paymentType: channel.paymentType === "mpesa" ? "mpesa" : "bank",
+                  mpesaMode: channel.mpesaMode === "till" ? "till" : "paybill",
+                }))
+              : [blankChannel()],
             logoUrl: settingsRes.data.logoUrl || "",
             defaultTermsAndConditions: settingsRes.data.defaultTermsAndConditions || "",
           })
@@ -136,11 +178,28 @@ export default function InvoiceGenerationSettingsPage() {
     setSettings((prev) => ({ ...prev, paymentChannels: [...prev.paymentChannels, blankChannel()] }))
   }
 
+  const addMpesaChannel = (mode: "paybill" | "till" = "paybill") => {
+    setSettings((prev) => ({ ...prev, paymentChannels: [...prev.paymentChannels, createMpesaChannel(mode)] }))
+  }
+
   const removeChannel = (index: number) => {
     setSettings((prev) => {
       const next = prev.paymentChannels.filter((_, i) => i !== index)
       return { ...prev, paymentChannels: next.length ? next : [blankChannel()] }
     })
+  }
+
+  const setChannelType = (index: number, paymentType: "bank" | "mpesa") => {
+    setSettings((prev) => ({
+      ...prev,
+      paymentChannels: prev.paymentChannels.map((channel, i) =>
+        i === index
+          ? paymentType === "mpesa"
+            ? { ...channel, paymentType, mpesaMode: channel.mpesaMode || "paybill" }
+            : { ...channel, paymentType, mpesaMode: "paybill" }
+          : channel,
+      ),
+    }))
   }
 
   const save = async () => {
@@ -347,11 +406,16 @@ export default function InvoiceGenerationSettingsPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="font-semibold">Payment Channels</h3>
-                  <p className="text-sm text-muted-foreground">Add one or more bank/mobile payment options to print on invoices.</p>
+                  <p className="text-sm text-muted-foreground">Add bank or M-Pesa payment options to print on invoices.</p>
                 </div>
-                <Button variant="outline" onClick={addChannel} className="gap-2">
-                  <Plus className="h-4 w-4" /> Add Channel
-                </Button>
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="outline" onClick={addChannel} className="gap-2">
+                    <Plus className="h-4 w-4" /> Add Bank
+                  </Button>
+                  <Button variant="outline" onClick={() => addMpesaChannel("paybill")} className="gap-2">
+                    <Plus className="h-4 w-4" /> Add Mpesa
+                  </Button>
+                </div>
               </div>
 
               {settings.paymentChannels.map((channel, index) => (
@@ -365,30 +429,106 @@ export default function InvoiceGenerationSettingsPage() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Channel Name</Label>
-                      <Input value={channel.channelName} onChange={(e) => updateChannel(index, "channelName", e.target.value)} placeholder="Bank transfer / M-Pesa" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Bank Name</Label>
-                      <Input value={channel.bankName} onChange={(e) => updateChannel(index, "bankName", e.target.value)} placeholder="Equity Bank" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Account Name</Label>
-                      <Input value={channel.accountName} onChange={(e) => updateChannel(index, "accountName", e.target.value)} placeholder="Aster Med Supplies Ltd" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Account Number</Label>
-                      <Input value={channel.accountNumber} onChange={(e) => updateChannel(index, "accountNumber", e.target.value)} placeholder="0123456789" />
-                    </div>
                     <div className="space-y-2 md:col-span-2">
-                      <Label>Branch</Label>
-                      <Input value={channel.branch} onChange={(e) => updateChannel(index, "branch", e.target.value)} placeholder="Nairobi CBD" />
+                      <Label>Payment Type</Label>
+                      <select
+                        value={channel.paymentType}
+                        onChange={(e) => setChannelType(index, e.target.value as "bank" | "mpesa")}
+                        className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      >
+                        <option value="bank">Bank</option>
+                        <option value="mpesa">M-Pesa</option>
+                      </select>
                     </div>
-                    <div className="space-y-2 md:col-span-2">
-                      <Label>Notes</Label>
-                      <Input value={channel.notes} onChange={(e) => updateChannel(index, "notes", e.target.value)} placeholder="Add M-Pesa till or routing note" />
-                    </div>
+
+                    {channel.paymentType === "mpesa" ? (
+                      <>
+                        <div className="space-y-2 md:col-span-2">
+                          <Label>M-Pesa Method</Label>
+                          <select
+                            value={channel.mpesaMode || "paybill"}
+                            onChange={(e) =>
+                              updateChannel(index, "mpesaMode" as keyof PaymentChannel, e.target.value as any)
+                            }
+                            className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                          >
+                            <option value="paybill">Paybill</option>
+                            <option value="till">Till Number</option>
+                          </select>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>Channel Name</Label>
+                          <Input value={channel.channelName} onChange={(e) => updateChannel(index, "channelName", e.target.value)} placeholder="M-Pesa Paybill" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Network / Provider</Label>
+                          <Input value={channel.bankName} onChange={(e) => updateChannel(index, "bankName", e.target.value)} placeholder="Safaricom M-Pesa" />
+                        </div>
+
+                        {channel.mpesaMode === "paybill" ? (
+                          <>
+                            <div className="space-y-2">
+                              <Label>Paybill Number</Label>
+                              <Input
+                                value={channel.paybillNumber}
+                                onChange={(e) => updateChannel(index, "paybillNumber", e.target.value)}
+                                placeholder="516600"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Account No</Label>
+                              <Input
+                                value={channel.accountNumber}
+                                onChange={(e) => updateChannel(index, "accountNumber", e.target.value)}
+                                placeholder="149570"
+                              />
+                            </div>
+                          </>
+                        ) : (
+                          <div className="space-y-2 md:col-span-2">
+                            <Label>Till Number</Label>
+                            <Input
+                              value={channel.tillNumber}
+                              onChange={(e) => updateChannel(index, "tillNumber", e.target.value)}
+                              placeholder="Enter till number"
+                            />
+                          </div>
+                        )}
+
+                        <div className="space-y-2 md:col-span-2">
+                          <Label>Notes</Label>
+                          <Input value={channel.notes} onChange={(e) => updateChannel(index, "notes", e.target.value)} placeholder="Mpesa payment details" />
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="space-y-2">
+                          <Label>Channel Name</Label>
+                          <Input value={channel.channelName} onChange={(e) => updateChannel(index, "channelName", e.target.value)} placeholder="Bank transfer" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Bank Name</Label>
+                          <Input value={channel.bankName} onChange={(e) => updateChannel(index, "bankName", e.target.value)} placeholder="Equity Bank" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Account Name</Label>
+                          <Input value={channel.accountName} onChange={(e) => updateChannel(index, "accountName", e.target.value)} placeholder="Aster Med Supplies Ltd" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Account Number</Label>
+                          <Input value={channel.accountNumber} onChange={(e) => updateChannel(index, "accountNumber", e.target.value)} placeholder="0123456789" />
+                        </div>
+                        <div className="space-y-2 md:col-span-2">
+                          <Label>Branch</Label>
+                          <Input value={channel.branch} onChange={(e) => updateChannel(index, "branch", e.target.value)} placeholder="Nairobi CBD" />
+                        </div>
+                        <div className="space-y-2 md:col-span-2">
+                          <Label>Notes</Label>
+                          <Input value={channel.notes} onChange={(e) => updateChannel(index, "notes", e.target.value)} placeholder="Optional bank transfer note" />
+                        </div>
+                      </>
+                    )}
                   </CardContent>
                 </Card>
               ))}

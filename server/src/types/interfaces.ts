@@ -88,10 +88,14 @@ export interface ICompany {
     includeVat?: boolean
     includePaymentChannels?: boolean
     paymentChannels?: Array<{
+      paymentType?: string
+      mpesaMode?: string
       channelName?: string
       bankName?: string
       accountName?: string
       accountNumber?: string
+      paybillNumber?: string
+      tillNumber?: string
       branch?: string
       notes?: string
     }>
