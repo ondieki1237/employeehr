@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -34,6 +34,8 @@ import {
   MessageSquare,
   Menu,
   X,
+  MonitorUp,
+  MonitorOff,
 } from 'lucide-react'
 import { useWebRTC } from '@/hooks/use-webrtc'
 import { MeetingReport } from '@/components/meetings/meeting-report'
@@ -48,6 +50,9 @@ interface Meeting {
   meeting_link?: string
   status: 'scheduled' | 'in-progress' | 'completed' | 'cancelled'
   organizer_id: string
+  organizer?: any
+  actual_start_time?: string
+  actual_end_time?: string
   attendees: Array<{
     user_id: string
     display_name?: string
@@ -58,6 +63,7 @@ interface Meeting {
   }>
   ai_processed: boolean
   ai_processing_status?: 'pending' | 'processing' | 'completed' | 'failed'
+  ai_processing_error?: string
   ai_summary?: string
   key_points?: string[]
   action_items?: any[]
@@ -72,6 +78,7 @@ interface MeetingInterfaceProps {
   isGuest?: boolean
   onEndMeeting: (meetingId: string, transcript: string) => Promise<void>
   onStartMeeting: (meetingId: string) => Promise<void>
+  brandingColors?: any
 }
 
 export function MeetingInterface({
@@ -81,6 +88,7 @@ export function MeetingInterface({
   isGuest = false,
   onEndMeeting,
   onStartMeeting,
+  brandingColors,
 }: MeetingInterfaceProps) {
   const [isAudioOn, setIsAudioOn] = useState(true)
   const [isVideoOn, setIsVideoOn] = useState(meeting.meeting_type !== 'audio')
@@ -173,6 +181,8 @@ export function MeetingInterface({
   const [permissionError, setPermissionError] = useState<string>('')
   const [isConnecting, setIsConnecting] = useState(false)
   const [localStream, setLocalStream] = useState<MediaStream | null>(null)
+  const [screenStream, setScreenStream] = useState<MediaStream | null>(null)
+  const [isScreenSharing, setIsScreenSharing] = useState(false)
   const [currentUser, setCurrentUser] = useState<any>(null)
   const [userName, setUserName] = useState<string>('')
   const [speakerEnabled, setSpeakerEnabled] = useState(true)
@@ -219,6 +229,16 @@ export function MeetingInterface({
     }
   }, [meeting, currentUserId, isGuest, currentUserName])
 
+  const activeStream = useMemo(() => {
+    if (!localStream) return null
+    if (!isScreenSharing || !screenStream) return localStream
+
+    const combined = new MediaStream()
+    screenStream.getVideoTracks().forEach(track => combined.addTrack(track))
+    localStream.getAudioTracks().forEach(track => combined.addTrack(track))
+    return combined
+  }, [localStream, screenStream, isScreenSharing])
+
   // Initialize WebRTC
   const {
     remoteStreams,
@@ -234,7 +254,7 @@ export function MeetingInterface({
     meeting.meeting_id,
     currentUserId,
     userName,
-    localStream,
+    activeStream,
     isMeetingActive && permissionStatus === 'granted',
     allowDelayedAudio
   )
@@ -641,6 +661,9 @@ export function MeetingInterface({
 
       stopTranscriptRecognition()
       stopVideoStream()
+      if (screenStream) screenStream.getTracks().forEach(t => t.stop())
+      setScreenStream(null)
+      setIsScreenSharing(false)
 
       setReportState((prev) => ({
         ...prev,
@@ -670,6 +693,37 @@ export function MeetingInterface({
 
   const toggleVideo = () => {
     setIsVideoOn(!isVideoOn)
+  }
+
+  const toggleScreenShare = async () => {
+    if (isScreenSharing && screenStream) {
+      screenStream.getTracks().forEach(track => track.stop())
+      setScreenStream(null)
+      setIsScreenSharing(false)
+      if (localVideoRef.current && localStream) {
+        localVideoRef.current.srcObject = localStream
+      }
+    } else {
+      try {
+        const stream = await navigator.mediaDevices.getDisplayMedia({ video: true })
+        setScreenStream(stream)
+        setIsScreenSharing(true)
+        
+        stream.getVideoTracks()[0].onended = () => {
+          setIsScreenSharing(false)
+          setScreenStream(null)
+          if (localVideoRef.current && localStream) {
+            localVideoRef.current.srcObject = localStream
+          }
+        }
+        
+        if (localVideoRef.current) {
+          localVideoRef.current.srcObject = stream
+        }
+      } catch (error) {
+        console.error('Error sharing screen:', error)
+      }
+    }
   }
 
   const handleToggleRaiseHand = () => {
@@ -808,14 +862,27 @@ export function MeetingInterface({
                     )}
                     {/* Local video */}
                     <Card className="relative overflow-hidden bg-gray-900 border-gray-700">
-                      {isVideoOn ? (
-                        <video
-                          ref={localVideoRef}
-                          autoPlay
-                          playsInline
-                          muted
-                          className="w-full h-full object-cover"
-                        />
+                      {isVideoOn || isScreenSharing ? (
+                        <>
+                          <video
+                            ref={localVideoRef}
+                            autoPlay
+                            playsInline
+                            muted
+                            className="w-full h-full object-cover"
+                          />
+                          {isScreenSharing && isVideoOn && localStream && (
+                            <div className="absolute bottom-12 right-2 w-32 h-24 rounded-lg overflow-hidden border-2 border-gray-700 shadow-xl z-30 bg-black">
+                               <video
+                                 autoPlay
+                                 playsInline
+                                 muted
+                                 className="w-full h-full object-cover"
+                                 ref={(el) => { if (el) el.srcObject = localStream }}
+                               />
+                            </div>
+                          )}
+                        </>
                       ) : (
                         <div className="flex items-center justify-center h-full bg-gray-800">
                           <div className="text-center">
@@ -924,7 +991,8 @@ export function MeetingInterface({
                   {isOrganizer && (
                     <Button
                       onClick={handleStartMeeting}
-                      className="w-full bg-green-600 hover:bg-green-700"
+                      className="w-full text-white"
+                      style={{ backgroundColor: brandingColors?.primary || '#059669' }}
                     >
                       <Video className="w-4 h-4 mr-2" />
                       Start Meeting
@@ -997,14 +1065,27 @@ export function MeetingInterface({
                   </div>
 
                   {meeting.meeting_type !== 'audio' && (
-                    <Button
-                      onClick={toggleVideo}
-                      size="lg"
-                      variant={isVideoOn ? 'default' : 'secondary'}
-                      className="rounded-full w-12 h-12 p-0"
-                    >
-                      {isVideoOn ? <Video className="w-5 h-5" /> : <VideoOff className="w-5 h-5" />}
-                    </Button>
+                    <>
+                      <Button
+                        onClick={toggleVideo}
+                        size="lg"
+                        style={isVideoOn ? { backgroundColor: brandingColors?.primary || undefined } : {}}
+                        variant={isVideoOn ? 'default' : 'secondary'}
+                        className="rounded-full w-12 h-12 p-0"
+                      >
+                        {isVideoOn ? <Video className="w-5 h-5" /> : <VideoOff className="w-5 h-5" />}
+                      </Button>
+                      <Button
+                        onClick={toggleScreenShare}
+                        size="lg"
+                        style={isScreenSharing ? { backgroundColor: brandingColors?.primary || undefined } : {}}
+                        variant={isScreenSharing ? 'default' : 'secondary'}
+                        className="rounded-full w-12 h-12 p-0"
+                        title={isScreenSharing ? 'Stop sharing screen' : 'Share screen'}
+                      >
+                        {isScreenSharing ? <MonitorOff className="w-5 h-5" /> : <MonitorUp className="w-5 h-5" />}
+                      </Button>
+                    </>
                   )}
 
                   <Button

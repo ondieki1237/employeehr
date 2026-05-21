@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { MeetingList } from '@/components/meetings/meeting-list'
-import { MeetingInterface } from '@/components/meetings/meeting-interface'
+import { MeetingInterface } from '@/components/meetings/meeting-interface-webrtc'
 import { MeetingReport } from '@/components/meetings/meeting-report'
 import { Button } from '@/components/ui/button'
 import { ArrowLeft } from 'lucide-react'
