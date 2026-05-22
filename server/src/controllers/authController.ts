@@ -4,16 +4,24 @@ import type { AuthenticatedRequest } from "../middleware/auth"
 
 export class AuthController {
   private static shouldRequireLoginOtp(req: AuthenticatedRequest) {
-    if (process.env.NODE_ENV !== "production") {
+    // Require OTP in production by default. Previously this checked the
+    // request hostname which caused production servers behind a proxy
+    // (connecting from localhost) to bypass OTP. Support two env-var
+    // controls:
+    // - SKIP_LOGIN_OTP=true  -> explicitly disable OTP in production
+    // - REQUIRE_LOGIN_OTP=true -> explicitly require OTP regardless of NODE_ENV
+
+    if (process.env.SKIP_LOGIN_OTP === "true") {
+      console.log("Login OTP bypassed due to SKIP_LOGIN_OTP env var")
       return false
     }
 
-    const host = (req.hostname || "").toLowerCase()
-    if (host === "localhost" || host === "127.0.0.1" || host === "::1") {
-      return false
+    if (process.env.REQUIRE_LOGIN_OTP === "true") {
+      console.log("Login OTP required due to REQUIRE_LOGIN_OTP env var")
+      return true
     }
 
-    return true
+    return process.env.NODE_ENV === "production"
   }
 
   static async registerCompany(req: AuthenticatedRequest, res: Response) {

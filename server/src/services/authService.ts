@@ -68,6 +68,9 @@ export class AuthService {
       companyId: params.user.org_id,
     })
 
+    // Log challenge creation for debugging (do not log the OTP itself)
+    console.log(`Login OTP challenge issued`, { challengeId, email: params.user.email, loginType: params.loginType })
+
     return challengeId
   }
 
