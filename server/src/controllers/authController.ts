@@ -4,16 +4,29 @@ import type { AuthenticatedRequest } from "../middleware/auth"
 
 export class AuthController {
   private static shouldRequireLoginOtp(req: AuthenticatedRequest) {
-    // Require OTP by default in all environments unless explicitly skipped
-    // via SKIP_LOGIN_OTP=true. This makes local and deployed servers
-    // request an OTP during login for debugging and consistent behavior.
+    // Require OTP only for deployed frontend (hr.codewithseth.co.ke).
+    // Localhost/dev requests bypass OTP.
+    // Override with SKIP_LOGIN_OTP=true to disable OTP globally.
+
     if (process.env.SKIP_LOGIN_OTP === "true") {
       console.log("Login OTP bypassed due to SKIP_LOGIN_OTP env var")
       return false
     }
 
-    console.log("Login OTP required by default (SKIP_LOGIN_OTP not set)")
-    return true
+    // Check Origin and Referer headers to determine if request is from deployed domain
+    const origin = (req.get("origin") || "").toLowerCase()
+    const referer = (req.get("referer") || "").toLowerCase()
+    const deployedDomain = "hr.codewithseth.co.ke"
+
+    const isFromDeployed = origin.includes(deployedDomain) || referer.includes(deployedDomain)
+
+    if (isFromDeployed) {
+      console.log("Login OTP required: request from deployed domain", { origin, referer })
+      return true
+    }
+
+    console.log("Login OTP skipped: request from local/dev environment", { origin, referer })
+    return false
   }
 
   static async registerCompany(req: AuthenticatedRequest, res: Response) {

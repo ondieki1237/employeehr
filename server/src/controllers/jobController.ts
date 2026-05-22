@@ -14,6 +14,25 @@ export class JobController {
       .replace(/^-+|-+$/g, "")
   }
 
+  private static escapeRegExp(value: string): string {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+  }
+
+  private static async findCompanyForPublicJob(companyKey: string) {
+    const normalizedKey = JobController.generateCompanySlug(companyKey)
+    const escapedKey = JobController.escapeRegExp(companyKey)
+    const escapedSlug = JobController.escapeRegExp(normalizedKey)
+
+    return Company.findOne({
+      $or: [
+        { slug: normalizedKey },
+        { name: new RegExp(`^${escapedKey}$`, "i") },
+        { slug: new RegExp(`^${escapedSlug}(?:-|$)`, "i") },
+        { name: new RegExp(`\\b${escapedKey}\\b`, "i") },
+      ],
+    }).select("_id slug name")
+  }
+
   // Helper to get next position index for a company
   private static async getNextPositionIndex(org_id: string): Promise<number> {
     const lastJob = await Job.findOne({ org_id }).sort({ position_index: -1 })
@@ -242,19 +261,29 @@ export class JobController {
       const companyKey = decodeURIComponent(String(companyName || "")).trim()
       const positionKey = String(positionIndex || "").trim()
       const shareLink = `${companyKey}/${positionKey}`
+      const normalizedShareLink = `${JobController.generateCompanySlug(companyKey)}/${positionKey}`
 
       // Fetch by share link first; fallback to company slug/name + position index for older records
-      let job = await Job.findOne({ share_link: shareLink })
+      let job = await Job.findOne({
+        share_link: new RegExp(`^(?:${JobController.escapeRegExp(shareLink)}|${JobController.escapeRegExp(normalizedShareLink)})$`, "i"),
+      })
 
       if (!job) {
-        const company = await Company.findOne({
-          $or: [{ slug: companyKey.toLowerCase() }, { name: companyKey }],
-        }).select("_id slug name")
-
+        const company = await JobController.findCompanyForPublicJob(companyKey)
         const numericPositionIndex = Number(positionKey)
+
         if (company && !Number.isNaN(numericPositionIndex)) {
           job = await Job.findOne({ org_id: company._id.toString(), position_index: numericPositionIndex })
         }
+      }
+
+      if (!job) {
+        job = await Job.findOne({
+          share_link: new RegExp(
+            `^${JobController.escapeRegExp(JobController.generateCompanySlug(companyKey))}(?:-|/).*\\/${JobController.escapeRegExp(positionKey)}$`,
+            "i",
+          ),
+        })
       }
 
       if (!job) {
@@ -308,9 +337,23 @@ export class JobController {
   static async getCompanyPublicJobs(req: Request, res: Response) {
     try {
       const { companyName } = req.params
+      const companyKey = decodeURIComponent(String(companyName || "")).trim()
+      const normalizedKey = JobController.generateCompanySlug(companyKey)
+      const company = await JobController.findCompanyForPublicJob(companyKey)
+      const escapedCompanyKey = JobController.escapeRegExp(companyKey)
+      const escapedNormalizedKey = JobController.escapeRegExp(normalizedKey)
+
+      const filters: any[] = [
+        { share_link: new RegExp(`^${escapedCompanyKey}/`, "i") },
+        { share_link: new RegExp(`^${escapedNormalizedKey}/`, "i") },
+      ]
+
+      if (company) {
+        filters.push({ org_id: company._id.toString() })
+      }
       
       const jobs = await Job.find({
-        share_link: new RegExp(`^${companyName}/`, "i"),
+        $or: filters,
         status: "open",
       }).sort({ created_at: -1 })
 

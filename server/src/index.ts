@@ -56,7 +56,6 @@ import complaintRoutes from "./routes/complaint.routes"
 import branchRoutes from "./routes/branch.routes"
 import creditNoteRoutes from "./routes/creditNote.routes"
 import { JobController } from "./controllers/jobController"
-import { JobApplicationController } from "./controllers/jobApplicationController"
 import { ApplicationFormController } from "./controllers/applicationFormController"
 import { MeetingController } from "./controllers/meetingController"
 import { StockController } from "./controllers/stockController"
@@ -139,7 +138,6 @@ app.get("/", (_req, res) => {
 // Public endpoints (no auth) — mounted early
 app.get("/api/jobs/public/:companyName/:positionIndex", JobController.getPublicJob)
 app.get("/api/application-forms/job/:jobId", ApplicationFormController.getFormByJobId)
-app.post("/api/job-applications/submit", JobApplicationController.submitApplication)
 app.get("/api/meetings/by-meeting-id/:meetingId", MeetingController.getMeetingByMeetingIdPublic)
 app.post("/api/meetings/by-meeting-id/:meetingId/join", MeetingController.joinMeetingByMeetingIdPublic)
 app.use("/api/sms", smsWebhookRoutes)
