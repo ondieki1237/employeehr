@@ -3,6 +3,19 @@ import { AuthService } from "../services/authService"
 import type { AuthenticatedRequest } from "../middleware/auth"
 
 export class AuthController {
+  private static shouldRequireLoginOtp(req: AuthenticatedRequest) {
+    if (process.env.NODE_ENV !== "production") {
+      return false
+    }
+
+    const host = (req.hostname || "").toLowerCase()
+    if (host === "localhost" || host === "127.0.0.1" || host === "::1") {
+      return false
+    }
+
+    return true
+  }
+
   static async registerCompany(req: AuthenticatedRequest, res: Response) {
     try {
       const { name, email, phone, website, industry, employeeCount, adminEmail, adminPassword, adminName } = req.body
@@ -46,7 +59,9 @@ export class AuthController {
         })
       }
 
-      const result = await AuthService.login(email, password)
+      const result = await AuthService.login(email, password, {
+        requireOtp: AuthController.shouldRequireLoginOtp(req),
+      })
       res.status(result.success ? 200 : 401).json(result)
     } catch (error) {
       res.status(500).json({
@@ -116,6 +131,63 @@ export class AuthController {
     }
   }
 
+  static async verifyLoginOtp(req: AuthenticatedRequest, res: Response) {
+    try {
+      const { email, otp, challengeId, loginType } = req.body
+
+      if (!email || !otp || !challengeId || !loginType) {
+        return res.status(400).json({
+          success: false,
+          message: "Email, OTP, challengeId and loginType are required",
+        })
+      }
+
+      if (!["standard", "company", "employee"].includes(loginType)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid loginType",
+        })
+      }
+
+      const result = await AuthService.verifyLoginOtp(email, otp, challengeId, loginType)
+      res.status(result.success ? 200 : 401).json(result)
+    } catch (error) {
+      res.status(500).json({ success: false, message: "Failed", error: error instanceof Error ? error.message : "Unknown error" })
+    }
+  }
+
+  static async resendLoginOtp(req: AuthenticatedRequest, res: Response) {
+    try {
+      if (!AuthController.shouldRequireLoginOtp(req)) {
+        return res.status(400).json({
+          success: false,
+          message: "Login OTP is not required in this environment",
+        })
+      }
+
+      const { email, challengeId, loginType } = req.body
+
+      if (!email || !challengeId || !loginType) {
+        return res.status(400).json({
+          success: false,
+          message: "Email, challengeId and loginType are required",
+        })
+      }
+
+      if (!["standard", "company", "employee"].includes(loginType)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid loginType",
+        })
+      }
+
+      const result = await AuthService.resendLoginOtp(email, challengeId, loginType)
+      res.status(result.success ? 200 : 400).json(result)
+    } catch (error) {
+      res.status(500).json({ success: false, message: "Failed", error: error instanceof Error ? error.message : "Unknown error" })
+    }
+  }
+
   static async resetPassword(req: AuthenticatedRequest, res: Response) {
     try {
       const { email, otp, newPassword } = req.body
@@ -143,7 +215,9 @@ export class AuthController {
         })
       }
 
-      const result = await AuthService.companyLogin(slug, email, password)
+      const result = await AuthService.companyLogin(slug, email, password, {
+        requireOtp: AuthController.shouldRequireLoginOtp(req),
+      })
       res.status(result.success ? 200 : 401).json(result)
     } catch (error) {
       res.status(500).json({
@@ -189,7 +263,9 @@ export class AuthController {
         })
       }
 
-      const result = await AuthService.employeeIdLogin(employee_id, password)
+      const result = await AuthService.employeeIdLogin(employee_id, password, {
+        requireOtp: AuthController.shouldRequireLoginOtp(req),
+      })
       res.status(result.success ? 200 : 401).json(result)
     } catch (error) {
       res.status(500).json({

@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { useState } from "react"
-import { ArrowLeft, Mail, Lock } from "lucide-react"
+import { ArrowLeft, Mail, Lock, ShieldCheck } from "lucide-react"
 import { api } from "@/lib/api"
 import { removeToken, removeUser, setToken, setUser } from "@/lib/auth"
 import InvitationForm from "@/components/auth/invitation-form"
@@ -24,6 +24,10 @@ function LoginContent() {
 
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  const [otp, setOtp] = useState("")
+  const [otpStep, setOtpStep] = useState(false)
+  const [challengeId, setChallengeId] = useState("")
+  const [otpEmail, setOtpEmail] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
 
@@ -39,6 +43,27 @@ function LoginContent() {
     )
   }
 
+  const completeLogin = (authData: any) => {
+    setToken(authData.token)
+    setUser({
+      _id: authData.user._id,
+      email: authData.user.email,
+      first_name: authData.user.firstName || authData.user.first_name,
+      last_name: authData.user.lastName || authData.user.last_name,
+      role: authData.user.role,
+      org_id: authData.user.org_id,
+    })
+
+    const role = authData.user.role
+    if (role === "company_admin" || role === "hr") {
+      router.push("/admin")
+    } else if (role === "manager") {
+      router.push("/manager")
+    } else {
+      router.push("/employee")
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     e.stopPropagation()
@@ -51,38 +76,71 @@ function LoginContent() {
     setIsLoading(true)
 
     try {
-      // Ensure stale session data doesn't interfere with a fresh login
-      removeToken()
-      removeUser()
+      if (!otpStep) {
+        removeToken()
+        removeUser()
 
-      const response = await api.auth.login({ email, password })
+        const response = await api.auth.login({ email, password })
 
-      if (response.success && response.data) {
-        // Store token and user data
-        setToken(response.data.token)
-        setUser({
-          _id: response.data.user._id,
-          email: response.data.user.email,
-          first_name: response.data.user.firstName || response.data.user.first_name,
-          last_name: response.data.user.lastName || response.data.user.last_name,
-          role: response.data.user.role,
-          org_id: response.data.user.org_id,
-        })
+        if (response.success && response.data) {
+          const data: any = response.data
+          if (data.requiresOtp) {
+            setOtpStep(true)
+            setChallengeId(data.challengeId)
+            setOtpEmail(data.email || email)
+            return
+          }
 
-        // Redirect based on role
-        const role = response.data.user.role
-        if (role === "company_admin" || role === "hr") {
-          router.push("/admin")
-        } else if (role === "manager") {
-          router.push("/manager")
+          completeLogin(data)
         } else {
-          router.push("/employee")
+          setError(response.message || "Login failed")
         }
       } else {
-        setError(response.message || "Login failed")
+        const response = await api.auth.verifyLoginOtp({
+          email: otpEmail || email,
+          otp,
+          challengeId,
+          loginType: "standard",
+        })
+
+        if (response.success && response.data) {
+          completeLogin(response.data as any)
+        } else {
+          setError(response.message || "OTP verification failed")
+        }
       }
     } catch (err: any) {
       setError(err.message || "An error occurred. Please try again.")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleResendOtp = async () => {
+    if (!challengeId || !otpStep || isLoading) {
+      return
+    }
+
+    setError("")
+    setIsLoading(true)
+
+    try {
+      const response = await api.auth.resendLoginOtp({
+        email: otpEmail || email,
+        challengeId,
+        loginType: "standard",
+      })
+
+      if (response.success && response.data) {
+        const data: any = response.data
+        setChallengeId(data.challengeId)
+        setOtpEmail(data.email || otpEmail || email)
+        setOtp("")
+      } else {
+        setError(response.message || "Failed to resend OTP")
+      }
+    } catch (err: any) {
+      setError(err.message || "Failed to resend OTP")
     } finally {
       setIsLoading(false)
     }
@@ -103,41 +161,98 @@ function LoginContent() {
 
       <Card className="border-slate-200 bg-white p-6 shadow-sm">
         <form onSubmit={handleSubmit} className="space-y-5">
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-slate-700">Email Address</label>
-            <div className="relative">
-              <Mail className="absolute left-3 top-3 w-5 h-5 text-slate-400" />
-              <Input
-                type="email"
-                placeholder="you@company.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="pl-10"
-                required
-                disabled={isLoading}
-              />
+          {!otpStep ? (
+            <>
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-slate-700">Email Address</label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-3 w-5 h-5 text-slate-400" />
+                  <Input
+                    type="email"
+                    placeholder="you@company.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="pl-10"
+                    required
+                    disabled={isLoading}
+                  />
+                </div>
             </div>
-          </div>
 
-          <div className="space-y-2">
-            <div className="flex justify-between items-center">
-              <label className="block text-sm font-medium text-slate-700">Password</label>
-              <Link href="/auth/forgot-password" className="text-xs text-slate-500 hover:text-slate-900">
-                Forgot password?
-              </Link>
-            </div>
-            <div className="relative">
-              <Lock className="absolute left-3 top-3 w-5 h-5 text-slate-400" />
-              <Input
-                type="password"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="pl-10"
-                required
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <label className="block text-sm font-medium text-slate-700">Password</label>
+                  <Link href="/auth/forgot-password" className="text-xs text-slate-500 hover:text-slate-900">
+                    Forgot password?
+                  </Link>
+                </div>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-3 w-5 h-5 text-slate-400" />
+                  <Input
+                    type="password"
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="pl-10"
+                    required
+                    disabled={isLoading}
+                  />
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-700">
+                <div className="flex items-center gap-2 font-medium">
+                  <ShieldCheck className="h-4 w-4" />
+                  Verification code sent
+                </div>
+                <p className="mt-1">Enter the 6-digit OTP sent to {otpEmail || email}.</p>
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-slate-700">One-Time Password (OTP)</label>
+                <Input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={6}
+                  placeholder="123456"
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
+                  required
+                  disabled={isLoading}
+                />
+              </div>
+
+              <button
+                type="button"
+                className="text-xs text-slate-500 hover:text-slate-900"
                 disabled={isLoading}
-              />
-            </div>
+                onClick={() => {
+                  setOtpStep(false)
+                  setOtp("")
+                  setChallengeId("")
+                  setOtpEmail("")
+                }}
+              >
+                Use different credentials
+              </button>
+
+              <button
+                type="button"
+                className="text-xs text-slate-500 hover:text-slate-900"
+                disabled={isLoading}
+                onClick={handleResendOtp}
+              >
+                Resend OTP
+              </button>
+            </>
+          )}
+
+          <div className="rounded-lg bg-blue-50 p-2">
+            <Button type="submit" size="lg" className="w-full bg-blue-600 hover:bg-blue-700 text-white" disabled={isLoading}>
+              {isLoading ? (otpStep ? "Verifying..." : "Signing in...") : (otpStep ? "Verify OTP" : "Sign In")}
+            </Button>
           </div>
 
           {error && (
@@ -145,12 +260,6 @@ function LoginContent() {
               {error}
             </div>
           )}
-
-          <div className="rounded-lg bg-blue-50 p-2">
-            <Button type="submit" size="lg" className="w-full bg-blue-600 hover:bg-blue-700 text-white" disabled={isLoading}>
-              {isLoading ? "Signing in..." : "Sign In"}
-            </Button>
-          </div>
         </form>
       </Card>
 

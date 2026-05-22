@@ -14,6 +14,8 @@ router.get("/validate-company/:slug", AuthController.validateCompany) // Validat
 // Password reset flow
 router.post("/forgot-password", AuthController.forgotPassword)
 router.post("/verify-otp", AuthController.verifyOtp)
+router.post("/verify-login-otp", AuthController.verifyLoginOtp)
+router.post("/resend-login-otp", AuthController.resendLoginOtp)
 router.post("/reset-password", AuthController.resetPassword)
 
 // Protected routes

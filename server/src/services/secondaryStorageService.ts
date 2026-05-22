@@ -6,37 +6,36 @@ export class SecondaryStorageService {
   // Sync user from MongoDB to MySQL
   static async syncUserToMySQL(mongoUser: any, action: "CREATE" | "UPDATE" | "DELETE") {
     try {
-      const id = mongoUser._id.toString()
+      const mongoId = mongoUser._id.toString()
 
       if (action === "DELETE") {
-        await prisma.user.deleteMany({ where: { id } })
+        await prisma.user.deleteMany({ where: { mongoId } })
         return
       }
 
       const userData = {
-        id,
-        orgId: mongoUser.org_id,
+        mongoId,
+        org_id: mongoUser.org_id,
         email: mongoUser.email.toLowerCase(),
         firstName: mongoUser.firstName,
         lastName: mongoUser.lastName,
         role: mongoUser.role,
         status: mongoUser.status,
-        employeeId: mongoUser.employee_id || null,
+        employee_id: mongoUser.employee_id || null,
         password: mongoUser.password,
         phone: mongoUser.phone || null,
         department: mongoUser.department || null,
-        managerId: mongoUser.manager_id || null,
-        avatar: mongoUser.avatar || mongoUser.profileImage || null,
+        manager_id: mongoUser.manager_id || null,
+        profileImage: mongoUser.profileImage || mongoUser.avatar || null,
         isActive: mongoUser.isActive ?? true,
       }
 
       if (action === "CREATE") {
         await prisma.user.create({ data: userData as any })
       } else if (action === "UPDATE") {
-        await prisma.user.upsert({
-          where: { id },
-          update: userData as any,
-          create: userData as any,
+        await prisma.user.update({
+          where: { mongoId },
+          data: userData as any,
         })
       }
 
@@ -50,15 +49,15 @@ export class SecondaryStorageService {
   // Sync company from MongoDB to MySQL
   static async syncCompanyToMySQL(mongoCompany: any, action: "CREATE" | "UPDATE" | "DELETE") {
     try {
-      const id = mongoCompany._id.toString()
+      const mongoId = mongoCompany._id.toString()
 
       if (action === "DELETE") {
-        await prisma.company.deleteMany({ where: { id } })
+        await prisma.company.deleteMany({ where: { mongoId } })
         return
       }
 
       const companyData = {
-        id,
+        mongoId,
         name: mongoCompany.name,
         slug: mongoCompany.slug,
         email: mongoCompany.email,
@@ -73,11 +72,12 @@ export class SecondaryStorageService {
         logo: mongoCompany.logo || null,
       }
 
-      if (action === "CREATE" || action === "UPDATE") {
-        await prisma.company.upsert({
-          where: { id },
-          update: companyData as any,
-          create: companyData as any,
+      if (action === "CREATE") {
+        await prisma.company.create({ data: companyData as any })
+      } else if (action === "UPDATE") {
+        await prisma.company.update({
+          where: { mongoId },
+          data: companyData as any,
         })
       }
 

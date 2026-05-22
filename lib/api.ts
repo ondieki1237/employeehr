@@ -164,6 +164,12 @@ export const authApi = {
     verifyOtp: (data: { email: string; otp: string }) =>
         client.post('/api/auth/verify-otp', data),
 
+    verifyLoginOtp: (data: { email: string; otp: string; challengeId: string; loginType: "standard" | "company" | "employee" }) =>
+        client.post('/api/auth/verify-login-otp', data),
+
+    resendLoginOtp: (data: { email: string; challengeId: string; loginType: "standard" | "company" | "employee" }) =>
+        client.post('/api/auth/resend-login-otp', data),
+
     resetPassword: (data: { email: string; otp: string; newPassword: string }) =>
         client.post('/api/auth/reset-password', data),
 

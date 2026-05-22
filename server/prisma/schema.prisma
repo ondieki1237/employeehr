@@ -33,7 +33,7 @@ model User {
   @@index([org_id])
   @@index([email])
   @@index([role])
-  @@map("users")
+  @@map("User")
 }
 
 // Company table (synced from MongoDB)
@@ -57,7 +57,7 @@ model Company {
 
   @@index([slug])
   @@index([status])
-  @@map("companies")
+  @@map("Company")
 }
 
 // Audit Log - track all significant changes
@@ -80,7 +80,7 @@ model AuditLog {
   @@index([entity])
   @@index([action])
   @@index([createdAt])
-  @@map("audit_logs")
+  @@map("AuditLog")
 }
 
 // Session tracking for authentication
@@ -97,7 +97,7 @@ model Session {
   @@index([userId])
   @@index([token])
   @@index([expiresAt])
-  @@map("sessions")
+  @@map("Session")
 }
 
 // Analytics snapshot - denormalized from MongoDB
@@ -117,6 +117,6 @@ model AnalyticsSnapshot {
   @@unique([org_id, date])
   @@index([org_id])
   @@index([date])
-  @@map("analytics_snapshots")
+  @@map("AnalyticsSnapshot")
 }
 

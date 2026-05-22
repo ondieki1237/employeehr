@@ -5,8 +5,83 @@ import { generateToken } from "../config/auth"
 import type { IUser, ICompany, IJWTPayload, IAPIResponse } from "../types/interfaces"
 import { emailService } from "./emailService"
 import { PasswordReset } from "../models/PasswordReset"
+import { LoginOtp } from "../models/LoginOtp"
+import { randomUUID } from "crypto"
+
+type LoginOtpType = "standard" | "company" | "employee"
+
+interface LoginOtpChallenge {
+  requiresOtp: true
+  challengeId: string
+  email: string
+  loginType: LoginOtpType
+}
+
+interface LoginSuccessPayload {
+  user: IUser
+  token: string
+  company?: ICompany
+}
 
 export class AuthService {
+  private static async issueLoginOtpChallenge(params: {
+    user: IUser
+    loginType: LoginOtpType
+    companySlug?: string
+  }): Promise<string> {
+    const otp = Math.floor(100000 + Math.random() * 900000).toString()
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000)
+    const challengeId = randomUUID()
+
+    await LoginOtp.updateMany(
+      {
+        email: params.user.email.toLowerCase(),
+        loginType: params.loginType,
+        used: false,
+      },
+      { $set: { used: true } },
+    )
+
+    await LoginOtp.create({
+      challengeId,
+      email: params.user.email.toLowerCase(),
+      userId: params.user._id?.toString(),
+      org_id: params.user.org_id,
+      loginType: params.loginType,
+      companySlug: params.companySlug,
+      otp,
+      expiresAt,
+      used: false,
+    })
+
+    const html = `
+      <p>Your login verification code is:</p>
+      <h2>${otp}</h2>
+      <p>This code will expire in 10 minutes.</p>
+      <p>If you did not attempt to login, ignore this email.</p>
+    `
+
+    await emailService.sendEmail({
+      to: params.user.email,
+      subject: "Your login verification code",
+      html,
+      companyId: params.user.org_id,
+    })
+
+    return challengeId
+  }
+
+  private static getTokenFromUser(user: IUser): string {
+    const payload: IJWTPayload = {
+      userId: user._id?.toString() || "",
+      org_id: user.org_id,
+      email: user.email,
+      role: user.role,
+    }
+
+    return generateToken(payload)
+  }
+
   // Company Registration
   static async registerCompany(
     data: Partial<ICompany> & { adminEmail: string; adminPassword: string; adminName: string },
@@ -102,7 +177,11 @@ export class AuthService {
   }
 
   // User Login
-  static async login(email: string, password: string): Promise<IAPIResponse<{ user: IUser; token: string }>> {
+  static async login(
+    email: string,
+    password: string,
+    options?: { requireOtp?: boolean },
+  ): Promise<IAPIResponse<LoginSuccessPayload | LoginOtpChallenge>> {
     try {
       const user = await User.findOne({ email: email.toLowerCase() })
 
@@ -139,15 +218,25 @@ export class AuthService {
         }
       }
 
-      // Generate token
-      const payload: IJWTPayload = {
-        userId: user._id.toString(),
-        org_id: user.org_id,
-        email: user.email,
-        role: user.role,
+      if (options?.requireOtp) {
+        const challengeId = await this.issueLoginOtpChallenge({
+          user: user.toObject() as any,
+          loginType: "standard",
+        })
+
+        return {
+          success: true,
+          message: "OTP sent to your email",
+          data: {
+            requiresOtp: true,
+            challengeId,
+            email: user.email,
+            loginType: "standard",
+          },
+        }
       }
 
-      const token = generateToken(payload)
+      const token = this.getTokenFromUser(user.toObject() as any)
 
       return {
         success: true,
@@ -161,6 +250,174 @@ export class AuthService {
       return {
         success: false,
         message: "Login failed",
+        error: error instanceof Error ? error.message : "Unknown error",
+      }
+    }
+  }
+
+  static async verifyLoginOtp(
+    email: string,
+    otp: string,
+    challengeId: string,
+    loginType: LoginOtpType,
+  ): Promise<IAPIResponse<LoginSuccessPayload>> {
+    try {
+      const challenge = await LoginOtp.findOne({
+        email: email.toLowerCase(),
+        otp,
+        challengeId,
+        loginType,
+        used: false,
+        expiresAt: { $gt: new Date() },
+      }).sort({ createdAt: -1 })
+
+      if (!challenge) {
+        return {
+          success: false,
+          message: "Invalid or expired OTP",
+        }
+      }
+
+      const user = await User.findById(challenge.userId)
+      if (!user) {
+        return {
+          success: false,
+          message: "User not found",
+        }
+      }
+
+      if (user.status !== "active") {
+        return {
+          success: false,
+          message: "User account is inactive",
+        }
+      }
+
+      const company = await Company.findById(user.org_id)
+      if (!company) {
+        return {
+          success: false,
+          message: "Company not found",
+        }
+      }
+
+      if (company.isFrozen) {
+        return {
+          success: false,
+          message: "Your account has been Frozen by the System owner. Contact him for Unlocking",
+        }
+      }
+
+      if (company.status !== "active") {
+        return {
+          success: false,
+          message: "Company account is not active",
+        }
+      }
+
+      challenge.used = true
+      await challenge.save()
+
+      const token = this.getTokenFromUser(user.toObject() as any)
+
+      return {
+        success: true,
+        message: "Login successful",
+        data: {
+          user: user.toObject() as any,
+          token,
+          ...(loginType === "standard" ? {} : { company: company.toObject() as any }),
+        },
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: "Failed to verify login OTP",
+        error: error instanceof Error ? error.message : "Unknown error",
+      }
+    }
+  }
+
+  static async resendLoginOtp(
+    email: string,
+    challengeId: string,
+    loginType: LoginOtpType,
+  ): Promise<IAPIResponse<LoginOtpChallenge>> {
+    try {
+      const currentChallenge = await LoginOtp.findOne({
+        email: email.toLowerCase(),
+        challengeId,
+        loginType,
+        used: false,
+        expiresAt: { $gt: new Date() },
+      }).sort({ createdAt: -1 })
+
+      if (!currentChallenge) {
+        return {
+          success: false,
+          message: "Challenge expired. Please login again.",
+        }
+      }
+
+      const user = await User.findById(currentChallenge.userId)
+      if (!user) {
+        return {
+          success: false,
+          message: "User not found",
+        }
+      }
+
+      if (user.status !== "active") {
+        return {
+          success: false,
+          message: "User account is inactive",
+        }
+      }
+
+      const company = await Company.findById(user.org_id)
+      if (!company) {
+        return {
+          success: false,
+          message: "Company not found",
+        }
+      }
+
+      if (company.isFrozen) {
+        return {
+          success: false,
+          message: "Your account has been Frozen by the System owner. Contact him for Unlocking",
+        }
+      }
+
+      if (company.status !== "active") {
+        return {
+          success: false,
+          message: "Company account is not active",
+        }
+      }
+
+      currentChallenge.used = true
+      await currentChallenge.save()
+
+      const nextChallengeId = await this.issueLoginOtpChallenge({
+        user: user.toObject() as any,
+        loginType,
+      })
+
+      return {
+        success: true,
+        message: "OTP resent to your email",
+        data: {
+          requiresOtp: true,
+          challengeId: nextChallengeId,
+          email: user.email,
+          loginType,
+        },
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: "Failed to resend login OTP",
         error: error instanceof Error ? error.message : "Unknown error",
       }
     }
@@ -371,8 +628,9 @@ export class AuthService {
   static async companyLogin(
     slug: string,
     email: string,
-    password: string
-  ): Promise<IAPIResponse<{ user: IUser; token: string; company: ICompany }>> {
+    password: string,
+    options?: { requireOtp?: boolean },
+  ): Promise<IAPIResponse<LoginSuccessPayload | LoginOtpChallenge>> {
     try {
       // First, find the company by slug
       const company = await Company.findOne({ slug: slug.toLowerCase() })
@@ -429,15 +687,26 @@ export class AuthService {
         }
       }
 
-      // Generate token
-      const payload: IJWTPayload = {
-        userId: user._id.toString(),
-        org_id: user.org_id,
-        email: user.email,
-        role: user.role,
+      if (options?.requireOtp) {
+        const challengeId = await this.issueLoginOtpChallenge({
+          user: user.toObject() as any,
+          loginType: "company",
+          companySlug: slug.toLowerCase(),
+        })
+
+        return {
+          success: true,
+          message: "OTP sent to your email",
+          data: {
+            requiresOtp: true,
+            challengeId,
+            email: user.email,
+            loginType: "company",
+          },
+        }
       }
 
-      const token = generateToken(payload)
+      const token = this.getTokenFromUser(user.toObject() as any)
 
       return {
         success: true,
@@ -498,8 +767,9 @@ export class AuthService {
   // Employee ID login (for /employee route)
   static async employeeIdLogin(
     employee_id: string,
-    password: string
-  ): Promise<IAPIResponse<{ user: IUser; token: string; company: ICompany }>> {
+    password: string,
+    options?: { requireOtp?: boolean },
+  ): Promise<IAPIResponse<LoginSuccessPayload | LoginOtpChallenge>> {
     try {
       // Find user by employee_id
       const user = await User.findOne({ employee_id: employee_id.toUpperCase() })
@@ -544,15 +814,32 @@ export class AuthService {
         }
       }
 
-      // Generate token
-      const payload: IJWTPayload = {
-        userId: user._id.toString(),
-        org_id: user.org_id,
-        email: user.email,
-        role: user.role,
+      if (company.isFrozen) {
+        return {
+          success: false,
+          message: "Your account has been Frozen by the System owner. Contact him for Unlocking",
+        }
       }
 
-      const token = generateToken(payload)
+      if (options?.requireOtp) {
+        const challengeId = await this.issueLoginOtpChallenge({
+          user: user.toObject() as any,
+          loginType: "employee",
+        })
+
+        return {
+          success: true,
+          message: "OTP sent to your email",
+          data: {
+            requiresOtp: true,
+            challengeId,
+            email: user.email,
+            loginType: "employee",
+          },
+        }
+      }
+
+      const token = this.getTokenFromUser(user.toObject() as any)
 
       return {
         success: true,

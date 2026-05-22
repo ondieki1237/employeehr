@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Mail, Lock, AlertCircle } from "lucide-react"
+import { Mail, Lock, AlertCircle, ShieldCheck } from "lucide-react"
 import { setToken, setUser } from "@/lib/auth"
 
 interface Company {
@@ -26,6 +26,9 @@ export default function CompanyLoginPage() {
   const [error, setError] = useState("")
   const [loginError, setLoginError] = useState("")
   const [isLoggingIn, setIsLoggingIn] = useState(false)
+  const [otpStep, setOtpStep] = useState(false)
+  const [otp, setOtp] = useState("")
+  const [challengeId, setChallengeId] = useState("")
 
   const [credentials, setCredentials] = useState({
     email: "",
@@ -73,22 +76,46 @@ export default function CompanyLoginPage() {
 
     try {
       const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5010"
-      const response = await fetch(`${API_URL}/api/auth/company-login`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          slug,
-          email: credentials.email,
-          password: credentials.password,
-        }),
-      })
+      let data: any
 
-      const data = await response.json()
+      if (!otpStep) {
+        const response = await fetch(`${API_URL}/api/auth/company-login`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            slug,
+            email: credentials.email,
+            password: credentials.password,
+          }),
+        })
+
+        data = await response.json()
+
+        if (data.success && data.data?.requiresOtp) {
+          setOtpStep(true)
+          setChallengeId(data.data.challengeId)
+          return
+        }
+      } else {
+        const response = await fetch(`${API_URL}/api/auth/verify-login-otp`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            email: credentials.email,
+            otp,
+            challengeId,
+            loginType: "company",
+          }),
+        })
+
+        data = await response.json()
+      }
 
       if (data.success && data.data) {
-        // Store token and user data
         setToken(data.data.token)
         setUser({
           _id: data.data.user._id,
@@ -99,7 +126,6 @@ export default function CompanyLoginPage() {
           org_id: data.data.user.org_id,
         })
 
-        // Redirect based on role
         const role = data.data.user.role
         if (role === "company_admin" || role === "hr") {
           router.push("/admin")
@@ -109,10 +135,47 @@ export default function CompanyLoginPage() {
           router.push("/employee")
         }
       } else {
-        setLoginError(data.message || "Login failed")
+        setLoginError(data?.message || (otpStep ? "OTP verification failed" : "Login failed"))
       }
     } catch (err: any) {
       setLoginError(err.message || "An error occurred. Please try again.")
+    } finally {
+      setIsLoggingIn(false)
+    }
+  }
+
+  const handleResendOtp = async () => {
+    if (!otpStep || !challengeId || isLoggingIn) {
+      return
+    }
+
+    try {
+      setIsLoggingIn(true)
+      setLoginError("")
+
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5010"
+      const response = await fetch(`${API_URL}/api/auth/resend-login-otp`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: credentials.email,
+          challengeId,
+          loginType: "company",
+        }),
+      })
+
+      const data = await response.json()
+
+      if (data.success && data.data) {
+        setChallengeId(data.data.challengeId)
+        setOtp("")
+      } else {
+        setLoginError(data?.message || "Failed to resend OTP")
+      }
+    } catch (err: any) {
+      setLoginError(err.message || "Failed to resend OTP")
     } finally {
       setIsLoggingIn(false)
     }
@@ -183,39 +246,89 @@ export default function CompanyLoginPage() {
             </div>
           )}
 
-          <div className="space-y-2">
-            <label className="block text-sm font-medium">Email Address</label>
-            <div className="relative">
-              <Mail className="absolute left-3 top-3 w-5 h-5 text-muted-foreground" />
-              <Input
-                type="email"
-                name="email"
-                placeholder="your.email@company.com"
-                value={credentials.email}
-                onChange={handleChange}
-                className="pl-10"
-                required
-                disabled={isLoggingIn}
-              />
+          {!otpStep ? (
+            <>
+              <div className="space-y-2">
+                <label className="block text-sm font-medium">Email Address</label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-3 w-5 h-5 text-muted-foreground" />
+                  <Input
+                    type="email"
+                    name="email"
+                    placeholder="your.email@company.com"
+                    value={credentials.email}
+                    onChange={handleChange}
+                    className="pl-10"
+                    required
+                    disabled={isLoggingIn}
+                  />
+                </div>
             </div>
-          </div>
 
-          <div className="space-y-2">
-            <label className="block text-sm font-medium">Password</label>
-            <div className="relative">
-              <Lock className="absolute left-3 top-3 w-5 h-5 text-muted-foreground" />
-              <Input
-                type="password"
-                name="password"
-                placeholder="••••••••"
-                value={credentials.password}
-                onChange={handleChange}
-                className="pl-10"
-                required
+              <div className="space-y-2">
+                <label className="block text-sm font-medium">Password</label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-3 w-5 h-5 text-muted-foreground" />
+                  <Input
+                    type="password"
+                    name="password"
+                    placeholder="••••••••"
+                    value={credentials.password}
+                    onChange={handleChange}
+                    className="pl-10"
+                    required
+                    disabled={isLoggingIn}
+                  />
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="p-3 bg-primary/10 border border-primary/30 rounded-lg text-sm">
+                <div className="flex items-center gap-2 font-medium">
+                  <ShieldCheck size={16} />
+                  OTP sent to {credentials.email}
+                </div>
+                <p className="mt-1 text-muted-foreground">Enter the 6-digit code from your email.</p>
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-sm font-medium">One-Time Password (OTP)</label>
+                <Input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={6}
+                  placeholder="123456"
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
+                  required
+                  disabled={isLoggingIn}
+                />
+              </div>
+
+              <button
+                type="button"
+                className="text-xs text-muted-foreground hover:text-foreground transition"
                 disabled={isLoggingIn}
-              />
-            </div>
-          </div>
+                onClick={() => {
+                  setOtpStep(false)
+                  setOtp("")
+                  setChallengeId("")
+                }}
+              >
+                Use different credentials
+              </button>
+
+              <button
+                type="button"
+                className="text-xs text-muted-foreground hover:text-foreground transition"
+                disabled={isLoggingIn}
+                onClick={handleResendOtp}
+              >
+                Resend OTP
+              </button>
+            </>
+          )}
 
           <Button
             type="submit"
@@ -223,7 +336,7 @@ export default function CompanyLoginPage() {
             disabled={isLoggingIn}
             style={{ backgroundColor: company?.primaryColor || '#2563eb' }}
           >
-            {isLoggingIn ? "Logging in..." : "Login"}
+            {isLoggingIn ? (otpStep ? "Verifying..." : "Logging in...") : (otpStep ? "Verify OTP" : "Login")}
           </Button>
 
           <div className="text-center text-sm text-muted-foreground">

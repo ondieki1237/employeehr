@@ -122,9 +122,6 @@ app.use(express.urlencoded({ extended: true, limit: "10mb" }))
 app.use(sanitizeInput)
 app.use(apiLimiter)
 
-// Connect to database
-connectDB()
-
 // Health check
 app.get("/health", (_req, res) => {
   res.status(200).json({
@@ -202,11 +199,16 @@ app.use(errorHandler)
 // Start server with migrations
 async function startServer() {
   try {
-    // Run Prisma migrations before starting server
-    if (process.env.NODE_ENV !== "development" || process.env.RUN_MIGRATIONS === "true") {
-      console.log("🔄 Running database migrations before startup...")
-      await runMigrations()
-    }
+    // Connect to MongoDB first
+    console.log("🔌 Connecting to MongoDB...")
+    await connectDB()
+    console.log("✅ MongoDB connection established")
+
+    // Always run Prisma migrations before starting sync scheduler
+    // The sync scheduler depends on tables existing
+    console.log("🔄 Running database migrations...")
+    await runMigrations()
+    console.log("✅ Database migrations completed")
 
     server.listen(PORT, () => {
       console.log(`✅ Server running on port ${PORT}`)
