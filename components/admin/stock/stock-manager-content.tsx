@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import Link from "next/link"
 import API_URL from "@/lib/apiBase"
 import { getToken } from "@/lib/auth"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -26,6 +27,11 @@ import {
   LineChart,
   Line,
 } from "recharts"
+import {
+  generateInvoicePdf,
+  type InvoiceDocumentSettings,
+  type TenantBranding,
+} from "@/lib/stock-document-pdf"
 
 type StockView = "add-inventory" | "sales" | "status" | "analytics" | "history" | "outsourced"
 
@@ -112,9 +118,12 @@ interface Quotation {
 interface Invoice {
   _id: string
   invoiceNumber: string
+  deliveryNoteNumber?: string
   quotationId?: string
+  client?: { name: string; number: string; location: string }
   items: QuotationItem[]
   subTotal: number
+  status?: "issued" | "paid" | "cancelled"
   createdAt: string
 }
 
@@ -180,6 +189,9 @@ export function StockManagerContent({ view }: { view: StockView }) {
   const [selectedAnalyticsProductId, setSelectedAnalyticsProductId] = useState("")
   const [analyticsDateStart, setAnalyticsDateStart] = useState("")
   const [analyticsDateEnd, setAnalyticsDateEnd] = useState("")
+  const [lastCreatedInvoice, setLastCreatedInvoice] = useState<Invoice | null>(null)
+  const [branding, setBranding] = useState<TenantBranding>({})
+  const [invoiceSettings, setInvoiceSettings] = useState<InvoiceDocumentSettings>({})
 
   const headers = useMemo(
     () => ({
@@ -916,6 +928,43 @@ export function StockManagerContent({ view }: { view: StockView }) {
       toast({ title: "Sale Error", description: result.message || "Failed", variant: "destructive" })
       return
     }
+
+    // Automatically create an invoice for the sale
+    const clientName = saleForm.isWalkInClient ? "Walk-in Client" : saleForm.buyerName || "Walk-in Client"
+    const clientNumber = saleForm.isWalkInClient ? "" : saleForm.buyerNumber || ""
+    const clientLocation = saleForm.isWalkInClient ? "" : saleForm.buyerLocation || ""
+
+    const item: QuotationItem = {
+      productId: saleForm.productId,
+      productName: productNameById.get(saleForm.productId) || "Unknown",
+      quantity: Number(saleForm.quantitySold),
+      unitPrice: Number(saleForm.soldPrice),
+      lineTotal: Number((Number(saleForm.quantitySold) * Number(saleForm.soldPrice)).toFixed(2)),
+    }
+
+    try {
+      const invoiceResponse = await fetch(`${API_URL}/api/stock/invoices/create`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          clientName,
+          clientNumber,
+          clientLocation,
+          items: [item],
+          payNow: true,
+        }),
+      })
+      const invoiceResult = await invoiceResponse.json()
+      if (invoiceResponse.ok && invoiceResult.success && invoiceResult.data?.invoice) {
+        setLastCreatedInvoice(invoiceResult.data.invoice)
+        toast({ title: "Success", description: "Sale recorded and invoice created" })
+      } else {
+        toast({ title: "Warning", description: "Sale recorded but invoice creation failed" })
+      }
+    } catch (err) {
+      toast({ title: "Warning", description: "Sale recorded but invoice creation failed" })
+    }
+
     setSaleForm({
       productId: "",
       quantitySold: "",
@@ -927,7 +976,6 @@ export function StockManagerContent({ view }: { view: StockView }) {
       buyerNumber: "",
       buyerLocation: "",
     })
-    toast({ title: "Success", description: "Sale recorded" })
     fetchAll()
   }
 
@@ -1025,6 +1073,47 @@ export function StockManagerContent({ view }: { view: StockView }) {
       fetchAll()
     } catch (err) {
       toast({ title: "Invoice Error", description: "Failed to reach server", variant: "destructive" })
+    }
+  }
+
+  const downloadInvoicePdf = async (invoice: Invoice) => {
+    if (!invoice.client || !invoice.invoiceNumber) {
+      toast({ title: "Error", description: "Invoice data is incomplete", variant: "destructive" })
+      return
+    }
+
+    try {
+      // Load branding and invoice settings if not already loaded
+      const brandingRes = await fetch(`${API_URL}/api/company/branding`, { headers })
+      if (brandingRes.ok) {
+        const brandingData = await brandingRes.json()
+        setBranding(brandingData.data || {})
+      }
+
+      const settingsRes = await fetch(`${API_URL}/api/company/invoice-settings`, { headers })
+      if (settingsRes.ok) {
+        const settingsData = await settingsRes.json()
+        setInvoiceSettings(settingsData.data || {})
+      }
+
+      const doc = generateInvoicePdf({
+        invoiceNumber: invoice.invoiceNumber,
+        deliveryNoteNumber: invoice.deliveryNoteNumber || "",
+        createdAt: invoice.createdAt,
+        client: invoice.client,
+        items: invoice.items,
+        subTotal: invoice.subTotal,
+        branding,
+        invoiceSettings,
+        preparedBy: "System",
+        watermarkText: invoice.status === "paid" ? "PAID" : invoice.status === "cancelled" ? "CANCELLED" : undefined,
+        autoSave: false,
+      })
+
+      doc.save(`invoice-${invoice.invoiceNumber}.pdf`)
+      toast({ title: "Success", description: "Invoice downloaded" })
+    } catch (err) {
+      toast({ title: "Error", description: "Failed to generate PDF", variant: "destructive" })
     }
   }
 
@@ -1630,6 +1719,83 @@ export function StockManagerContent({ view }: { view: StockView }) {
               </div>
             </CardContent>
           </Card>
+
+          {lastCreatedInvoice && (
+            <Card className="border-green-200 bg-green-50/50">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Last Created Invoice</CardTitle>
+                    <p className="text-sm text-muted-foreground mt-1">Invoice #{lastCreatedInvoice.invoiceNumber}</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button onClick={() => downloadInvoicePdf(lastCreatedInvoice)} className="bg-green-600 hover:bg-green-700">
+                      📥 Download PDF
+                    </Button>
+                    <Button asChild variant="outline">
+                      <Link href="/admin/stock/invoices?q=INV">View in Invoices</Link>
+                    </Button>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div>
+                    <p className="text-sm font-medium">Client</p>
+                    <p className="text-sm text-muted-foreground">{lastCreatedInvoice.client?.name || "Walk-in Client"}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">Contact Number</p>
+                    <p className="text-sm text-muted-foreground">{lastCreatedInvoice.client?.number || "-"}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">Location</p>
+                    <p className="text-sm text-muted-foreground">{lastCreatedInvoice.client?.location || "-"}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">Total Amount</p>
+                    <p className="text-lg font-semibold">KES {lastCreatedInvoice.subTotal.toFixed(2)}</p>
+                  </div>
+                </div>
+                <div className="mt-4">
+                  <p className="text-sm font-medium mb-2">Items</p>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="text-left border-b">
+                          <th className="py-2">Product</th>
+                          <th className="py-2">Qty</th>
+                          <th className="py-2">Unit Price</th>
+                          <th className="py-2">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {lastCreatedInvoice.items.map((item, idx) => (
+                          <tr key={idx} className="border-b">
+                            <td className="py-2">{item.productName}</td>
+                            <td className="py-2">{item.quantity}</td>
+                            <td className="py-2">{item.unitPrice.toFixed(2)}</td>
+                            <td className="py-2">{item.lineTotal.toFixed(2)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+                <div className="mt-4 flex gap-2">
+                  <Button onClick={() => downloadInvoicePdf(lastCreatedInvoice)} variant="outline">
+                    Download as PDF
+                  </Button>
+                  <Button asChild variant="outline">
+                    <Link href="/admin/stock/invoices">View All Invoices</Link>
+                  </Button>
+                  <Button onClick={() => setLastCreatedInvoice(null)} variant="ghost">
+                    Dismiss
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </>
       )}
 
