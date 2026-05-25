@@ -9,6 +9,20 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Badge } from "@/components/ui/badge"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import {
   applyStampToPdf,
   generateDeliveryNotePdf,
@@ -34,6 +48,7 @@ interface Invoice {
   items: InvoiceItem[]
   subTotal: number
   status: "issued" | "paid" | "cancelled"
+  createdBy: string
   createdAt: string
   dispatch?: {
     status: "not_assigned" | "assigned" | "packing" | "packed" | "dispatched" | "delivered"
@@ -56,6 +71,34 @@ interface DispatchUser {
 interface StampOption {
   _id: string
   name: string
+}
+
+type SortOption =
+  | "date-desc"
+  | "date-asc"
+  | "client-asc"
+  | "client-desc"
+  | "seller-asc"
+  | "seller-desc"
+  | "paid-first"
+  | "amount-desc"
+  | "amount-asc"
+  | "invoice-asc"
+  | "invoice-desc"
+
+function hexToRgb(hex: string) {
+  const normalized = hex.replace("#", "")
+  if (normalized.length !== 6) return { r: 15, g: 118, b: 110 }
+  return {
+    r: Number.parseInt(normalized.slice(0, 2), 16),
+    g: Number.parseInt(normalized.slice(2, 4), 16),
+    b: Number.parseInt(normalized.slice(4, 6), 16),
+  }
+}
+
+function hexToRgba(hex: string, alpha: number) {
+  const { r, g, b } = hexToRgb(hex)
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`
 }
 
 function exportInvoiceCsv(invoices: Invoice[]) {
@@ -105,6 +148,9 @@ export default function InvoicesPage() {
   const [invoiceSettings, setInvoiceSettings] = useState<InvoiceDocumentSettings>({})
   const [searchInput, setSearchInput] = useState("")
   const [search, setSearch] = useState("")
+  const [sortBy, setSortBy] = useState<SortOption>("date-desc")
+  const [page, setPage] = useState(1)
+  const pageSize = 10
   const [dispatchUsers, setDispatchUsers] = useState<DispatchUser[]>([])
   const [selectedDispatchByInvoice, setSelectedDispatchByInvoice] = useState<Record<string, string>>({})
   const [assigningInvoiceId, setAssigningInvoiceId] = useState<string | null>(null)
@@ -116,6 +162,10 @@ export default function InvoicesPage() {
     setSearch(q)
   }, [searchParams])
 
+  useEffect(() => {
+    setPage(1)
+  }, [search, sortBy])
+
   const headers = useMemo(
     () => ({
       "Content-Type": "application/json",
@@ -123,6 +173,10 @@ export default function InvoicesPage() {
     }),
     [],
   )
+
+  const primaryColor = branding.primaryColor || "#0f766e"
+  const primarySoftColor = hexToRgba(primaryColor, 0.08)
+  const primaryBorderColor = hexToRgba(primaryColor, 0.18)
 
   const loadInvoices = async () => {
     try {
@@ -373,6 +427,15 @@ export default function InvoicesPage() {
     loadInvoices()
   }, [])
 
+  const userNameById = useMemo(() => {
+    return new Map(
+      dispatchUsers.map((user) => {
+        const fullName = [user.firstName || user.first_name, user.lastName || user.last_name].filter(Boolean).join(" ")
+        return [user._id, fullName || user.email || user._id]
+      }),
+    )
+  }, [dispatchUsers])
+
   const filteredInvoices = invoices.filter((invoice) => {
     const query = search.trim().toLowerCase()
     if (!query) return true
@@ -386,149 +449,411 @@ export default function InvoicesPage() {
     )
   })
 
+  const sortedInvoices = useMemo(() => {
+    const sellerNameFor = (invoice: Invoice) => userNameById.get(invoice.createdBy) || "System User"
+
+    return [...filteredInvoices].sort((a, b) => {
+      const aDate = new Date(a.createdAt).getTime()
+      const bDate = new Date(b.createdAt).getTime()
+      const aClient = a.client.name.toLowerCase()
+      const bClient = b.client.name.toLowerCase()
+      const aSeller = sellerNameFor(a).toLowerCase()
+      const bSeller = sellerNameFor(b).toLowerCase()
+      const aAmount = Number(a.subTotal || 0)
+      const bAmount = Number(b.subTotal || 0)
+      const aInvoice = a.invoiceNumber.toLowerCase()
+      const bInvoice = b.invoiceNumber.toLowerCase()
+
+      switch (sortBy) {
+        case "date-asc":
+          return aDate - bDate
+        case "client-asc":
+          return aClient.localeCompare(bClient)
+        case "client-desc":
+          return bClient.localeCompare(aClient)
+        case "seller-asc":
+          return aSeller.localeCompare(bSeller)
+        case "seller-desc":
+          return bSeller.localeCompare(aSeller)
+        case "paid-first": {
+          const aPaid = a.status === "paid" ? 1 : 0
+          const bPaid = b.status === "paid" ? 1 : 0
+          if (aPaid !== bPaid) return bPaid - aPaid
+          return bDate - aDate
+        }
+        case "amount-desc":
+          return bAmount - aAmount
+        case "amount-asc":
+          return aAmount - bAmount
+        case "invoice-asc":
+          return aInvoice.localeCompare(bInvoice)
+        case "invoice-desc":
+          return bInvoice.localeCompare(aInvoice)
+        case "date-desc":
+        default:
+          return bDate - aDate
+      }
+    })
+  }, [filteredInvoices, sortBy, userNameById])
+
+  const totals = useMemo(() => {
+    return invoices.reduce(
+      (acc, invoice) => {
+        acc.total += 1
+        acc.amount += Number(invoice.subTotal || 0)
+        if (invoice.status === "paid") acc.paid += 1
+        if (invoice.status === "issued") acc.issued += 1
+        if (invoice.status === "cancelled") acc.cancelled += 1
+        return acc
+      },
+      { total: 0, amount: 0, paid: 0, issued: 0, cancelled: 0 },
+    )
+  }, [invoices])
+
+  const activeUserCount = useMemo(() => new Set(invoices.map((invoice) => invoice.createdBy).filter(Boolean)).size, [invoices])
+
+  const totalPages = Math.max(1, Math.ceil(sortedInvoices.length / pageSize))
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages)
+  }, [page, totalPages])
+
+  const pagedInvoices = useMemo(() => {
+    const start = (page - 1) * pageSize
+    return sortedInvoices.slice(start, start + pageSize)
+  }, [page, pageSize, sortedInvoices])
+
+  const visiblePages = useMemo(() => {
+    const count = Math.min(8, totalPages)
+    return Array.from({ length: count }, (_, index) => index + 1)
+  }, [totalPages])
+
   if (loading) return <div className="p-6">Loading invoices...</div>
 
+  const sellerNameFor = (invoice: Invoice) => userNameById.get(invoice.createdBy) || "System User"
+
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Invoices</h1>
-          <p className="text-sm text-muted-foreground">Includes downloadable invoice and delivery note.</p>
+    <div className="space-y-5">
+      <div className="rounded-2xl border px-4 py-3 shadow-sm" style={{ borderColor: primaryBorderColor, backgroundColor: primarySoftColor }}>
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div className="space-y-0.5">
+            <p className="text-sm font-medium tracking-wide" style={{ color: primaryColor }}>Invoices</p>
+            <h1 className="text-xl font-semibold tracking-tight text-foreground">Invoices dashboard</h1>
+            <p className="text-sm text-muted-foreground">Search, sort, download, and dispatch from one screen.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={() => exportInvoiceCsv(sortedInvoices)}>Export Invoices (Excel)</Button>
+          </div>
         </div>
-        <Button variant="outline" onClick={() => exportInvoiceCsv(filteredInvoices)}>Export Invoices (Excel)</Button>
+
+        <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+          <Card className="shadow-sm">
+            <CardContent className="p-3">
+              <div className="text-xs uppercase tracking-wide text-muted-foreground">Total invoices</div>
+              <div className="mt-1 text-xl font-semibold">{totals.total}</div>
+            </CardContent>
+          </Card>
+          <Card className="shadow-sm">
+            <CardContent className="p-3">
+              <div className="text-xs uppercase tracking-wide text-muted-foreground">Paid</div>
+              <div className="mt-1 text-xl font-semibold" style={{ color: primaryColor }}>{totals.paid}</div>
+              <div className="mt-1 text-xs text-muted-foreground">KES {totals.amount.toLocaleString("en-KE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+            </CardContent>
+          </Card>
+          <Card className="shadow-sm">
+            <CardContent className="p-3">
+              <div className="text-xs uppercase tracking-wide text-muted-foreground">Issued</div>
+              <div className="mt-1 text-xl font-semibold">{totals.issued}</div>
+            </CardContent>
+          </Card>
+          <Card className="shadow-sm">
+            <CardContent className="p-3">
+              <div className="text-xs uppercase tracking-wide text-muted-foreground">Active sellers</div>
+              <div className="mt-1 text-xl font-semibold">{activeUserCount}</div>
+            </CardContent>
+          </Card>
+        </div>
+        <div className="mt-3 rounded-xl border bg-white/90 p-3 shadow-sm backdrop-blur-sm">
+          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_240px_200px] lg:items-end">
+            <div className="space-y-2">
+              <Label>Search</Label>
+              <Input
+                placeholder="Invoice, delivery note, quotation, client..."
+                value={searchInput}
+                onChange={(event) => setSearchInput(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") setSearch(searchInput)
+                }}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Sort by</Label>
+              <Select value={sortBy} onValueChange={(value: SortOption) => setSortBy(value)}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Sort invoices" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="date-desc">Date: newest first</SelectItem>
+                  <SelectItem value="date-asc">Date: oldest first</SelectItem>
+                  <SelectItem value="paid-first">Paid first</SelectItem>
+                  <SelectItem value="client-asc">Client name: A to Z</SelectItem>
+                  <SelectItem value="client-desc">Client name: Z to A</SelectItem>
+                  <SelectItem value="seller-asc">Seller: A to Z</SelectItem>
+                  <SelectItem value="seller-desc">Seller: Z to A</SelectItem>
+                  <SelectItem value="amount-desc">Amount: highest first</SelectItem>
+                  <SelectItem value="amount-asc">Amount: lowest first</SelectItem>
+                  <SelectItem value="invoice-asc">Invoice number: A to Z</SelectItem>
+                  <SelectItem value="invoice-desc">Invoice number: Z to A</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex gap-2">
+              <Button className="w-full" onClick={() => setSearch(searchInput)}>
+                Apply search
+              </Button>
+            </div>
+          </div>
+        </div>
       </div>
 
-      <Card>
-        <CardHeader><CardTitle>Search Invoices</CardTitle></CardHeader>
-        <CardContent className="flex flex-col gap-3 md:flex-row md:items-end">
-          <div className="w-full md:max-w-md">
-            <Label>Search</Label>
-            <Input
-              placeholder="Invoice, delivery note, quotation, client..."
-              value={searchInput}
-              onChange={(event) => setSearchInput(event.target.value)}
-            />
+      <Card className="overflow-hidden shadow-sm">
+        <CardHeader className="border-b bg-muted/30 pb-3">
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <CardTitle className="text-base">Invoice list</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Showing {sortedInvoices.length} of {invoices.length} invoices
+              </p>
+            </div>
+            <p className="text-xs text-muted-foreground">Rows are compacted for faster scanning.</p>
           </div>
-          <Button variant="outline" onClick={() => setSearch(searchInput)}>Search</Button>
-        </CardContent>
-      </Card>
+        </CardHeader>
+        <CardContent className="p-0">
+          {sortedInvoices.length === 0 ? (
+            <div className="flex min-h-[220px] items-center justify-center px-6 py-10 text-center">
+              <div>
+                <p className="text-sm font-medium text-foreground">No invoices found</p>
+                <p className="mt-1 text-sm text-muted-foreground">Try adjusting your search or sorting options.</p>
+              </div>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-[1200px] w-full table-fixed text-[13px]">
+                <thead className="sticky top-0 z-10 bg-muted/80 text-left text-[11px] uppercase tracking-wide text-muted-foreground backdrop-blur">
+                  <tr className="border-b">
+                    <th className="px-3 py-3 font-medium w-[13%]">Invoice #</th>
+                    <th className="px-3 py-3 font-medium w-[21%]">Client</th>
+                    <th className="px-3 py-3 font-medium w-[14%]">Seller</th>
+                    <th className="px-3 py-3 font-medium w-[8%]">Items</th>
+                    <th className="px-3 py-3 font-medium w-[11%]">Amount</th>
+                    <th className="px-3 py-3 font-medium w-[9%]">Status</th>
+                    <th className="px-3 py-3 font-medium w-[17%]">Dispatch</th>
+                    <th className="px-3 py-3 font-medium w-[11%]">Date</th>
+                    <th className="px-3 py-3 font-medium w-[8%]">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sortedInvoices.map((invoice, index) => {
+                    const sellerName = sellerNameFor(invoice)
+                    const packingItems = invoice.dispatch?.packingItems || []
+                    const required = packingItems.reduce((sum, item) => sum + Number(item.requiredQuantity || 0), 0)
+                    const packed = packingItems.reduce((sum, item) => sum + Number(item.packedQuantity || 0), 0)
+                    const isFullyPacked = required > 0 && packed >= required
+                    const hasProgress = packed > 0
+                    const dispatchState = invoice.dispatch?.status || "not_assigned"
+                    const isDelivered = dispatchState === "delivered"
 
-      <Card>
-        <CardHeader><CardTitle>Invoice List (with Delivery Notes)</CardTitle></CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left border-b">
-                  <th className="py-2">Invoice #</th>
-                  <th className="py-2">Client</th>
-                  <th className="py-2">Items</th>
-                  <th className="py-2">Amount</th>
-                  <th className="py-2">Status</th>
-                  <th className="py-2">Dispatch</th>
-                  <th className="py-2">Date</th>
-                  <th className="py-2">Downloads</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredInvoices.map((invoice) => (
-                  <tr key={invoice._id} className="border-b align-top">
-                    <td className="py-2">{invoice.invoiceNumber}</td>
-                    <td className="py-2">
-                      <div className="font-medium">{invoice.client.name}</div>
-                      <div className="text-xs text-muted-foreground">{invoice.client.number}</div>
-                      <div className="text-xs text-muted-foreground">{invoice.client.location}</div>
-                    </td>
-                    <td className="py-2">{invoice.items.length}</td>
-                    <td className="py-2">{invoice.subTotal.toFixed(2)}</td>
-                    <td className="py-2 capitalize">{invoice.status}</td>
-                    <td className="py-2">
-                      {(() => {
-                        const packingItems = invoice.dispatch?.packingItems || []
-                        const required = packingItems.reduce((sum, item) => sum + Number(item.requiredQuantity || 0), 0)
-                        const packed = packingItems.reduce((sum, item) => sum + Number(item.packedQuantity || 0), 0)
-                        const isFullyPacked = required > 0 && packed >= required
-                        const hasProgress = packed > 0
-                        const dispatchState = invoice.dispatch?.status || "not_assigned"
-                        const isDelivered = dispatchState === "delivered"
+                    const dispatchLabel = isFullyPacked
+                      ? `Packed ${packed}/${required}`
+                      : hasProgress
+                        ? `Partial ${packed}/${required}`
+                        : dispatchState.replaceAll("_", " ")
 
-                        const statusLabel = isFullyPacked
-                          ? `Packed ${packed}/${required}`
-                          : hasProgress
-                            ? `Partial ${packed}/${required}`
-                            : ""
+                    const dispatchTone = isDelivered || isFullyPacked
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                      : hasProgress
+                        ? "border-amber-200 bg-amber-50 text-amber-700"
+                        : "border-slate-200 bg-slate-50 text-slate-600"
 
-                        const statusClass = isFullyPacked
-                          ? "text-green-700 bg-green-50 border-green-200"
-                          : hasProgress
-                            ? "text-red-700 bg-red-50 border-red-200"
-                            : "text-gray-600 bg-gray-50 border-gray-200"
-
-                        return (
-                          <div className="min-w-[620px] flex items-center gap-2">
-                            {!!statusLabel && (
-                              <span className={`inline-flex items-center rounded border px-2 py-1 text-xs font-medium whitespace-nowrap ${statusClass}`}>
-                                {statusLabel}
+                    return (
+                      <tr
+                        key={invoice._id}
+                        className={`border-b align-top transition-colors hover:bg-muted/40 ${index % 2 === 0 ? "bg-white" : "bg-muted/20"}`}
+                      >
+                        <td className="px-3 py-2 align-top">
+                          <div className="min-w-0">
+                            <div className="truncate font-medium text-foreground" title={invoice.invoiceNumber}>
+                              {invoice.invoiceNumber}
+                            </div>
+                            <div className="truncate text-[11px] text-muted-foreground" title={invoice.deliveryNoteNumber}>
+                              DN {invoice.deliveryNoteNumber}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-3 py-2 align-top">
+                          <div className="min-w-0">
+                            <div className="truncate font-medium text-foreground" title={invoice.client.name}>
+                              {invoice.client.name}
+                            </div>
+                            <div className="truncate text-[11px] text-muted-foreground" title={`${invoice.client.number} ${invoice.client.location}`.trim()}>
+                              {[invoice.client.number, invoice.client.location].filter(Boolean).join(" · ") || "-"}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-3 py-2 align-top">
+                          <div className="truncate text-foreground" title={sellerName}>
+                            {sellerName}
+                          </div>
+                        </td>
+                        <td className="px-3 py-2 align-top text-muted-foreground">{invoice.items.length}</td>
+                        <td className="px-3 py-2 align-top font-medium text-foreground">KES {invoice.subTotal.toLocaleString("en-KE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                        <td className="px-3 py-2 align-top">
+                          <Badge
+                            variant="outline"
+                            className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium capitalize ${invoice.status === "paid"
+                              ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                              : invoice.status === "cancelled"
+                                ? "border-rose-200 bg-rose-50 text-rose-700"
+                                : "border-sky-200 bg-sky-50 text-sky-700"
+                              }`}
+                          >
+                            {invoice.status}
+                          </Badge>
+                        </td>
+                        <td className="px-3 py-2 align-top">
+                          <div className="flex min-w-0 flex-col gap-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium whitespace-nowrap ${dispatchTone}`}>
+                                {dispatchLabel}
                               </span>
-                            )}
-                            {dispatchState !== "not_assigned" && (
-                              <span className="text-xs capitalize whitespace-nowrap">{dispatchState}</span>
-                            )}
+                              {dispatchState !== "not_assigned" && (
+                                <span className="text-[11px] capitalize text-muted-foreground whitespace-nowrap">
+                                  {dispatchState.replaceAll("_", " ")}
+                                </span>
+                              )}
+                            </div>
                             {!isDelivered && (
-                              <>
-                                <select
-                                  className="w-[220px] rounded border px-2 py-1 text-xs"
+                              <div className="flex flex-wrap items-center gap-2">
+                                <Select
                                   value={selectedDispatchByInvoice[invoice._id] || ""}
-                                  onChange={(event) =>
+                                  onValueChange={(value) =>
                                     setSelectedDispatchByInvoice((prev) => ({
                                       ...prev,
-                                      [invoice._id]: event.target.value,
+                                      [invoice._id]: value,
                                     }))
                                   }
                                 >
-                                  <option value="">Assign dispatch user</option>
-                                  {dispatchUsers.map((user) => {
-                                    const fullName = `${user.firstName || user.first_name || ""} ${user.lastName || user.last_name || ""}`.trim() || user._id
-                                    return (
-                                      <option key={user._id} value={user._id}>
-                                        {fullName} {user.role ? `(${user.role})` : ""}
-                                      </option>
-                                    )
-                                  })}
-                                </select>
+                                  <SelectTrigger className="h-8 w-full min-w-[180px] text-xs">
+                                    <SelectValue placeholder="Assign handler" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {dispatchUsers.map((user) => {
+                                      const fullName = `${user.firstName || user.first_name || ""} ${user.lastName || user.last_name || ""}`.trim() || user._id
+                                      return (
+                                        <SelectItem key={user._id} value={user._id}>
+                                          {fullName}{user.role ? ` (${user.role})` : ""}
+                                        </SelectItem>
+                                      )
+                                    })}
+                                  </SelectContent>
+                                </Select>
                                 <Button
                                   size="sm"
                                   variant="outline"
                                   onClick={() => assignToDispatch(invoice._id)}
                                   disabled={assigningInvoiceId === invoice._id}
-                                  className="whitespace-nowrap"
+                                  className="h-8 whitespace-nowrap"
                                 >
-                                  Assign Handler
+                                  Assign
                                 </Button>
-                              </>
+                              </div>
                             )}
-                            <Button size="sm" variant="outline" asChild className="whitespace-nowrap">
-                              <Link href={`/admin/stock/dispatch/${invoice._id}`}>Open Dispatch Form</Link>
-                            </Button>
                           </div>
-                        )
-                      })()}
-                    </td>
-                    <td className="py-2">{new Date(invoice.createdAt).toLocaleString()}</td>
-                    <td className="py-2">
-                      <div className="flex flex-col">
-                        <div className="flex flex-wrap gap-2">
-                          <Button size="sm" variant="outline" onClick={() => handleDownloadInvoicePdf(invoice)}>Invoice PDF</Button>
-                          <Button size="sm" variant="outline" onClick={() => handleDownloadDeliveryNotePdf(invoice)}>Delivery Note PDF</Button>
-                        </div>
-                        <div className="mt-1 text-xs text-muted-foreground self-end">Prepared By { (getUser()?.first_name || "Admin") } { (getUser()?.last_name || "") }</div>
-                      </div>
-                    </td>
-                  </tr>
+                        </td>
+                        <td className="px-3 py-2 align-top text-[11px] text-muted-foreground">
+                          {new Date(invoice.createdAt).toLocaleDateString("en-KE", {
+                            year: "numeric",
+                            month: "short",
+                            day: "2-digit",
+                          })}
+                          <div className="mt-0.5 text-[10px]">{new Date(invoice.createdAt).toLocaleTimeString("en-KE", { hour: "2-digit", minute: "2-digit" })}</div>
+                        </td>
+                        <td className="px-3 py-2 align-top">
+                          <div className="flex flex-col gap-2">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button size="sm" variant="outline" className="h-8 w-full whitespace-nowrap">
+                                  Actions
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="w-52">
+                                <DropdownMenuItem onClick={() => handleDownloadInvoicePdf(invoice)}>
+                                  Download invoice PDF
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleDownloadDeliveryNotePdf(invoice)}>
+                                  Download delivery note
+                                </DropdownMenuItem>
+                                <DropdownMenuItem asChild>
+                                  <Link href={`/admin/stock/dispatch/${invoice._id}`}>Open dispatch form</Link>
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {sortedInvoices.length > 0 && (
+            <div className="flex flex-col gap-3 border-t px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="text-sm text-muted-foreground">
+                Showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, sortedInvoices.length)} of {sortedInvoices.length}
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={page === 1}
+                  onClick={() => setPage((current) => Math.max(1, current - 1))}
+                >
+                  Prev
+                </Button>
+                {visiblePages.map((pageNumber) => (
+                  <Button
+                    key={pageNumber}
+                    variant={pageNumber === page ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setPage(pageNumber)}
+                    className="min-w-9"
+                  >
+                    {pageNumber}
+                  </Button>
                 ))}
-              </tbody>
-            </table>
-          </div>
+                {totalPages > 8 && <span className="px-1 text-sm text-muted-foreground">…</span>}
+                {totalPages > 8 && (
+                  <Button
+                    variant={page === totalPages ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setPage(totalPages)}
+                    className="min-w-9"
+                  >
+                    {totalPages}
+                  </Button>
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={page === totalPages}
+                  onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

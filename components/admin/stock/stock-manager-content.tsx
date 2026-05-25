@@ -189,6 +189,14 @@ export function StockManagerContent({ view }: { view: StockView }) {
   const [selectedAnalyticsProductId, setSelectedAnalyticsProductId] = useState("")
   const [analyticsDateStart, setAnalyticsDateStart] = useState("")
   const [analyticsDateEnd, setAnalyticsDateEnd] = useState("")
+  const [historySearchInput, setHistorySearchInput] = useState("")
+  const [historySearch, setHistorySearch] = useState("")
+  const [historySort, setHistorySort] = useState<"date-desc" | "date-asc" | "product-asc" | "product-desc" | "qty-desc" | "qty-asc" | "buyer-asc" | "buyer-desc">("date-desc")
+  const [historyPage, setHistoryPage] = useState(1)
+  const [outsourcedSearchInput, setOutsourcedSearchInput] = useState("")
+  const [outsourcedSearch, setOutsourcedSearch] = useState("")
+  const [outsourcedSort, setOutsourcedSort] = useState<"value-desc" | "value-asc" | "quantity-desc" | "quantity-asc" | "name-asc" | "name-desc">("value-desc")
+  const [outsourcedPage, setOutsourcedPage] = useState(1)
   const [lastCreatedInvoice, setLastCreatedInvoice] = useState<Invoice | null>(null)
   const [branding, setBranding] = useState<TenantBranding>({})
   const [invoiceSettings, setInvoiceSettings] = useState<InvoiceDocumentSettings>({})
@@ -200,6 +208,10 @@ export function StockManagerContent({ view }: { view: StockView }) {
     }),
     [],
   )
+
+  const primaryColor = branding.primaryColor || "#0f766e"
+  const primarySoftColor = `${primaryColor}12`
+  const primaryBorderColor = `${primaryColor}2E`
 
   const fetchAll = async () => {
     try {
@@ -260,6 +272,14 @@ export function StockManagerContent({ view }: { view: StockView }) {
       setAnalyticsDateEnd(end.toISOString().slice(0, 10))
     }
   }, [analyticsDateStart, analyticsDateEnd])
+
+  useEffect(() => {
+    setHistoryPage(1)
+  }, [historySearch, historySort])
+
+  useEffect(() => {
+    setOutsourcedPage(1)
+  }, [outsourcedSearch, outsourcedSort])
 
   const lowStockProducts = products.filter((product) => product.currentQuantity <= product.minAlertQuantity)
   const totalInventoryUnits = products.reduce((sum, product) => sum + (product.currentQuantity || 0), 0)
@@ -780,6 +800,142 @@ export function StockManagerContent({ view }: { view: StockView }) {
       topOutsourcedProducts,
     }
   }, [entries, invoices, products, quotations, sales, totalSalesValue])
+
+  const normalizedHistorySearch = historySearch.trim().toLowerCase()
+  const filteredHistoryEntries = filteredEntries.filter((entry) => {
+    if (!normalizedHistorySearch) return true
+    const productName = (productNameById.get(entry.productId) || entry.productId || "").toLowerCase()
+    const branchName = (branchNameById.get(entry.branchId || "") || entry.branchId || "").toLowerCase()
+    const note = String(entry.note || "").toLowerCase()
+    const company = String(entry.outsourcedCompany || "").toLowerCase()
+    return productName.includes(normalizedHistorySearch) || branchName.includes(normalizedHistorySearch) || note.includes(normalizedHistorySearch) || company.includes(normalizedHistorySearch)
+  })
+  const filteredHistorySales = filteredSales.filter((sale) => {
+    if (!normalizedHistorySearch) return true
+    const productName = (sale.product?.name || "").toLowerCase()
+    const buyer = (sale.isWalkInClient ? "Walk-in Client" : sale.buyerName || "").toLowerCase()
+    const soldBy = sale.soldByUser ? `${sale.soldByUser.firstName} ${sale.soldByUser.lastName}`.toLowerCase() : ""
+    const receipt = String(sale.receiptNumber || "").toLowerCase()
+    return productName.includes(normalizedHistorySearch) || buyer.includes(normalizedHistorySearch) || soldBy.includes(normalizedHistorySearch) || receipt.includes(normalizedHistorySearch)
+  })
+  const sortedHistoryEntries = useMemo(() => {
+    return [...filteredHistoryEntries].sort((a, b) => {
+      const aDate = new Date(a.entryDate || a.createdAt).getTime()
+      const bDate = new Date(b.entryDate || b.createdAt).getTime()
+      const aProduct = (productNameById.get(a.productId) || a.productId).toLowerCase()
+      const bProduct = (productNameById.get(b.productId) || b.productId).toLowerCase()
+      const aQty = Number(a.quantityAdded || 0)
+      const bQty = Number(b.quantityAdded || 0)
+      const aBuyer = String(a.note || "").toLowerCase()
+      const bBuyer = String(b.note || "").toLowerCase()
+      switch (historySort) {
+        case "date-asc":
+          return aDate - bDate
+        case "product-asc":
+          return aProduct.localeCompare(bProduct)
+        case "product-desc":
+          return bProduct.localeCompare(aProduct)
+        case "qty-asc":
+          return aQty - bQty
+        case "qty-desc":
+          return bQty - aQty
+        case "buyer-asc":
+          return aBuyer.localeCompare(bBuyer)
+        case "buyer-desc":
+          return bBuyer.localeCompare(aBuyer)
+        case "date-desc":
+        default:
+          return bDate - aDate
+      }
+    })
+  }, [filteredHistoryEntries, historySort, productNameById])
+  const sortedHistorySales = useMemo(() => {
+    return [...filteredHistorySales].sort((a, b) => {
+      const aDate = new Date(a.createdAt).getTime()
+      const bDate = new Date(b.createdAt).getTime()
+      const aProduct = (a.product?.name || "").toLowerCase()
+      const bProduct = (b.product?.name || "").toLowerCase()
+      const aQty = Number(a.quantitySold || 0)
+      const bQty = Number(b.quantitySold || 0)
+      const aBuyer = (a.isWalkInClient ? "Walk-in Client" : a.buyerName || "").toLowerCase()
+      const bBuyer = (b.isWalkInClient ? "Walk-in Client" : b.buyerName || "").toLowerCase()
+      switch (historySort) {
+        case "date-asc":
+          return aDate - bDate
+        case "product-asc":
+          return aProduct.localeCompare(bProduct)
+        case "product-desc":
+          return bProduct.localeCompare(aProduct)
+        case "qty-asc":
+          return aQty - bQty
+        case "qty-desc":
+          return bQty - aQty
+        case "buyer-asc":
+          return aBuyer.localeCompare(bBuyer)
+        case "buyer-desc":
+          return bBuyer.localeCompare(aBuyer)
+        case "date-desc":
+        default:
+          return bDate - aDate
+      }
+    })
+  }, [filteredHistorySales, historySort])
+  const historyPageSize = 10
+  const historyTotalPages = Math.max(1, Math.ceil(Math.max(sortedHistoryEntries.length, sortedHistorySales.length) / historyPageSize))
+  const historyEntriesPage = useMemo(() => {
+    const start = (historyPage - 1) * historyPageSize
+    return sortedHistoryEntries.slice(start, start + historyPageSize)
+  }, [historyPage, sortedHistoryEntries])
+  const historySalesPage = useMemo(() => {
+    const start = (historyPage - 1) * historyPageSize
+    return sortedHistorySales.slice(start, start + historyPageSize)
+  }, [historyPage, sortedHistorySales])
+  const normalizedOutsourcedSearch = outsourcedSearch.trim().toLowerCase()
+  const filteredOutsourcedProducts = outsourcedStats.topOutsourcedProducts.filter((product) => {
+    if (!normalizedOutsourcedSearch) return true
+    return product.name.toLowerCase().includes(normalizedOutsourcedSearch)
+  })
+  const filteredOutsourcedRecommendations = outsourcedStats.importRecommendations.filter((item) => {
+    if (!normalizedOutsourcedSearch) return true
+    return item.name.toLowerCase().includes(normalizedOutsourcedSearch) || item.reason.toLowerCase().includes(normalizedOutsourcedSearch)
+  })
+  const filteredOutsourcedSuppliers = outsourcedStats.supplierBreakdown.filter((supplier) => {
+    if (!normalizedOutsourcedSearch) return true
+    return supplier.company.toLowerCase().includes(normalizedOutsourcedSearch)
+  })
+  const sortedOutsourcedProducts = useMemo(() => {
+    return [...filteredOutsourcedProducts].sort((a, b) => {
+      switch (outsourcedSort) {
+        case "value-asc":
+          return a.value - b.value
+        case "quantity-desc":
+          return b.quantity - a.quantity
+        case "quantity-asc":
+          return a.quantity - b.quantity
+        case "name-asc":
+          return a.name.localeCompare(b.name)
+        case "name-desc":
+          return b.name.localeCompare(a.name)
+        case "value-desc":
+        default:
+          return b.value - a.value
+      }
+    })
+  }, [filteredOutsourcedProducts, outsourcedSort])
+  const outsourcedPageSize = 8
+  const outsourcedTotalPages = Math.max(1, Math.ceil(Math.max(sortedOutsourcedProducts.length, filteredOutsourcedRecommendations.length, filteredOutsourcedSuppliers.length) / outsourcedPageSize))
+  const outsourcedProductsPage = useMemo(() => {
+    const start = (outsourcedPage - 1) * outsourcedPageSize
+    return sortedOutsourcedProducts.slice(start, start + outsourcedPageSize)
+  }, [outsourcedPage, sortedOutsourcedProducts])
+  const outsourcedRecommendationsPage = useMemo(() => {
+    const start = (outsourcedPage - 1) * outsourcedPageSize
+    return filteredOutsourcedRecommendations.slice(start, start + outsourcedPageSize)
+  }, [filteredOutsourcedRecommendations, outsourcedPage])
+  const outsourcedSuppliersPage = useMemo(() => {
+    const start = (outsourcedPage - 1) * outsourcedPageSize
+    return filteredOutsourcedSuppliers.slice(start, start + outsourcedPageSize)
+  }, [filteredOutsourcedSuppliers, outsourcedPage])
 
   const escapeCsv = (value: string | number | null | undefined) => {
     const stringValue = String(value ?? "")
@@ -2366,123 +2522,85 @@ export function StockManagerContent({ view }: { view: StockView }) {
 
       {view === "outsourced" && (
         <>
-          <div className="space-y-6">
-            {/* Header */}
-            <div>
-              <h1 className="text-3xl font-bold">Outsourced Product Analytics</h1>
-              <p className="text-gray-600 mt-2">Monitor suppliers, inventory, and outsourced product performance</p>
-            </div>
+          <div className="space-y-5">
+            <div className="rounded-2xl border px-4 py-3 shadow-sm" style={{ borderColor: primaryBorderColor, backgroundColor: primarySoftColor }}>
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                <div className="space-y-0.5">
+                  <p className="text-sm font-medium tracking-wide" style={{ color: primaryColor }}>Outsourced</p>
+                  <h1 className="text-xl font-semibold tracking-tight text-foreground">Outsourced analytics</h1>
+                  <p className="text-sm text-muted-foreground">Monitor suppliers, products, and import recommendations.</p>
+                </div>
+              </div>
 
-            {/* Overview KPIs */}
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-              <Card>
-                <CardHeader className="pb-3"><CardTitle className="text-sm font-medium">Stock Entries</CardTitle></CardHeader>
-                <CardContent><p className="text-3xl font-bold">{outsourcedStats.outsourcedStockEntriesCount}</p><p className="text-xs text-gray-500 mt-1">Total entries received</p></CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="pb-3"><CardTitle className="text-sm font-medium">Units Added</CardTitle></CardHeader>
-                <CardContent><p className="text-3xl font-bold">{outsourcedStats.outsourcedUnitsAdded}</p><p className="text-xs text-gray-500 mt-1">Total quantity received</p></CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="pb-3"><CardTitle className="text-sm font-medium">Suppliers</CardTitle></CardHeader>
-                <CardContent><p className="text-3xl font-bold">{outsourcedStats.outsourcedSuppliersCount}</p><p className="text-xs text-gray-500 mt-1">Active supplier companies</p></CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="pb-3"><CardTitle className="text-sm font-medium">Quote Value</CardTitle></CardHeader>
-                <CardContent><p className="text-3xl font-bold">{outsourcedStats.outsourcedValue.toFixed(2)}</p><p className="text-xs text-gray-500 mt-1">Total quoted value</p></CardContent>
-              </Card>
-            </div>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                <Card className="shadow-sm"><CardContent className="p-3"><div className="text-xs uppercase tracking-wide text-muted-foreground">Entries</div><div className="mt-1 text-xl font-semibold">{outsourcedStats.outsourcedStockEntriesCount}</div></CardContent></Card>
+                <Card className="shadow-sm"><CardContent className="p-3"><div className="text-xs uppercase tracking-wide text-muted-foreground">Units added</div><div className="mt-1 text-xl font-semibold">{outsourcedStats.outsourcedUnitsAdded}</div></CardContent></Card>
+                <Card className="shadow-sm"><CardContent className="p-3"><div className="text-xs uppercase tracking-wide text-muted-foreground">Suppliers</div><div className="mt-1 text-xl font-semibold">{outsourcedStats.outsourcedSuppliersCount}</div></CardContent></Card>
+                <Card className="shadow-sm"><CardContent className="p-3"><div className="text-xs uppercase tracking-wide text-muted-foreground">Sales value</div><div className="mt-1 text-xl font-semibold">{outsourcedStats.outsourcedSalesValue.toFixed(2)}</div></CardContent></Card>
+              </div>
 
-            {/* Performance & Sales */}
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-              <Card>
-                <CardHeader className="pb-3"><CardTitle className="text-sm font-medium">Products</CardTitle></CardHeader>
-                <CardContent><p className="text-3xl font-bold">{outsourcedStats.outsourcedProductsCount}</p><p className="text-xs text-gray-500 mt-1">Outsourced SKUs</p></CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="pb-3"><CardTitle className="text-sm font-medium">Sales Value</CardTitle></CardHeader>
-                <CardContent><p className="text-3xl font-bold">{outsourcedStats.outsourcedSalesValue.toFixed(2)}</p><p className="text-xs text-gray-500 mt-1">Revenue from sales</p></CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="pb-3"><CardTitle className="text-sm font-medium">Contribution</CardTitle></CardHeader>
-                <CardContent><p className="text-3xl font-bold">{outsourcedStats.contributionToTotalSalesPercent.toFixed(1)}%</p><p className="text-xs text-gray-500 mt-1">Of total sales mix</p></CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="pb-3"><CardTitle className="text-sm font-medium">Units Sold</CardTitle></CardHeader>
-                <CardContent><p className="text-3xl font-bold">{outsourcedStats.outsourcedSalesUnits}</p><p className="text-xs text-gray-500 mt-1">Quantity sold</p></CardContent>
-              </Card>
-            </div>
-
-            {/* Quote & Invoice Activity */}
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              <Card>
-                <CardHeader className="pb-3"><CardTitle className="text-sm font-medium">Quotations Active</CardTitle></CardHeader>
-                <CardContent><p className="text-3xl font-bold">{outsourcedStats.quotationsWithOutsourced}</p><p className="text-xs text-gray-500 mt-1">With outsourced items</p></CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="pb-3"><CardTitle className="text-sm font-medium">Quote Items</CardTitle></CardHeader>
-                <CardContent><p className="text-3xl font-bold">{outsourcedStats.outsourcedQuotationItemsCount}</p><p className="text-xs text-gray-500 mt-1">Line items quoted</p></CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="pb-3"><CardTitle className="text-sm font-medium">Invoice Items</CardTitle></CardHeader>
-                <CardContent><p className="text-3xl font-bold">{outsourcedStats.outsourcedInvoiceItemsCount}</p><p className="text-xs text-gray-500 mt-1">Line items invoiced</p></CardContent>
-              </Card>
-            </div>
-
-            {/* Leading Product */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Leading Outsourced Performer</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {!outsourcedStats.leadingOutsourcedProduct ? (
-                  <p className="text-sm text-muted-foreground">No outsourced sales yet.</p>
-                ) : (
-                  <div className="space-y-4">
-                    <div>
-                      <p className="text-lg font-semibold">{outsourcedStats.leadingOutsourcedProduct.name}</p>
-                      <div className="mt-3 grid grid-cols-2 gap-4">
-                        <div>
-                          <p className="text-xs text-gray-600">Units Sold</p>
-                          <p className="text-2xl font-bold mt-1">{outsourcedStats.leadingOutsourcedProduct.quantitySold}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-gray-600">Sales Revenue</p>
-                          <p className="text-2xl font-bold mt-1">{outsourcedStats.leadingOutsourcedProduct.salesValue.toFixed(2)}</p>
-                        </div>
-                      </div>
-                    </div>
+              <div className="mt-3 rounded-xl border bg-white/90 p-3 shadow-sm backdrop-blur-sm">
+                <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_240px_200px] lg:items-end">
+                  <div className="space-y-2">
+                    <Label>Search</Label>
+                    <Input
+                      placeholder="Product, supplier, recommendation..."
+                      value={outsourcedSearchInput}
+                      onChange={(event) => setOutsourcedSearchInput(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") setOutsourcedSearch(outsourcedSearchInput)
+                      }}
+                    />
                   </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Top Products Table */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Top Outsourced Products</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {outsourcedStats.topOutsourcedProducts.length === 0 ? (
-                  <div className="text-center py-8">
-                    <p className="text-sm text-muted-foreground">No outsourced products recorded yet.</p>
+                  <div className="space-y-2">
+                    <Label>Sort by</Label>
+                    <Select value={outsourcedSort} onValueChange={(value) => setOutsourcedSort(value as typeof outsourcedSort)}>
+                      <SelectTrigger><SelectValue placeholder="Sort products" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="value-desc">Value: highest first</SelectItem>
+                        <SelectItem value="value-asc">Value: lowest first</SelectItem>
+                        <SelectItem value="quantity-desc">Quantity: highest first</SelectItem>
+                        <SelectItem value="quantity-asc">Quantity: lowest first</SelectItem>
+                        <SelectItem value="name-asc">Name: A to Z</SelectItem>
+                        <SelectItem value="name-desc">Name: Z to A</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
+                  <div className="flex gap-2">
+                    <Button className="w-full" onClick={() => setOutsourcedSearch(outsourcedSearchInput)}>Apply search</Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <Card className="shadow-sm"><CardContent className="p-3"><div className="text-xs uppercase tracking-wide text-muted-foreground">Products</div><div className="mt-1 text-xl font-semibold">{outsourcedStats.outsourcedProductsCount}</div></CardContent></Card>
+              <Card className="shadow-sm"><CardContent className="p-3"><div className="text-xs uppercase tracking-wide text-muted-foreground">Quotation value</div><div className="mt-1 text-xl font-semibold">{outsourcedStats.outsourcedValue.toFixed(2)}</div></CardContent></Card>
+              <Card className="shadow-sm"><CardContent className="p-3"><div className="text-xs uppercase tracking-wide text-muted-foreground">Contribution %</div><div className="mt-1 text-xl font-semibold">{outsourcedStats.contributionToTotalSalesPercent.toFixed(1)}%</div></CardContent></Card>
+              <Card className="shadow-sm"><CardContent className="p-3"><div className="text-xs uppercase tracking-wide text-muted-foreground">Units sold</div><div className="mt-1 text-xl font-semibold">{outsourcedStats.outsourcedSalesUnits}</div></CardContent></Card>
+            </div>
+
+            <Card className="shadow-sm">
+              <CardHeader className="border-b bg-muted/30 pb-3"><CardTitle className="text-base">Top outsourced products</CardTitle></CardHeader>
+              <CardContent className="p-0">
+                {outsourcedProductsPage.length === 0 ? (
+                  <div className="p-8 text-center text-sm text-muted-foreground">No outsourced products found.</div>
                 ) : (
                   <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="text-left border-b">
-                          <th className="py-3 px-4 font-semibold text-gray-700">Product Name</th>
-                          <th className="py-3 px-4 font-semibold text-gray-700 text-right">Quantity</th>
-                          <th className="py-3 px-4 font-semibold text-gray-700 text-right">Total Value</th>
+                    <table className="min-w-[600px] w-full table-fixed text-[13px]">
+                      <thead className="bg-muted/50 text-left text-[11px] uppercase tracking-wide text-muted-foreground">
+                        <tr className="border-b">
+                          <th className="px-3 py-3 font-medium w-[60%]">Product</th>
+                          <th className="px-3 py-3 font-medium w-[20%] text-right">Quantity</th>
+                          <th className="px-3 py-3 font-medium w-[20%] text-right">Value</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {outsourcedStats.topOutsourcedProducts.map((product, index) => (
-                          <tr key={`${product.name}-${index}`} className="border-b hover:bg-gray-50">
-                            <td className="py-3 px-4 font-medium">{product.name}</td>
-                            <td className="py-3 px-4 text-right">{product.quantity}</td>
-                            <td className="py-3 px-4 text-right font-semibold">{product.value.toFixed(2)}</td>
+                        {outsourcedProductsPage.map((product, index) => (
+                          <tr key={product.name} className={`border-b align-top ${index % 2 === 0 ? "bg-white" : "bg-muted/20"}`}>
+                            <td className="px-3 py-2 align-top truncate font-medium" title={product.name}>{product.name}</td>
+                            <td className="px-3 py-2 align-top text-right">{product.quantity}</td>
+                            <td className="px-3 py-2 align-top text-right font-semibold">{product.value.toFixed(2)}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -2492,36 +2610,30 @@ export function StockManagerContent({ view }: { view: StockView }) {
               </CardContent>
             </Card>
 
-            {/* Recommendations & Supplier Breakdown */}
-            <div className="grid gap-4 lg:grid-cols-2">
-              {/* Import Recommendations */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Import Recommendations</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {outsourcedStats.importRecommendations.length === 0 ? (
-                    <div className="text-center py-8">
-                      <p className="text-sm text-muted-foreground">No urgent import recommendations right now.</p>
-                    </div>
+            <div className="grid gap-3 lg:grid-cols-2">
+              <Card className="shadow-sm">
+                <CardHeader className="border-b bg-muted/30 pb-3"><CardTitle className="text-base">Import recommendations</CardTitle></CardHeader>
+                <CardContent className="p-0">
+                  {outsourcedRecommendationsPage.length === 0 ? (
+                    <div className="p-8 text-center text-sm text-muted-foreground">No urgent recommendations right now.</div>
                   ) : (
                     <div className="overflow-x-auto">
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="text-left border-b">
-                            <th className="py-3 px-4 font-semibold text-gray-700">Product</th>
-                            <th className="py-3 px-4 font-semibold text-gray-700 text-center">Sold (30d)</th>
-                            <th className="py-3 px-4 font-semibold text-gray-700 text-center">Stock</th>
-                            <th className="py-3 px-4 font-semibold text-gray-700 text-center">Projected</th>
+                      <table className="min-w-[500px] w-full table-fixed text-[13px]">
+                        <thead className="bg-muted/50 text-left text-[11px] uppercase tracking-wide text-muted-foreground">
+                          <tr className="border-b">
+                            <th className="px-3 py-3 font-medium w-[40%]">Product</th>
+                            <th className="px-3 py-3 font-medium w-[20%] text-center">Sold (30d)</th>
+                            <th className="px-3 py-3 font-medium w-[20%] text-center">Stock</th>
+                            <th className="px-3 py-3 font-medium w-[20%] text-center">Projected</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {outsourcedStats.importRecommendations.map((item) => (
-                            <tr key={item.productId} className="border-b hover:bg-gray-50">
-                              <td className="py-3 px-4 font-medium truncate">{item.name}</td>
-                              <td className="py-3 px-4 text-center">{item.sold30}</td>
-                              <td className="py-3 px-4 text-center">{item.currentStock}</td>
-                              <td className={`py-3 px-4 text-center font-semibold ${item.projectedAfter30 < 0 ? "text-red-600" : ""}`}>{item.projectedAfter30}</td>
+                          {outsourcedRecommendationsPage.map((item, index) => (
+                            <tr key={item.productId} className={`border-b align-top ${index % 2 === 0 ? "bg-white" : "bg-muted/20"}`}>
+                              <td className="px-3 py-2 align-top truncate font-medium" title={item.name}>{item.name}</td>
+                              <td className="px-3 py-2 align-top text-center">{item.sold30}</td>
+                              <td className="px-3 py-2 align-top text-center">{item.currentStock}</td>
+                              <td className={`px-3 py-2 align-top text-center font-semibold ${item.projectedAfter30 < 0 ? "text-red-600" : ""}`}>{item.projectedAfter30}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -2531,32 +2643,27 @@ export function StockManagerContent({ view }: { view: StockView }) {
                 </CardContent>
               </Card>
 
-              {/* Supplier Contribution */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Supplier Contribution</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {outsourcedStats.supplierBreakdown.length === 0 ? (
-                    <div className="text-center py-8">
-                      <p className="text-sm text-muted-foreground">No outsourced suppliers captured yet.</p>
-                    </div>
+              <Card className="shadow-sm">
+                <CardHeader className="border-b bg-muted/30 pb-3"><CardTitle className="text-base">Supplier breakdown</CardTitle></CardHeader>
+                <CardContent className="p-0">
+                  {outsourcedSuppliersPage.length === 0 ? (
+                    <div className="p-8 text-center text-sm text-muted-foreground">No suppliers captured yet.</div>
                   ) : (
                     <div className="overflow-x-auto">
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="text-left border-b">
-                            <th className="py-3 px-4 font-semibold text-gray-700">Company</th>
-                            <th className="py-3 px-4 font-semibold text-gray-700 text-center">Entries</th>
-                            <th className="py-3 px-4 font-semibold text-gray-700 text-right">Units Added</th>
+                      <table className="min-w-[500px] w-full table-fixed text-[13px]">
+                        <thead className="bg-muted/50 text-left text-[11px] uppercase tracking-wide text-muted-foreground">
+                          <tr className="border-b">
+                            <th className="px-3 py-3 font-medium w-[50%]">Company</th>
+                            <th className="px-3 py-3 font-medium w-[25%] text-center">Entries</th>
+                            <th className="px-3 py-3 font-medium w-[25%] text-right">Units</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {outsourcedStats.supplierBreakdown.map((supplier) => (
-                            <tr key={supplier.company} className="border-b hover:bg-gray-50">
-                              <td className="py-3 px-4 font-medium">{supplier.company}</td>
-                              <td className="py-3 px-4 text-center">{supplier.entries}</td>
-                              <td className="py-3 px-4 text-right font-semibold">{supplier.quantity}</td>
+                          {outsourcedSuppliersPage.map((supplier, index) => (
+                            <tr key={supplier.company} className={`border-b align-top ${index % 2 === 0 ? "bg-white" : "bg-muted/20"}`}>
+                              <td className="px-3 py-2 align-top truncate font-medium" title={supplier.company}>{supplier.company}</td>
+                              <td className="px-3 py-2 align-top text-center">{supplier.entries}</td>
+                              <td className="px-3 py-2 align-top text-right font-semibold">{supplier.quantity}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -2566,16 +2673,118 @@ export function StockManagerContent({ view }: { view: StockView }) {
                 </CardContent>
               </Card>
             </div>
+
+            <div className="flex flex-col gap-3 border-t pt-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="text-sm text-muted-foreground">
+                Showing {(outsourcedPage - 1) * outsourcedPageSize + 1}–{Math.min(outsourcedPage * outsourcedPageSize, Math.max(sortedOutsourcedProducts.length, filteredOutsourcedRecommendations.length, filteredOutsourcedSuppliers.length))} of {Math.max(sortedOutsourcedProducts.length, filteredOutsourcedRecommendations.length, filteredOutsourcedSuppliers.length)}
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button variant="outline" size="sm" disabled={outsourcedPage === 1} onClick={() => setOutsourcedPage((current) => Math.max(1, current - 1))}>Prev</Button>
+                {Array.from({ length: Math.min(8, outsourcedTotalPages) }, (_, index) => index + 1).map((pageNumber) => (
+                  <Button key={pageNumber} variant={pageNumber === outsourcedPage ? "default" : "outline"} size="sm" onClick={() => setOutsourcedPage(pageNumber)} className="min-w-9">
+                    {pageNumber}
+                  </Button>
+                ))}
+                {outsourcedTotalPages > 8 && <span className="px-1 text-sm text-muted-foreground">…</span>}
+                {outsourcedTotalPages > 8 && (
+                  <Button variant={outsourcedPage === outsourcedTotalPages ? "default" : "outline"} size="sm" onClick={() => setOutsourcedPage(outsourcedTotalPages)} className="min-w-9">
+                    {outsourcedTotalPages}
+                  </Button>
+                )}
+                <Button variant="outline" size="sm" disabled={outsourcedPage === outsourcedTotalPages} onClick={() => setOutsourcedPage((current) => Math.min(outsourcedTotalPages, current + 1))}>Next</Button>
+              </div>
+            </div>
           </div>
         </>
       )}
 
       {view === "history" && (
         <>
-          <h1 className="text-2xl font-bold">Inventory History</h1>
-          <Card>
-            <CardHeader><CardTitle>Export History</CardTitle></CardHeader>
-            <CardContent className="flex flex-wrap gap-2">
+          <div className="space-y-5">
+            <div className="rounded-2xl border px-4 py-3 shadow-sm" style={{ borderColor: primaryBorderColor, backgroundColor: primarySoftColor }}>
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                <div className="space-y-0.5">
+                  <p className="text-sm font-medium tracking-wide" style={{ color: primaryColor }}>History</p>
+                  <h1 className="text-xl font-semibold tracking-tight text-foreground">Inventory history</h1>
+                  <p className="text-sm text-muted-foreground">Review entries and sales with a compact, searchable view.</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="outline" onClick={() => exportAsCsv(
+                    "inventory-entries.csv",
+                    ["Date", "Product", "Branch", "Quantity Added", "Outsourced", "Outsourced Company", "Note"],
+                    historyEntriesPage.map((entry) => [
+                      new Date(entry.entryDate || entry.createdAt).toISOString(),
+                      productNameById.get(entry.productId) || entry.productId,
+                      entry.branchId ? branchNameById.get(entry.branchId) || entry.branchId : "",
+                      entry.quantityAdded,
+                      entry.isOutsourced ? "Yes" : "No",
+                      entry.outsourcedCompany || "",
+                      entry.note || "",
+                    ]),
+                  )}>Export Entries</Button>
+                  <Button variant="outline" onClick={() => exportAsCsv(
+                    "inventory-sales-history.csv",
+                    ["Date", "Receipt", "Product", "Qty Sold", "Sold Price", "Buyer", "Sold By", "Remaining"],
+                    historySalesPage.map((sale) => [
+                      new Date(sale.createdAt).toISOString(),
+                      sale.receiptNumber || "",
+                      sale.product?.name || "",
+                      sale.quantitySold,
+                      sale.soldPrice,
+                      sale.isWalkInClient ? "Walk-in Client" : sale.buyerName || "",
+                      sale.soldByUser ? `${sale.soldByUser.firstName} ${sale.soldByUser.lastName}` : "",
+                      sale.remainingQuantity,
+                    ]),
+                  )}>Export Sales</Button>
+                </div>
+              </div>
+
+              <div className="mt-3 rounded-xl border bg-white/90 p-3 shadow-sm backdrop-blur-sm">
+                <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_240px_200px] lg:items-end">
+                  <div className="space-y-2">
+                    <Label>Search</Label>
+                    <Input
+                      placeholder="Product, buyer, receipt, branch, note..."
+                      value={historySearchInput}
+                      onChange={(event) => setHistorySearchInput(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") setHistorySearch(historySearchInput)
+                      }}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Sort by</Label>
+                    <Select value={historySort} onValueChange={(value) => setHistorySort(value as typeof historySort)}>
+                      <SelectTrigger><SelectValue placeholder="Sort history" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="date-desc">Date: newest first</SelectItem>
+                        <SelectItem value="date-asc">Date: oldest first</SelectItem>
+                        <SelectItem value="product-asc">Product: A to Z</SelectItem>
+                        <SelectItem value="product-desc">Product: Z to A</SelectItem>
+                        <SelectItem value="qty-desc">Quantity: highest first</SelectItem>
+                        <SelectItem value="qty-asc">Quantity: lowest first</SelectItem>
+                        <SelectItem value="buyer-asc">Buyer / note: A to Z</SelectItem>
+                        <SelectItem value="buyer-desc">Buyer / note: Z to A</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button className="w-full" onClick={() => setHistorySearch(historySearchInput)}>Apply search</Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-4">
+              <Card className="shadow-sm"><CardContent className="p-3"><div className="text-xs uppercase tracking-wide text-muted-foreground">Entries</div><div className="mt-1 text-xl font-semibold">{filteredHistoryEntries.length}</div></CardContent></Card>
+              <Card className="shadow-sm"><CardContent className="p-3"><div className="text-xs uppercase tracking-wide text-muted-foreground">Sales</div><div className="mt-1 text-xl font-semibold">{filteredHistorySales.length}</div></CardContent></Card>
+              <Card className="shadow-sm"><CardContent className="p-3"><div className="text-xs uppercase tracking-wide text-muted-foreground">Units added</div><div className="mt-1 text-xl font-semibold">{filteredHistoryEntries.reduce((sum, entry) => sum + Number(entry.quantityAdded || 0), 0)}</div></CardContent></Card>
+              <Card className="shadow-sm"><CardContent className="p-3"><div className="text-xs uppercase tracking-wide text-muted-foreground">Sales value</div><div className="mt-1 text-xl font-semibold">{filteredHistorySales.reduce((sum, sale) => sum + Number(sale.quantitySold || 0) * Number(sale.soldPrice || 0), 0).toFixed(2)}</div></CardContent></Card>
+            </div>
+
+            <Card className="shadow-sm">
+              <CardHeader className="border-b bg-muted/30 pb-3"><CardTitle className="text-base">Export history</CardTitle></CardHeader>
+              <CardContent className="flex flex-wrap gap-2">
               <Button
                 variant="outline"
                 onClick={() =>
@@ -2619,32 +2828,32 @@ export function StockManagerContent({ view }: { view: StockView }) {
               </Button>
             </CardContent>
           </Card>
-          <Card>
-            <CardHeader><CardTitle>Stock Entries</CardTitle></CardHeader>
-            <CardContent>
+          <Card className="shadow-sm">
+            <CardHeader className="border-b bg-muted/30 pb-3"><CardTitle className="text-base">Stock entries</CardTitle></CardHeader>
+            <CardContent className="p-0">
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-left border-b">
-                      <th className="py-2">Date</th>
-                      <th className="py-2">Product</th>
-                      <th className="py-2">Branch</th>
-                      <th className="py-2">Quantity Added</th>
-                      <th className="py-2">Outsourced</th>
-                      <th className="py-2">Outsourced Company</th>
-                      <th className="py-2">Note</th>
+                <table className="min-w-[1100px] w-full table-fixed text-[13px]">
+                  <thead className="bg-muted/50 text-left text-[11px] uppercase tracking-wide text-muted-foreground">
+                    <tr className="border-b">
+                      <th className="px-3 py-3 font-medium w-[16%]">Date</th>
+                      <th className="px-3 py-3 font-medium w-[20%]">Product</th>
+                      <th className="px-3 py-3 font-medium w-[15%]">Branch</th>
+                      <th className="px-3 py-3 font-medium w-[10%]">Qty</th>
+                      <th className="px-3 py-3 font-medium w-[10%]">Outsourced</th>
+                      <th className="px-3 py-3 font-medium w-[16%]">Company</th>
+                      <th className="px-3 py-3 font-medium w-[13%]">Note</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredEntries.map((entry) => (
-                      <tr key={entry._id} className="border-b">
-                        <td className="py-2">{new Date(entry.entryDate || entry.createdAt).toLocaleString()}</td>
-                        <td className="py-2">{productNameById.get(entry.productId) || entry.productId}</td>
-                        <td className="py-2">{entry.branchId ? branchNameById.get(entry.branchId) || entry.branchId : "-"}</td>
-                        <td className="py-2">{entry.quantityAdded}</td>
-                        <td className="py-2">{entry.isOutsourced ? "Yes" : "No"}</td>
-                        <td className="py-2">{entry.outsourcedCompany || "-"}</td>
-                        <td className="py-2">{entry.note || "-"}</td>
+                    {historyEntriesPage.map((entry, index) => (
+                      <tr key={entry._id} className={`border-b align-top ${index % 2 === 0 ? "bg-white" : "bg-muted/20"}`}>
+                        <td className="px-3 py-2 align-top text-[11px]">{new Date(entry.entryDate || entry.createdAt).toLocaleString()}</td>
+                        <td className="px-3 py-2 align-top truncate" title={productNameById.get(entry.productId) || entry.productId}>{productNameById.get(entry.productId) || entry.productId}</td>
+                        <td className="px-3 py-2 align-top truncate" title={entry.branchId ? branchNameById.get(entry.branchId) || entry.branchId : "-"}>{entry.branchId ? branchNameById.get(entry.branchId) || entry.branchId : "-"}</td>
+                        <td className="px-3 py-2 align-top font-medium">{entry.quantityAdded}</td>
+                        <td className="px-3 py-2 align-top">{entry.isOutsourced ? "Yes" : "No"}</td>
+                        <td className="px-3 py-2 align-top truncate" title={entry.outsourcedCompany || "-"}>{entry.outsourcedCompany || "-"}</td>
+                        <td className="px-3 py-2 align-top truncate" title={entry.note || "-"}>{entry.note || "-"}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -2653,34 +2862,34 @@ export function StockManagerContent({ view }: { view: StockView }) {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader><CardTitle>Sales History</CardTitle></CardHeader>
-            <CardContent>
+          <Card className="shadow-sm">
+            <CardHeader className="border-b bg-muted/30 pb-3"><CardTitle className="text-base">Sales history</CardTitle></CardHeader>
+            <CardContent className="p-0">
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-left border-b">
-                      <th className="py-2">Date</th>
-                      <th className="py-2">Receipt #</th>
-                      <th className="py-2">Product</th>
-                      <th className="py-2">Qty Sold</th>
-                      <th className="py-2">Sold Price</th>
-                      <th className="py-2">Buyer</th>
-                      <th className="py-2">Sold By</th>
-                      <th className="py-2">Remaining</th>
+                <table className="min-w-[1100px] w-full table-fixed text-[13px]">
+                  <thead className="bg-muted/50 text-left text-[11px] uppercase tracking-wide text-muted-foreground">
+                    <tr className="border-b">
+                      <th className="px-3 py-3 font-medium w-[16%]">Date</th>
+                      <th className="px-3 py-3 font-medium w-[12%]">Receipt #</th>
+                      <th className="px-3 py-3 font-medium w-[18%]">Product</th>
+                      <th className="px-3 py-3 font-medium w-[9%]">Qty</th>
+                      <th className="px-3 py-3 font-medium w-[11%]">Price</th>
+                      <th className="px-3 py-3 font-medium w-[18%]">Buyer</th>
+                      <th className="px-3 py-3 font-medium w-[13%]">Sold By</th>
+                      <th className="px-3 py-3 font-medium w-[8%]">Remain</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredSales.map((sale) => (
-                      <tr key={sale._id} className="border-b">
-                        <td className="py-2">{new Date(sale.createdAt).toLocaleString()}</td>
-                        <td className="py-2">{sale.receiptNumber || "-"}</td>
-                        <td className="py-2">{sale.product?.name || "-"}</td>
-                        <td className="py-2">{sale.quantitySold}</td>
-                        <td className="py-2">{sale.soldPrice}</td>
-                        <td className="py-2">{sale.isWalkInClient ? "Walk-in Client" : sale.buyerName || "-"}</td>
-                        <td className="py-2">{sale.soldByUser ? `${sale.soldByUser.firstName} ${sale.soldByUser.lastName}` : "-"}</td>
-                        <td className="py-2">{sale.remainingQuantity}</td>
+                    {historySalesPage.map((sale, index) => (
+                      <tr key={sale._id} className={`border-b align-top ${index % 2 === 0 ? "bg-white" : "bg-muted/20"}`}>
+                        <td className="px-3 py-2 align-top text-[11px]">{new Date(sale.createdAt).toLocaleString()}</td>
+                        <td className="px-3 py-2 align-top truncate" title={sale.receiptNumber || "-"}>{sale.receiptNumber || "-"}</td>
+                        <td className="px-3 py-2 align-top truncate" title={sale.product?.name || "-"}>{sale.product?.name || "-"}</td>
+                        <td className="px-3 py-2 align-top font-medium">{sale.quantitySold}</td>
+                        <td className="px-3 py-2 align-top">{sale.soldPrice}</td>
+                        <td className="px-3 py-2 align-top truncate" title={sale.isWalkInClient ? "Walk-in Client" : sale.buyerName || "-"}>{sale.isWalkInClient ? "Walk-in Client" : sale.buyerName || "-"}</td>
+                        <td className="px-3 py-2 align-top truncate" title={sale.soldByUser ? `${sale.soldByUser.firstName} ${sale.soldByUser.lastName}` : "-"}>{sale.soldByUser ? `${sale.soldByUser.firstName} ${sale.soldByUser.lastName}` : "-"}</td>
+                        <td className="px-3 py-2 align-top font-medium">{sale.remainingQuantity}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -2688,7 +2897,28 @@ export function StockManagerContent({ view }: { view: StockView }) {
               </div>
             </CardContent>
           </Card>
-        </>
+          <div className="flex flex-col gap-3 border-t pt-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="text-sm text-muted-foreground">
+              Showing {(historyPage - 1) * historyPageSize + 1}–{Math.min(historyPage * historyPageSize, Math.max(sortedHistoryEntries.length, sortedHistorySales.length))} of {Math.max(sortedHistoryEntries.length, sortedHistorySales.length)}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button variant="outline" size="sm" disabled={historyPage === 1} onClick={() => setHistoryPage((current) => Math.max(1, current - 1))}>Prev</Button>
+              {Array.from({ length: Math.min(8, historyTotalPages) }, (_, index) => index + 1).map((pageNumber) => (
+                <Button key={pageNumber} variant={pageNumber === historyPage ? "default" : "outline"} size="sm" onClick={() => setHistoryPage(pageNumber)} className="min-w-9">
+                  {pageNumber}
+                </Button>
+              ))}
+              {historyTotalPages > 8 && <span className="px-1 text-sm text-muted-foreground">…</span>}
+              {historyTotalPages > 8 && (
+                <Button variant={historyPage === historyTotalPages ? "default" : "outline"} size="sm" onClick={() => setHistoryPage(historyTotalPages)} className="min-w-9">
+                  {historyTotalPages}
+                </Button>
+              )}
+              <Button variant="outline" size="sm" disabled={historyPage === historyTotalPages} onClick={() => setHistoryPage((current) => Math.min(historyTotalPages, current + 1))}>Next</Button>
+            </div>
+          </div>
+        </div>
+      </>
       )}
     </div>
   )

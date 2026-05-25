@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import API_URL from "@/lib/apiBase"
 import { getToken, getUser } from "@/lib/auth"
@@ -9,8 +9,16 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
 import { stockApi } from "@/lib/api"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import {
   applyStampToPdf,
   generateQuotationPdf,
@@ -95,6 +103,34 @@ interface StampOption {
   name: string
 }
 
+type SortOption =
+  | "date-desc"
+  | "date-asc"
+  | "client-asc"
+  | "client-desc"
+  | "owner-asc"
+  | "owner-desc"
+  | "pending-first"
+  | "amount-desc"
+  | "amount-asc"
+  | "status-asc"
+  | "status-desc"
+
+function hexToRgb(hex: string) {
+  const normalized = hex.replace("#", "")
+  if (normalized.length !== 6) return { r: 15, g: 118, b: 110 }
+  return {
+    r: Number.parseInt(normalized.slice(0, 2), 16),
+    g: Number.parseInt(normalized.slice(2, 4), 16),
+    b: Number.parseInt(normalized.slice(4, 6), 16),
+  }
+}
+
+function hexToRgba(hex: string, alpha: number) {
+  const { r, g, b } = hexToRgb(hex)
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`
+}
+
 
 export default function QuotationsPage() {
   const searchParams = useSearchParams()
@@ -107,6 +143,12 @@ export default function QuotationsPage() {
   const [quotations, setQuotations] = useState<Quotation[]>([])
   const [branding, setBranding] = useState<TenantBranding>({})
   const [invoiceSettings, setInvoiceSettings] = useState<InvoiceDocumentSettings>({})
+  const [searchInput, setQuotationSearchInput] = useState("")
+  const [quotationSearch, setQuotationSearch] = useState("")
+  const [sortBy, setSortBy] = useState<SortOption>("date-desc")
+  const [statusFilter, setStatusFilter] = useState<"all" | Quotation["status"]>("all")
+  const [page, setPage] = useState(1)
+  const pageSize = 10
 
   const [showCreate, setShowCreate] = useState(false)
   const [editingQuotationId, setEditingQuotationId] = useState<string | null>(null)
@@ -129,15 +171,16 @@ export default function QuotationsPage() {
   const [itemOutsourced, setItemOutsourced] = useState(false)
   const [items, setItems] = useState<DraftItem[]>([])
 
-  const [quotationSearchInput, setQuotationSearchInput] = useState("")
-  const [quotationSearch, setQuotationSearch] = useState("")
-
   useEffect(() => {
     const q = searchParams.get("q") || ""
     if (!q) return
     setQuotationSearchInput(q)
     setQuotationSearch(q)
   }, [searchParams])
+
+  useEffect(() => {
+    setPage(1)
+  }, [quotationSearch, sortBy, statusFilter])
 
   useEffect(() => {
     // No local UI preferences on this page; stamp and signature are managed per-user in User Settings / Profile
@@ -242,16 +285,98 @@ export default function QuotationsPage() {
     loadData()
   }, [])
 
+  const primaryColor = branding.primaryColor || "#0f766e"
+  const primarySoftColor = hexToRgba(primaryColor, 0.08)
+  const primaryBorderColor = hexToRgba(primaryColor, 0.18)
+
+  const getSellerName = (quotation: Quotation) => quotation.ownerUserName || quotation.createdByName || quotation.createdBy || "System User"
+
   const filteredQuotations = quotations.filter((quotation) => {
     const query = quotationSearch.trim().toLowerCase()
+    if (statusFilter !== "all" && quotation.status !== statusFilter) return false
     if (!query) return true
     return (
       quotation.quotationNumber.toLowerCase().includes(query) ||
       quotation.client.name.toLowerCase().includes(query) ||
       quotation.client.number.toLowerCase().includes(query) ||
-      quotation.client.location.toLowerCase().includes(query)
+      quotation.client.location.toLowerCase().includes(query) ||
+      getSellerName(quotation).toLowerCase().includes(query)
     )
   })
+
+  const sortedQuotations = useMemo(() => {
+    return [...filteredQuotations].sort((a, b) => {
+      const aDate = new Date(a.createdAt).getTime()
+      const bDate = new Date(b.createdAt).getTime()
+      const aClient = a.client.name.toLowerCase()
+      const bClient = b.client.name.toLowerCase()
+      const aOwner = getSellerName(a).toLowerCase()
+      const bOwner = getSellerName(b).toLowerCase()
+      const aAmount = Number(a.subTotal || 0)
+      const bAmount = Number(b.subTotal || 0)
+      const aStatus = a.status.toLowerCase()
+      const bStatus = b.status.toLowerCase()
+
+      switch (sortBy) {
+        case "date-asc":
+          return aDate - bDate
+        case "client-asc":
+          return aClient.localeCompare(bClient)
+        case "client-desc":
+          return bClient.localeCompare(aClient)
+        case "owner-asc":
+          return aOwner.localeCompare(bOwner)
+        case "owner-desc":
+          return bOwner.localeCompare(aOwner)
+        case "pending-first": {
+          const aPending = a.status === "pending_approval" ? 1 : 0
+          const bPending = b.status === "pending_approval" ? 1 : 0
+          if (aPending !== bPending) return bPending - aPending
+          return bDate - aDate
+        }
+        case "amount-desc":
+          return bAmount - aAmount
+        case "amount-asc":
+          return aAmount - bAmount
+        case "status-asc":
+          return aStatus.localeCompare(bStatus)
+        case "status-desc":
+          return bStatus.localeCompare(aStatus)
+        case "date-desc":
+        default:
+          return bDate - aDate
+      }
+    })
+  }, [filteredQuotations, sortBy])
+
+  const totalPages = Math.max(1, Math.ceil(sortedQuotations.length / pageSize))
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages)
+  }, [page, totalPages])
+
+  const pagedQuotations = useMemo(() => {
+    const start = (page - 1) * pageSize
+    return sortedQuotations.slice(start, start + pageSize)
+  }, [page, sortedQuotations])
+
+  const visiblePages = useMemo(() => {
+    const count = Math.min(8, totalPages)
+    return Array.from({ length: count }, (_, index) => index + 1)
+  }, [totalPages])
+
+  const summary = useMemo(() => {
+    return quotations.reduce(
+      (acc, quotation) => {
+        acc.total += 1
+        acc.amount += Number(quotation.subTotal || 0)
+        if (quotation.status === "pending_approval") acc.pending += 1
+        if (quotation.status === "draft") acc.draft += 1
+        if (quotation.status === "converted") acc.converted += 1
+        return acc
+      },
+      { total: 0, amount: 0, pending: 0, draft: 0, converted: 0 },
+    )
+  }, [quotations])
 
   const pendingApprovalQuotations = filteredQuotations.filter((quotation) => quotation.status === "pending_approval")
   const activeQuotations = filteredQuotations.filter((quotation) => quotation.status !== "pending_approval")
@@ -651,41 +776,111 @@ export default function QuotationsPage() {
   const canApprove = ["company_admin", "hr"].includes(String(currentUser?.role || ""))
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Quotations</h1>
-          <p className="text-sm text-muted-foreground">View existing quotations or create a new one.</p>
-          {pendingApprovalQuotations.length > 0 ? (
-            <div className="mt-2 inline-flex items-center rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-800">
-              Pending Requests: {pendingApprovalQuotations.length}
-            </div>
-          ) : null}
+    <div className="space-y-5">
+      <div className="rounded-2xl border px-4 py-3 shadow-sm" style={{ borderColor: primaryBorderColor, backgroundColor: primarySoftColor }}>
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div className="space-y-0.5">
+            <p className="text-sm font-medium tracking-wide" style={{ color: primaryColor }}>Quotations</p>
+            <h1 className="text-xl font-semibold tracking-tight text-foreground">Quotation dashboard</h1>
+            <p className="text-sm text-muted-foreground">View, search, sort, and convert quotations from one place.</p>
+            {pendingApprovalQuotations.length > 0 ? (
+              <Badge variant="outline" className="mt-2 rounded-full border-amber-200 bg-amber-50 text-amber-800">
+                Pending requests {pendingApprovalQuotations.length}
+              </Badge>
+            ) : null}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={() => loadData()}>Refresh</Button>
+            <Button onClick={() => (showCreate ? resetForm() : setShowCreate(true))}>
+              {showCreate ? "Close" : "Create Quotation"}
+            </Button>
+          </div>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => loadData()}>Refresh</Button>
-          <Button onClick={() => (showCreate ? resetForm() : setShowCreate(true))}>
-            {showCreate ? "Close" : "Create Quotation"}
-          </Button>
+
+        <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+          <Card className="shadow-sm">
+            <CardContent className="p-3">
+              <div className="text-xs uppercase tracking-wide text-muted-foreground">Total quotations</div>
+              <div className="mt-1 text-xl font-semibold">{summary.total}</div>
+            </CardContent>
+          </Card>
+          <Card className="shadow-sm">
+            <CardContent className="p-3">
+              <div className="text-xs uppercase tracking-wide text-muted-foreground">Pending approval</div>
+              <div className="mt-1 text-xl font-semibold" style={{ color: primaryColor }}>{summary.pending}</div>
+            </CardContent>
+          </Card>
+          <Card className="shadow-sm">
+            <CardContent className="p-3">
+              <div className="text-xs uppercase tracking-wide text-muted-foreground">Converted</div>
+              <div className="mt-1 text-xl font-semibold">{summary.converted}</div>
+            </CardContent>
+          </Card>
+          <Card className="shadow-sm">
+            <CardContent className="p-3">
+              <div className="text-xs uppercase tracking-wide text-muted-foreground">Value</div>
+              <div className="mt-1 text-xl font-semibold">KES {summary.amount.toLocaleString("en-KE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="mt-3 rounded-xl border bg-white/90 p-3 shadow-sm backdrop-blur-sm">
+          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px_220px_180px] lg:items-end">
+            <div className="space-y-2">
+              <Label>Search</Label>
+              <Input
+                placeholder="Quotation no, client, owner or location"
+                value={searchInput}
+                onChange={(event) => setQuotationSearchInput(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") setQuotationSearch(searchInput)
+                }}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Status</Label>
+              <Select value={statusFilter} onValueChange={(value: typeof statusFilter) => setStatusFilter(value)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="All statuses" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All statuses</SelectItem>
+                  <SelectItem value="draft">Draft</SelectItem>
+                  <SelectItem value="pending_approval">Pending approval</SelectItem>
+                  <SelectItem value="converted">Converted</SelectItem>
+                  <SelectItem value="cancelled">Cancelled</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Sort by</Label>
+              <Select value={sortBy} onValueChange={(value: SortOption) => setSortBy(value)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Sort quotations" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="date-desc">Date: newest first</SelectItem>
+                  <SelectItem value="date-asc">Date: oldest first</SelectItem>
+                  <SelectItem value="pending-first">Pending first</SelectItem>
+                  <SelectItem value="client-asc">Client: A to Z</SelectItem>
+                  <SelectItem value="client-desc">Client: Z to A</SelectItem>
+                  <SelectItem value="owner-asc">Owner: A to Z</SelectItem>
+                  <SelectItem value="owner-desc">Owner: Z to A</SelectItem>
+                  <SelectItem value="amount-desc">Amount: highest first</SelectItem>
+                  <SelectItem value="amount-asc">Amount: lowest first</SelectItem>
+                  <SelectItem value="status-asc">Status: A to Z</SelectItem>
+                  <SelectItem value="status-desc">Status: Z to A</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex gap-2">
+              <Button className="w-full" onClick={() => setQuotationSearch(searchInput)}>Apply search</Button>
+            </div>
+          </div>
         </div>
       </div>
 
       {/* Stamp prompt and prepared-by signature management moved to Admin User Settings and Employee Profile */}
-
-      <Card>
-        <CardHeader><CardTitle>Search Quotations</CardTitle></CardHeader>
-        <CardContent className="flex flex-col gap-3 md:flex-row md:items-end">
-          <div className="w-full md:max-w-md">
-            <Label>Search</Label>
-            <Input
-              placeholder="Quotation no, client name, number or location"
-              value={quotationSearchInput}
-              onChange={(event) => setQuotationSearchInput(event.target.value)}
-            />
-          </div>
-          <Button variant="outline" onClick={() => setQuotationSearch(quotationSearchInput)}>Search</Button>
-        </CardContent>
-      </Card>
 
       {showCreate && (
         <Card>
@@ -936,55 +1131,59 @@ export default function QuotationsPage() {
         </Card>
       )}
 
-      <Card>
+      <Card className="shadow-sm">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             Pending Requests
-            <span className="rounded-full bg-primary px-2 py-0.5 text-xs text-primary-foreground">
+            <span className="rounded-full px-2 py-0.5 text-xs text-primary-foreground" style={{ backgroundColor: primaryColor }}>
               {pendingApprovalQuotations.length}
             </span>
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-0">
           {pendingApprovalQuotations.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No pending approvals.</p>
+            <div className="px-4 pb-4 text-sm text-muted-foreground">No pending approvals.</div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left border-b">
-                    <th className="py-2">Quotation No</th>
-                    <th className="py-2">Client</th>
-                    <th className="py-2">Owner</th>
-                    <th className="py-2">Branch</th>
-                    <th className="py-2">Amount</th>
-                    <th className="py-2">Actions</th>
+              <table className="min-w-[980px] w-full table-fixed text-[13px]">
+                <thead className="bg-muted/50 text-left text-[11px] uppercase tracking-wide text-muted-foreground">
+                  <tr className="border-b">
+                    <th className="px-3 py-3 font-medium w-[15%]">Quotation No</th>
+                    <th className="px-3 py-3 font-medium w-[22%]">Client</th>
+                    <th className="px-3 py-3 font-medium w-[18%]">Owner</th>
+                    <th className="px-3 py-3 font-medium w-[15%]">Branch</th>
+                    <th className="px-3 py-3 font-medium w-[10%]">Amount</th>
+                    <th className="px-3 py-3 font-medium w-[20%]">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {pendingApprovalQuotations.map((quotation) => (
-                    <tr key={quotation._id} className="border-b">
-                      <td className="py-2">{quotation.quotationNumber}</td>
-                      <td className="py-2">{quotation.client.name}</td>
-                      <td className="py-2">{quotation.ownerUserName || quotation.createdByName || quotation.createdBy}</td>
-                      <td className="py-2">{quotation.branchName || "-"}</td>
-                      <td className="py-2">{quotation.subTotal.toFixed(2)}</td>
-                      <td className="py-2">
-                        <div className="flex flex-col">
-                          <div className="flex flex-wrap gap-2">
-                            <Button size="sm" variant="outline" onClick={() => downloadQuotationPdf(quotation)}>Download PDF</Button>
-                            <Button size="sm" variant="outline" onClick={() => startEditQuotation(quotation)}>Edit</Button>
-                            {canApprove ? (
-                              <>
-                                <Button size="sm" onClick={() => approveQuotation(quotation._id)}>Approve</Button>
-                                <Button size="sm" variant="destructive" onClick={() => rejectQuotation(quotation._id)}>Reject</Button>
-                              </>
-                            ) : (
-                              <span className="text-muted-foreground text-xs self-center">Awaiting admin approval</span>
-                            )}
-                          </div>
-                          <div className="mt-1 text-xs text-muted-foreground self-end">Prepared By {currentUser?.first_name || "Admin"} {currentUser?.last_name || ""}</div>
+                  {pendingApprovalQuotations.map((quotation, index) => (
+                    <tr key={quotation._id} className={`border-b align-top ${index % 2 === 0 ? "bg-white" : "bg-muted/20"}`}>
+                      <td className="px-3 py-2 align-top">
+                        <div className="truncate font-medium" title={quotation.quotationNumber}>{quotation.quotationNumber}</div>
+                        <div className="text-[11px] text-muted-foreground">Pending approval</div>
+                      </td>
+                      <td className="px-3 py-2 align-top">
+                        <div className="truncate font-medium" title={quotation.client.name}>{quotation.client.name}</div>
+                        <div className="truncate text-[11px] text-muted-foreground">{[quotation.client.number, quotation.client.location].filter(Boolean).join(" · ") || "-"}</div>
+                      </td>
+                      <td className="px-3 py-2 align-top truncate" title={getSellerName(quotation)}>{getSellerName(quotation)}</td>
+                      <td className="px-3 py-2 align-top truncate" title={quotation.branchName || "-"}>{quotation.branchName || "-"}</td>
+                      <td className="px-3 py-2 align-top font-medium">KES {quotation.subTotal.toLocaleString("en-KE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                      <td className="px-3 py-2 align-top">
+                        <div className="flex flex-wrap gap-2">
+                          <Button size="sm" variant="outline" onClick={() => downloadQuotationPdf(quotation)}>PDF</Button>
+                          <Button size="sm" variant="outline" onClick={() => startEditQuotation(quotation)}>Edit</Button>
+                          {canApprove ? (
+                            <>
+                              <Button size="sm" onClick={() => approveQuotation(quotation._id)}>Approve</Button>
+                              <Button size="sm" variant="destructive" onClick={() => rejectQuotation(quotation._id)}>Reject</Button>
+                            </>
+                          ) : (
+                            <span className="text-xs text-muted-foreground self-center">Awaiting approval</span>
+                          )}
                         </div>
+                        <div className="mt-1 text-[11px] text-muted-foreground">Prepared by {currentUser?.first_name || "Admin"} {currentUser?.last_name || ""}</div>
                       </td>
                     </tr>
                   ))}
@@ -995,54 +1194,116 @@ export default function QuotationsPage() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader><CardTitle>Quotation List</CardTitle></CardHeader>
-        <CardContent>
+      <Card className="shadow-sm">
+        <CardHeader className="border-b bg-muted/30 pb-3">
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <CardTitle className="text-base">Quotation list</CardTitle>
+              <p className="text-sm text-muted-foreground">Showing {sortedQuotations.length} of {filteredQuotations.length} quotations</p>
+            </div>
+            <p className="text-xs text-muted-foreground">Compact view for faster scanning.</p>
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left border-b">
-                  <th className="py-2">Quotation No</th>
-                  <th className="py-2">Client</th>
-                  <th className="py-2">Owner</th>
-                    <th className="py-2">Branch</th>
-                  <th className="py-2">Items</th>
-                  <th className="py-2">Amount</th>
-                  <th className="py-2">Status</th>
-                  <th className="py-2">Actions</th>
+            <table className="min-w-[1180px] w-full table-fixed text-[13px]">
+              <thead className="sticky top-0 z-10 bg-muted/80 text-left text-[11px] uppercase tracking-wide text-muted-foreground backdrop-blur">
+                <tr className="border-b">
+                  <th className="px-3 py-3 font-medium w-[14%]">Quotation No</th>
+                  <th className="px-3 py-3 font-medium w-[20%]">Client</th>
+                  <th className="px-3 py-3 font-medium w-[14%]">Owner</th>
+                  <th className="px-3 py-3 font-medium w-[12%]">Branch</th>
+                  <th className="px-3 py-3 font-medium w-[8%]">Items</th>
+                  <th className="px-3 py-3 font-medium w-[11%]">Amount</th>
+                  <th className="px-3 py-3 font-medium w-[11%]">Status</th>
+                  <th className="px-3 py-3 font-medium w-[20%]">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {activeQuotations.map((quotation) => (
-                  <tr key={quotation._id} className="border-b">
-                    <td className="py-2">{quotation.quotationNumber}</td>
-                    <td className="py-2">{quotation.client.name}</td>
-                    <td className="py-2">{quotation.ownerUserName || quotation.createdByName || quotation.createdBy}</td>
-                    <td className="py-2">{quotation.branchName || "-"}</td>
-                    <td className="py-2">{quotation.items.length}</td>
-                    <td className="py-2">{quotation.subTotal.toFixed(2)}</td>
-                    <td className="py-2 capitalize">{quotation.status.replace("_", " ")}</td>
-                    <td className="py-2">
-                      <div className="flex flex-col">
-                        <div className="flex flex-wrap gap-2">
-                          <Button size="sm" variant="outline" onClick={() => downloadQuotationPdf(quotation)}>Download PDF</Button>
-                          {quotation.status === "draft" && (
-                            <Button size="sm" variant="outline" onClick={() => startEditQuotation(quotation)}>Edit</Button>
-                          )}
-                          {quotation.status === "draft" ? (
-                            <Button size="sm" onClick={() => convertToInvoice(quotation._id)}>Convert to Invoice</Button>
-                          ) : (
-                            <span className="text-muted-foreground text-xs self-center">Converted</span>
-                          )}
-                        </div>
-                        <div className="mt-1 text-xs text-muted-foreground self-end">Prepared By {currentUser?.first_name || "Admin"} {currentUser?.last_name || ""}</div>
+                {pagedQuotations.map((quotation, index) => (
+                  <tr key={quotation._id} className={`border-b align-top transition-colors hover:bg-muted/40 ${index % 2 === 0 ? "bg-white" : "bg-muted/20"}`}>
+                    <td className="px-3 py-2 align-top">
+                      <div className="truncate font-medium" title={quotation.quotationNumber}>{quotation.quotationNumber}</div>
+                    </td>
+                    <td className="px-3 py-2 align-top">
+                      <div className="truncate font-medium" title={quotation.client.name}>{quotation.client.name}</div>
+                      <div className="truncate text-[11px] text-muted-foreground">{[quotation.client.number, quotation.client.location].filter(Boolean).join(" · ") || "-"}</div>
+                    </td>
+                    <td className="px-3 py-2 align-top truncate" title={getSellerName(quotation)}>{getSellerName(quotation)}</td>
+                    <td className="px-3 py-2 align-top truncate" title={quotation.branchName || "-"}>{quotation.branchName || "-"}</td>
+                    <td className="px-3 py-2 align-top text-muted-foreground">{quotation.items.length}</td>
+                    <td className="px-3 py-2 align-top font-medium">KES {quotation.subTotal.toLocaleString("en-KE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                    <td className="px-3 py-2 align-top">
+                      <Badge
+                        variant="outline"
+                        className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium capitalize ${quotation.status === "converted"
+                          ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                          : quotation.status === "pending_approval"
+                            ? "border-amber-200 bg-amber-50 text-amber-800"
+                            : quotation.status === "draft"
+                              ? "border-sky-200 bg-sky-50 text-sky-700"
+                              : "border-rose-200 bg-rose-50 text-rose-700"
+                          }`}
+                      >
+                        {quotation.status.replace("_", " ")}
+                      </Badge>
+                    </td>
+                    <td className="px-3 py-2 align-top">
+                      <div className="flex flex-wrap gap-2">
+                        <Button size="sm" variant="outline" onClick={() => downloadQuotationPdf(quotation)}>PDF</Button>
+                        {quotation.status === "draft" && (
+                          <Button size="sm" variant="outline" onClick={() => startEditQuotation(quotation)}>Edit</Button>
+                        )}
+                        {quotation.status === "draft" ? (
+                          <Button size="sm" onClick={() => convertToInvoice(quotation._id)}>Convert</Button>
+                        ) : (
+                          <span className="text-xs text-muted-foreground self-center">Converted</span>
+                        )}
                       </div>
+                      <div className="mt-1 text-[11px] text-muted-foreground">Prepared by {currentUser?.first_name || "Admin"} {currentUser?.last_name || ""}</div>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+          {sortedQuotations.length > 0 && (
+            <div className="flex flex-col gap-3 border-t px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="text-sm text-muted-foreground">
+                Showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, sortedQuotations.length)} of {sortedQuotations.length}
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button variant="outline" size="sm" disabled={page === 1} onClick={() => setPage((current) => Math.max(1, current - 1))}>
+                  Prev
+                </Button>
+                {visiblePages.map((pageNumber) => (
+                  <Button
+                    key={pageNumber}
+                    variant={pageNumber === page ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setPage(pageNumber)}
+                    className="min-w-9"
+                  >
+                    {pageNumber}
+                  </Button>
+                ))}
+                {totalPages > 8 && <span className="px-1 text-sm text-muted-foreground">…</span>}
+                {totalPages > 8 && (
+                  <Button
+                    variant={page === totalPages ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setPage(totalPages)}
+                    className="min-w-9"
+                  >
+                    {totalPages}
+                  </Button>
+                )}
+                <Button variant="outline" size="sm" disabled={page === totalPages} onClick={() => setPage((current) => Math.min(totalPages, current + 1))}>
+                  Next
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
