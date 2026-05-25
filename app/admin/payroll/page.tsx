@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Checkbox } from "@/components/ui/checkbox"
 import { api } from "@/lib/api"
 import { useToast } from "@/hooks/use-toast"
 import { Loader2, Plus, Calculator, Trash2 } from "lucide-react"
@@ -88,9 +89,22 @@ const getRuleAmount = (rule: DeductionRule, gross: number) => {
     return rule.value
 }
 
+const getPreviousMonthKey = (month: string) => {
+    const [yearPart, monthPart] = month.split("-")
+    const year = Number(yearPart)
+    const monthIndex = Number(monthPart)
+
+    if (!year || !monthIndex) return month
+
+    const date = new Date(year, monthIndex - 1, 1)
+    date.setMonth(date.getMonth() - 1)
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`
+}
+
 export default function AdminPayrollPage() {
     const { toast } = useToast()
     const [payrolls, setPayrolls] = useState<any[]>([])
+    const [previousMonthPayrolls, setPreviousMonthPayrolls] = useState<any[]>([])
     const [employees, setEmployees] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
     const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7)) // YYYY-MM
@@ -101,6 +115,12 @@ export default function AdminPayrollPage() {
     const [genSalary, setGenSalary] = useState("")
     const [genBonus, setGenBonus] = useState("0")
     const [genDeductionItems, setGenDeductionItems] = useState<{ name: string, amount: number }[]>([])
+    const [batchPayrollOpen, setBatchPayrollOpen] = useState(false)
+    const [maintainSalaries, setMaintainSalaries] = useState(true)
+    const [showSalaryExceptions, setShowSalaryExceptions] = useState(false)
+    const [salaryExceptions, setSalaryExceptions] = useState<Record<string, boolean>>({})
+    const [salaryExceptionValues, setSalaryExceptionValues] = useState<Record<string, string>>({})
+    const [batchGenerating, setBatchGenerating] = useState(false)
 
     const [deductHelb, setDeductHelb] = useState(false)
     const [helbAmount, setHelbAmount] = useState("")
@@ -160,12 +180,15 @@ export default function AdminPayrollPage() {
     const fetchData = async () => {
         try {
             setLoading(true)
-            const [payrollRes, usersRes] = await Promise.all([
+            const previousMonth = getPreviousMonthKey(selectedMonth)
+            const [payrollRes, previousPayrollRes, usersRes] = await Promise.all([
                 api.payroll.getAll(selectedMonth),
+                api.payroll.getAll(previousMonth),
                 api.users.getAll()
             ])
 
             if (payrollRes.success) setPayrolls(payrollRes.data || [])
+            if (previousPayrollRes.success) setPreviousMonthPayrolls(previousPayrollRes.data || [])
             if (usersRes?.success && Array.isArray(usersRes.data)) {
                 setEmployees(usersRes.data.filter((u: any) => u.role !== 'company_admin'))
             }
@@ -540,6 +563,107 @@ export default function AdminPayrollPage() {
         }
     }
 
+
+    const getSalaryBaselineForEmployee = (employeeId: string) => {
+        const previousPayroll = previousMonthPayrolls.find((payroll) => payroll.user_id === employeeId)
+        if (previousPayroll?.base_salary) {
+            return Number(previousPayroll.base_salary)
+        }
+
+        const employee = employees.find((emp) => emp._id === employeeId)
+        return Number(employee?.salary || 0)
+    }
+
+    const toggleSalaryException = (employeeId: string, checked: boolean) => {
+        setSalaryExceptions((prev) => ({ ...prev, [employeeId]: checked }))
+        if (!checked) {
+            setSalaryExceptionValues((prev) => {
+                const next = { ...prev }
+                delete next[employeeId]
+                return next
+            })
+        } else {
+            const currentBase = getSalaryBaselineForEmployee(employeeId)
+            setSalaryExceptionValues((prev) => ({
+                ...prev,
+                [employeeId]: currentBase ? String(currentBase) : "",
+            }))
+        }
+    }
+
+    const handleGenerateNextMonthPayrolls = async () => {
+        try {
+            setBatchGenerating(true)
+
+            const targetMonth = selectedMonth
+            const existingByUser = new Map(payrolls.map((payroll) => [String(payroll.user_id), payroll]))
+            const skipped: string[] = []
+            const processed: string[] = []
+
+            for (const employee of employees) {
+                const employeeId = employee._id
+                const baseSalary = salaryExceptions[employeeId]
+                    ? Number(salaryExceptionValues[employeeId] || 0)
+                    : (maintainSalaries ? getSalaryBaselineForEmployee(employeeId) : Number(employee.salary || 0))
+
+                if (!baseSalary) {
+                    skipped.push(`${employee.firstName} ${employee.lastName}`)
+                    continue
+                }
+
+                const payload = {
+                    user_id: employeeId,
+                    month: targetMonth,
+                    base_salary: baseSalary,
+                    bonus: 0,
+                    deduction_items: [],
+                    other_bonus_items: [],
+                    standard_deduction_overrides: {},
+                }
+
+                const existingPayroll = existingByUser.get(String(employeeId))
+
+                if (existingPayroll?._id) {
+                    await api.payroll.update(existingPayroll._id, payload)
+                } else {
+                    await api.payroll.generate(payload)
+                }
+
+                processed.push(`${employee.firstName} ${employee.lastName}`)
+            }
+
+            toast({
+                title: "Payroll maintenance complete",
+                description: `${processed.length} employees processed${skipped.length ? `, ${skipped.length} skipped` : ""}.`,
+            })
+
+            if (skipped.length > 0) {
+                console.log("Employees skipped because no salary was available:", skipped)
+            }
+
+            setBatchPayrollOpen(false)
+            fetchData()
+        } catch (error: any) {
+            toast({ variant: "destructive", description: error.message || "Failed to generate payrolls" })
+        } finally {
+            setBatchGenerating(false)
+        }
+    }
+    const launchEmployeeDetails = () => {
+        const targetEmployeeId = genEmployeeId || editingEmployeeId || employees[0]?._id
+
+        if (!targetEmployeeId) {
+            toast({
+                title: "No employee selected",
+                description: "Choose an employee before opening details.",
+                variant: "destructive",
+            })
+            return
+        }
+
+        openEmployeeEditor(targetEmployeeId)
+    }
+
     return (
         <div className="p-6 space-y-6">
             <div className="flex justify-between items-center">
@@ -554,6 +678,107 @@ export default function AdminPayrollPage() {
                         onChange={(e) => setSelectedMonth(e.target.value)}
                         className="w-40"
                     />
+
+                    <Button variant="outline" className="gap-2" onClick={launchEmployeeDetails}>
+                        <Calculator className="w-4 h-4" /> Employee Details
+                    </Button>
+
+                    <Dialog open={batchPayrollOpen} onOpenChange={setBatchPayrollOpen}>
+                        <DialogTrigger asChild>
+                            <Button variant="outline" className="gap-2">
+                                <Plus className="w-4 h-4" /> Next Month Salaries
+                            </Button>
+                        </DialogTrigger>
+                        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+                            <DialogHeader>
+                                <DialogTitle>Next Month Salary Maintenance</DialogTitle>
+                            </DialogHeader>
+
+                            <div className="space-y-6 py-4">
+                                <div className="rounded-lg border bg-slate-50 p-4 flex items-start justify-between gap-4">
+                                    <div className="space-y-1">
+                                        <p className="text-sm font-semibold">Maintain salaries for all employees</p>
+                                        <p className="text-xs text-muted-foreground">
+                                            The system will reuse the previous month salary for each employee by default.
+                                        </p>
+                                    </div>
+                                    <Checkbox checked={maintainSalaries} onCheckedChange={(value) => setMaintainSalaries(Boolean(value))} />
+                                </div>
+
+                                <div className="flex items-center justify-between gap-3">
+                                    <div>
+                                        <p className="text-sm font-semibold">Salary exceptions</p>
+                                        <p className="text-xs text-muted-foreground">
+                                            Select employees that should not keep the same salary and edit them below.
+                                        </p>
+                                    </div>
+                                    <Button type="button" variant="outline" onClick={() => setShowSalaryExceptions((prev) => !prev)}>
+                                        {showSalaryExceptions ? "Hide selection" : "Select employees to not maintain"}
+                                    </Button>
+                                </div>
+
+                                {showSalaryExceptions && (
+                                    <div className="space-y-3 rounded-lg border bg-white p-4 max-h-[380px] overflow-y-auto">
+                                        {employees.length === 0 ? (
+                                            <p className="text-sm text-muted-foreground">No employees available.</p>
+                                        ) : (
+                                            employees.map((employee) => {
+                                                const isSelected = Boolean(salaryExceptions[employee._id])
+                                                const baseline = getSalaryBaselineForEmployee(employee._id)
+
+                                                return (
+                                                    <div key={employee._id} className="rounded-lg border bg-slate-50 p-3">
+                                                        <div className="flex items-start justify-between gap-4">
+                                                            <div>
+                                                                <p className="font-medium">{employee.firstName} {employee.lastName}</p>
+                                                                <p className="text-xs text-muted-foreground">
+                                                                    Baseline salary: KES {baseline.toLocaleString() || "0"}
+                                                                </p>
+                                                            </div>
+                                                            <Checkbox
+                                                                checked={isSelected}
+                                                                onCheckedChange={(value) => toggleSalaryException(employee._id, Boolean(value))}
+                                                            />
+                                                        </div>
+
+                                                        {isSelected && (
+                                                            <div className="mt-3 grid gap-2 md:grid-cols-[1fr_180px] md:items-center">
+                                                                <p className="text-xs text-muted-foreground">
+                                                                    Edit the salary that will be used for the next month.
+                                                                </p>
+                                                                <Input
+                                                                    type="number"
+                                                                    value={salaryExceptionValues[employee._id] || ""}
+                                                                    onChange={(e) => setSalaryExceptionValues((prev) => ({
+                                                                        ...prev,
+                                                                        [employee._id]: e.target.value,
+                                                                    }))}
+                                                                    placeholder="New salary"
+                                                                />
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )
+                                            })
+                                        )}
+                                    </div>
+                                )}
+
+                                <div className="flex items-center justify-between gap-3 rounded-lg border bg-slate-50 p-4">
+                                    <div>
+                                        <p className="font-semibold">Ready to generate next month payrolls</p>
+                                        <p className="text-xs text-muted-foreground">
+                                            Salaries will be carried over unless you selected an exception.
+                                        </p>
+                                    </div>
+                                    <Button onClick={handleGenerateNextMonthPayrolls} disabled={batchGenerating || employees.length === 0}>
+                                        {batchGenerating && <Loader2 className="mr-2 w-4 h-4 animate-spin" />}
+                                        Generate Next Month Payrolls
+                                    </Button>
+                                </div>
+                            </div>
+                        </DialogContent>
+                    </Dialog>
 
                     <Dialog open={sidebarOpen} onOpenChange={resetForm}>
                         <DialogTrigger asChild>
@@ -753,79 +978,85 @@ export default function AdminPayrollPage() {
                 </div>
             </div>
 
-            <div className="grid gap-6 lg:grid-cols-2">
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Employee Details Management</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        <div className="space-y-2">
-                            <Label className="text-sm font-semibold">Select Employee</Label>
-                            <Select
-                                value={editingEmployeeId || genEmployeeId}
-                                onValueChange={(value) => {
-                                    setGenEmployeeId(value)
-                                    openEmployeeEditor(value)
-                                }}
-                            >
-                                <SelectTrigger className="h-10">
-                                    <SelectValue placeholder="Choose an employee..." />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {employees.map((emp) => (
-                                        <SelectItem key={emp._id} value={emp._id}>
-                                            {emp.firstName} {emp.lastName}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
+            <Dialog open={Boolean(editingEmployeeId)} onOpenChange={(open) => {
+                    if (!open) {
+                        setEditingEmployeeId(null)
+                    }
+                }}>
+                    <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                        <DialogHeader>
+                            <DialogTitle>Employee Details Management</DialogTitle>
+                        </DialogHeader>
 
-                        <div className="grid gap-3 md:grid-cols-2">
+                        <div className="space-y-6 py-2">
                             <div className="space-y-2">
-                                <Label className="text-sm font-medium">SHA ID</Label>
-                                <Input value={editingDetails.shaId} onChange={(e) => setEditingDetails((prev) => ({ ...prev, shaId: e.target.value }))} placeholder="e.g., SH12345" />
+                                <Label className="text-sm font-semibold">Select Employee</Label>
+                                <Select
+                                    value={editingEmployeeId || genEmployeeId}
+                                    onValueChange={(value) => {
+                                        setGenEmployeeId(value)
+                                        openEmployeeEditor(value)
+                                    }}
+                                >
+                                    <SelectTrigger className="h-10">
+                                        <SelectValue placeholder="Choose an employee..." />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {employees.map((emp) => (
+                                            <SelectItem key={emp._id} value={emp._id}>
+                                                {emp.firstName} {emp.lastName}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
                             </div>
-                            <div className="space-y-2">
-                                <Label className="text-sm font-medium">KRA PIN</Label>
-                                <Input value={editingDetails.kraPin} onChange={(e) => setEditingDetails((prev) => ({ ...prev, kraPin: e.target.value }))} placeholder="e.g., A001234567K" />
+
+                            <div className="grid gap-3 md:grid-cols-2">
+                                <div className="space-y-2">
+                                    <Label className="text-sm font-medium">SHA ID</Label>
+                                    <Input value={editingDetails.shaId} onChange={(e) => setEditingDetails((prev) => ({ ...prev, shaId: e.target.value }))} placeholder="e.g., SH12345" />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-sm font-medium">KRA PIN</Label>
+                                    <Input value={editingDetails.kraPin} onChange={(e) => setEditingDetails((prev) => ({ ...prev, kraPin: e.target.value }))} placeholder="e.g., A001234567K" />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-sm font-medium">National ID</Label>
+                                    <Input value={editingDetails.nationalId} onChange={(e) => setEditingDetails((prev) => ({ ...prev, nationalId: e.target.value }))} placeholder="e.g., 12345678" />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-sm font-medium">NSSF Number</Label>
+                                    <Input value={editingDetails.nssf} onChange={(e) => setEditingDetails((prev) => ({ ...prev, nssf: e.target.value }))} placeholder="e.g., 50/5967/5967" />
+                                </div>
+                                <div className="space-y-2 md:col-span-2">
+                                    <Label className="text-sm font-medium">Bank Name</Label>
+                                    <Input value={editingDetails.bankName} onChange={(e) => setEditingDetails((prev) => ({ ...prev, bankName: e.target.value }))} placeholder="e.g., Equity Bank" />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-sm font-medium">Bank Branch</Label>
+                                    <Input value={editingDetails.bankBranch} onChange={(e) => setEditingDetails((prev) => ({ ...prev, bankBranch: e.target.value }))} placeholder="e.g., Nairobi CBD" />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-sm font-medium">Account Number</Label>
+                                    <Input value={editingDetails.accountNumber} onChange={(e) => setEditingDetails((prev) => ({ ...prev, accountNumber: e.target.value }))} placeholder="e.g., 0123456789" />
+                                </div>
                             </div>
-                            <div className="space-y-2">
-                                <Label className="text-sm font-medium">National ID</Label>
-                                <Input value={editingDetails.nationalId} onChange={(e) => setEditingDetails((prev) => ({ ...prev, nationalId: e.target.value }))} placeholder="e.g., 12345678" />
-                            </div>
-                            <div className="space-y-2">
-                                <Label className="text-sm font-medium">NSSF Number</Label>
-                                <Input value={editingDetails.nssf} onChange={(e) => setEditingDetails((prev) => ({ ...prev, nssf: e.target.value }))} placeholder="e.g., 50/5967/5967" />
-                            </div>
-                            <div className="space-y-2 md:col-span-2">
-                                <Label className="text-sm font-medium">Bank Name</Label>
-                                <Input value={editingDetails.bankName} onChange={(e) => setEditingDetails((prev) => ({ ...prev, bankName: e.target.value }))} placeholder="e.g., Equity Bank" />
-                            </div>
-                            <div className="space-y-2">
-                                <Label className="text-sm font-medium">Bank Branch</Label>
-                                <Input value={editingDetails.bankBranch} onChange={(e) => setEditingDetails((prev) => ({ ...prev, bankBranch: e.target.value }))} placeholder="e.g., Nairobi CBD" />
-                            </div>
-                            <div className="space-y-2">
-                                <Label className="text-sm font-medium">Account Number</Label>
-                                <Input value={editingDetails.accountNumber} onChange={(e) => setEditingDetails((prev) => ({ ...prev, accountNumber: e.target.value }))} placeholder="e.g., 0123456789" />
+
+                            <div className="flex items-center justify-between gap-3 rounded-lg border bg-slate-50 p-4">
+                                <div>
+                                    <p className="font-semibold">{editingEmployee ? `${editingEmployee.firstName} ${editingEmployee.lastName}` : "No employee selected"}</p>
+                                    <p className="text-xs text-muted-foreground">Accountant can update compliance and banking details here.</p>
+                                </div>
+                                <Button onClick={handleSaveEmployeeDetails} disabled={savingDetails || !editingEmployeeId}>
+                                    {savingDetails && <Loader2 className="mr-2 w-4 h-4 animate-spin" />}
+                                    Save Details
+                                </Button>
                             </div>
                         </div>
+                    </DialogContent>
+                </Dialog>
 
-                        <div className="flex items-center justify-between gap-3 rounded-lg border bg-slate-50 p-4">
-                            <div>
-                                <p className="font-semibold">{editingEmployee ? `${editingEmployee.firstName} ${editingEmployee.lastName}` : "No employee selected"}</p>
-                                <p className="text-xs text-muted-foreground">Accountant can update compliance and banking details here.</p>
-                            </div>
-                            <Button onClick={handleSaveEmployeeDetails} disabled={savingDetails || !editingEmployeeId}>
-                                {savingDetails && <Loader2 className="mr-2 w-4 h-4 animate-spin" />}
-                                Save Details
-                            </Button>
-                        </div>
-                    </CardContent>
-                </Card>
-
-                <Card>
+            <Card className="overflow-hidden border-slate-200 shadow-sm min-w-0">
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2">
                             <Calculator className="w-5 h-5" /> Payroll Generator
@@ -858,7 +1089,7 @@ export default function AdminPayrollPage() {
                             </div>
                         </div>
 
-                        <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+                        <div className="grid gap-6 xl:grid-cols-[1.35fr_0.65fr]">
                             <div className="space-y-6">
                                 <div className="grid gap-4 md:grid-cols-2">
                                     <div className="space-y-2">
@@ -1086,7 +1317,6 @@ export default function AdminPayrollPage() {
                         </div>
                     </CardContent>
                 </Card>
-            </div>
 
             <div className="grid gap-4 md:grid-cols-2">
                 <Card className="overflow-hidden border-slate-200 shadow-sm">
