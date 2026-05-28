@@ -1999,10 +1999,14 @@ export class StockController {
       const actorId = req.user?.userId
       if (!org_id || !actorId) return res.status(401).json({ success: false, message: "Unauthorized" })
 
-      const { clientName, clientNumber, clientLocation, items, payNow = false } = req.body || {}
+      const { clientName, clientNumber, clientLocation, client, items, payNow = false } = req.body || {}
       if (!Array.isArray(items) || items.length === 0) {
         return res.status(400).json({ success: false, message: "At least one item is required" })
       }
+
+      const resolvedClientName = String(clientName || client?.name || "Walk-in Client").trim()
+      const resolvedClientNumber = String(clientNumber || client?.number || "WALK-IN").trim()
+      const resolvedClientLocation = String(clientLocation || client?.location || "Walk-in").trim()
 
       const normalizedItems = await buildQuotationItems(org_id, items || [])
       const subTotal = Number(normalizedItems.reduce((sum, item) => sum + item.lineTotal, 0).toFixed(2))
@@ -2012,9 +2016,9 @@ export class StockController {
         invoiceNumber: generateDocumentNumber("INV"),
         deliveryNoteNumber: generateDocumentNumber("DN"),
         client: {
-          name: String(clientName || "Walk-in Client").trim(),
-          number: String(clientNumber || "").trim(),
-          location: String(clientLocation || "").trim() || "",
+          name: resolvedClientName,
+          number: resolvedClientNumber,
+          location: resolvedClientLocation,
         },
         items: normalizedItems,
         subTotal,
@@ -2059,7 +2063,7 @@ export class StockController {
           buyerName: invoice.client.name,
           buyerNumber: invoice.client.number,
           buyerLocation: invoice.client.location,
-          isWalkInClient: invoice.client.name === "Walk-in Client",
+          isWalkInClient: invoice.client.name === "Walk-in Client" || invoice.client.number === "WALK-IN",
           isSalesCompany: false,
           quotationId: undefined,
           invoiceId: String(invoice._id),

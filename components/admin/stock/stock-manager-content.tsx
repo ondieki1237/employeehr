@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState, useRef } from "react"
 import Link from "next/link"
 import API_URL from "@/lib/apiBase"
 import { getToken, getUser } from "@/lib/auth"
@@ -142,6 +142,13 @@ interface DispatchUser {
   signatureUrl?: string
 }
 
+interface ClientSuggestion {
+  name: string
+  number: string
+  location: string
+  contactPerson?: string
+}
+
 export function StockManagerContent({ view }: { view: StockView }) {
   const { toast } = useToast()
   const [loading, setLoading] = useState(true)
@@ -153,6 +160,7 @@ export function StockManagerContent({ view }: { view: StockView }) {
   const [entries, setEntries] = useState<StockEntry[]>([])
   const [quotations, setQuotations] = useState<Quotation[]>([])
   const [invoices, setInvoices] = useState<Invoice[]>([])
+  const [clients, setClients] = useState<ClientSuggestion[]>([])
   const [branches, setBranches] = useState<any[]>([])
 
   const [categoryForm, setCategoryForm] = useState({ name: "", description: "" })
@@ -197,7 +205,33 @@ export function StockManagerContent({ view }: { view: StockView }) {
     buyerLocation: "",
   })
   const [saleItems, setSaleItems] = useState<QuotationItem[]>([])
+  const [clientSearch, setClientSearch] = useState("")
+  const [showNewClientForm, setShowNewClientForm] = useState(false)
+  const filteredClientSuggestions = useMemo(() => {
+    const seen = new Set<string>()
+    const q = clientSearch.trim().toLowerCase()
+    return clients
+      .map((c) => ({ name: c.name || "", number: c.number || "", location: c.location || "", contactPerson: c.contactPerson }))
+      .filter((c) => {
+        const key = `${c.name}|${c.number}|${c.location}`.toLowerCase()
+        if (seen.has(key)) return false
+        seen.add(key)
+        return true
+      })
+      .filter((c) => {
+        if (!q) return true
+        return c.name.toLowerCase().includes(q) || (c.number || "").toLowerCase().includes(q) || (c.location || "").toLowerCase().includes(q)
+      })
+      .slice(0, 10)
+  }, [clients, clientSearch])
+  const clientSelected = Boolean(
+    saleForm.isWalkInClient || (saleForm.buyerName.trim() && saleForm.buyerNumber.trim() && saleForm.buyerLocation.trim() && !showNewClientForm),
+  )
   const [saleProductSearch, setSaleProductSearch] = useState("")
+  const saleProductInputRef = useRef<HTMLInputElement | null>(null)
+  const [saleProductOptionsOpen, setSaleProductOptionsOpen] = useState(true)
+  const [saleFormOpen, setSaleFormOpen] = useState(false)
+  const [productAreaCollapsed, setProductAreaCollapsed] = useState(false)
   const [salesSearch, setSalesSearch] = useState("")
   const [inventorySearch, setInventorySearch] = useState("")
   const [inventoryBranchFilter, setInventoryBranchFilter] = useState("all")
@@ -212,7 +246,6 @@ export function StockManagerContent({ view }: { view: StockView }) {
   const [outsourcedSearch, setOutsourcedSearch] = useState("")
   const [outsourcedSort, setOutsourcedSort] = useState<"value-desc" | "value-asc" | "quantity-desc" | "quantity-asc" | "name-asc" | "name-desc">("value-desc")
   const [outsourcedPage, setOutsourcedPage] = useState(1)
-  const [lastCreatedInvoice, setLastCreatedInvoice] = useState<Invoice | null>(null)
   const [branding, setBranding] = useState<TenantBranding>({})
   const [invoiceSettings, setInvoiceSettings] = useState<InvoiceDocumentSettings>({})
 
@@ -231,7 +264,7 @@ export function StockManagerContent({ view }: { view: StockView }) {
   const fetchAll = async () => {
     try {
       setLoading(true)
-      const [categoriesRes, productsRes, usersRes, salesRes, entriesRes, quotationsRes, invoicesRes, branchesRes] = await Promise.all([
+      const [categoriesRes, productsRes, usersRes, salesRes, entriesRes, quotationsRes, invoicesRes, branchesRes, clientsRes] = await Promise.all([
         fetch(`${API_URL}/api/stock/categories`, { headers }),
         fetch(`${API_URL}/api/stock/products`, { headers }),
         fetch(`${API_URL}/api/users`, { headers }),
@@ -240,9 +273,10 @@ export function StockManagerContent({ view }: { view: StockView }) {
         fetch(`${API_URL}/api/stock/quotations`, { headers }),
         fetch(`${API_URL}/api/stock/invoices`, { headers }),
         fetch(`${API_URL}/api/branches`, { headers }),
+        fetch(`${API_URL}/api/stock/clients`, { headers }),
       ])
 
-      const [categoriesJson, productsJson, usersJson, salesJson, entriesJson, quotationsJson, invoicesJson, branchesJson] = await Promise.all([
+      const [categoriesJson, productsJson, usersJson, salesJson, entriesJson, quotationsJson, invoicesJson, branchesJson, clientsJson] = await Promise.all([
         categoriesRes.json(),
         productsRes.json(),
         usersRes.json(),
@@ -251,6 +285,7 @@ export function StockManagerContent({ view }: { view: StockView }) {
         quotationsRes.json(),
         invoicesRes.json(),
         branchesRes.json(),
+        clientsRes.json(),
       ])
 
       setCategories(categoriesJson.data || [])
@@ -260,6 +295,7 @@ export function StockManagerContent({ view }: { view: StockView }) {
       setEntries(entriesJson.data || [])
       setQuotations(quotationsJson.data || [])
       setInvoices(invoicesJson.data || [])
+      setClients((clientsJson.data || []).filter((client: ClientSuggestion) => client.name && client.number && client.location))
       setBranches((branchesJson.data || []).filter((branch: any) => branch.isActive))
     } catch {
       toast({ title: "Error", description: "Failed to load inventory data", variant: "destructive" })
@@ -393,6 +429,19 @@ export function StockManagerContent({ view }: { view: StockView }) {
   }
 
   const filteredProductsForSales = products.filter((product) => matchesProductAndCategory(product, normalizedSalesSearch))
+  const filteredProductsForSalePicker = useMemo(() => {
+    const baseProducts = saleProductSearch.trim() ? products : filteredProductsForSales
+    const query = saleProductSearch.trim().toLowerCase()
+    return baseProducts
+      .filter((product) => {
+        if (!query) return true
+        return product.name.toLowerCase().includes(query) || (product.sku || "").toLowerCase().includes(query)
+      })
+      .slice(0, 50)
+  }, [products, filteredProductsForSales, saleProductSearch])
+
+  const shouldShowSaleProductOptions = saleProductSearch.trim().length > 0 && saleProductOptionsOpen
+
   const filteredSales = sales.filter((sale) => {
     if (!normalizedSalesSearch) return true
     const productName = (sale.product?.name || "").toLowerCase()
@@ -1078,172 +1127,133 @@ export function StockManagerContent({ view }: { view: StockView }) {
     fetchAll()
   }
 
-  const recordSale = async () => {
-    const response = await fetch(`${API_URL}/api/stock/sales`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        productId: saleForm.productId,
-        quantitySold: Number(saleForm.quantitySold),
-        soldPrice: Number(saleForm.soldPrice),
-        isSalesCompany: saleForm.isSalesCompany,
-        salesEmployeeId: saleForm.isSalesCompany ? saleForm.salesEmployeeId : undefined,
-        isWalkInClient: saleForm.isWalkInClient,
-        buyerName: saleForm.isWalkInClient ? undefined : saleForm.buyerName,
-        buyerNumber: saleForm.isWalkInClient ? undefined : saleForm.buyerNumber,
-        buyerLocation: saleForm.isWalkInClient ? undefined : saleForm.buyerLocation,
-      }),
-    })
-    const result = await response.json()
-    if (!response.ok) {
-      toast({ title: "Sale Error", description: result.message || "Failed", variant: "destructive" })
-      return
-    }
-
-    // Automatically create an invoice for the sale
-    const clientName = saleForm.isWalkInClient ? "Walk-in Client" : saleForm.buyerName || "Walk-in Client"
-    const clientNumber = saleForm.isWalkInClient ? "" : saleForm.buyerNumber || ""
-    const clientLocation = saleForm.isWalkInClient ? "" : saleForm.buyerLocation || ""
-
-    const item: QuotationItem = {
-      productId: saleForm.productId,
-      productName: productNameById.get(saleForm.productId) || "Unknown",
-      quantity: Number(saleForm.quantitySold),
-      unitPrice: Number(saleForm.soldPrice),
-      lineTotal: Number((Number(saleForm.quantitySold) * Number(saleForm.soldPrice)).toFixed(2)),
-    }
-
-    try {
-      const invoiceResponse = await fetch(`${API_URL}/api/stock/invoices/create`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          clientName,
-          clientNumber,
-          clientLocation,
-          items: [item],
-          payNow: true,
-        }),
-      })
-      const invoiceResult = await invoiceResponse.json()
-      if (invoiceResponse.ok && invoiceResult.success && invoiceResult.data?.invoice) {
-        setLastCreatedInvoice(invoiceResult.data.invoice)
-        toast({ title: "Success", description: "Sale recorded and invoice created" })
-      } else {
-        toast({ title: "Warning", description: "Sale recorded but invoice creation failed" })
-      }
-    } catch (err) {
-      toast({ title: "Warning", description: "Sale recorded but invoice creation failed" })
-    }
-
-    setSaleForm({
-      productId: "",
-      quantitySold: "",
-      soldPrice: "",
-      isSalesCompany: false,
-      salesEmployeeId: "",
-      isWalkInClient: false,
-      buyerName: "",
-      buyerNumber: "",
-      buyerLocation: "",
-    })
-    fetchAll()
-  }
-
-  const addItemToInvoice = () => {
+  const addSaleItem = () => {
     if (!saleForm.productId) {
-      toast({ title: "Validation", description: "Select a product before adding", variant: "destructive" })
+      toast({ title: "Item Error", description: "Select a product before adding", variant: "destructive" })
       return
     }
-    const qty = Number(saleForm.quantitySold)
-    const price = Number(saleForm.soldPrice)
-    if (!Number.isFinite(qty) || qty <= 0) {
-      toast({ title: "Validation", description: "Quantity must be a positive number", variant: "destructive" })
+    const qty = Number(saleForm.quantitySold || 0)
+    const price = Number(saleForm.soldPrice || 0)
+    if (!qty || qty <= 0) {
+      toast({ title: "Item Error", description: "Enter a valid quantity", variant: "destructive" })
       return
     }
-    if (!Number.isFinite(price) || price < 0) {
-      toast({ title: "Validation", description: "Sold price must be a non-negative number", variant: "destructive" })
+    if (Number.isNaN(price) || price < 0) {
+      toast({ title: "Item Error", description: "Enter a valid price", variant: "destructive" })
       return
     }
-
     const item: QuotationItem = {
       productId: saleForm.productId,
-      productName: productNameById.get(saleForm.productId) || "Unknown",
+      productName: productNameById.get(saleForm.productId) || "",
       quantity: qty,
       unitPrice: price,
-      lineTotal: Number((qty * price).toFixed(2)),
+      lineTotal: qty * price,
     }
-
     setSaleItems((prev) => [...prev, item])
     setSaleForm((prev) => ({ ...prev, productId: "", quantitySold: "", soldPrice: "" }))
     setSaleProductSearch("")
+    setSaleProductOptionsOpen(false)
+    setProductAreaCollapsed(true)
+    setTimeout(() => saleProductInputRef.current?.focus(), 30)
   }
 
-  const clearInvoice = () => setSaleItems([])
-
-  const removeInvoiceItem = (index: number) => {
-    setSaleItems((prev) => prev.filter((_, itemIndex) => itemIndex !== index))
+  const removeSaleItem = (index: number) => {
+    setSaleItems((prev) => prev.filter((_, i) => i !== index))
   }
 
-  const payCashForInvoice = async () => {
-    // allow paying cash for either accumulated saleItems OR the current single-item form
-    const itemsToSend: QuotationItem[] = saleItems.length
-      ? saleItems
-      : (saleForm.productId && saleForm.quantitySold && saleForm.soldPrice)
-        ? [
-            {
-              productId: saleForm.productId,
-              productName: productNameById.get(saleForm.productId) || "Unknown",
-              quantity: Number(saleForm.quantitySold),
-              unitPrice: Number(saleForm.soldPrice),
-              lineTotal: Number((Number(saleForm.quantitySold) * Number(saleForm.soldPrice)).toFixed(2)),
-            },
-          ]
+  const updateSaleItem = (index: number, fields: Partial<QuotationItem>) => {
+    setSaleItems((prev) =>
+      prev.map((it, i) => {
+        if (i !== index) return it
+        const updated = { ...it, ...fields }
+        const qty = Number(updated.quantity || 0)
+        const price = Number(updated.unitPrice || 0)
+        return { ...updated, lineTotal: qty * price }
+      }),
+    )
+  }
+
+  const startNewItem = () => {
+    setSaleForm((prev) => ({ ...prev, productId: "", quantitySold: "", soldPrice: "" }))
+    setSaleProductSearch("")
+    setSaleProductOptionsOpen(false)
+    setTimeout(() => saleProductInputRef.current?.focus(), 30)
+  }
+
+  const saleSubTotal = saleItems.reduce((sum, it) => sum + Number(it.lineTotal || 0), 0)
+
+  const recordSale = async () => {
+    const itemsToRecord = saleItems.length > 0 
+      ? saleItems 
+      : saleForm.productId 
+        ? [{ productId: saleForm.productId, quantity: Number(saleForm.quantitySold || 0), unitPrice: Number(saleForm.soldPrice || 0), productName: "", lineTotal: 0 }]
         : []
 
-    if (!itemsToSend.length) {
-      toast({ title: "Invoice", description: "Add at least one item to invoice or fill the form", variant: "destructive" })
+    if (itemsToRecord.length === 0) {
+      toast({ title: "Sale Error", description: "Add at least one product to record a sale", variant: "destructive" })
       return
     }
 
-    const clientName = saleForm.isWalkInClient ? "Walk-in Client" : saleForm.buyerName || "Walk-in Client"
-    const clientNumber = saleForm.isWalkInClient ? "" : saleForm.buyerNumber || ""
-    const clientLocation = saleForm.isWalkInClient ? "" : saleForm.buyerLocation || ""
-
     try {
-      const response = await fetch(`${API_URL}/api/stock/invoices/create`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          clientName,
-          clientNumber,
-          clientLocation,
-          items: itemsToSend,
-          payNow: true,
-        }),
-      })
-      const result = await response.json()
-      if (!response.ok) {
-        toast({ title: "Invoice Error", description: result.message || "Failed to create invoice", variant: "destructive" })
-        return
+      // Build invoice items directly and let backend create StockSale records to avoid duplicates
+      const invoiceItems = itemsToRecord.map((item) => ({
+        productId: item.productId,
+        productName: productNameById.get(item.productId) || "",
+        quantity: Number(item.quantity || 0),
+        unitPrice: Number(item.unitPrice || 0),
+        lineTotal: Number(item.quantity || 0) * Number(item.unitPrice || 0),
+        isOutsourced: item.isOutsourced || false,
+      }))
+
+      const subTotal = invoiceItems.reduce((s, it) => s + Number(it.lineTotal || 0), 0)
+
+      const invoiceClient = saleForm.isWalkInClient
+        ? { name: "Walk-in Client", number: "WALK-IN", location: "Walk-in" }
+        : {
+            name: saleForm.buyerName.trim() || "Customer",
+            number: saleForm.buyerNumber.trim() || "N/A",
+            location: saleForm.buyerLocation.trim() || "N/A",
+          }
+
+      const invoicePayload = {
+        clientName: invoiceClient.name,
+        clientNumber: invoiceClient.number,
+        clientLocation: invoiceClient.location,
+        client: invoiceClient,
+        items: invoiceItems,
+        subTotal,
       }
 
-      toast({ title: "Success", description: "Invoice created and paid (cash)" })
-      clearInvoice()
-      setSaleForm({
-        productId: "",
-        quantitySold: "",
-        soldPrice: "",
-        isSalesCompany: false,
-        salesEmployeeId: "",
-        isWalkInClient: false,
-        buyerName: "",
-        buyerNumber: "",
-        buyerLocation: "",
+      const invRes = await fetch(`${API_URL}/api/stock/invoices/create`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(invoicePayload),
       })
-      fetchAll()
+      const invJson = await invRes.json()
+      if (invRes.ok) {
+        toast({ title: "Invoice Created", description: `Invoice ${invJson.data?.invoiceNumber || "created"}` })
+        setSaleForm({
+          productId: "",
+          quantitySold: "",
+          soldPrice: "",
+          isSalesCompany: false,
+          salesEmployeeId: "",
+          isWalkInClient: false,
+          buyerName: "",
+          buyerNumber: "",
+          buyerLocation: "",
+        })
+        setSaleItems([])
+        setSaleProductSearch("")
+        setSaleProductOptionsOpen(true)
+        setProductAreaCollapsed(false)
+        setSaleFormOpen(false)
+        fetchAll()
+      } else {
+        toast({ title: "Invoice Error", description: invJson.message || "Failed to create invoice", variant: "destructive" })
+      }
     } catch (err) {
-      toast({ title: "Invoice Error", description: "Failed to reach server", variant: "destructive" })
+      toast({ title: "Invoice Error", description: "Failed to create invoice", variant: "destructive" })
     }
   }
 
@@ -1815,6 +1825,13 @@ export function StockManagerContent({ view }: { view: StockView }) {
                 <p className="text-sm text-muted-foreground">Record sales, monitor revenue, and track customer purchases in real time.</p>
               </div>
               <div className="flex flex-wrap gap-2">
+                <Button
+                  onClick={() => setSaleFormOpen((prev) => !prev)}
+                  style={{ backgroundColor: primaryColor, borderColor: primaryColor }}
+                  className="text-white hover:opacity-90"
+                >
+                  {saleFormOpen ? "Close Sale Form" : "Create New Sale"}
+                </Button>
                 <Button variant="outline" onClick={() =>
                   exportAsCsv(
                     "sales-data.csv",
@@ -1897,227 +1914,273 @@ export function StockManagerContent({ view }: { view: StockView }) {
           </div>
 
           {/* Record Sale Card */}
-          <Card className="shadow-sm">
-            <CardHeader className="border-b bg-muted/30 pb-3">
-              <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-                <div>
-                  <CardTitle className="text-base">Record New Sale</CardTitle>
-                  <p className="text-sm text-muted-foreground">
-                    Quickly add a sale or build an invoice from multiple items
-                  </p>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 pt-6">
-              <div>
-                <Label>Product</Label>
-                <Input
-                  placeholder="Search product to add"
-                  value={saleProductSearch}
-                  onChange={(e) => setSaleProductSearch(e.target.value)}
-                />
-                {saleForm.productId && (
-                  <div className="mt-2 rounded-md border bg-muted/30 p-3 text-sm">
-                    <div className="flex items-center justify-between gap-3">
+          {saleFormOpen && (
+            <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-[1px]">
+              <div className="mx-auto mt-6 w-[96vw] max-w-6xl px-2 pb-6 sm:mt-8 sm:px-4">
+                <Card className="shadow-2xl border bg-background">
+                  <CardHeader className="border-b bg-muted/30 pb-3">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
                       <div>
-                        <p className="font-medium">Selected product</p>
-                        <p className="text-muted-foreground">{productNameById.get(saleForm.productId) || "Unknown product"}</p>
+                        <CardTitle className="text-base">Record New Sale</CardTitle>
+                        <p className="text-sm text-muted-foreground">Fill in sale details and save</p>
                       </div>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setSaleForm((prev) => ({ ...prev, productId: "", quantitySold: "", soldPrice: "" }))}
-                      >
-                        Clear
+                      <Button variant="ghost" size="sm" onClick={() => setSaleFormOpen(false)}>
+                        Close
                       </Button>
                     </div>
-                  </div>
-                )}
-                <div className="mt-2">
-                  <div className="max-h-40 overflow-auto rounded border">
-                    {(saleProductSearch.trim() ? products : filteredProductsForSales)
-                      .filter((p) => {
-                        const q = saleProductSearch.trim().toLowerCase()
-                        if (!q) return true
-                        return p.name.toLowerCase().includes(q) || (p.sku || "").toLowerCase().includes(q)
-                      })
-                      .slice(0, 50)
-                      .map((product) => (
-                        <button
-                          key={product._id}
-                          type="button"
-                          className={`w-full text-left px-3 py-2 hover:bg-gray-50 ${saleForm.productId === product._id ? "bg-gray-100" : ""}`}
-                          onClick={() => {
-                            setSaleForm((prev) => ({ ...prev, productId: product._id, soldPrice: String(product.sellingPrice) }))
-                            setSaleProductSearch("")
-                          }}
-                        >
-                          <div className="flex items-center justify-between">
-                            <div className="truncate">{product.name}</div>
-                            <div className="text-sm text-muted-foreground">{product.sellingPrice.toFixed(2)}</div>
-                          </div>
-                        </button>
-                      ))}
-                  </div>
-                </div>
-              </div>
-              <div>
-                <Label>Quantity Sold</Label>
-                <Input
-                  type="number"
-                  min="1"
-                  value={saleForm.quantitySold}
-                  onChange={(event) => setSaleForm((prev) => ({ ...prev, quantitySold: event.target.value }))}
-                  placeholder={saleForm.productId ? "Enter quantity for selected product" : "Select a product first"}
-                />
-              </div>
-              <div>
-                <Label>Sold Price</Label>
-                <Input
-                  type="number"
-                  min="0"
-                  value={saleForm.soldPrice}
-                  onChange={(event) => setSaleForm((prev) => ({ ...prev, soldPrice: event.target.value }))}
-                  placeholder={saleForm.productId ? "Price for selected product" : "Select a product first"}
-                />
-              </div>
-              {saleForm.productId && saleForm.quantitySold && saleForm.soldPrice && (
-                <div className="md:col-span-2 lg:col-span-3 rounded-md border p-3 text-sm bg-blue-50/60">
-                  <div className="flex items-center justify-between gap-3">
+                  </CardHeader>
+                  <CardContent className="max-h-[78vh] overflow-y-auto grid gap-4 md:grid-cols-2 lg:grid-cols-3 pt-6">
                     <div>
-                      <p className="font-medium">Ready to add this item</p>
-                      <p className="text-muted-foreground">
-                        {productNameById.get(saleForm.productId) || "Selected product"} · Qty {saleForm.quantitySold} · Total {Number(saleForm.quantitySold || 0) * Number(saleForm.soldPrice || 0)}
-                      </p>
-                    </div>
-                    <Button
-                      type="button"
-                      onClick={() => addItemToInvoice()}
-                      className="h-9 px-3"
-                    >
-                      ✓
-                    </Button>
-                  </div>
-                </div>
-              )}
-              <label className="flex items-center gap-2 text-sm md:col-span-2 lg:col-span-3">
-                <Checkbox checked={saleForm.isWalkInClient} onCheckedChange={(value) => setSaleForm((prev) => ({ ...prev, isWalkInClient: Boolean(value) }))} />
-                <span>Walk-in client (no buyer details)</span>
-              </label>
-              {!saleForm.isWalkInClient && (
-                <>
-                  <div>
-                    <Label>Buyer Name</Label>
-                    <Input value={saleForm.buyerName} onChange={(event) => setSaleForm((prev) => ({ ...prev, buyerName: event.target.value }))} />
-                  </div>
-                  <div>
-                    <Label>Buyer Number</Label>
-                    <Input value={saleForm.buyerNumber} onChange={(event) => setSaleForm((prev) => ({ ...prev, buyerNumber: event.target.value }))} />
-                  </div>
-                  <div>
-                    <Label>Buyer Location</Label>
-                    <Input value={saleForm.buyerLocation} onChange={(event) => setSaleForm((prev) => ({ ...prev, buyerLocation: event.target.value }))} />
-                  </div>
-                </>
-              )}
-              <label className="flex items-center gap-2 text-sm md:col-span-2 lg:col-span-3">
-                <Checkbox checked={saleForm.isSalesCompany} onCheckedChange={(value) => setSaleForm((prev) => ({ ...prev, isSalesCompany: Boolean(value) }))} />
-                <span>Is sales company?</span>
-              </label>
-              {saleForm.isSalesCompany && (
-                <div className="md:col-span-2 lg:col-span-3">
-                  <Label>Select employee whose sale this is</Label>
-                  <Select value={saleForm.salesEmployeeId} onValueChange={(value) => setSaleForm((prev) => ({ ...prev, salesEmployeeId: value }))}>
-                    <SelectTrigger><SelectValue placeholder="Select employee" /></SelectTrigger>
-                    <SelectContent>
-                      {employees.map((employee) => (
-                        <SelectItem key={employee._id} value={employee._id}>{employee.firstName} {employee.lastName}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-              <div className="md:col-span-2 lg:col-span-3">
-                <div className="flex gap-2">
-                  <Button onClick={recordSale}>Save Sale</Button>
-                  <Button
-                    onClick={() => {
-                      addItemToInvoice()
-                    }}
-                    variant="outline"
-                  >
-                    Add item
-                  </Button>
-                  <Button onClick={payCashForInvoice} variant="secondary">Paying cash</Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {saleItems.length > 0 && (
-            <Card className="shadow-sm">
-              <CardHeader className="border-b bg-muted/30 pb-3">
-                <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-                  <div>
-                    <CardTitle className="text-base">Invoice Preview</CardTitle>
-                    <p className="text-sm text-muted-foreground">
-                      Review items before payment
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-xs text-muted-foreground">Total Items</div>
-                    <div className="text-lg font-semibold">{saleItems.length}</div>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="p-0">
-                <div className="overflow-x-auto">
-                  <table className="min-w-full table-fixed text-sm">
-                    <thead className="sticky top-0 z-10 bg-muted/80 text-[11px] uppercase tracking-wide text-muted-foreground backdrop-blur">
-                      <tr className="border-b">
-                        <th className="px-3 py-3 font-medium text-left w-[35%]">Product</th>
-                        <th className="px-3 py-3 font-medium text-right w-[15%]">Qty</th>
-                        <th className="px-3 py-3 font-medium text-right w-[20%]">Unit Price</th>
-                        <th className="px-3 py-3 font-medium text-right w-[20%]">Line Total</th>
-                        <th className="px-3 py-3 font-medium text-right w-[10%]">Action</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {saleItems.map((item, idx) => (
-                        <tr key={`${item.productId}-${idx}`} className={`border-b align-top transition-colors hover:bg-muted/40 ${idx % 2 === 0 ? "bg-white" : "bg-muted/20"}`}>
-                          <td className="px-3 py-2 align-top">
-                            <div className="truncate font-medium text-foreground">{item.productName}</div>
-                          </td>
-                          <td className="px-3 py-2 align-top text-right">{item.quantity}</td>
-                          <td className="px-3 py-2 align-top text-right">KES {item.unitPrice.toFixed(2)}</td>
-                          <td className="px-3 py-2 align-top text-right font-medium">KES {item.lineTotal.toFixed(2)}</td>
-                          <td className="px-3 py-2 align-top text-right">
-                            <Button type="button" variant="ghost" size="sm" onClick={() => removeInvoiceItem(idx)} className="h-8">
-                              ✕
+                      <Label>Product</Label>
+                      <Input
+                        ref={saleProductInputRef}
+                        placeholder="Search product to add"
+                        value={saleProductSearch}
+                        onChange={(e) => {
+                          setSaleProductSearch(e.target.value)
+                          setSaleProductOptionsOpen(e.target.value.trim().length > 0)
+                        }}
+                      />
+                      {saleForm.productId && (
+                        <div className="mt-2 rounded-md border bg-muted/30 p-3 text-sm">
+                          <div className="flex items-center justify-between gap-3">
+                            <div>
+                              <p className="font-medium">Selected product</p>
+                              <p className="text-muted-foreground">{productNameById.get(saleForm.productId) || "Unknown product"}</p>
+                            </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setSaleForm((prev) => ({ ...prev, productId: "", quantitySold: "", soldPrice: "" }))
+                                setSaleProductSearch("")
+                                setSaleProductOptionsOpen(false)
+                                setTimeout(() => saleProductInputRef.current?.focus(), 30)
+                              }}
+                            >
+                              Clear
                             </Button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                <div className="border-t bg-muted/30 px-3 py-3">
-                  <div className="flex items-center justify-between">
-                    <div className="text-sm font-semibold">Total</div>
-                    <div className="text-lg font-semibold" style={{ color: primaryColor }}>
-                      KES {saleItems.reduce((s, it) => s + Number(it.lineTotal || 0), 0).toFixed(2)}
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setSaleForm((prev) => ({ ...prev, productId: "", quantitySold: "", soldPrice: "" }))
+                                setSaleProductSearch("")
+                                setSaleProductOptionsOpen(false)
+                                setTimeout(() => saleProductInputRef.current?.focus(), 30)
+                              }}
+                            >
+                              Change
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                      {shouldShowSaleProductOptions && (
+                      <div className="mt-2">
+                        <div className="max-h-40 overflow-auto rounded border">
+                          {filteredProductsForSalePicker.map((product) => (
+                              <button
+                                key={product._id}
+                                type="button"
+                                className={`w-full text-left px-3 py-2 hover:bg-gray-50 ${saleForm.productId === product._id ? "bg-gray-100" : ""}`}
+                                onClick={() => {
+                                  setSaleForm((prev) => ({ ...prev, productId: product._id, soldPrice: String(product.sellingPrice) }))
+                                  setSaleProductSearch("")
+                                  setSaleProductOptionsOpen(false)
+                                }}
+                              >
+                                <div className="flex items-center justify-between">
+                                  <div className="truncate">{product.name}</div>
+                                  <div className="text-sm text-muted-foreground">{product.sellingPrice.toFixed(2)}</div>
+                                </div>
+                              </button>
+                            ))}
+                          {filteredProductsForSalePicker.length === 0 && (
+                            <div className="px-3 py-2 text-sm text-muted-foreground">No products match your search</div>
+                          )}
+                        </div>
+                      </div>
+                      )}
                     </div>
-                  </div>
-                </div>
-              </CardContent>
-              <CardContent className="border-t pt-3 pb-3">
-                <div className="flex gap-2">
-                  <Button onClick={payCashForInvoice} style={{ backgroundColor: primaryColor, borderColor: primaryColor }} className="text-white hover:opacity-90">Proceed to Payment</Button>
-                  <Button variant="outline" onClick={clearInvoice}>Clear Invoice</Button>
-                </div>
-              </CardContent>
-            </Card>
+                    <div>
+                      <Label>Quantity Sold</Label>
+                      <Input
+                        type="number"
+                        min="1"
+                        value={saleForm.quantitySold}
+                        onChange={(event) => setSaleForm((prev) => ({ ...prev, quantitySold: event.target.value }))}
+                        placeholder={saleForm.productId ? "Enter quantity for selected product" : "Select a product first"}
+                      />
+                    </div>
+                    <div>
+                      <Label>Sold Price</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        value={saleForm.soldPrice}
+                        onChange={(event) => setSaleForm((prev) => ({ ...prev, soldPrice: event.target.value }))}
+                        placeholder={saleForm.productId ? "Price for selected product" : "Select a product first"}
+                      />
+                      <div className="mt-2">
+                        <Button type="button" onClick={addSaleItem}>Add Item</Button>
+                      </div>
+                    </div>
+                    {saleItems.length > 0 && (
+                      <div className="md:col-span-2 lg:col-span-3">
+                        <Label>Items</Label>
+                        <div className="space-y-2 rounded border p-3">
+                            <div className="flex items-center justify-end">
+                        <Button variant="outline" size="sm" onClick={startNewItem}>Add another item</Button>
+                      </div>
+                      {saleItems.map((it, idx) => (
+                        <div key={idx} className="flex items-center justify-between gap-3 text-sm">
+                          <div className="min-w-0 flex-1">
+                            <div className="font-medium">{it.productName}</div>
+                            <div className="flex items-center gap-2 mt-1">
+                              <Input
+                                type="number"
+                                min="1"
+                                value={String(it.quantity)}
+                                onChange={(e) => updateSaleItem(idx, { quantity: Number(e.target.value) })}
+                                className="w-28"
+                              />
+                              <Input
+                                type="number"
+                                min="0"
+                                value={String(it.unitPrice)}
+                                onChange={(e) => updateSaleItem(idx, { unitPrice: Number(e.target.value) })}
+                                className="w-28"
+                              />
+                              <div className="text-muted-foreground">KES {Number(it.lineTotal).toFixed(2)}</div>
+                            </div>
+                          </div>
+                          <div className="flex-shrink-0">
+                            <Button variant="ghost" size="sm" onClick={() => removeSaleItem(idx)}>Remove</Button>
+                          </div>
+                        </div>
+                      ))}
+                      <div className="flex items-center justify-between pt-2 border-t">
+                        <div className="font-medium">Subtotal</div>
+                        <div className="font-semibold">KES {saleSubTotal.toFixed(2)}</div>
+                      </div>
+                        </div>
+                      </div>
+                    )}
+                    <div className="md:col-span-2 lg:col-span-3">
+                      <Label>Find client</Label>
+                      {clientSelected ? (
+                        <div className="mt-2 rounded-md border bg-muted/30 p-3 text-sm flex items-center justify-between">
+                          <div>
+                            <div className="font-medium">{saleForm.isWalkInClient ? "Walk-in client" : saleForm.buyerName}</div>
+                            {saleForm.buyerNumber && (
+                              <div className="text-xs text-muted-foreground">{saleForm.buyerNumber} · {saleForm.buyerLocation}</div>
+                            )}
+                          </div>
+                          <div className="flex gap-2">
+                            <Button size="sm" variant="ghost" onClick={() => { setSaleForm((prev) => ({ ...prev, buyerName: "", buyerNumber: "", buyerLocation: "" })); setShowNewClientForm(false); setClientSearch("") }}>Change</Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <Input
+                            placeholder="Search existing clients..."
+                            value={clientSearch}
+                            onChange={(e) => setClientSearch(e.target.value)}
+                          />
+                          {filteredClientSuggestions.length > 0 && (
+                            <div className="mt-2 max-h-32 overflow-auto rounded border bg-white">
+                              {filteredClientSuggestions.map((c, i) => (
+                                <button
+                                  key={i}
+                                  type="button"
+                                  className="w-full text-left px-3 py-2 hover:bg-gray-50"
+                                  onClick={() => {
+                                    setSaleForm((prev) => ({ ...prev, buyerName: c.name, buyerNumber: c.number, buyerLocation: c.location }))
+                                    setClientSearch("")
+                                    setShowNewClientForm(false)
+                                  }}
+                                >
+                                  <div className="text-sm font-medium">{c.name}</div>
+                                  <div className="text-xs text-muted-foreground">{c.number} · {c.location}</div>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                          <div className="mt-2">
+                            <Button variant="outline" size="sm" onClick={() => setShowNewClientForm((p) => !p)}>
+                              {showNewClientForm ? "Cancel New Client" : "New client"}
+                            </Button>
+                          </div>
+                          {showNewClientForm && (
+                            <div className="mt-2 space-y-2">
+                              <div>
+                                <Label>Name</Label>
+                                <Input value={saleForm.buyerName} onChange={(e) => setSaleForm((prev) => ({ ...prev, buyerName: e.target.value }))} />
+                              </div>
+                              <div>
+                                <Label>Number</Label>
+                                <Input value={saleForm.buyerNumber} onChange={(e) => setSaleForm((prev) => ({ ...prev, buyerNumber: e.target.value }))} />
+                              </div>
+                              <div>
+                                <Label>Location</Label>
+                                <Input value={saleForm.buyerLocation} onChange={(e) => setSaleForm((prev) => ({ ...prev, buyerLocation: e.target.value }))} />
+                              </div>
+                              <div>
+                                <Button onClick={() => setShowNewClientForm(false)}>Use client</Button>
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                    <label className="flex items-center gap-2 text-sm md:col-span-2 lg:col-span-3">
+                      <Checkbox checked={saleForm.isWalkInClient} onCheckedChange={(value) => setSaleForm((prev) => ({ ...prev, isWalkInClient: Boolean(value) }))} />
+                      <span>Walk-in client (no buyer details)</span>
+                    </label>
+                    {!saleForm.isWalkInClient && (
+                      <>
+                        <div>
+                          <Label>Buyer Name</Label>
+                          <Input value={saleForm.buyerName} onChange={(event) => setSaleForm((prev) => ({ ...prev, buyerName: event.target.value }))} />
+                        </div>
+                        <div>
+                          <Label>Buyer Number</Label>
+                          <Input value={saleForm.buyerNumber} onChange={(event) => setSaleForm((prev) => ({ ...prev, buyerNumber: event.target.value }))} />
+                        </div>
+                        <div>
+                          <Label>Buyer Location</Label>
+                          <Input value={saleForm.buyerLocation} onChange={(event) => setSaleForm((prev) => ({ ...prev, buyerLocation: event.target.value }))} />
+                        </div>
+                      </>
+                    )}
+                    <label className="flex items-center gap-2 text-sm md:col-span-2 lg:col-span-3">
+                      <Checkbox checked={saleForm.isSalesCompany} onCheckedChange={(value) => setSaleForm((prev) => ({ ...prev, isSalesCompany: Boolean(value) }))} />
+                      <span>Is sales company?</span>
+                    </label>
+                    {saleForm.isSalesCompany && (
+                      <div className="md:col-span-2 lg:col-span-3">
+                        <Label>Select employee whose sale this is</Label>
+                        <Select value={saleForm.salesEmployeeId} onValueChange={(value) => setSaleForm((prev) => ({ ...prev, salesEmployeeId: value }))}>
+                          <SelectTrigger><SelectValue placeholder="Select employee" /></SelectTrigger>
+                          <SelectContent>
+                            {employees.map((employee) => (
+                              <SelectItem key={employee._id} value={employee._id}>{employee.firstName} {employee.lastName}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                    <div className="md:col-span-2 lg:col-span-3">
+                      <div className="flex gap-2">
+                        <Button onClick={recordSale} disabled={saleItems.length === 0 && !saleForm.productId}>Save Sale</Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
           )}
 
           <Card className="shadow-sm">
@@ -2152,7 +2215,6 @@ export function StockManagerContent({ view }: { view: StockView }) {
                         <th className="px-3 py-3 font-medium w-[14%]">Buyer</th>
                         <th className="px-3 py-3 font-medium w-[12%]">Sold By</th>
                         <th className="px-3 py-3 font-medium w-[8%]">Remaining</th>
-                        <th className="px-3 py-3 font-medium w-[6%]">Action</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -2176,16 +2238,6 @@ export function StockManagerContent({ view }: { view: StockView }) {
                           </td>
                           <td className="px-3 py-2 align-top text-muted-foreground">{sale.soldByUser ? `${sale.soldByUser.firstName} ${sale.soldByUser.lastName}` : "-"}</td>
                           <td className="px-3 py-2 align-top font-medium">{sale.remainingQuantity}</td>
-                          <td className="px-3 py-2 align-top">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => downloadSaleInvoice(sale)}
-                              className="h-8 whitespace-nowrap text-xs"
-                            >
-                              Invoice
-                            </Button>
-                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -2194,89 +2246,6 @@ export function StockManagerContent({ view }: { view: StockView }) {
               )}
             </CardContent>
           </Card>
-
-          {lastCreatedInvoice && (
-            <Card className="border-emerald-200 bg-emerald-50/80 shadow-sm">
-              <CardHeader className="border-b border-emerald-200/50 pb-3">
-                <div className="flex items-center justify-between flex-col sm:flex-row gap-3">
-                  <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: primaryColor }}></div>
-                      <CardTitle className="text-base">Sales Invoice Created</CardTitle>
-                    </div>
-                    <p className="text-sm text-muted-foreground">Invoice #{lastCreatedInvoice.invoiceNumber} · Status: <span className="font-medium text-emerald-700">Paid</span></p>
-                  </div>
-                  <div className="flex flex-wrap gap-2 justify-end">
-                    <Button onClick={() => downloadInvoicePdf(lastCreatedInvoice)} style={{ backgroundColor: primaryColor, borderColor: primaryColor }} className="text-white hover:opacity-90">
-                      ⬇ Download PDF
-                    </Button>
-                    <Button asChild variant="outline" className="border-emerald-200">
-                      <Link href="/admin/stock/invoices?q=INV">View Invoice</Link>
-                    </Button>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="pt-4">
-                <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
-                  <div>
-                    <p className="text-xs uppercase tracking-wide text-emerald-700/60">Client</p>
-                    <p className="text-sm font-medium mt-1">{lastCreatedInvoice.client?.name || "Walk-in Client"}</p>
-                    {lastCreatedInvoice.client?.number && (
-                      <p className="text-xs text-muted-foreground mt-0.5">{lastCreatedInvoice.client.number}</p>
-                    )}
-                  </div>
-                  <div>
-                    <p className="text-xs uppercase tracking-wide text-emerald-700/60">Location</p>
-                    <p className="text-sm font-medium mt-1">{lastCreatedInvoice.client?.location || "-"}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs uppercase tracking-wide text-emerald-700/60">Items</p>
-                    <p className="text-sm font-medium mt-1">{lastCreatedInvoice.items.length} item(s)</p>
-                  </div>
-                  <div>
-                    <p className="text-xs uppercase tracking-wide text-emerald-700/60">Amount</p>
-                    <p className="text-lg font-semibold mt-1" style={{ color: primaryColor }}>KES {lastCreatedInvoice.subTotal.toFixed(2)}</p>
-                  </div>
-                </div>
-                <div className="mt-4">
-                  <p className="text-xs uppercase tracking-wide text-emerald-700/60">Invoice Items</p>
-                  <div className="mt-2 overflow-x-auto">
-                    <table className="min-w-full text-sm">
-                      <thead className="bg-white/50">
-                        <tr className="text-left border-b border-emerald-200/50">
-                          <th className="px-3 py-2 text-xs font-medium text-muted-foreground">Product</th>
-                          <th className="px-3 py-2 text-xs font-medium text-muted-foreground text-right">Quantity</th>
-                          <th className="px-3 py-2 text-xs font-medium text-muted-foreground text-right">Unit Price</th>
-                          <th className="px-3 py-2 text-xs font-medium text-muted-foreground text-right">Total</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {lastCreatedInvoice.items.map((item, idx) => (
-                          <tr key={idx} className={`border-b border-emerald-200/30 ${idx % 2 === 0 ? "bg-white/30" : "bg-transparent"}`}>
-                            <td className="px-3 py-2 font-medium">{item.productName}</td>
-                            <td className="px-3 py-2 text-right">{item.quantity}</td>
-                            <td className="px-3 py-2 text-right">KES {item.unitPrice.toFixed(2)}</td>
-                            <td className="px-3 py-2 text-right font-medium" style={{ color: primaryColor }}>KES {item.lineTotal.toFixed(2)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-                <div className="mt-4 flex gap-2">
-                  <Button onClick={() => downloadInvoicePdf(lastCreatedInvoice)} variant="outline">
-                    Download as PDF
-                  </Button>
-                  <Button asChild variant="outline">
-                    <Link href="/admin/stock/invoices">View All Invoices</Link>
-                  </Button>
-                  <Button onClick={() => setLastCreatedInvoice(null)} variant="ghost">
-                    Dismiss
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          )}
         </div>
       )}
 

@@ -154,6 +154,7 @@ export default function InvoicesPage() {
   const [dispatchUsers, setDispatchUsers] = useState<DispatchUser[]>([])
   const [selectedDispatchByInvoice, setSelectedDispatchByInvoice] = useState<Record<string, string>>({})
   const [assigningInvoiceId, setAssigningInvoiceId] = useState<string | null>(null)
+  const [dispatchSnapshotCollapsed, setDispatchSnapshotCollapsed] = useState(true)
 
   useEffect(() => {
     const q = searchParams.get("q") || ""
@@ -634,10 +635,16 @@ export default function InvoicesPage() {
 
           <div className="hidden xl:block space-y-3">
             <Card className="shadow-sm">
-              <CardHeader className="pb-3">
+              <CardHeader className="pb-3 flex items-center justify-between">
                 <CardTitle className="text-base">Dispatch snapshot</CardTitle>
+                <div className="ml-3">
+                  <Button variant="ghost" size="sm" onClick={() => setDispatchSnapshotCollapsed((p) => !p)}>
+                    {dispatchSnapshotCollapsed ? "Show" : "Hide"}
+                  </Button>
+                </div>
               </CardHeader>
-              <CardContent className="space-y-3 text-sm">
+              {!dispatchSnapshotCollapsed && (
+                <CardContent className="space-y-3 text-sm">
                 <div className="rounded-xl border bg-muted/30 p-3">
                   <div className="text-xs uppercase tracking-wide text-muted-foreground">Ready to dispatch</div>
                   <div className="mt-1 text-2xl font-semibold">{dispatchStats.readyToDispatch}</div>
@@ -653,7 +660,8 @@ export default function InvoicesPage() {
                 <Button asChild className="w-full">
                   <Link href="/admin/stock/dispatch">Open dispatch board</Link>
                 </Button>
-              </CardContent>
+                </CardContent>
+              )}
             </Card>
           </div>
         </div>
