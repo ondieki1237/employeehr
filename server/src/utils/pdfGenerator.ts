@@ -13,6 +13,20 @@ export interface DocumentItem {
   lineTotal: number
 }
 
+export interface TenantBranding {
+  name?: string
+  logo?: string
+  primaryColor?: string
+  secondaryColor?: string
+  invoiceEmail?: string
+  email?: string
+  phone?: string
+  website?: string
+  city?: string
+  state?: string
+  country?: string
+}
+
 const DEFAULT_PRIMARY = "#0f766e"
 const DEFAULT_GRAY = "#6b7280"
 const DEFAULT_TEXT = "#1f2937"
@@ -41,7 +55,18 @@ function drawThinDivider(doc: jsPDF, y: number, colorHex = "#e2e8f0") {
   doc.line(12, y, 198, y)
 }
 
-// server-side credit note generator does not apply a watermark
+function buildCompanyAddress(branding?: TenantBranding): string {
+  const parts = [branding?.city, branding?.state, branding?.country].filter(Boolean)
+  return parts.length ? parts.join(", ") : ""
+}
+
+function drawWatermark(doc: jsPDF, value?: string) {
+  if (!value) return
+  doc.setTextColor(220, 220, 220)
+  doc.setFont("helvetica", "bold")
+  doc.setFontSize(48)
+  doc.text(value.toUpperCase(), 105, 150, { angle: 45, align: "center" })
+}
 
 function drawModernHeader(
   doc: jsPDF,
@@ -49,7 +74,7 @@ function drawModernHeader(
   numberLabel: string,
   numberValue: string,
   createdAt: string,
-  branding?: { logo?: string; primaryColor?: string }
+  branding?: TenantBranding
 ) {
   const primary = branding?.primaryColor || DEFAULT_PRIMARY
   const hasLogo = Boolean(branding?.logo)
@@ -120,6 +145,43 @@ function drawModernHeader(
   doc.text(new Date(createdAt).toLocaleDateString("en-KE"), 198, metaY + 12, { align: "right" })
 
   drawThinDivider(doc, 68)
+}
+
+function drawContactSlotBelowLogo(
+  doc: jsPDF,
+  branding?: TenantBranding,
+) {
+  const phone = String(branding?.phone || "").trim()
+  const location = String(buildCompanyAddress(branding) || "").trim()
+  const email = String(branding?.email || branding?.invoiceEmail || "").trim()
+  const website = String(branding?.website || "").trim()
+
+  const rows = [
+    { label: "Company", value: branding?.name || "" },
+    { label: "Phone", value: phone },
+    { label: "Email", value: email },
+    { label: "Website", value: website },
+    { label: "Address", value: location },
+  ].filter((row) => row.value)
+
+  if (!rows.length) return 68
+
+  const boxX = 12
+  const boxY = 38
+  const rowHeight = 3.8
+
+  doc.setFont("helvetica", "normal")
+  doc.setFontSize(7.8)
+  setColorFromHex(doc, DEFAULT_GRAY, "text")
+
+  let y = boxY
+  rows.forEach((row) => {
+    const wrapped = doc.splitTextToSize(row.value, 82)
+    doc.text(`${row.label}: ${wrapped[0] || ""}`, boxX, y)
+    y += rowHeight
+  })
+
+  return y + 2
 }
 
 function drawPartiesSection(doc: jsPDF, client: DocumentClient, startY = 90, branding?: { primaryColor?: string }) {
@@ -271,6 +333,64 @@ function drawTotalsSection(doc: jsPDF, subTotal: number, startY: number, brandin
   return y + 12
 }
 
+function drawCreditNoteMetaSection(
+  doc: jsPDF,
+  params: {
+    creditNoteNumber: string
+    invoiceNumber: string
+    createdAt: Date | string
+    reason: string
+    reasonDetails?: string
+  },
+  startY: number,
+  branding?: { primaryColor?: string },
+) {
+  const primary = branding?.primaryColor || DEFAULT_PRIMARY
+  const boxX = 12
+  const boxY = startY + 2
+  const boxW = 186
+  const boxH = params.reasonDetails ? 24 : 18
+
+  setColorFromHex(doc, primary, "draw")
+  doc.setLineWidth(0.35)
+  doc.roundedRect(boxX, boxY, boxW, boxH, 2, 2)
+
+  setColorFromHex(doc, DEFAULT_LIGHT, "fill")
+  doc.roundedRect(boxX, boxY, boxW, 6.5, 2, 2, "F")
+
+  doc.setFont("helvetica", "bold")
+  doc.setFontSize(9.5)
+  setColorFromHex(doc, DEFAULT_TEXT, "text")
+  doc.text("Credit Note Details", boxX + 3, boxY + 4.4)
+
+  doc.setFont("helvetica", "normal")
+  doc.setFontSize(8.5)
+  setColorFromHex(doc, DEFAULT_GRAY, "text")
+
+  const leftColX = boxX + 3
+  const rightColX = boxX + 96
+  const line1Y = boxY + 11
+  const line2Y = boxY + 16
+
+  doc.text(`Credit Note No: ${params.creditNoteNumber}`, leftColX, line1Y)
+  doc.text(`Reference Invoice: ${params.invoiceNumber}`, rightColX, line1Y)
+  doc.text(`Issued: ${new Date(params.createdAt).toLocaleDateString("en-KE")}`, leftColX, line2Y)
+  doc.text(`Reason: ${params.reason}`, rightColX, line2Y)
+
+  if (params.reasonDetails) {
+    const detailsLines = doc.splitTextToSize(params.reasonDetails, 180)
+    doc.setFontSize(8)
+    doc.text(`Details: ${detailsLines[0]}`, leftColX, boxY + 21)
+    if (detailsLines.length > 1) {
+      detailsLines.slice(1).forEach((line: string, idx: number) => {
+        doc.text(line, leftColX, boxY + 25 + idx * 4)
+      })
+    }
+  }
+
+  return boxY + boxH + (params.reasonDetails ? 4 : 2)
+}
+
 export function generateCreditNotePdf(params: {
   creditNoteNumber: string
   invoiceNumber: string
@@ -280,11 +400,15 @@ export function generateCreditNotePdf(params: {
   subTotal: number
   reason: string
   reasonDetails?: string
-  branding?: { logo?: string; primaryColor?: string }
+  branding?: TenantBranding
+  preparedBy?: string
+  watermarkText?: string
 }): Buffer {
   const doc = new jsPDF({ unit: "mm", format: "a4" })
 
-  // No watermark for credit notes; use company branding in header instead
+  drawWatermark(doc, params.watermarkText)
+
+  // Keep the layout aligned with the invoice template for consistency
   drawModernHeader(
     doc,
     "Credit Note",
@@ -294,39 +418,23 @@ export function generateCreditNotePdf(params: {
     params.branding
   )
 
-  let tableY = drawPartiesSection(doc, params.client, 90, params.branding)
+  const contactBottom = drawContactSlotBelowLogo(doc, params.branding)
 
-  // Add reference to original invoice
-  doc.setFont("helvetica", "normal")
-  doc.setFontSize(9)
-  setColorFromHex(doc, DEFAULT_GRAY, "text")
-  doc.text(`Reference Invoice: ${params.invoiceNumber}`, 12, tableY + 2)
+  const partiesBottom = drawPartiesSection(doc, params.client, contactBottom + 1, params.branding)
+  const metaBottom = drawCreditNoteMetaSection(
+    doc,
+    {
+      creditNoteNumber: params.creditNoteNumber,
+      invoiceNumber: params.invoiceNumber,
+      createdAt: params.createdAt,
+      reason: params.reason,
+      reasonDetails: params.reasonDetails,
+    },
+    partiesBottom,
+    params.branding,
+  )
 
-  // Add reason section
-  const reasonY = tableY + 8
-  doc.setFont("helvetica", "bold")
-  doc.setFontSize(9)
-  setColorFromHex(doc, DEFAULT_TEXT, "text")
-  doc.text("Reason for Credit:", 12, reasonY)
-
-  doc.setFont("helvetica", "normal")
-  doc.setFontSize(8.5)
-  setColorFromHex(doc, DEFAULT_GRAY, "text")
-  doc.text(params.reason, 15, reasonY + 5)
-
-  if (params.reasonDetails) {
-    const detailsLines = doc.splitTextToSize(params.reasonDetails, 180)
-    doc.text("Details: " + detailsLines[0], 15, reasonY + 9)
-    if (detailsLines.length > 1) {
-      detailsLines.slice(1).forEach((line: string, idx: number) => {
-        doc.text(line, 15, reasonY + 13 + idx * 4)
-      })
-    }
-  }
-
-  tableY = reasonY + (params.reasonDetails ? 20 : 12)
-
-  const endY = drawItemsTable(doc, tableY, params.items, params.branding)
+  const endY = drawItemsTable(doc, metaBottom, params.items, params.branding)
 
   drawTotalsSection(doc, params.subTotal, endY, params.branding)
 

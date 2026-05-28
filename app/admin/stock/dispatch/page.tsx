@@ -24,7 +24,12 @@ import {
   Pie,
   Cell,
 } from "recharts"
-import { AlertTriangle, Clock3, Truck, PackageCheck, PackageX, Search } from "lucide-react"
+import { Clock3, Truck, PackageCheck, PackageX, Search, ChevronDown, ChevronUp } from "lucide-react"
+
+type DispatchPackingItem = {
+  requiredQuantity: number
+  packedQuantity: number
+}
 
 interface DispatchInvoice {
   _id: string
@@ -37,6 +42,7 @@ interface DispatchInvoice {
     assignedAt?: string
     packingCompleted?: boolean
     dispatchedAt?: string
+    packingItems?: DispatchPackingItem[]
     courier?: {
       name?: string
       contactName?: string
@@ -87,7 +93,8 @@ export default function AdminDispatchManagementPage() {
   const [selectedStaff, setSelectedStaff] = useState("all")
   const [selectedStatus, setSelectedStatus] = useState("all")
   const [search, setSearch] = useState("")
-  const [sortBy, setSortBy] = useState<"createdAt" | "status" | "client">("createdAt")
+  const [sortBy, setSortBy] = useState<"createdAt-desc" | "createdAt-asc" | "status" | "client">("createdAt-desc")
+  const [smsSettingsOpen, setSmsSettingsOpen] = useState(false)
 
   const headers = useMemo(() => ({
     "Content-Type": "application/json",
@@ -260,6 +267,7 @@ export default function AdminDispatchManagementPage() {
     data.sort((a, b) => {
       if (sortBy === "client") return a.client.name.localeCompare(b.client.name)
       if (sortBy === "status") return (a.dispatch?.status || "").localeCompare(b.dispatch?.status || "")
+      if (sortBy === "createdAt-asc") return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     })
 
@@ -400,35 +408,6 @@ export default function AdminDispatchManagementPage() {
     ]
   }, [filteredInvoices])
 
-  const insights = useMemo(() => {
-    const lines: string[] = []
-    const nowMs = Date.now()
-
-    const pendingOver24h = filteredInvoices.filter((invoice) => {
-      const isPending = ["assigned", "packing", "packed"].includes(invoice.dispatch?.status || "not_assigned")
-      const baseTime = invoice.dispatch?.assignedAt || invoice.createdAt
-      return isPending && nowMs - new Date(baseTime).getTime() > 24 * 60 * 60 * 1000
-    }).length
-
-    if (pendingOver24h > 0) {
-      lines.push(`⚠ ${pendingOver24h} orders pending dispatch for over 24 hours`)
-    }
-
-    const worstCourier = courierPerformance
-      .filter((c) => c.total >= 3)
-      .sort((a, b) => a.successRate - b.successRate)[0]
-    if (worstCourier && worstCourier.successRate < 90) {
-      lines.push(`🚚 ${worstCourier.courier} has high failure risk (${100 - worstCourier.successRate}% below perfect)`)
-    }
-
-    if (metrics.failedOrDamaged > 0) {
-      lines.push(`📦 ${metrics.failedOrDamaged} deliveries marked damaged/incomplete in current filter`)
-    }
-
-    if (lines.length === 0) lines.push("✅ Dispatch performance looks healthy for the selected filters")
-    return lines
-  }, [filteredInvoices, courierPerformance, metrics.failedOrDamaged])
-
   if (loading) return <div className="p-6">Loading dispatch management...</div>
 
   return (
@@ -437,8 +416,23 @@ export default function AdminDispatchManagementPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Dispatch SMS Settings</CardTitle>
+          <div className="flex items-center justify-between gap-3">
+            <CardTitle>Dispatch SMS Settings</CardTitle>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setSmsSettingsOpen(!smsSettingsOpen)}
+              className="flex items-center gap-1"
+            >
+              {smsSettingsOpen ? (
+                <><ChevronUp className="w-4 h-4" /> Collapse</>
+              ) : (
+                <><ChevronDown className="w-4 h-4" /> Expand</>
+              )}
+            </Button>
+          </div>
         </CardHeader>
+        {smsSettingsOpen && (
         <CardContent className="space-y-4">
           {smsSettingsLoading ? (
             <p className="text-sm text-muted-foreground">Loading SMS settings...</p>
@@ -497,6 +491,7 @@ export default function AdminDispatchManagementPage() {
             </>
           )}
         </CardContent>
+        )}
       </Card>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -601,9 +596,10 @@ export default function AdminDispatchManagementPage() {
           <select
             className="h-10 rounded-md border bg-background px-3 text-sm"
             value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as "createdAt" | "status" | "client")}
+            onChange={(e) => setSortBy(e.target.value as "createdAt-desc" | "createdAt-asc" | "status" | "client")}
           >
-            <option value="createdAt">Sort: Newest</option>
+            <option value="createdAt-desc">Sort: Newest first</option>
+            <option value="createdAt-asc">Sort: Oldest first</option>
             <option value="status">Sort: Status</option>
             <option value="client">Sort: Client</option>
           </select>
@@ -694,20 +690,6 @@ export default function AdminDispatchManagementPage() {
           </CardContent>
         </Card>
       </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Alerts / Insights</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          {insights.map((insight, idx) => (
-            <div key={idx} className="flex items-start gap-2 text-sm">
-              <AlertTriangle className="w-4 h-4 mt-0.5 text-amber-600" />
-              <p>{insight}</p>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
 
       <Card>
         <CardHeader><CardTitle>Dispatch Logs</CardTitle></CardHeader>

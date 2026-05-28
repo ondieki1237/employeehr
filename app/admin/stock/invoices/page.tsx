@@ -510,6 +510,20 @@ export default function InvoicesPage() {
     )
   }, [invoices])
 
+  const dispatchStats = useMemo(() => {
+    return invoices.reduce(
+      (acc, invoice) => {
+        const status = invoice.dispatch?.status || "not_assigned"
+        if (status === "packed") acc.readyToDispatch += 1
+        if (status === "assigned" || status === "packing" || status === "packed") acc.active += 1
+        if (status === "dispatched" || status === "delivered") acc.completed += 1
+        if (status === "delivered") acc.delivered += 1
+        return acc
+      },
+      { readyToDispatch: 0, active: 0, completed: 0, delivered: 0 },
+    )
+  }, [invoices])
+
   const activeUserCount = useMemo(() => new Set(invoices.map((invoice) => invoice.createdBy).filter(Boolean)).size, [invoices])
 
   const totalPages = Math.max(1, Math.ceil(sortedInvoices.length / pageSize))
@@ -546,72 +560,101 @@ export default function InvoicesPage() {
           </div>
         </div>
 
-        <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-          <Card className="shadow-sm">
-            <CardContent className="p-3">
-              <div className="text-xs uppercase tracking-wide text-muted-foreground">Total invoices</div>
-              <div className="mt-1 text-xl font-semibold">{totals.total}</div>
-            </CardContent>
-          </Card>
-          <Card className="shadow-sm">
-            <CardContent className="p-3">
-              <div className="text-xs uppercase tracking-wide text-muted-foreground">Paid</div>
-              <div className="mt-1 text-xl font-semibold" style={{ color: primaryColor }}>{totals.paid}</div>
-              <div className="mt-1 text-xs text-muted-foreground">KES {totals.amount.toLocaleString("en-KE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-            </CardContent>
-          </Card>
-          <Card className="shadow-sm">
-            <CardContent className="p-3">
-              <div className="text-xs uppercase tracking-wide text-muted-foreground">Issued</div>
-              <div className="mt-1 text-xl font-semibold">{totals.issued}</div>
-            </CardContent>
-          </Card>
-          <Card className="shadow-sm">
-            <CardContent className="p-3">
-              <div className="text-xs uppercase tracking-wide text-muted-foreground">Active sellers</div>
-              <div className="mt-1 text-xl font-semibold">{activeUserCount}</div>
-            </CardContent>
-          </Card>
-        </div>
-        <div className="mt-3 rounded-xl border bg-white/90 p-3 shadow-sm backdrop-blur-sm">
-          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_240px_200px] lg:items-end">
-            <div className="space-y-2">
-              <Label>Search</Label>
-              <Input
-                placeholder="Invoice, delivery note, quotation, client..."
-                value={searchInput}
-                onChange={(event) => setSearchInput(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") setSearch(searchInput)
-                }}
-              />
+        <div className="mt-3 grid gap-4 xl:grid-cols-[minmax(0,1fr)_300px] xl:items-start">
+          <div className="space-y-3">
+            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+              <Card className="shadow-sm">
+                <CardContent className="p-3">
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground">Total invoices</div>
+                  <div className="mt-1 text-xl font-semibold">{totals.total}</div>
+                </CardContent>
+              </Card>
+              <Card className="shadow-sm">
+                <CardContent className="p-3">
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground">Paid</div>
+                  <div className="mt-1 text-xl font-semibold" style={{ color: primaryColor }}>{totals.paid}</div>
+                  <div className="mt-1 text-xs text-muted-foreground">KES {totals.amount.toLocaleString("en-KE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                </CardContent>
+              </Card>
+              <Card className="shadow-sm">
+                <CardContent className="p-3">
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground">Issued</div>
+                  <div className="mt-1 text-xl font-semibold">{totals.issued}</div>
+                </CardContent>
+              </Card>
+              <Card className="shadow-sm">
+                <CardContent className="p-3">
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground">Active sellers</div>
+                  <div className="mt-1 text-xl font-semibold">{activeUserCount}</div>
+                </CardContent>
+              </Card>
             </div>
-            <div className="space-y-2">
-              <Label>Sort by</Label>
-              <Select value={sortBy} onValueChange={(value: SortOption) => setSortBy(value)}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Sort invoices" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="date-desc">Date: newest first</SelectItem>
-                  <SelectItem value="date-asc">Date: oldest first</SelectItem>
-                  <SelectItem value="paid-first">Paid first</SelectItem>
-                  <SelectItem value="client-asc">Client name: A to Z</SelectItem>
-                  <SelectItem value="client-desc">Client name: Z to A</SelectItem>
-                  <SelectItem value="seller-asc">Seller: A to Z</SelectItem>
-                  <SelectItem value="seller-desc">Seller: Z to A</SelectItem>
-                  <SelectItem value="amount-desc">Amount: highest first</SelectItem>
-                  <SelectItem value="amount-asc">Amount: lowest first</SelectItem>
-                  <SelectItem value="invoice-asc">Invoice number: A to Z</SelectItem>
-                  <SelectItem value="invoice-desc">Invoice number: Z to A</SelectItem>
-                </SelectContent>
-              </Select>
+            <div className="rounded-xl border bg-white/90 p-3 shadow-sm backdrop-blur-sm">
+              <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_240px_200px] lg:items-end">
+                <div className="space-y-2">
+                  <Label>Search</Label>
+                  <Input
+                    placeholder="Invoice, delivery note, quotation, client..."
+                    value={searchInput}
+                    onChange={(event) => setSearchInput(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") setSearch(searchInput)
+                    }}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Sort by</Label>
+                  <Select value={sortBy} onValueChange={(value: SortOption) => setSortBy(value)}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Sort invoices" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="date-desc">Date: newest first</SelectItem>
+                      <SelectItem value="date-asc">Date: oldest first</SelectItem>
+                      <SelectItem value="paid-first">Paid first</SelectItem>
+                      <SelectItem value="client-asc">Client name: A to Z</SelectItem>
+                      <SelectItem value="client-desc">Client name: Z to A</SelectItem>
+                      <SelectItem value="seller-asc">Seller: A to Z</SelectItem>
+                      <SelectItem value="seller-desc">Seller: Z to A</SelectItem>
+                      <SelectItem value="amount-desc">Amount: highest first</SelectItem>
+                      <SelectItem value="amount-asc">Amount: lowest first</SelectItem>
+                      <SelectItem value="invoice-asc">Invoice number: A to Z</SelectItem>
+                      <SelectItem value="invoice-desc">Invoice number: Z to A</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex gap-2">
+                  <Button className="w-full" onClick={() => setSearch(searchInput)}>
+                    Apply search
+                  </Button>
+                </div>
+              </div>
             </div>
-            <div className="flex gap-2">
-              <Button className="w-full" onClick={() => setSearch(searchInput)}>
-                Apply search
-              </Button>
-            </div>
+          </div>
+
+          <div className="hidden xl:block space-y-3">
+            <Card className="shadow-sm">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Dispatch snapshot</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 text-sm">
+                <div className="rounded-xl border bg-muted/30 p-3">
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground">Ready to dispatch</div>
+                  <div className="mt-1 text-2xl font-semibold">{dispatchStats.readyToDispatch}</div>
+                </div>
+                <div className="rounded-xl border bg-muted/30 p-3">
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground">Active dispatches</div>
+                  <div className="mt-1 text-2xl font-semibold">{dispatchStats.active}</div>
+                </div>
+                <div className="rounded-xl border bg-muted/30 p-3">
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground">Completed</div>
+                  <div className="mt-1 text-2xl font-semibold">{dispatchStats.completed}</div>
+                </div>
+                <Button asChild className="w-full">
+                  <Link href="/admin/stock/dispatch">Open dispatch board</Link>
+                </Button>
+              </CardContent>
+            </Card>
           </div>
         </div>
       </div>

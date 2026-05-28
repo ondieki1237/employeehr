@@ -3,6 +3,7 @@ import type { AuthenticatedRequest } from "../middleware/auth"
 import { CreditNote } from "../models/CreditNote"
 import { StockInvoice } from "../models/StockInvoice"
 import { Company } from "../models/Company"
+import { User } from "../models/User"
 import { generateCreditNotePdf as generateCreditNotePdfLib } from "../utils/pdfGenerator"
 import fs from "fs/promises"
 import path from "path"
@@ -407,12 +408,24 @@ export class CreditNoteController {
           }
         } else {
           try {
-            const uploadsDir = path.join(process.cwd(), "server", "uploads", "logos")
-            const filePath = path.join(uploadsDir, raw)
-            const fileBuf = await fs.readFile(filePath)
-            const ext = path.extname(raw).toLowerCase()
-            const mime = ext === ".jpg" || ext === ".jpeg" ? "image/jpeg" : "image/png"
-            logoData = `data:${mime};base64,${fileBuf.toString("base64")}`
+            const logoFileName = path.basename(raw)
+            const candidatePaths = [
+              path.join(process.cwd(), "uploads", "logos", logoFileName),
+              path.join(process.cwd(), "server", "uploads", "logos", logoFileName),
+              path.join(__dirname, "..", "..", "uploads", "logos", logoFileName),
+            ]
+
+            for (const filePath of candidatePaths) {
+              try {
+                const fileBuf = await fs.readFile(filePath)
+                const ext = path.extname(logoFileName).toLowerCase()
+                const mime = ext === ".jpg" || ext === ".jpeg" ? "image/jpeg" : "image/png"
+                logoData = `data:${mime};base64,${fileBuf.toString("base64")}`
+                break
+              } catch {
+                // try next candidate
+              }
+            }
           } catch (e) {
             // ignore fs read failures
           }
@@ -433,6 +446,11 @@ export class CreditNoteController {
           }
         : undefined
 
+      const creator = await User.findById(creditNote.createdBy).select("firstName lastName email")
+      const preparedBy = creator
+        ? [creator.firstName, creator.lastName].filter(Boolean).join(" ") || creator.email || "System User"
+        : "System User"
+
       
 
       // Generate PDF using server-side generator (returns Buffer)
@@ -451,6 +469,7 @@ export class CreditNoteController {
         reason: reasonText,
         reasonDetails: creditNote.reasonDetails,
         branding,
+        preparedBy,
       })
 
       // Send PDF
