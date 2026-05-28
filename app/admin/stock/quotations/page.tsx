@@ -160,6 +160,7 @@ export default function QuotationsPage() {
   const [clientContactPerson, setClientContactPerson] = useState("")
   const [selectedExistingClient, setSelectedExistingClient] = useState("")
   const [existingClientSearch, setExistingClientSearch] = useState("")
+  const [showClientList, setShowClientList] = useState(true)
   const [quotationOwnerId, setQuotationOwnerId] = useState("")
   const [quotationBranchId, setQuotationBranchId] = useState("")
   const [branchHint, setBranchHint] = useState("")
@@ -168,7 +169,6 @@ export default function QuotationsPage() {
   const [itemQuantity, setItemQuantity] = useState("1")
   const [itemUnitPrice, setItemUnitPrice] = useState("")
   const [itemTaxRate, setItemTaxRate] = useState("0")
-  const [itemOutsourced, setItemOutsourced] = useState(false)
   const [items, setItems] = useState<DraftItem[]>([])
 
   useEffect(() => {
@@ -421,7 +421,6 @@ export default function QuotationsPage() {
     setItemQuantity("1")
     setItemUnitPrice("")
     setItemTaxRate("0")
-    setItemOutsourced(false)
     setItems([])
     setEditingQuotationId(null)
     setShowCreate(false)
@@ -436,6 +435,7 @@ export default function QuotationsPage() {
       setClientNumber(client.number || "")
       setClientLocation(client.location || "")
       setClientContactPerson(client.contactPerson || "")
+      setShowClientList(false)
     } catch {
       setClientName("")
       setClientNumber("")
@@ -471,52 +471,12 @@ export default function QuotationsPage() {
         productUnitPrice: Number(product.sellingPrice || 0),
         soldUnitPrice: unitPrice,
         unitPrice,
-        isOutsourced: itemOutsourced,
       },
     ])
 
     setProductSearch("")
     setItemQuantity("1")
     setItemUnitPrice("")
-    setItemOutsourced(false)
-  }
-
-  const addOutsourcedItem = () => {
-    const productName = productSearch.trim()
-    if (!productName) {
-      toast({ title: "Missing product name", description: "Type the outsourced product name", variant: "destructive" })
-      return
-    }
-
-    if (Number(itemQuantity) <= 0) {
-      toast({ title: "Invalid quantity", description: "Quantity must be greater than 0", variant: "destructive" })
-      return
-    }
-
-    const unitPrice = Number(itemUnitPrice)
-    if (!Number.isFinite(unitPrice) || unitPrice < 0) {
-      toast({ title: "Invalid price", description: "Provide a valid unit price for outsourced item", variant: "destructive" })
-      return
-    }
-
-    const fallbackId = `outsourced:${productName.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "")}`
-    setItems((prev) => [
-      ...prev,
-      {
-        productId: fallbackId,
-        productName,
-        quantity: Number(itemQuantity),
-        productUnitPrice: unitPrice,
-        soldUnitPrice: unitPrice,
-        unitPrice,
-        isOutsourced: true,
-      },
-    ])
-
-    setProductSearch("")
-    setItemQuantity("1")
-    setItemUnitPrice("")
-    setItemOutsourced(false)
   }
 
   const removeDraftItem = (index: number) => {
@@ -895,30 +855,62 @@ export default function QuotationsPage() {
                   className="mb-2"
                   placeholder="Search client by name, location, number or contact person"
                   value={existingClientSearch}
-                  onChange={(event) => setExistingClientSearch(event.target.value)}
+                  onChange={(event) => {
+                    setExistingClientSearch(event.target.value)
+                    setShowClientList(true)
+                  }}
                 />
-                <div className="max-h-64 overflow-auto rounded-md border">
+                <div className="rounded-md border bg-background shadow-sm">
                   <div className="flex items-center justify-between border-b bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
                     <span>{filteredClients.length} client(s) found</span>
-                    <button
-                      type="button"
-                      className="underline"
-                      onClick={() => {
-                        setExistingClientSearch("")
-                        setSelectedExistingClient("")
-                        setClientName("")
-                        setClientNumber("")
-                        setClientLocation("")
-                        setClientContactPerson("")
-                      }}
-                    >
-                      Clear
-                    </button>
+                    <div className="flex items-center gap-2">
+                      {selectedExistingClient && (
+                        <button
+                          type="button"
+                          className="underline"
+                          onClick={() => setShowClientList((prev) => !prev)}
+                        >
+                          {showClientList ? "Collapse" : "Expand"}
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        className="underline"
+                        onClick={() => {
+                          setExistingClientSearch("")
+                          setSelectedExistingClient("")
+                          setClientName("")
+                          setClientNumber("")
+                          setClientLocation("")
+                          setClientContactPerson("")
+                          setShowClientList(true)
+                        }}
+                      >
+                        Clear
+                      </button>
+                    </div>
                   </div>
-                  {filteredClients.length === 0 ? (
+
+                  {selectedExistingClient && !showClientList ? (
+                    <div className="p-3">
+                      <div className="flex items-start justify-between rounded-lg border border-teal-200 bg-teal-50 px-3 py-2">
+                        <div>
+                          <div className="font-medium text-teal-900">Client selected</div>
+                          <div className="text-sm text-teal-800">{clientName}</div>
+                          <div className="text-xs text-teal-700">
+                            {clientNumber} · {clientLocation}
+                            {clientContactPerson ? ` · ${clientContactPerson}` : ""}
+                          </div>
+                        </div>
+                        <Button type="button" variant="outline" size="sm" onClick={() => setShowClientList(true)}>
+                          Change
+                        </Button>
+                      </div>
+                    </div>
+                  ) : filteredClients.length === 0 ? (
                     <div className="p-3 text-sm text-muted-foreground">No saved clients match your search.</div>
                   ) : (
-                    <div className="divide-y">
+                    <div className="max-h-64 overflow-auto divide-y">
                       {filteredClients.map((client) => {
                         const value = JSON.stringify(client)
                         const isSelected = selectedExistingClient === value
@@ -927,12 +919,17 @@ export default function QuotationsPage() {
                             key={value}
                             type="button"
                             onClick={() => selectExistingClient(value)}
-                            className={`w-full px-3 py-2 text-left text-sm transition hover:bg-muted/60 ${isSelected ? "bg-muted/80" : "bg-background"}`}
+                            className={`w-full px-3 py-3 text-left text-sm transition hover:bg-muted/60 ${isSelected ? "bg-teal-50" : "bg-background"}`}
                           >
-                            <div className="font-medium">{client.name}</div>
-                            <div className="text-xs text-muted-foreground">
-                              {client.number} · {client.location}
-                              {client.contactPerson ? ` · ${client.contactPerson}` : ""}
+                            <div className="flex items-center justify-between gap-3">
+                              <div>
+                                <div className="font-medium">{client.name}</div>
+                                <div className="text-xs text-muted-foreground">
+                                  {client.number} · {client.location}
+                                  {client.contactPerson ? ` · ${client.contactPerson}` : ""}
+                                </div>
+                              </div>
+                              {isSelected && <Badge className="bg-teal-100 text-teal-800 hover:bg-teal-100">Selected</Badge>}
                             </div>
                           </button>
                         )
@@ -983,29 +980,35 @@ export default function QuotationsPage() {
                     ))}
                 </select>
               </div>
-              <div>
-                <Label>Branch</Label>
-                <div className="flex gap-2">
-                  <select
-                    className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-                    value={quotationBranchId}
-                    onChange={(event) => setQuotationBranchId(event.target.value)}
-                  >
-                    <option value="">-- Select branch --</option>
-                    {branches.map((branch) => (
-                      <option key={branch._id} value={branch._id}>
-                        {branch.name} ({branch.code})
-                      </option>
-                    ))}
-                  </select>
-                  <Button type="button" variant="outline" onClick={knowBranch}>
-                    Know Branch
-                  </Button>
+              {branches.length > 0 ? (
+                <div>
+                  <Label>Branch</Label>
+                  <div className="flex gap-2">
+                    <select
+                      className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                      value={quotationBranchId}
+                      onChange={(event) => setQuotationBranchId(event.target.value)}
+                    >
+                      <option value="">-- Select branch --</option>
+                      {branches.map((branch) => (
+                        <option key={branch._id} value={branch._id}>
+                          {branch.name} ({branch.code})
+                        </option>
+                      ))}
+                    </select>
+                    <Button type="button" variant="outline" onClick={knowBranch}>
+                      Know Branch
+                    </Button>
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {branchHint || "Choose a user and click Know Branch to auto-fill their assigned branch."}
+                  </p>
                 </div>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {branchHint || "Choose a user and click Know Branch to auto-fill their assigned branch."}
-                </p>
-              </div>
+              ) : (
+                <div className="rounded-md border bg-muted/20 p-3 text-xs text-muted-foreground">
+                  This company has no branches yet, so branch selection is hidden.
+                </div>
+              )}
             </div>
 
             <div className="rounded-md border p-4 space-y-4">
@@ -1026,12 +1029,6 @@ export default function QuotationsPage() {
                   <Label>Sold Price (optional override)</Label>
                   <Input type="number" min="0" value={itemUnitPrice} onChange={(event) => setItemUnitPrice(event.target.value)} />
                 </div>
-                <div className="flex items-end">
-                  <label className="flex items-center gap-2 text-sm border rounded-md px-3 py-2 w-full h-10">
-                    <Checkbox checked={itemOutsourced} onCheckedChange={(value) => setItemOutsourced(Boolean(value))} />
-                    <span>Outsourced (local)</span>
-                  </label>
-                </div>
               </div>
 
               {productSearch.trim() && (
@@ -1039,11 +1036,7 @@ export default function QuotationsPage() {
                   {productSuggestions.length === 0 ? (
                     <div className="p-3 text-sm text-muted-foreground space-y-2">
                       <p>No matching products</p>
-                      {itemOutsourced ? (
-                        <Button type="button" size="sm" onClick={addOutsourcedItem}>Add outsourced item "{productSearch.trim()}"</Button>
-                      ) : (
-                        <p className="text-xs">Tick "Outsourced (local)" to add a product that is not in inventory.</p>
-                      )}
+                      <p className="text-xs">Choose a matching inventory item to continue.</p>
                     </div>
                   ) : (
                     <>

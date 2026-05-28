@@ -118,6 +118,26 @@ const companySchema = new Schema<ICompany>(
         of: [String],
         default: {},
       },
+      adminSectionsByDepartment: {
+        type: Map,
+        of: [String],
+        default: {},
+      },
+      adminSectionsByBranch: {
+        type: Map,
+        of: [String],
+        default: {},
+      },
+      permissionMatrixByRole: {
+        type: Map,
+        of: [String],
+        default: {},
+      },
+      permissionMatrixByUser: {
+        type: Map,
+        of: [String],
+        default: {},
+      },
     },
     enabledPages: {
       type: [String],

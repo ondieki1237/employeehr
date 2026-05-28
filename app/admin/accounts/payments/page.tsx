@@ -123,7 +123,7 @@ export default function AccountsPaymentsPage() {
       <div>
         <h1 className="text-2xl font-bold">Accounts · Payment Management</h1>
         <p className="text-sm text-muted-foreground">
-          Record payments for sales invoices, track latest payment and remaining balances.
+          Record payments for outstanding sales invoices and track the latest payment and remaining balances.
         </p>
       </div>
 

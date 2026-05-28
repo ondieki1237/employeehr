@@ -65,7 +65,9 @@ export default function EmployeeLayout({
         const userId = user._id || user.userId
         const userSections: string[] | undefined = userId ? response.data?.adminSectionsByUser?.[userId] : undefined
         const roleSections: string[] = response.data?.adminSectionsByRole?.[user.role] || []
-        const allowedSections: string[] = Array.from(new Set([...(roleSections || []), ...(userSections || [])]))
+        const allowedSections: string[] = response.data?.effectiveSections?.length
+          ? response.data.effectiveSections
+          : Array.from(new Set([...(roleSections || []), ...(userSections || [])]))
 
         if (!allowedSections.includes(currentSection)) {
           const fallbackPath =

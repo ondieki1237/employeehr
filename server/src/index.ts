@@ -55,6 +55,7 @@ import ownerRoutes from "./routes/owner.routes"
 import complaintRoutes from "./routes/complaint.routes"
 import branchRoutes from "./routes/branch.routes"
 import creditNoteRoutes from "./routes/creditNote.routes"
+import resourcesRoutes from "./routes/resources.routes"
 import { JobController } from "./controllers/jobController"
 import { ApplicationFormController } from "./controllers/applicationFormController"
 import { MeetingController } from "./controllers/meetingController"
@@ -178,6 +179,7 @@ app.use("/api/feedback-surveys", feedbackSurveyRoutes)
 app.use("/api/stock", stockRoutes)
 app.use("/api/stock/credit-notes", creditNoteRoutes)
 app.use("/api/stamps", stampRoutes)
+app.use("/api/resources", resourcesRoutes)
 app.use("/api/complaints", complaintRoutes)
 app.use("/api", bookingRoutes)
 app.use("/api/shule", shuleRoutes)

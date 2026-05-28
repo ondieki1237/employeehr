@@ -1,11 +1,11 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { usePathname, useRouter } from "next/navigation"
 import { getSession, logout } from "@/components/shule/auth-utils"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { Menu } from "lucide-react"
+import { BarChart3, BookOpen, Calculator, ChevronRight, GraduationCap, Library, Menu, ShieldCheck, Users } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { api } from "@/lib/api"
 
@@ -28,6 +28,15 @@ interface BrandingData {
   textColor?: string
 }
 
+function hexToRgba(hex: string, alpha: number) {
+  const normalized = hex.replace("#", "")
+  if (normalized.length !== 6) return `rgba(37, 99, 235, ${alpha})`
+  const r = Number.parseInt(normalized.slice(0, 2), 16)
+  const g = Number.parseInt(normalized.slice(2, 4), 16)
+  const b = Number.parseInt(normalized.slice(4, 6), 16)
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`
+}
+
 export default function ManagerLayout({
   children,
 }: {
@@ -38,9 +47,21 @@ export default function ManagerLayout({
   const [loading, setLoading] = useState(true)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [branding, setBranding] = useState<BrandingData>({
-    primaryColor: "#1e293b",
-    textColor: "#ffffff",
+    primaryColor: "#2563eb",
+    secondaryColor: "#059669",
+    textColor: "#0f172a",
   })
+
+  const navItems = useMemo(() => ([
+    { label: "Dashboard", href: "/shule/dashboard/manager", icon: BarChart3 },
+    { label: "Students", href: "/shule/dashboard/manager/students", icon: Users },
+    { label: "Facilitators", href: "/shule/dashboard/manager/facilitators", icon: GraduationCap },
+    { label: "Resources", href: "/shule/dashboard/manager/resources", icon: BookOpen },
+    { label: "Examinations", href: "/shule/dashboard/manager/examinations", icon: Calculator },
+    { label: "Library", href: "/shule/dashboard/manager/library", icon: Library },
+    { label: "Fee Management", href: "/shule/dashboard/manager/fees", icon: Calculator },
+    { label: "Supervision", href: "/shule/dashboard/manager/supervision", icon: ShieldCheck },
+  ]), [])
 
   useEffect(() => {
     const session = getSession()
@@ -95,80 +116,105 @@ export default function ManagerLayout({
     return section?.label || "Manager Workspace"
   }
 
+  const primaryColor = branding.primaryColor || "#2563eb"
+  const secondaryColor = branding.secondaryColor || "#059669"
+  const textColor = branding.textColor || "#0f172a"
+
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-slate-900"></div>
+      <div className="flex h-screen items-center justify-center bg-slate-50">
+        <div className="h-12 w-12 animate-spin rounded-full border-b-2" style={{ borderColor: primaryColor }} />
       </div>
     )
   }
 
   return (
-    <div className="flex h-screen bg-slate-50">
+    <div className="flex h-screen bg-slate-50" style={{ color: textColor }}>
       <div className="hidden lg:block">
         <aside
-          className="flex h-full w-72 flex-col border-r bg-white"
-          style={{
-            borderRightColor: branding.primaryColor + "20",
-          }}
+          className="flex h-full w-72 flex-col border-r bg-white shadow-[0_0_0_1px_rgba(15,23,42,0.03)]"
+          style={{ borderRightColor: hexToRgba(primaryColor, 0.12) }}
         >
           <div
             className="border-b px-6 py-5"
             style={{
-              backgroundColor: branding.primaryColor,
-              color: branding.textColor || "white",
-              borderBottomColor: branding.primaryColor + "dd",
+              background: `linear-gradient(135deg, ${hexToRgba(primaryColor, 1)} 0%, ${hexToRgba(primaryColor, 0.88)} 100%)`,
+              color: "white",
+              borderBottomColor: hexToRgba(primaryColor, 0.95),
             }}
           >
-            {branding.logo && (
-              <div className="mb-3 h-8 w-auto">
-                <img
-                  src={branding.logo}
-                  alt="Logo"
-                  className="h-full object-contain"
-                  style={{ filter: "brightness(0) invert(1)" }}
-                />
+            <div className="mb-4 flex items-center justify-between gap-3">
+              {branding.logo ? (
+                <div className="h-10 w-auto rounded-lg bg-white/10 px-2 py-1">
+                  <img
+                    src={branding.logo}
+                    alt="Logo"
+                    className="h-full max-h-8 object-contain"
+                    style={{ filter: "brightness(0) invert(1)" }}
+                  />
+                </div>
+              ) : (
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/15 text-sm font-semibold text-white">
+                  ME
+                </div>
+              )}
+              <div className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[10px] font-medium uppercase tracking-[0.2em] text-white/90">
+                Manager
               </div>
-            )}
+            </div>
             <div className="text-xs font-medium uppercase tracking-[0.2em] opacity-90">
               School Enterprise
             </div>
             <h2 className="mt-1 text-lg font-semibold">{branding.name || "Manager Portal"}</h2>
             <p className="mt-1 text-sm opacity-80">Operational control for school leadership</p>
+            <div className="mt-4 rounded-2xl border border-white/15 bg-white/10 px-4 py-3 backdrop-blur-sm">
+              <p className="text-[10px] uppercase tracking-[0.16em] text-white/70">Workspace mode</p>
+              <p className="mt-1 text-sm font-medium text-white/95">Modern branded leadership dashboard</p>
+            </div>
           </div>
 
-          <nav className="flex-1 space-y-1 px-4 py-5">
-            {MANAGER_SECTIONS.map((link) => {
+          <nav className="flex-1 space-y-1 px-3 py-4">
+            {navItems.map((link) => {
               const active = pathname === link.href
+              const Icon = link.icon
               return (
                 <Link
                   key={link.href}
                   href={link.href}
                   className={cn(
-                    "block rounded-lg px-4 py-3 text-sm font-medium transition",
+                    "flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition",
                     active
                       ? "text-white"
-                      : "text-slate-700 hover:bg-slate-100 hover:text-slate-900",
+                      : "text-slate-700 hover:bg-slate-50 hover:text-slate-900",
                   )}
                   style={
                     active
                       ? {
-                          backgroundColor: branding.primaryColor,
-                          color: branding.textColor || "white",
+                          background: `linear-gradient(135deg, ${primaryColor} 0%, ${secondaryColor} 100%)`,
+                          color: "white",
+                          boxShadow: `0 12px 24px ${hexToRgba(primaryColor, 0.22)}`,
                         }
                       : {}
                   }
                 >
-                  {link.label}
+                  <span
+                    className="flex h-8 w-8 items-center justify-center rounded-lg"
+                    style={active ? { backgroundColor: "rgba(255,255,255,0.16)" } : { backgroundColor: hexToRgba(primaryColor, 0.08), color: primaryColor }}
+                  >
+                    <Icon className="h-4 w-4" />
+                  </span>
+                  <span className="flex-1">{link.label}</span>
+                  {active && <ChevronRight className="h-4 w-4 opacity-90" />}
                 </Link>
               )
             })}
           </nav>
 
-          <div className="border-t p-4">
+          <div className="border-t p-4" style={{ borderTopColor: hexToRgba(primaryColor, 0.12) }}>
             <Button
               variant="outline"
               className="w-full justify-start"
+              style={{ borderColor: hexToRgba(primaryColor, 0.18), color: primaryColor }}
               onClick={() => {
                 logout()
                 router.push("/shule")
@@ -238,7 +284,7 @@ export default function ManagerLayout({
                           : {}
                       }
                     >
-                      {link.label}
+                      <span className="flex-1">{link.label}</span>
                     </Link>
                   )
                 })}
@@ -266,7 +312,8 @@ export default function ManagerLayout({
         <header
           className="flex h-16 items-center justify-between border-b bg-white px-4 sm:px-6"
           style={{
-            borderBottomColor: branding.primaryColor + "20",
+            borderBottomColor: hexToRgba(primaryColor, 0.12),
+            boxShadow: `0 1px 0 ${hexToRgba(primaryColor, 0.04)}`,
           }}
         >
           <div className="flex items-center gap-3">
@@ -284,11 +331,13 @@ export default function ManagerLayout({
             </div>
           </div>
 
-          <Button asChild variant="outline" size="sm" className="hidden sm:inline-flex">
+          <Button asChild variant="outline" size="sm" className="hidden sm:inline-flex" style={{ borderColor: hexToRgba(primaryColor, 0.18), color: primaryColor }}>
             <Link href="/shule">School Enterprise</Link>
           </Button>
         </header>
-        <main className="min-w-0 flex-1 overflow-auto p-4 sm:p-6 lg:p-8">{children}</main>
+        <main className="min-w-0 flex-1 overflow-auto p-4 sm:p-6 lg:p-8">
+          <div className="mx-auto w-full max-w-[1600px]">{children}</div>
+        </main>
       </div>
     </div>
   )

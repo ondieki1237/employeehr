@@ -1,4 +1,4 @@
-import { BarChart3, CheckCircle2, Clock, FileText, MessageSquare, Target, Users, Wallet, BookOpen, Briefcase, FileSearch } from "lucide-react"
+import { BarChart3, CheckCircle2, Clock, FileText, MessageSquare, Target, Users, Wallet, BookOpen, Briefcase, FileSearch, Mail, Send } from "lucide-react"
 import { companyApi } from "@/lib/api"
 import { getUser } from "@/lib/auth"
 
@@ -9,6 +9,7 @@ export const MANAGER_SECTION_OPTIONS = [
   "FINANCE",
   "INVENTORY MANAGER",
   "CLIENTS",
+  "COMMUNICATIONS",
 ]
 
 export const MANAGER_MENU_ITEMS = [
@@ -26,6 +27,8 @@ export const MANAGER_MENU_ITEMS = [
   { label: "Document Library", icon: BookOpen, href: "/manager/library", section: "INVENTORY MANAGER" },
   { label: "Documents & Exams", icon: FileText, href: "/manager/examinations", section: "INVENTORY MANAGER" },
   { label: "Operations", icon: Briefcase, href: "/manager/supervision", section: "EMPLOYEE MANAGEMENT" },
+  { label: "Messages", icon: Mail, href: "/manager/messages", section: "COMMUNICATIONS" },
+  { label: "Send Message", icon: Send, href: "/manager/messages/send", section: "COMMUNICATIONS" },
 ]
 
 const SECTION_ALIASES: Record<string, string> = {
@@ -82,6 +85,9 @@ export const getManagerAllowedSections = async (): Promise<Set<string> | null> =
     const pageAccessRes = pageAccessResult.status === "fulfilled" ? pageAccessResult.value : null
     const deptsRes = deptsResult.status === "fulfilled" ? deptsResult.value : null
 
+    const effectiveSections = pageAccessRes?.success && Array.isArray(pageAccessRes.data?.effectiveSections)
+      ? pageAccessRes.data.effectiveSections.map(normalizeSection).filter(Boolean) as string[]
+      : []
     const roleSections = pageAccessRes?.success ? (pageAccessRes.data?.adminSectionsByRole?.[role] || []).map(normalizeSection).filter(Boolean) as string[] : []
     const userSections = userId && pageAccessRes?.success ? (pageAccessRes.data?.adminSectionsByUser?.[userId] || []).map(normalizeSection).filter(Boolean) as string[] : []
 
@@ -97,9 +103,20 @@ export const getManagerAllowedSections = async (): Promise<Set<string> | null> =
       })
     }
 
-    const effective = new Set<string>(["CORE", ...roleSections, ...userSections, ...Array.from(deptSections)])
-    return effective
+    // If we have explicit sections configured, use them. Otherwise default to all sections.
+    const allConfigured = [...effectiveSections, ...roleSections, ...userSections, ...Array.from(deptSections)]
+    const hasExplicitConfig = allConfigured.length > 0 || 
+      (deptsRes?.success && Array.isArray(deptsRes.data) && deptsRes.data.some((d: any) => d.sidebarSections?.length))
+
+    if (hasExplicitConfig) {
+      const effective = new Set<string>(["CORE", ...allConfigured])
+      return effective
+    } else {
+      // No sections configured - default to showing all manager sections
+      return new Set<string>(MANAGER_SECTION_OPTIONS)
+    }
   } catch {
-    return new Set<string>(["CORE"])
+    // On error, show all sections by default
+    return new Set<string>(MANAGER_SECTION_OPTIONS)
   }
 }

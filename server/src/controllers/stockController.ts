@@ -12,6 +12,7 @@ import { StockClient } from "../models/StockClient"
 import { StockExpense } from "../models/StockExpense"
 import { StockRepeatBill } from "../models/StockRepeatBill"
 import { StockInvoicePayment } from "../models/StockInvoicePayment"
+import { CreditNote } from "../models/CreditNote"
 import { DispatchNotification } from "../models/DispatchNotification"
 import { Task } from "../models/Task"
 import { Company } from "../models/Company"
@@ -1119,6 +1120,7 @@ export class StockController {
         const invoicePayments = paymentsByInvoice.get(String(invoice._id)) || []
         return buildInvoicePaymentSummary(invoice, invoicePayments)
       })
+        .filter((invoice: any) => Number(invoice.balanceRemaining || 0) > 0)
 
       return res.status(200).json({ success: true, data })
     } catch (error: any) {
@@ -1403,6 +1405,263 @@ export class StockController {
       return res.status(200).json({ success: true, data })
     } catch (error: any) {
       return res.status(500).json({ success: false, message: error.message || "Failed to fetch debt management data" })
+    }
+  }
+
+  static async getAgingDebtReport(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = req.user?.org_id
+      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+
+      const invoices = await StockInvoice.find({ org_id, status: { $ne: "cancelled" } }).sort({ createdAt: -1 }).lean()
+      const invoiceIds = invoices.map((invoice: any) => String(invoice._id))
+      const payments = await StockInvoicePayment.find({ org_id, invoiceId: { $in: invoiceIds } }).lean()
+
+      const paymentsByInvoice = new Map<string, any[]>()
+      for (const payment of payments) {
+        const key = String(payment.invoiceId)
+        paymentsByInvoice.set(key, [...(paymentsByInvoice.get(key) || []), payment])
+      }
+
+      const buckets = {
+        current: { label: "0-30 days", count: 0, amount: 0 },
+        days31To60: { label: "31-60 days", count: 0, amount: 0 },
+        days61To90: { label: "61-90 days", count: 0, amount: 0 },
+        over90: { label: "90+ days", count: 0, amount: 0 },
+      }
+
+      const rows = invoices
+        .map((invoice: any) => buildInvoicePaymentSummary(invoice, paymentsByInvoice.get(String(invoice._id)) || []))
+        .filter((invoice: any) => Number(invoice.balanceRemaining || 0) > 0)
+        .map((invoice: any) => {
+          const ageDays = Math.max(0, Math.floor((Date.now() - new Date(invoice.createdAt || Date.now()).getTime()) / (24 * 60 * 60 * 1000)))
+          const bucketKey = ageDays <= 30 ? "current" : ageDays <= 60 ? "days31To60" : ageDays <= 90 ? "days61To90" : "over90"
+          buckets[bucketKey].count += 1
+          buckets[bucketKey].amount = Number((buckets[bucketKey].amount + Number(invoice.balanceRemaining || 0)).toFixed(2))
+
+          return {
+            invoiceId: String(invoice._id),
+            invoiceNumber: invoice.invoiceNumber,
+            client: invoice.client,
+            invoiceDate: invoice.createdAt,
+            ageDays,
+            bucket: buckets[bucketKey].label,
+            subTotal: invoice.subTotal,
+            paidAmount: invoice.paidAmount,
+            balanceRemaining: invoice.balanceRemaining,
+            nextPaymentDate: invoice.nextPaymentDate,
+          }
+        })
+
+      const totalOutstanding = rows.reduce((sum, row) => sum + Number(row.balanceRemaining || 0), 0)
+
+      return res.status(200).json({
+        success: true,
+        data: {
+          totalOutstanding: Number(totalOutstanding.toFixed(2)),
+          buckets,
+          rows,
+        },
+      })
+    } catch (error: any) {
+      return res.status(500).json({ success: false, message: error.message || "Failed to fetch aging debt report" })
+    }
+  }
+
+  static async getProfitMarginAnalytics(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = req.user?.org_id
+      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+
+      const [products, sales, invoices] = await Promise.all([
+        StockProduct.find({ org_id, isActive: { $ne: false } }).lean(),
+        StockSale.find({ org_id }).lean(),
+        StockInvoice.find({ org_id, status: { $ne: "cancelled" } }).lean(),
+      ])
+
+      const productMap = new Map(products.map((product: any) => [String(product._id), product]))
+      const marginByProduct = new Map<string, any>()
+
+      const ensureRow = (productId: string, productName: string, startingPrice = 0) => {
+        if (!marginByProduct.has(productId)) {
+          marginByProduct.set(productId, {
+            productId,
+            productName,
+            quantity: 0,
+            revenue: 0,
+            estimatedCost: 0,
+            grossProfit: 0,
+            grossMarginPercent: 0,
+          })
+        }
+        const row = marginByProduct.get(productId)
+        row.productName = row.productName || productName
+        row.startingPrice = startingPrice
+        return row
+      }
+
+      for (const sale of sales as any[]) {
+        const product = productMap.get(String(sale.productId))
+        const quantity = Number(sale.quantitySold || 0)
+        const revenue = Number(sale.soldPrice || 0) * quantity
+        const unitCost = Number(product?.startingPrice || 0)
+        const row = ensureRow(String(sale.productId), product?.name || "Unknown product", unitCost)
+        row.quantity += quantity
+        row.revenue += revenue
+        row.estimatedCost += unitCost * quantity
+      }
+
+      for (const invoice of invoices as any[]) {
+        for (const item of invoice.items || []) {
+          const product = productMap.get(String(item.productId))
+          const quantity = Number(item.quantity || 0)
+          const revenue = Number(item.lineTotal || Number(item.unitPrice || 0) * quantity)
+          const unitCost = Number(product?.startingPrice || 0)
+          const row = ensureRow(String(item.productId), item.productName || product?.name || "Unknown product", unitCost)
+          row.quantity += quantity
+          row.revenue += revenue
+          row.estimatedCost += unitCost * quantity
+        }
+      }
+
+      const rows = Array.from(marginByProduct.values())
+        .map((row) => {
+          const grossProfit = row.revenue - row.estimatedCost
+          const grossMarginPercent = row.revenue > 0 ? (grossProfit / row.revenue) * 100 : 0
+          return {
+            ...row,
+            revenue: Number(row.revenue.toFixed(2)),
+            estimatedCost: Number(row.estimatedCost.toFixed(2)),
+            grossProfit: Number(grossProfit.toFixed(2)),
+            grossMarginPercent: Number(grossMarginPercent.toFixed(1)),
+          }
+        })
+        .sort((a, b) => b.grossProfit - a.grossProfit)
+
+      const totals = rows.reduce(
+        (acc, row) => ({
+          revenue: acc.revenue + row.revenue,
+          estimatedCost: acc.estimatedCost + row.estimatedCost,
+          grossProfit: acc.grossProfit + row.grossProfit,
+        }),
+        { revenue: 0, estimatedCost: 0, grossProfit: 0 },
+      )
+
+      return res.status(200).json({
+        success: true,
+        data: {
+          totals: {
+            revenue: Number(totals.revenue.toFixed(2)),
+            estimatedCost: Number(totals.estimatedCost.toFixed(2)),
+            grossProfit: Number(totals.grossProfit.toFixed(2)),
+            grossMarginPercent: totals.revenue > 0 ? Number(((totals.grossProfit / totals.revenue) * 100).toFixed(1)) : 0,
+          },
+          rows,
+        },
+      })
+    } catch (error: any) {
+      return res.status(500).json({ success: false, message: error.message || "Failed to fetch profit margin analytics" })
+    }
+  }
+
+  static async getProductMovementForecast(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = req.user?.org_id
+      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+
+      const since = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
+      const [products, sales] = await Promise.all([
+        StockProduct.find({ org_id, isActive: { $ne: false } }).lean(),
+        StockSale.find({ org_id, createdAt: { $gte: since } }).lean(),
+      ])
+
+      const soldByProduct = new Map<string, number>()
+      for (const sale of sales as any[]) {
+        const key = String(sale.productId)
+        soldByProduct.set(key, (soldByProduct.get(key) || 0) + Number(sale.quantitySold || 0))
+      }
+
+      const rows = products.map((product: any) => {
+        const quantitySold90Days = soldByProduct.get(String(product._id)) || 0
+        const averageDailyMovement = quantitySold90Days / 90
+        const daysOfStockRemaining = averageDailyMovement > 0
+          ? Math.floor(Number(product.currentQuantity || 0) / averageDailyMovement)
+          : null
+
+        return {
+          productId: String(product._id),
+          productName: product.name,
+          currentQuantity: Number(product.currentQuantity || 0),
+          minAlertQuantity: Number(product.minAlertQuantity || 0),
+          quantitySold90Days,
+          averageDailyMovement: Number(averageDailyMovement.toFixed(2)),
+          daysOfStockRemaining,
+          riskLevel:
+            Number(product.currentQuantity || 0) <= Number(product.minAlertQuantity || 0)
+              ? "low_stock"
+              : daysOfStockRemaining !== null && daysOfStockRemaining <= 14
+                ? "reorder_soon"
+                : "healthy",
+        }
+      }).sort((a, b) => {
+        const aDays = a.daysOfStockRemaining ?? Number.MAX_SAFE_INTEGER
+        const bDays = b.daysOfStockRemaining ?? Number.MAX_SAFE_INTEGER
+        return aDays - bDays
+      })
+
+      return res.status(200).json({ success: true, data: rows })
+    } catch (error: any) {
+      return res.status(500).json({ success: false, message: error.message || "Failed to fetch product movement forecast" })
+    }
+  }
+
+  static async getInventoryValuationReport(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = req.user?.org_id
+      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+
+      const products = await StockProduct.find({ org_id, isActive: { $ne: false } }).sort({ name: 1 }).lean()
+      const rows = products.map((product: any) => {
+        const quantity = Number(product.currentQuantity || 0)
+        const costValue = quantity * Number(product.startingPrice || 0)
+        const retailValue = quantity * Number(product.sellingPrice || 0)
+        return {
+          productId: String(product._id),
+          productName: product.name,
+          category: product.category,
+          quantity,
+          startingPrice: Number(product.startingPrice || 0),
+          sellingPrice: Number(product.sellingPrice || 0),
+          costValue: Number(costValue.toFixed(2)),
+          retailValue: Number(retailValue.toFixed(2)),
+          unrealizedMargin: Number((retailValue - costValue).toFixed(2)),
+        }
+      })
+
+      const totals = rows.reduce(
+        (acc, row) => ({
+          quantity: acc.quantity + row.quantity,
+          costValue: acc.costValue + row.costValue,
+          retailValue: acc.retailValue + row.retailValue,
+          unrealizedMargin: acc.unrealizedMargin + row.unrealizedMargin,
+        }),
+        { quantity: 0, costValue: 0, retailValue: 0, unrealizedMargin: 0 },
+      )
+
+      return res.status(200).json({
+        success: true,
+        data: {
+          totals: {
+            quantity: totals.quantity,
+            costValue: Number(totals.costValue.toFixed(2)),
+            retailValue: Number(totals.retailValue.toFixed(2)),
+            unrealizedMargin: Number(totals.unrealizedMargin.toFixed(2)),
+          },
+          rows,
+        },
+      })
+    } catch (error: any) {
+      return res.status(500).json({ success: false, message: error.message || "Failed to fetch inventory valuation report" })
     }
   }
 
@@ -1900,6 +2159,88 @@ export class StockController {
       return res.status(200).json({ success: true, data: invoices })
     } catch (error: any) {
       return res.status(500).json({ success: false, message: error.message || "Failed to fetch invoices" })
+    }
+  }
+
+  static async getInvoiceLifecycle(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = req.user?.org_id
+      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+
+      const { invoiceId } = req.params
+      const invoice = await StockInvoice.findOne({ _id: invoiceId, org_id }).lean()
+      if (!invoice) return res.status(404).json({ success: false, message: "Invoice not found" })
+
+      const [payments, creditNotes, quotation] = await Promise.all([
+        StockInvoicePayment.find({ org_id, invoiceId: String(invoice._id) }).sort({ paidAt: -1, createdAt: -1 }).lean(),
+        CreditNote.find({ org_id, invoiceId: String(invoice._id) }).sort({ createdAt: -1 }).lean(),
+        invoice.quotationId
+          ? StockQuotation.findOne({ _id: invoice.quotationId, org_id }).lean()
+          : Promise.resolve(null),
+      ])
+
+      const paymentSummary = buildInvoicePaymentSummary(invoice, payments)
+      const dispatchStatus = String(invoice.dispatch?.status || "not_assigned")
+      const creditNoteTotal = creditNotes.reduce((sum: number, note: any) => sum + Number(note.subTotal || 0), 0)
+      const steps = [
+        {
+          key: "quotation",
+          label: "Quotation",
+          status: quotation || invoice.quotationId ? "completed" : "not_started",
+          reference: quotation?.quotationNumber || invoice.quotationNumber || null,
+          completedAt: quotation?.createdAt || null,
+        },
+        {
+          key: "invoice",
+          label: "Invoice",
+          status: invoice.status === "cancelled" ? "cancelled" : "completed",
+          reference: invoice.invoiceNumber,
+          completedAt: invoice.createdAt || null,
+        },
+        {
+          key: "payment",
+          label: "Payment",
+          status: paymentSummary.balanceRemaining <= 0 ? "completed" : paymentSummary.paidAmount > 0 ? "in_progress" : "pending",
+          paidAmount: paymentSummary.paidAmount,
+          balanceRemaining: paymentSummary.balanceRemaining,
+          completedAt: paymentSummary.balanceRemaining <= 0 ? paymentSummary.lastPayment?.paidAt || paymentSummary.lastPayment?.createdAt || null : null,
+        },
+        {
+          key: "dispatch",
+          label: "Dispatch",
+          status: ["dispatched", "delivered"].includes(dispatchStatus) ? "completed" : dispatchStatus,
+          assignedToUserId: invoice.dispatch?.assignedToUserId || null,
+          completedAt: invoice.dispatch?.dispatchedAt || null,
+        },
+        {
+          key: "delivery",
+          label: "Delivery",
+          status: dispatchStatus === "delivered" ? "completed" : "pending",
+          condition: invoice.dispatch?.delivery?.condition || null,
+          completedAt: invoice.dispatch?.delivery?.confirmedAt || null,
+        },
+        {
+          key: "credit_note",
+          label: "Credit Note",
+          status: creditNotes.length > 0 ? "has_credit_notes" : "not_started",
+          count: creditNotes.length,
+          totalAmount: Number(creditNoteTotal.toFixed(2)),
+        },
+      ]
+
+      return res.status(200).json({
+        success: true,
+        data: {
+          invoice,
+          quotation,
+          payments,
+          creditNotes,
+          paymentSummary,
+          steps,
+        },
+      })
+    } catch (error: any) {
+      return res.status(500).json({ success: false, message: error.message || "Failed to fetch invoice lifecycle" })
     }
   }
 

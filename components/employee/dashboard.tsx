@@ -17,9 +17,10 @@ import {
   YAxis,
   CartesianGrid,
 } from "recharts"
-import { TrendingUp, Target, CheckSquare, Mail, Package, Clock, AlertCircle, ClipboardList } from "lucide-react"
+import { Target, CheckSquare, Mail, Package, Clock, ClipboardList, Wallet, CalendarDays, Bell } from "lucide-react"
 import API_URL from "@/lib/apiBase"
-import { getUser } from "@/lib/auth"
+import { getToken, getUser } from "@/lib/auth"
+import { api } from "@/lib/api"
 
 interface Task {
   _id: string
@@ -65,6 +66,10 @@ export default function EmployeeDashboard() {
   const [tasks, setTasks] = useState<Task[]>([])
   const [messagesUnread, setMessagesUnread] = useState(0)
   const [performance, setPerformance] = useState<PerformanceRecord | null>(null)
+  const [leaveBalance, setLeaveBalance] = useState<any>(null)
+  const [payslipsCount, setPayslipsCount] = useState(0)
+  const [meetingsCount, setMeetingsCount] = useState(0)
+  const [alertsCount, setAlertsCount] = useState(0)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -75,23 +80,28 @@ export default function EmployeeDashboard() {
   useEffect(() => {
     const loadDashboard = async () => {
       try {
-        const token = localStorage.getItem("token")
+        const token = getToken()
         const currentUser = getUser()
         if (!token || !currentUser) return
 
         const userId = currentUser.userId || currentUser._id
         const period = getCurrentPeriod()
 
-        const [tasksRes, messagesRes, performanceRes] = await Promise.all([
+        const [tasksRes, messagesRes, performanceRes, alertsRes, leaveRes, payslipsRes, meetingsRes] = await Promise.all([
           fetch(`${API_URL}/api/tasks`, { headers: { Authorization: `Bearer ${token}` } }),
           fetch(`${API_URL}/api/messages/inbox`, { headers: { Authorization: `Bearer ${token}` } }),
           fetch(`${API_URL}/api/performance/${userId}/${period}`, { headers: { Authorization: `Bearer ${token}` } }),
+          fetch(`${API_URL}/api/alerts`, { headers: { Authorization: `Bearer ${token}` } }),
+          api.leave.getBalance(),
+          api.payroll.getMyPayslips(),
+          api.meetings.getAll(),
         ])
 
-        const [tasksJson, messagesJson, performanceJson] = await Promise.all([
+        const [tasksJson, messagesJson, performanceJson, alertsJson] = await Promise.all([
           tasksRes.json(),
           messagesRes.json(),
           performanceRes.json(),
+          alertsRes.json(),
         ])
 
         if (tasksJson.success) setTasks(tasksJson.data || [])
@@ -100,6 +110,18 @@ export default function EmployeeDashboard() {
           setMessagesUnread(unread)
         }
         if (performanceJson.success) setPerformance(performanceJson.data || null)
+        if (alertsJson.success) {
+          setAlertsCount(((alertsJson.data as any[]) || []).filter((alert) => !(alert.isRead ?? alert.is_read)).length)
+        }
+        if (leaveRes.success) setLeaveBalance(leaveRes.data || null)
+        if (payslipsRes.success) setPayslipsCount((payslipsRes.data || []).length)
+        if (meetingsRes.success) {
+          const upcoming = ((meetingsRes.data as any[]) || []).filter((meeting) => {
+            const startsAt = meeting.scheduled_date || meeting.startTime || meeting.date
+            return startsAt ? new Date(startsAt).getTime() >= Date.now() : false
+          })
+          setMeetingsCount(upcoming.length)
+        }
       } catch (error) {
         console.error("Failed to load employee dashboard:", error)
       } finally {
@@ -199,7 +221,7 @@ export default function EmployeeDashboard() {
   return (
     <div className="space-y-8 p-6">
       <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-bold">Welcome, {user?.firstName || "Employee"}</h1>
+        <h1 className="text-3xl font-bold">Welcome, {user?.first_name || user?.firstName || "Employee"}</h1>
         <p className="text-muted-foreground">
           Your dashboard is driven by your actual duties, packaging work, and live performance.
         </p>
@@ -262,6 +284,70 @@ export default function EmployeeDashboard() {
             </div>
           </div>
           <p className="text-xs text-orange-500">Messages waiting for review</p>
+        </Card>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <Card className="p-5">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-sm text-muted-foreground">Leave Balance</p>
+              <p className="mt-1 text-2xl font-semibold">
+                {leaveBalance?.remainingDays ?? leaveBalance?.annual?.remaining ?? leaveBalance?.balance ?? "—"}
+              </p>
+            </div>
+            <div className="rounded-lg bg-emerald-500/10 p-2 text-emerald-600">
+              <CalendarDays className="h-5 w-5" />
+            </div>
+          </div>
+          <Link href="/employee/leave" className="mt-3 inline-flex text-xs font-medium text-primary hover:underline">
+            View leave timeline
+          </Link>
+        </Card>
+
+        <Card className="p-5">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-sm text-muted-foreground">Payslips</p>
+              <p className="mt-1 text-2xl font-semibold">{payslipsCount}</p>
+            </div>
+            <div className="rounded-lg bg-sky-500/10 p-2 text-sky-600">
+              <Wallet className="h-5 w-5" />
+            </div>
+          </div>
+          <Link href="/employee/payslip" className="mt-3 inline-flex text-xs font-medium text-primary hover:underline">
+            Open payslips
+          </Link>
+        </Card>
+
+        <Card className="p-5">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-sm text-muted-foreground">Upcoming Meetings</p>
+              <p className="mt-1 text-2xl font-semibold">{meetingsCount}</p>
+            </div>
+            <div className="rounded-lg bg-violet-500/10 p-2 text-violet-600">
+              <Clock className="h-5 w-5" />
+            </div>
+          </div>
+          <Link href="/employee/meetings" className="mt-3 inline-flex text-xs font-medium text-primary hover:underline">
+            Review schedule
+          </Link>
+        </Card>
+
+        <Card className="p-5">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-sm text-muted-foreground">Notifications</p>
+              <p className="mt-1 text-2xl font-semibold">{alertsCount}</p>
+            </div>
+            <div className="rounded-lg bg-rose-500/10 p-2 text-rose-600">
+              <Bell className="h-5 w-5" />
+            </div>
+          </div>
+          <Link href="/employee/notifications" className="mt-3 inline-flex text-xs font-medium text-primary hover:underline">
+            Open notification center
+          </Link>
         </Card>
       </div>
 

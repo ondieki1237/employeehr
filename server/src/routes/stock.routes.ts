@@ -29,6 +29,7 @@ router.post("/accounts/clients", StockController.createOrUpdateClient)
 
 router.get("/invoices", StockController.getInvoices)
 router.post("/invoices/create", StockController.createInvoiceFromItems)
+router.get("/invoices/:invoiceId/lifecycle", StockController.getInvoiceLifecycle)
 router.get("/invoices/:invoiceId", StockController.getInvoiceById)
 router.get("/accounts/posts", StockController.getAccountsPosts)
 router.get("/accounts/clients", StockController.getAccountsClients)
@@ -37,6 +38,7 @@ router.post("/accounts/posts/:invoiceId/post-etims", StockController.postInvoice
 router.get("/accounts/payments", StockController.getAccountsPayments)
 router.post("/accounts/payments/:invoiceId", StockController.addInvoicePayment)
 router.get("/accounts/debts", StockController.getDebtManagement)
+router.get("/accounts/debts/aging", StockController.getAgingDebtReport)
 router.get("/accounts/expenses", StockController.getExpenses)
 router.post("/accounts/expenses/initiate", StockController.initiateExpense)
 router.get("/accounts/repeat-bills", StockController.getRepeatBills)
@@ -53,6 +55,9 @@ router.post("/dispatch/notifications/:notificationId/retry", StockController.ret
 
 router.get("/dispatch/my", StockController.getMyDispatchInvoices)
 router.get("/dispatch/analytics", StockController.getDispatchAnalytics)
+router.get("/analytics/profit-margins", StockController.getProfitMarginAnalytics)
+router.get("/analytics/movement-forecast", StockController.getProductMovementForecast)
+router.get("/analytics/valuation", StockController.getInventoryValuationReport)
 
 router.get("/couriers", StockController.getCouriers)
 router.post("/couriers", StockController.createCourier)

@@ -189,6 +189,7 @@ export class AuthService {
       const user = await User.findOne({ email: email.toLowerCase() })
 
       if (!user) {
+        console.warn(`[AuthService] Login failed: user not found for ${email.toLowerCase()}`)
         return {
           success: false,
           message: "User not found",
@@ -198,6 +199,7 @@ export class AuthService {
       // Verify password
       const isPasswordValid = await bcrypt.compare(password, user.password)
       if (!isPasswordValid) {
+        console.warn(`[AuthService] Login failed: invalid password for ${email.toLowerCase()}`)
         return {
           success: false,
           message: "Invalid credentials",
@@ -206,6 +208,7 @@ export class AuthService {
 
       // Check if user is active
       if (user.status !== "active") {
+        console.warn(`[AuthService] Login failed: inactive account for ${email.toLowerCase()}`)
         return {
           success: false,
           message: "User account is inactive",
@@ -215,6 +218,7 @@ export class AuthService {
       // Check if company is frozen
       const company = await Company.findById(user.org_id)
       if (company?.isFrozen) {
+        console.warn(`[AuthService] Login failed: frozen company for ${email.toLowerCase()}`)
         return {
           success: false,
           message: "Your account has been Frozen by the System owner. Contact him for Unlocking",

@@ -1,6 +1,10 @@
 import type { Response } from "express"
 import type { AuthenticatedRequest } from "../middleware/auth"
 import { Company } from "../models/Company"
+import { User } from "../models/User"
+import { Department } from "../models/Department"
+import { Branch } from "../models/Branch"
+import AuditLog from "../models/AuditLog"
 
 const ADMIN_SECTION_OPTIONS = [
   "CORE",
@@ -11,6 +15,96 @@ const ADMIN_SECTION_OPTIONS = [
   "PERFORMANCE",
   "SYSTEM",
 ]
+
+const PERMISSION_OPTIONS = [
+  "users:read",
+  "users:write",
+  "users:delete",
+  "payroll:read",
+  "payroll:write",
+  "stock:read",
+  "stock:write",
+  "stock:approve",
+  "accounts:read",
+  "accounts:write",
+  "reports:read",
+  "reports:approve",
+  "settings:read",
+  "settings:write",
+]
+
+const DEFAULT_PERMISSION_MATRIX: Record<string, string[]> = {
+  company_admin: PERMISSION_OPTIONS,
+  admin: PERMISSION_OPTIONS.filter((permission) => permission !== "settings:write"),
+  hr: ["users:read", "users:write", "payroll:read", "reports:read", "settings:read"],
+  manager: ["users:read", "reports:read", "stock:read"],
+  employee: ["reports:read"],
+}
+
+const sanitizeList = (value: unknown, allowed: string[]): string[] => {
+  if (!Array.isArray(value)) return []
+  const unique = Array.from(new Set(value.filter((item): item is string => typeof item === "string")))
+  return unique.filter((item) => allowed.includes(item))
+}
+
+const normalizeSettingsMap = (value: unknown, allowed: string[]) => {
+  const entries: Array<[string, unknown]> = value instanceof Map
+    ? Array.from(value.entries())
+    : Object.entries(value || {})
+
+  return Object.fromEntries(
+    entries
+      .filter(([key]) => typeof key === "string" && key.length > 0)
+      .map(([key, list]) => [key, sanitizeList(list, allowed)])
+  )
+}
+
+const buildRoleSectionDefaults = (raw: any) => ({
+  company_admin: ADMIN_SECTION_OPTIONS,
+  admin: sanitizeList(raw?.admin, ADMIN_SECTION_OPTIONS).length > 0
+    ? sanitizeList(raw.admin, ADMIN_SECTION_OPTIONS)
+    : ADMIN_SECTION_OPTIONS,
+  hr: sanitizeList(raw?.hr, ADMIN_SECTION_OPTIONS),
+  manager: sanitizeList(raw?.manager, ADMIN_SECTION_OPTIONS),
+  employee: sanitizeList(raw?.employee, ADMIN_SECTION_OPTIONS),
+})
+
+const buildPermissionDefaults = (raw: any) => ({
+  company_admin: PERMISSION_OPTIONS,
+  admin: sanitizeList(raw?.admin, PERMISSION_OPTIONS).length > 0
+    ? sanitizeList(raw.admin, PERMISSION_OPTIONS)
+    : DEFAULT_PERMISSION_MATRIX.admin,
+  hr: sanitizeList(raw?.hr, PERMISSION_OPTIONS).length > 0
+    ? sanitizeList(raw.hr, PERMISSION_OPTIONS)
+    : DEFAULT_PERMISSION_MATRIX.hr,
+  manager: sanitizeList(raw?.manager, PERMISSION_OPTIONS).length > 0
+    ? sanitizeList(raw.manager, PERMISSION_OPTIONS)
+    : DEFAULT_PERMISSION_MATRIX.manager,
+  employee: sanitizeList(raw?.employee, PERMISSION_OPTIONS).length > 0
+    ? sanitizeList(raw.employee, PERMISSION_OPTIONS)
+    : DEFAULT_PERMISSION_MATRIX.employee,
+})
+
+const logPermissionChange = async (req: AuthenticatedRequest, changes: Record<string, any>) => {
+  if (!req.org_id || !req.user?.userId) return
+
+  try {
+    await AuditLog.create({
+      org_id: req.org_id,
+      userId: req.user.userId,
+      action: "UPDATE_PERMISSION_SETTINGS",
+      resource: "Company.pageAccessSettings",
+      resourceId: req.org_id,
+      changes,
+      ipAddress: req.ip,
+      userAgent: req.get("user-agent"),
+      status: "success",
+      details: "Permission, role, user, department, or branch access settings changed",
+    })
+  } catch (error) {
+    console.error("Failed to write permission audit log:", error)
+  }
+}
 
 const DEFAULT_DISPATCH_SMS_TEMPLATE = [
   "Hello {{clientName}}, your package for invoice {{invoiceNumber}} (DN {{deliveryNoteNumber}}) has been dispatched.",
@@ -302,40 +396,64 @@ export class CompanyController {
         return res.status(404).json({ success: false, message: "Company not found" })
       }
 
-      const data = company.pageAccessSettings?.adminSectionsByRole || {
-        company_admin: ADMIN_SECTION_OPTIONS,
-        admin: ADMIN_SECTION_OPTIONS,
-        hr: ADMIN_SECTION_OPTIONS,
-        manager: [],
-        employee: [],
-      }
+      const settings = company.pageAccessSettings as any
+      const roleSections = buildRoleSectionDefaults(settings?.adminSectionsByRole)
+      const userSections = normalizeSettingsMap(settings?.adminSectionsByUser, ADMIN_SECTION_OPTIONS)
+      const departmentSections = normalizeSettingsMap(settings?.adminSectionsByDepartment, ADMIN_SECTION_OPTIONS)
+      const branchSections = normalizeSettingsMap(settings?.adminSectionsByBranch, ADMIN_SECTION_OPTIONS)
+      const permissionMatrixByRole = buildPermissionDefaults(settings?.permissionMatrixByRole)
+      const permissionMatrixByUser = normalizeSettingsMap(settings?.permissionMatrixByUser, PERMISSION_OPTIONS)
 
-      const rawUserSettings = (company.pageAccessSettings as any)?.adminSectionsByUser
-      const rawUserEntries: Array<[string, unknown]> = rawUserSettings instanceof Map
-        ? Array.from(rawUserSettings.entries())
-        : Object.entries(rawUserSettings || {})
+      const user = req.user?.userId
+        ? await User.findOne({ _id: req.user.userId, org_id: req.org_id }).select("department role").lean()
+        : null
 
-      const normalizedUserSettings = Object.fromEntries(
-        rawUserEntries.map(([userId, sections]) => [
-          userId,
-          Array.isArray(sections)
-            ? sections.filter((section: string) => ADMIN_SECTION_OPTIONS.includes(section))
-            : [],
-        ])
-      )
+      const matchingDepartment = user?.department
+        ? await Department.findOne({
+            org_id: req.org_id,
+            name: { $regex: new RegExp(`^${String(user.department).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i") },
+          }).select("_id name").lean()
+        : null
+
+      const managedBranches = req.user?.userId
+        ? await Branch.find({ org_id: req.org_id, managerId: req.user.userId, isActive: true }).select("_id name code").lean()
+        : []
+
+      const rawRole = String(req.user?.role || user?.role || "employee")
+      const role = rawRole in roleSections ? rawRole as keyof typeof roleSections : "employee"
+      const directUserSections = req.user?.userId ? userSections[req.user.userId] || [] : []
+      const currentDepartmentSections = matchingDepartment?._id
+        ? departmentSections[String(matchingDepartment._id)] || []
+        : []
+      const currentBranchSections = managedBranches.flatMap((branch: any) => branchSections[String(branch._id)] || [])
+
+      const effectiveSections = Array.from(new Set([
+        ...(roleSections[role] || []),
+        ...directUserSections,
+        ...currentDepartmentSections,
+        ...currentBranchSections,
+      ]))
+
+      const effectivePermissions = Array.from(new Set([
+        ...(permissionMatrixByRole[role] || []),
+        ...(req.user?.userId ? permissionMatrixByUser[req.user.userId] || [] : []),
+      ]))
 
       return res.json({
         success: true,
         data: {
-          adminSectionsByRole: {
-            company_admin: data.company_admin || ADMIN_SECTION_OPTIONS,
-            admin: data.admin || ADMIN_SECTION_OPTIONS,
-            hr: data.hr || ADMIN_SECTION_OPTIONS,
-            manager: data.manager || [],
-            employee: data.employee || [],
-          },
-          adminSectionsByUser: normalizedUserSettings,
+          adminSectionsByRole: roleSections,
+          adminSectionsByUser: userSections,
+          adminSectionsByDepartment: departmentSections,
+          adminSectionsByBranch: branchSections,
+          permissionMatrixByRole,
+          permissionMatrixByUser,
+          effectiveSections,
+          effectivePermissions,
+          currentDepartment: matchingDepartment || null,
+          managedBranches,
           availableSections: ADMIN_SECTION_OPTIONS,
+          availablePermissions: PERMISSION_OPTIONS,
         },
       })
     } catch (error) {
@@ -350,29 +468,28 @@ export class CompanyController {
         return res.status(400).json({ success: false, message: "Organization context required" })
       }
 
+      const previous = await Company.findById(req.org_id).select("pageAccessSettings").lean()
       const payload = req.body?.adminSectionsByRole || {}
       const userPayload = req.body?.adminSectionsByUser || {}
+      const departmentPayload = req.body?.adminSectionsByDepartment || {}
+      const branchPayload = req.body?.adminSectionsByBranch || {}
+      const permissionsPayload = req.body?.permissionMatrixByRole || {}
+      const userPermissionsPayload = req.body?.permissionMatrixByUser || {}
 
-      const sanitizeSections = (value: unknown): string[] => {
-        if (!Array.isArray(value)) return []
-        const unique = Array.from(new Set(value.filter((item): item is string => typeof item === "string")))
-        return unique.filter((section) => ADMIN_SECTION_OPTIONS.includes(section))
-      }
-
-      const adminSections = sanitizeSections(payload.admin)
+      const adminSections = sanitizeList(payload.admin, ADMIN_SECTION_OPTIONS)
       const nextSettings = {
         company_admin: ADMIN_SECTION_OPTIONS,
         admin: adminSections.length > 0 ? adminSections : ADMIN_SECTION_OPTIONS,
-        hr: sanitizeSections(payload.hr),
-        manager: sanitizeSections(payload.manager),
-        employee: sanitizeSections(payload.employee),
+        hr: sanitizeList(payload.hr, ADMIN_SECTION_OPTIONS),
+        manager: sanitizeList(payload.manager, ADMIN_SECTION_OPTIONS),
+        employee: sanitizeList(payload.employee, ADMIN_SECTION_OPTIONS),
       }
 
-      const nextUserSettings = Object.fromEntries(
-        Object.entries(userPayload)
-          .filter(([userId]) => typeof userId === "string" && userId.length > 0)
-          .map(([userId, sections]) => [userId, sanitizeSections(sections)])
-      )
+      const nextUserSettings = normalizeSettingsMap(userPayload, ADMIN_SECTION_OPTIONS)
+      const nextDepartmentSettings = normalizeSettingsMap(departmentPayload, ADMIN_SECTION_OPTIONS)
+      const nextBranchSettings = normalizeSettingsMap(branchPayload, ADMIN_SECTION_OPTIONS)
+      const nextPermissionMatrix = buildPermissionDefaults(permissionsPayload)
+      const nextUserPermissionSettings = normalizeSettingsMap(userPermissionsPayload, PERMISSION_OPTIONS)
 
       const company = await Company.findByIdAndUpdate(
         req.org_id,
@@ -381,6 +498,10 @@ export class CompanyController {
             pageAccessSettings: {
               adminSectionsByRole: nextSettings,
               adminSectionsByUser: nextUserSettings,
+              adminSectionsByDepartment: nextDepartmentSettings,
+              adminSectionsByBranch: nextBranchSettings,
+              permissionMatrixByRole: nextPermissionMatrix,
+              permissionMatrixByUser: nextUserPermissionSettings,
             },
           },
         },
@@ -391,13 +512,30 @@ export class CompanyController {
         return res.status(404).json({ success: false, message: "Company not found" })
       }
 
+      await logPermissionChange(req, {
+        before: previous?.pageAccessSettings || null,
+        after: {
+          adminSectionsByRole: nextSettings,
+          adminSectionsByUser: nextUserSettings,
+          adminSectionsByDepartment: nextDepartmentSettings,
+          adminSectionsByBranch: nextBranchSettings,
+          permissionMatrixByRole: nextPermissionMatrix,
+          permissionMatrixByUser: nextUserPermissionSettings,
+        },
+      })
+
       return res.json({
         success: true,
         message: "Page access settings updated successfully",
         data: {
           adminSectionsByRole: nextSettings,
           adminSectionsByUser: nextUserSettings,
+          adminSectionsByDepartment: nextDepartmentSettings,
+          adminSectionsByBranch: nextBranchSettings,
+          permissionMatrixByRole: nextPermissionMatrix,
+          permissionMatrixByUser: nextUserPermissionSettings,
           availableSections: ADMIN_SECTION_OPTIONS,
+          availablePermissions: PERMISSION_OPTIONS,
         },
       })
     } catch (error) {

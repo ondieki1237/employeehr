@@ -400,6 +400,10 @@ export const companyApi = {
             employee: string[]
         }
         adminSectionsByUser?: Record<string, string[]>
+        adminSectionsByDepartment?: Record<string, string[]>
+        adminSectionsByBranch?: Record<string, string[]>
+        permissionMatrixByRole?: Record<string, string[]>
+        permissionMatrixByUser?: Record<string, string[]>
     }) => client.post<any>('/api/company/page-access', data),
     updateBranding: async (data: {
         primaryColor?: string
@@ -623,6 +627,7 @@ export const stockApi = {
     getProducts: () => client.get<any[]>('/api/stock/products'),
 
     getInvoices: () => client.get<any[]>('/api/stock/invoices'),
+    getInvoiceLifecycle: (invoiceId: string) => client.get<any>(`/api/stock/invoices/${invoiceId}/lifecycle`),
 
     getQuotations: () => client.get<any[]>('/api/stock/quotations'),
 
@@ -659,6 +664,10 @@ export const stockApi = {
     ) => client.post<any>(`/api/stock/accounts/payments/${invoiceId}`, data),
 
     getDebtManagement: () => client.get<any[]>('/api/stock/accounts/debts'),
+    getAgingDebtReport: () => client.get<any>('/api/stock/accounts/debts/aging'),
+    getProfitMargins: () => client.get<any>('/api/stock/analytics/profit-margins'),
+    getMovementForecast: () => client.get<any[]>('/api/stock/analytics/movement-forecast'),
+    getInventoryValuation: () => client.get<any>('/api/stock/analytics/valuation'),
 
     getExpenses: () => client.get<any[]>('/api/stock/accounts/expenses'),
 

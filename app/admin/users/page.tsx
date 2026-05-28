@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Plus, Search, Edit2, Trash2, Lock, Unlock, Eye, FileText, 
   Calendar, Award, BarChart3, MessageSquare, CheckSquare, Mail,
@@ -78,6 +78,31 @@ interface EmployeeDetails {
   pollsParticipated: number;
 }
 
+interface TenantBranding {
+  name?: string;
+  primaryColor?: string;
+  secondaryColor?: string;
+  accentColor?: string;
+  backgroundColor?: string;
+  textColor?: string;
+  borderRadius?: string;
+}
+
+function hexToRgb(hex: string) {
+  const normalized = hex.replace('#', '')
+  if (normalized.length !== 6) return { r: 37, g: 99, b: 235 }
+  return {
+    r: Number.parseInt(normalized.slice(0, 2), 16),
+    g: Number.parseInt(normalized.slice(2, 4), 16),
+    b: Number.parseInt(normalized.slice(4, 6), 16),
+  }
+}
+
+function hexToRgba(hex: string, alpha: number) {
+  const { r, g, b } = hexToRgb(hex)
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`
+}
+
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -91,6 +116,7 @@ export default function AdminUsersPage() {
   const [filterStatus, setFilterStatus] = useState('all');
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
+  const [branding, setBranding] = useState<TenantBranding>({});
 
   // Employee detailed data
   const [employeeDetails, setEmployeeDetails] = useState<EmployeeDetails | null>(null);
@@ -125,6 +151,27 @@ export default function AdminUsersPage() {
       }
     })()
   }, []);
+
+  useEffect(() => {
+    const loadBranding = async () => {
+      try {
+        const response = await fetch(`${API_URL}/api/company/branding`, {
+          headers: {
+            Authorization: `Bearer ${getToken()}`,
+          },
+        })
+
+        if (!response.ok) return
+
+        const data = await response.json()
+        setBranding(data?.data || {})
+      } catch (error) {
+        console.error('Failed to load branding:', error)
+      }
+    }
+
+    loadBranding()
+  }, [])
 
   const fetchUsers = async () => {
     try {
@@ -378,13 +425,33 @@ export default function AdminUsersPage() {
     return matchesSearch && matchesRole && matchesDepartment && matchesStatus;
   });
 
+  const brand = useMemo(() => ({
+    name: branding.name || 'Organization',
+    primary: branding.primaryColor || '#2563eb',
+    secondary: branding.secondaryColor || '#059669',
+    accent: branding.accentColor || '#f59e0b',
+    background: branding.backgroundColor || '#ffffff',
+    text: branding.textColor || '#1f2937',
+  }), [branding])
+
+  const headerStyle = useMemo(() => ({
+    borderColor: hexToRgba(brand.primary, 0.18),
+    background: `linear-gradient(120deg, ${hexToRgba(brand.primary, 0.10)} 0%, #ffffff 65%)`,
+    color: brand.text,
+  }), [brand.background, brand.primary, brand.text])
+
+  const statCardStyle = useMemo(() => ({
+    borderColor: hexToRgba(brand.primary, 0.14),
+    background: `linear-gradient(180deg, #ffffff 0%, ${hexToRgba(brand.primary, 0.03)} 100%)`,
+  }), [brand.primary])
+
   
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen">
+      <div className="flex items-center justify-center h-screen bg-slate-50">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+          <div className="mx-auto h-12 w-12 animate-spin rounded-full border-b-2" style={{ borderColor: brand.primary }}></div>
           <p className="mt-4 text-muted-foreground">Loading employees...</p>
         </div>
       </div>
@@ -393,30 +460,44 @@ export default function AdminUsersPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold">Employee Management</h1>
-        <p className="text-muted-foreground">
-          Comprehensive employee management and monitoring system
-        </p>
+      <div
+        className="rounded-2xl border px-5 py-4 shadow-sm"
+        style={headerStyle}
+      >
+        <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <p className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500">Administration</p>
+            <h1 className="mt-1 text-2xl font-semibold text-slate-900">Employee Management</h1>
+            <p className="mt-1 text-sm text-slate-600">Comprehensive employee management and monitoring system</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="secondary" className="bg-white/80 text-slate-700">{users.length} employees</Badge>
+            <Badge variant="secondary" className="bg-white/80 text-slate-700">{departments.length} departments</Badge>
+            <Badge variant="secondary" className="bg-white/80 text-slate-700">{users.filter(u => u.role === 'admin').length} admins</Badge>
+          </div>
+        </div>
       </div>
 
       {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
+        <Card className="shadow-sm" style={statCardStyle as React.CSSProperties}>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium">Total Employees</CardTitle>
-            <UserCheck className="h-4 w-4 text-muted-foreground" />
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg" style={{ backgroundColor: hexToRgba(brand.primary, 0.10), color: brand.primary }}>
+              <UserCheck className="h-4 w-4" />
+            </div>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{users.length}</div>
             <p className="text-xs text-muted-foreground">Across all departments</p>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="shadow-sm" style={statCardStyle as React.CSSProperties}>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium">Active</CardTitle>
-            <UserCheck className="h-4 w-4 text-green-500" />
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg" style={{ backgroundColor: hexToRgba(brand.secondary, 0.10), color: brand.secondary }}>
+              <UserCheck className="h-4 w-4" />
+            </div>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
@@ -425,20 +506,24 @@ export default function AdminUsersPage() {
             <p className="text-xs text-muted-foreground">Currently active</p>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="shadow-sm" style={statCardStyle as React.CSSProperties}>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium">Departments</CardTitle>
-            <Briefcase className="h-4 w-4 text-muted-foreground" />
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg" style={{ backgroundColor: hexToRgba(brand.accent, 0.10), color: brand.accent }}>
+              <Briefcase className="h-4 w-4" />
+            </div>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{departments.length}</div>
             <p className="text-xs text-muted-foreground">Active departments</p>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="shadow-sm" style={statCardStyle as React.CSSProperties}>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium">Admins</CardTitle>
-            <Lock className="h-4 w-4 text-muted-foreground" />
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg" style={{ backgroundColor: hexToRgba(brand.primary, 0.10), color: brand.primary }}>
+              <Lock className="h-4 w-4" />
+            </div>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
@@ -450,8 +535,8 @@ export default function AdminUsersPage() {
       </div>
 
       {/* Filters and Actions */}
-      <Card>
-        <CardHeader>
+      <Card className="shadow-sm" style={{ borderColor: hexToRgba(brand.primary, 0.12) }}>
+        <CardHeader className="border-b bg-slate-50/70">
           <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
             <div className="flex-1 w-full">
               <div className="relative">
@@ -497,12 +582,12 @@ export default function AdminUsersPage() {
                   <SelectItem value="inactive">Inactive</SelectItem>
                 </SelectContent>
               </Select>
-              <Button variant="outline" size="icon" onClick={handleExportData}>
+              <Button variant="outline" size="icon" onClick={handleExportData} style={{ borderColor: hexToRgba(brand.primary, 0.18), color: brand.primary }}>
                 <Download className="h-4 w-4" />
               </Button>
               <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
                 <DialogTrigger asChild>
-                  <Button>
+                  <Button style={{ backgroundColor: brand.primary }}>
                     <Plus className="h-4 w-4 mr-2" />
                     Add Employee
                   </Button>
@@ -611,12 +696,12 @@ export default function AdminUsersPage() {
           </div>
           <div className="space-y-4">
             {filteredUsers.map((user) => (
-              <Card key={user._id} className="hover:shadow-md transition-shadow">
+              <Card key={user._id} className="hover:shadow-md transition-shadow border-slate-200" style={{ borderColor: hexToRgba(brand.primary, 0.10) }}>
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4 flex-1">
-                      <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
-                        <span className="text-lg font-semibold text-primary">
+                      <div className="h-12 w-12 rounded-full flex items-center justify-center" style={{ backgroundColor: hexToRgba(brand.primary, 0.10), color: brand.primary }}>
+                        <span className="text-lg font-semibold">
                           {user.firstName?.charAt(0)}{user.lastName?.charAt(0)}
                         </span>
                       </div>
@@ -661,6 +746,7 @@ export default function AdminUsersPage() {
                         variant="outline"
                         size="sm"
                         onClick={() => handleViewDetails(user)}
+                        style={{ borderColor: hexToRgba(brand.primary, 0.18), color: brand.primary }}
                       >
                         <Eye className="h-4 w-4 mr-1" />
                         View Details
@@ -719,11 +805,11 @@ export default function AdminUsersPage() {
 
       {/* Employee Details Dialog */}
       <Dialog open={isDetailsDialogOpen} onOpenChange={setIsDetailsDialogOpen}>
-        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+                <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto" style={{ borderColor: hexToRgba(brand.primary, 0.14) }}>
           <DialogHeader>
             <div className="flex items-center gap-4">
-              <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center">
-                <span className="text-2xl font-semibold text-primary">
+              <div className="h-16 w-16 rounded-full flex items-center justify-center" style={{ backgroundColor: hexToRgba(brand.primary, 0.10), color: brand.primary }}>
+                <span className="text-2xl font-semibold">
                   {selectedUser?.firstName?.charAt(0)}{selectedUser?.lastName?.charAt(0)}
                 </span>
               </div>

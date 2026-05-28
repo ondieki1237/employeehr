@@ -38,9 +38,13 @@ export default function ManagerSidebar({ isOpen, isCollapsed, onToggle, onCollap
   const sectionEntries = useMemo(() => {
     const grouped: Record<string, typeof MANAGER_MENU_ITEMS> = {}
 
+    // If allowedSections is null, show all items. Otherwise, filter based on allowed sections.
+    const hasAccess = (section: string) => 
+      allowedSections === null || allowedSections.has(section)
+
     MANAGER_MENU_ITEMS.forEach((item) => {
       const section = item.section || "OTHER"
-      if (!allowedSections || allowedSections.has(section)) {
+      if (hasAccess(section)) {
         if (!grouped[section]) grouped[section] = []
         grouped[section].push(item)
       }
@@ -49,7 +53,7 @@ export default function ManagerSidebar({ isOpen, isCollapsed, onToggle, onCollap
     return Object.entries(grouped)
   }, [allowedSections])
 
-  const showLoadingPlaceholder = loadingAccess && sectionEntries.length === 0
+  const showLoadingPlaceholder = loadingAccess
 
   return (
     <>
@@ -77,8 +81,6 @@ export default function ManagerSidebar({ isOpen, isCollapsed, onToggle, onCollap
         <nav className="min-h-0 flex-1 space-y-4 overflow-y-auto px-3 py-4">
           {showLoadingPlaceholder ? (
             <div className="px-4 py-3 text-sm text-muted-foreground">Loading menu…</div>
-          ) : sectionEntries.length === 0 ? (
-            <div className="px-4 py-3 text-sm text-muted-foreground">No sections assigned.</div>
           ) : sectionEntries.map(([sectionName, items]) => (
             <div key={sectionName}>
               {!isCollapsed && (

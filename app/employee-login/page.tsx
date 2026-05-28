@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import API_URL from "@/lib/apiBase"
+import { setToken, setUser } from "@/lib/auth"
 import { ShieldCheck } from "lucide-react"
 
 export default function EmployeeLoginPage() {
@@ -59,8 +60,15 @@ export default function EmployeeLoginPage() {
       }
 
       if (data.success && data.data) {
-        localStorage.setItem("token", data.data.token)
-        localStorage.setItem("user", JSON.stringify(data.data.user))
+        setToken(data.data.token)
+        setUser({
+          _id: data.data.user._id,
+          email: data.data.user.email,
+          first_name: data.data.user.firstName || data.data.user.first_name || "",
+          last_name: data.data.user.lastName || data.data.user.last_name || "",
+          role: data.data.user.role,
+          org_id: data.data.user.org_id,
+        })
         localStorage.setItem("company", JSON.stringify(data.data.company))
         router.push("/employee")
       } else {

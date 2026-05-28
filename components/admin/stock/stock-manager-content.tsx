@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import API_URL from "@/lib/apiBase"
-import { getToken } from "@/lib/auth"
+import { getToken, getUser } from "@/lib/auth"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -28,6 +28,8 @@ import {
   Line,
 } from "recharts"
 import {
+  applyStampToPdf,
+  generateDeliveryNotePdf,
   generateInvoicePdf,
   type InvoiceDocumentSettings,
   type TenantBranding,
@@ -79,6 +81,7 @@ interface Sale {
   buyerLocation?: string
   isWalkInClient?: boolean
   createdAt: string
+  invoiceId?: string
   product?: { _id: string; name: string }
   soldByUser?: { firstName: string; lastName: string; email: string }
   salesEmployee?: { firstName: string; lastName: string; email: string }
@@ -119,12 +122,24 @@ interface Invoice {
   _id: string
   invoiceNumber: string
   deliveryNoteNumber?: string
+  quotationNumber?: string
   quotationId?: string
   client?: { name: string; number: string; location: string }
   items: QuotationItem[]
   subTotal: number
   status?: "issued" | "paid" | "cancelled"
   createdAt: string
+}
+
+interface DispatchUser {
+  _id: string
+  firstName?: string
+  lastName?: string
+  first_name?: string
+  last_name?: string
+  role?: string
+  email?: string
+  signatureUrl?: string
 }
 
 export function StockManagerContent({ view }: { view: StockView }) {
@@ -1273,6 +1288,198 @@ export function StockManagerContent({ view }: { view: StockView }) {
     }
   }
 
+  const getUserDisplayName = (user?: DispatchUser | null) => {
+    if (!user) return "System User"
+    return [user.firstName || user.first_name, user.lastName || user.last_name].filter(Boolean).join(" ") || user.email || "System User"
+  }
+
+  const toDataUrl = async (url?: string): Promise<string | undefined> => {
+    if (!url) return undefined
+    try {
+      const response = await fetch(url)
+      if (!response.ok) return undefined
+      const blob = await response.blob()
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onloadend = () => resolve(String(reader.result || ""))
+        reader.onerror = () => reject(new Error("Failed to read signature image"))
+        reader.readAsDataURL(blob)
+      })
+      return dataUrl || undefined
+    } catch {
+      return undefined
+    }
+  }
+
+  const resolvePreparedBy = async () => {
+    try {
+      const currentUser = getUser()
+      if (!currentUser) return { preparedBy: "System User", preparedBySignature: undefined, stampPref: false }
+      const userId = currentUser.userId || currentUser._id
+      const res = await fetch(`${API_URL}/api/users/${userId}`, { headers })
+      if (!res.ok) return { preparedBy: "System User", preparedBySignature: undefined, stampPref: false }
+      const json = await res.json()
+      const user = json.data || json
+      const preparedBy = getUserDisplayName(user)
+      const preparedBySignature = await toDataUrl(user?.signatureUrl)
+      const stampPref = typeof user?.promptStampOnPdf === "boolean" ? user.promptStampOnPdf : false
+      return { preparedBy, preparedBySignature, stampPref }
+    } catch {
+      return { preparedBy: "System User", preparedBySignature: undefined, stampPref: false }
+    }
+  }
+
+  interface StampOption {
+    _id: string
+    name: string
+  }
+
+  const promptStampSelection = async (): Promise<{ stampId: string; date: string } | null> => {
+    const addStamp = window.confirm("Add a stamp to this PDF?")
+    if (!addStamp) return null
+
+    const defaultDate = new Date().toLocaleDateString("en-GB")
+    const selectedDate = window.prompt("Enter stamp date (DD/MM/YYYY)", defaultDate)
+    if (selectedDate === null) return null
+
+    const stampsRes = await fetch(`${API_URL}/api/stamps`, { headers })
+    const stampsJson = await stampsRes.json()
+    const stamps: StampOption[] = stampsJson.data || stampsJson || []
+
+    if (!stamps.length) {
+      window.alert("No stamps found. Create one first in System > Stamps.")
+      return null
+    }
+
+    const stampList = stamps.map((stamp, index) => `${index + 1}. ${stamp.name}`).join("\n")
+    const selected = window.prompt(`Select stamp number:\n${stampList}`, "1")
+    if (!selected) return null
+
+    const index = Number(selected) - 1
+    if (Number.isNaN(index) || index < 0 || index >= stamps.length) {
+      window.alert("Invalid stamp selection")
+      return null
+    }
+
+    return { stampId: stamps[index]._id, date: selectedDate || defaultDate }
+  }
+
+  const handleDownloadInvoicePdfWithStamp = async (invoice: Invoice) => {
+    const { preparedBy, preparedBySignature, stampPref } = await resolvePreparedBy()
+    const stampSelection = stampPref ? await promptStampSelection() : null
+
+    // Ensure branding and settings are loaded
+    if (!branding.primaryColor) {
+      const brandingRes = await fetch(`${API_URL}/api/company/branding`, { headers })
+      if (brandingRes.ok) {
+        const brandingData = await brandingRes.json()
+        setBranding(brandingData.data || {})
+      }
+    }
+
+    if (!invoiceSettings || Object.keys(invoiceSettings).length === 0) {
+      const settingsRes = await fetch(`${API_URL}/api/company/invoice-settings`, { headers })
+      if (settingsRes.ok) {
+        const settingsData = await settingsRes.json()
+        setInvoiceSettings(settingsData.data || {})
+      }
+    }
+
+    const doc = generateInvoicePdf({
+      invoiceNumber: invoice.invoiceNumber,
+      deliveryNoteNumber: invoice.deliveryNoteNumber || "",
+      quotationNumber: invoice.quotationNumber || "",
+      createdAt: invoice.createdAt,
+      client: invoice.client || { name: "Unknown", number: "", location: "" },
+      items: invoice.items,
+      subTotal: invoice.subTotal,
+      branding,
+      invoiceSettings,
+      preparedBy,
+      preparedBySignature,
+      watermarkText: invoice.status === "paid" ? "PAID" : invoice.status === "cancelled" ? "CANCELLED" : undefined,
+      autoSave: false,
+    })
+
+    if (stampSelection) {
+      try {
+        const query = new URLSearchParams({
+          date: stampSelection.date,
+          user: preparedBy,
+          email: branding?.email || "",
+          poBox: "",
+        }).toString()
+        const stampRes = await fetch(`${API_URL}/api/stamps/${stampSelection.stampId}/svg?${query}`, { headers })
+        if (stampRes.ok) {
+          const stampSvg = await stampRes.text()
+          await applyStampToPdf(doc, stampSvg, 140, 255, 55, 33)
+        } else {
+          const errorText = await stampRes.text()
+          window.alert(errorText || "Failed to load selected stamp. PDF will be downloaded without stamp.")
+        }
+      } catch {
+        window.alert("Failed to apply stamp. PDF will be downloaded without stamp.")
+      }
+    }
+
+    doc.save(`invoice-${invoice.invoiceNumber}.pdf`)
+    toast({ title: "Success", description: "Invoice downloaded" })
+  }
+
+  const downloadSaleInvoice = async (sale: Sale) => {
+    try {
+      // If invoiceId is stored with the sale, use it directly
+      if (sale.invoiceId) {
+        const invoiceRes = await fetch(`${API_URL}/api/stock/invoices/${sale.invoiceId}`, { headers })
+        if (invoiceRes.ok) {
+          const invoiceData = await invoiceRes.json()
+          const invoice = invoiceData.data || invoiceData
+          if (invoice) {
+            await handleDownloadInvoicePdfWithStamp(invoice)
+            return
+          }
+        }
+      }
+
+      // Otherwise, search for invoices matching the sale details
+      const invoicesRes = await fetch(`${API_URL}/api/stock/invoices`, { headers })
+      if (!invoicesRes.ok) {
+        toast({ title: "Error", description: "Failed to fetch invoices", variant: "destructive" })
+        return
+      }
+
+      const invoicesData = await invoicesRes.json()
+      const allInvoices: Invoice[] = invoicesData.data || []
+
+      // Find invoice matching this sale
+      const clientName = sale.isWalkInClient ? "Walk-in Client" : sale.buyerName || "Walk-in Client"
+      const clientNumber = sale.isWalkInClient ? "" : sale.buyerNumber || ""
+      const clientLocation = sale.isWalkInClient ? "" : sale.buyerLocation || ""
+
+      const matchingInvoice = allInvoices.find((invoice) => {
+        // Match by client name, number, location and approximate date
+        if (!invoice.client) return false
+        
+        const nameMatch = invoice.client.name === clientName
+        const numberMatch = invoice.client.number === clientNumber
+        const locationMatch = invoice.client.location === clientLocation
+        const invoiceDate = new Date(invoice.createdAt).getTime()
+        const saleDate = new Date(sale.createdAt).getTime()
+        const dateWithin24Hours = Math.abs(invoiceDate - saleDate) < 24 * 60 * 60 * 1000
+
+        return nameMatch && numberMatch && locationMatch && dateWithin24Hours
+      })
+
+      if (matchingInvoice) {
+        await handleDownloadInvoicePdfWithStamp(matchingInvoice)
+      } else {
+        toast({ title: "Not Found", description: "Invoice for this sale not found. It may not have been created yet.", variant: "destructive" })
+      }
+    } catch (err) {
+      toast({ title: "Error", description: "Failed to download invoice", variant: "destructive" })
+    }
+  }
+
   if (loading) {
     return <div>Loading inventory manager...</div>
   }
@@ -1598,22 +1805,17 @@ export function StockManagerContent({ view }: { view: StockView }) {
       )}
 
       {view === "sales" && (
-        <>
-          <h1 className="text-2xl font-bold">Sales</h1>
-          <Card>
-            <CardHeader><CardTitle>Search & Export</CardTitle></CardHeader>
-            <CardContent className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-              <div className="w-full md:max-w-md">
-                <Label>Search products or categories</Label>
-                <Input
-                  placeholder="Search by product or category"
-                  value={salesSearch}
-                  onChange={(event) => setSalesSearch(event.target.value)}
-                />
+        <div className="space-y-5">
+          {/* Premium Header Section */}
+          <div className="rounded-2xl border px-4 py-3 shadow-sm" style={{ borderColor: primaryBorderColor, backgroundColor: primarySoftColor }}>
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+              <div className="space-y-0.5">
+                <p className="text-sm font-medium tracking-wide" style={{ color: primaryColor }}>Sales Management</p>
+                <h1 className="text-xl font-semibold tracking-tight text-foreground">Track & record sales</h1>
+                <p className="text-sm text-muted-foreground">Record sales, monitor revenue, and track customer purchases in real time.</p>
               </div>
-              <Button
-                variant="outline"
-                onClick={() =>
+              <div className="flex flex-wrap gap-2">
+                <Button variant="outline" onClick={() =>
                   exportAsCsv(
                     "sales-data.csv",
                     ["Date", "Receipt", "Product", "Category", "Qty Sold", "Sold Price", "Buyer", "Buyer Number", "Buyer Location", "Sold By", "Sales Company Employee", "Remaining"],
@@ -1638,15 +1840,75 @@ export function StockManagerContent({ view }: { view: StockView }) {
                       ]
                     }),
                   )
-                }
-              >
-                Export Sales (Excel)
-              </Button>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader><CardTitle>Record Sale</CardTitle></CardHeader>
-            <CardContent className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                }>Export Sales (Excel)</Button>
+              </div>
+            </div>
+
+            {/* KPI Metrics */}
+            <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+              <Card className="shadow-sm">
+                <CardContent className="p-3">
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground">Total Sales</div>
+                  <div className="mt-1 text-xl font-semibold">{sales.length}</div>
+                  <div className="mt-1 text-xs text-muted-foreground">{filteredSales.length} filtered</div>
+                </CardContent>
+              </Card>
+              <Card className="shadow-sm">
+                <CardContent className="p-3">
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground">Total Revenue</div>
+                  <div className="mt-1 text-xl font-semibold" style={{ color: primaryColor }}>
+                    KES {sales.reduce((sum, sale) => sum + (Number(sale.quantitySold || 0) * Number(sale.soldPrice || 0)), 0).toLocaleString("en-KE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className="shadow-sm">
+                <CardContent className="p-3">
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground">Units Sold</div>
+                  <div className="mt-1 text-xl font-semibold">{sales.reduce((sum, sale) => sum + Number(sale.quantitySold || 0), 0)}</div>
+                </CardContent>
+              </Card>
+              <Card className="shadow-sm">
+                <CardContent className="p-3">
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground">Today's Sales</div>
+                  <div className="mt-1 text-xl font-semibold">
+                    {sales.filter((s) => {
+                      const saleDate = new Date(s.createdAt)
+                      const today = new Date()
+                      return saleDate.toDateString() === today.toDateString()
+                    }).length}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Search and Filter */}
+            <div className="mt-3 rounded-xl border bg-white/90 p-3 shadow-sm backdrop-blur-sm">
+              <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto]">
+                <div className="space-y-2">
+                  <Label>Search products or categories</Label>
+                  <Input
+                    placeholder="Search by product or category name..."
+                    value={salesSearch}
+                    onChange={(event) => setSalesSearch(event.target.value)}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Record Sale Card */}
+          <Card className="shadow-sm">
+            <CardHeader className="border-b bg-muted/30 pb-3">
+              <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <CardTitle className="text-base">Record New Sale</CardTitle>
+                  <p className="text-sm text-muted-foreground">
+                    Quickly add a sale or build an invoice from multiple items
+                  </p>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 pt-6">
               <div>
                 <Label>Product</Label>
                 <Input
@@ -1794,144 +2056,207 @@ export function StockManagerContent({ view }: { view: StockView }) {
           </Card>
 
           {saleItems.length > 0 && (
-            <Card>
-              <CardHeader><CardTitle>Invoice Preview</CardTitle></CardHeader>
-              <CardContent>
+            <Card className="shadow-sm">
+              <CardHeader className="border-b bg-muted/30 pb-3">
+                <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                  <div>
+                    <CardTitle className="text-base">Invoice Preview</CardTitle>
+                    <p className="text-sm text-muted-foreground">
+                      Review items before payment
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-xs text-muted-foreground">Total Items</div>
+                    <div className="text-lg font-semibold">{saleItems.length}</div>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="p-0">
                 <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="text-left border-b">
-                        <th className="py-2">Product</th>
-                        <th className="py-2">Qty</th>
-                        <th className="py-2">Unit</th>
-                        <th className="py-2">Line Total</th>
+                  <table className="min-w-full table-fixed text-sm">
+                    <thead className="sticky top-0 z-10 bg-muted/80 text-[11px] uppercase tracking-wide text-muted-foreground backdrop-blur">
+                      <tr className="border-b">
+                        <th className="px-3 py-3 font-medium text-left w-[35%]">Product</th>
+                        <th className="px-3 py-3 font-medium text-right w-[15%]">Qty</th>
+                        <th className="px-3 py-3 font-medium text-right w-[20%]">Unit Price</th>
+                        <th className="px-3 py-3 font-medium text-right w-[20%]">Line Total</th>
+                        <th className="px-3 py-3 font-medium text-right w-[10%]">Action</th>
                       </tr>
                     </thead>
                     <tbody>
                       {saleItems.map((item, idx) => (
-                        <tr key={`${item.productId}-${idx}`} className="border-b">
-                          <td className="py-2">{item.productName}</td>
-                          <td className="py-2">{item.quantity}</td>
-                          <td className="py-2">{item.unitPrice}</td>
-                          <td className="py-2 flex items-center gap-2">
-                            <span>{item.lineTotal.toFixed(2)}</span>
-                            <Button type="button" variant="ghost" size="sm" onClick={() => removeInvoiceItem(idx)}>
-                              Delete
+                        <tr key={`${item.productId}-${idx}`} className={`border-b align-top transition-colors hover:bg-muted/40 ${idx % 2 === 0 ? "bg-white" : "bg-muted/20"}`}>
+                          <td className="px-3 py-2 align-top">
+                            <div className="truncate font-medium text-foreground">{item.productName}</div>
+                          </td>
+                          <td className="px-3 py-2 align-top text-right">{item.quantity}</td>
+                          <td className="px-3 py-2 align-top text-right">KES {item.unitPrice.toFixed(2)}</td>
+                          <td className="px-3 py-2 align-top text-right font-medium">KES {item.lineTotal.toFixed(2)}</td>
+                          <td className="px-3 py-2 align-top text-right">
+                            <Button type="button" variant="ghost" size="sm" onClick={() => removeInvoiceItem(idx)} className="h-8">
+                              ✕
                             </Button>
                           </td>
                         </tr>
                       ))}
-                      <tr className="font-semibold">
-                        <td className="py-2">Total</td>
-                        <td className="py-2" />
-                        <td className="py-2" />
-                        <td className="py-2">{saleItems.reduce((s, it) => s + Number(it.lineTotal || 0), 0).toFixed(2)}</td>
-                      </tr>
                     </tbody>
                   </table>
                 </div>
-                <div className="mt-3 flex gap-2">
-                  <Button onClick={payCashForInvoice}>Paying cash</Button>
-                  <Button variant="outline" onClick={clearInvoice}>Clear</Button>
+                <div className="border-t bg-muted/30 px-3 py-3">
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm font-semibold">Total</div>
+                    <div className="text-lg font-semibold" style={{ color: primaryColor }}>
+                      KES {saleItems.reduce((s, it) => s + Number(it.lineTotal || 0), 0).toFixed(2)}
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+              <CardContent className="border-t pt-3 pb-3">
+                <div className="flex gap-2">
+                  <Button onClick={payCashForInvoice} style={{ backgroundColor: primaryColor, borderColor: primaryColor }} className="text-white hover:opacity-90">Proceed to Payment</Button>
+                  <Button variant="outline" onClick={clearInvoice}>Clear Invoice</Button>
                 </div>
               </CardContent>
             </Card>
           )}
 
-          <Card>
-            <CardHeader><CardTitle>Sales History</CardTitle></CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-left border-b">
-                      <th className="py-2">Date</th>
-                      <th className="py-2">Receipt #</th>
-                      <th className="py-2">Product</th>
-                      <th className="py-2">Qty Sold</th>
-                      <th className="py-2">Sold Price</th>
-                      <th className="py-2">Buyer</th>
-                      <th className="py-2">Sold By</th>
-                      <th className="py-2">Sales Company Employee</th>
-                      <th className="py-2">Remaining</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredSales.map((sale) => (
-                      <tr key={sale._id} className="border-b">
-                        <td className="py-2">{new Date(sale.createdAt).toLocaleString()}</td>
-                        <td className="py-2">{sale.receiptNumber || "-"}</td>
-                        <td className="py-2">{sale.product?.name || "-"}</td>
-                        <td className="py-2">{sale.quantitySold}</td>
-                        <td className="py-2">{sale.soldPrice}</td>
-                        <td className="py-2">{sale.isWalkInClient ? "Walk-in Client" : sale.buyerName || "-"}</td>
-                        <td className="py-2">{sale.soldByUser ? `${sale.soldByUser.firstName} ${sale.soldByUser.lastName}` : "-"}</td>
-                        <td className="py-2">{sale.salesEmployee ? `${sale.salesEmployee.firstName} ${sale.salesEmployee.lastName}` : "-"}</td>
-                        <td className="py-2">{sale.remainingQuantity}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+          <Card className="shadow-sm">
+            <CardHeader className="border-b bg-muted/30 pb-3">
+              <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <CardTitle className="text-base">Sales History</CardTitle>
+                  <p className="text-sm text-muted-foreground">
+                    Showing {filteredSales.length} of {sales.length} sales
+                  </p>
+                </div>
               </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              {filteredSales.length === 0 ? (
+                <div className="flex min-h-[220px] items-center justify-center px-6 py-10 text-center">
+                  <div>
+                    <p className="text-sm font-medium text-foreground">No sales recorded yet</p>
+                    <p className="mt-1 text-sm text-muted-foreground">Record your first sale above to get started.</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-[1400px] w-full table-fixed text-[13px]">
+                    <thead className="sticky top-0 z-10 bg-muted/80 text-left text-[11px] uppercase tracking-wide text-muted-foreground backdrop-blur">
+                      <tr className="border-b">
+                        <th className="px-3 py-3 font-medium w-[12%]">Date</th>
+                        <th className="px-3 py-3 font-medium w-[10%]">Receipt #</th>
+                        <th className="px-3 py-3 font-medium w-[16%]">Product</th>
+                        <th className="px-3 py-3 font-medium w-[10%]">Qty</th>
+                        <th className="px-3 py-3 font-medium w-[12%]">Price</th>
+                        <th className="px-3 py-3 font-medium w-[14%]">Buyer</th>
+                        <th className="px-3 py-3 font-medium w-[12%]">Sold By</th>
+                        <th className="px-3 py-3 font-medium w-[8%]">Remaining</th>
+                        <th className="px-3 py-3 font-medium w-[6%]">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredSales.map((sale, index) => (
+                        <tr key={sale._id} className={`border-b align-top transition-colors hover:bg-muted/40 ${index % 2 === 0 ? "bg-white" : "bg-muted/20"}`}>
+                          <td className="px-3 py-2 align-top text-[11px] text-muted-foreground">
+                            <div>{new Date(sale.createdAt).toLocaleDateString("en-KE", { year: "numeric", month: "short", day: "2-digit" })}</div>
+                            <div className="mt-0.5 text-[10px]">{new Date(sale.createdAt).toLocaleTimeString("en-KE", { hour: "2-digit", minute: "2-digit" })}</div>
+                          </td>
+                          <td className="px-3 py-2 align-top font-medium">{sale.receiptNumber || "-"}</td>
+                          <td className="px-3 py-2 align-top min-w-0">
+                            <div className="truncate font-medium text-foreground" title={sale.product?.name || "-"}>{sale.product?.name || "-"}</div>
+                            <div className="truncate text-[11px] text-muted-foreground">{(sale.product as any)?.categoryDetails?.name || "-"}</div>
+                          </td>
+                          <td className="px-3 py-2 align-top font-medium">{sale.quantitySold}</td>
+                          <td className="px-3 py-2 align-top font-medium" style={{ color: primaryColor }}>KES {Number(sale.soldPrice || 0).toFixed(2)}</td>
+                          <td className="px-3 py-2 align-top text-muted-foreground">
+                            <div className="truncate" title={sale.isWalkInClient ? "Walk-in Client" : sale.buyerName || "-"}>
+                              {sale.isWalkInClient ? "Walk-in Client" : sale.buyerName || "-"}
+                            </div>
+                          </td>
+                          <td className="px-3 py-2 align-top text-muted-foreground">{sale.soldByUser ? `${sale.soldByUser.firstName} ${sale.soldByUser.lastName}` : "-"}</td>
+                          <td className="px-3 py-2 align-top font-medium">{sale.remainingQuantity}</td>
+                          <td className="px-3 py-2 align-top">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => downloadSaleInvoice(sale)}
+                              className="h-8 whitespace-nowrap text-xs"
+                            >
+                              Invoice
+                            </Button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </CardContent>
           </Card>
 
           {lastCreatedInvoice && (
-            <Card className="border-green-200 bg-green-50/50">
-              <CardHeader>
-                <div className="flex items-center justify-between">
+            <Card className="border-emerald-200 bg-emerald-50/80 shadow-sm">
+              <CardHeader className="border-b border-emerald-200/50 pb-3">
+                <div className="flex items-center justify-between flex-col sm:flex-row gap-3">
                   <div>
-                    <CardTitle>Last Created Invoice</CardTitle>
-                    <p className="text-sm text-muted-foreground mt-1">Invoice #{lastCreatedInvoice.invoiceNumber}</p>
+                    <div className="flex items-center gap-2 mb-1">
+                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: primaryColor }}></div>
+                      <CardTitle className="text-base">Sales Invoice Created</CardTitle>
+                    </div>
+                    <p className="text-sm text-muted-foreground">Invoice #{lastCreatedInvoice.invoiceNumber} · Status: <span className="font-medium text-emerald-700">Paid</span></p>
                   </div>
-                  <div className="flex gap-2">
-                    <Button onClick={() => downloadInvoicePdf(lastCreatedInvoice)} className="bg-green-600 hover:bg-green-700">
-                      📥 Download PDF
+                  <div className="flex flex-wrap gap-2 justify-end">
+                    <Button onClick={() => downloadInvoicePdf(lastCreatedInvoice)} style={{ backgroundColor: primaryColor, borderColor: primaryColor }} className="text-white hover:opacity-90">
+                      ⬇ Download PDF
                     </Button>
-                    <Button asChild variant="outline">
-                      <Link href="/admin/stock/invoices?q=INV">View in Invoices</Link>
+                    <Button asChild variant="outline" className="border-emerald-200">
+                      <Link href="/admin/stock/invoices?q=INV">View Invoice</Link>
                     </Button>
                   </div>
                 </div>
               </CardHeader>
-              <CardContent>
-                <div className="grid gap-4 md:grid-cols-2">
+              <CardContent className="pt-4">
+                <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
                   <div>
-                    <p className="text-sm font-medium">Client</p>
-                    <p className="text-sm text-muted-foreground">{lastCreatedInvoice.client?.name || "Walk-in Client"}</p>
+                    <p className="text-xs uppercase tracking-wide text-emerald-700/60">Client</p>
+                    <p className="text-sm font-medium mt-1">{lastCreatedInvoice.client?.name || "Walk-in Client"}</p>
+                    {lastCreatedInvoice.client?.number && (
+                      <p className="text-xs text-muted-foreground mt-0.5">{lastCreatedInvoice.client.number}</p>
+                    )}
                   </div>
                   <div>
-                    <p className="text-sm font-medium">Contact Number</p>
-                    <p className="text-sm text-muted-foreground">{lastCreatedInvoice.client?.number || "-"}</p>
+                    <p className="text-xs uppercase tracking-wide text-emerald-700/60">Location</p>
+                    <p className="text-sm font-medium mt-1">{lastCreatedInvoice.client?.location || "-"}</p>
                   </div>
                   <div>
-                    <p className="text-sm font-medium">Location</p>
-                    <p className="text-sm text-muted-foreground">{lastCreatedInvoice.client?.location || "-"}</p>
+                    <p className="text-xs uppercase tracking-wide text-emerald-700/60">Items</p>
+                    <p className="text-sm font-medium mt-1">{lastCreatedInvoice.items.length} item(s)</p>
                   </div>
                   <div>
-                    <p className="text-sm font-medium">Total Amount</p>
-                    <p className="text-lg font-semibold">KES {lastCreatedInvoice.subTotal.toFixed(2)}</p>
+                    <p className="text-xs uppercase tracking-wide text-emerald-700/60">Amount</p>
+                    <p className="text-lg font-semibold mt-1" style={{ color: primaryColor }}>KES {lastCreatedInvoice.subTotal.toFixed(2)}</p>
                   </div>
                 </div>
                 <div className="mt-4">
-                  <p className="text-sm font-medium mb-2">Items</p>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="text-left border-b">
-                          <th className="py-2">Product</th>
-                          <th className="py-2">Qty</th>
-                          <th className="py-2">Unit Price</th>
-                          <th className="py-2">Total</th>
+                  <p className="text-xs uppercase tracking-wide text-emerald-700/60">Invoice Items</p>
+                  <div className="mt-2 overflow-x-auto">
+                    <table className="min-w-full text-sm">
+                      <thead className="bg-white/50">
+                        <tr className="text-left border-b border-emerald-200/50">
+                          <th className="px-3 py-2 text-xs font-medium text-muted-foreground">Product</th>
+                          <th className="px-3 py-2 text-xs font-medium text-muted-foreground text-right">Quantity</th>
+                          <th className="px-3 py-2 text-xs font-medium text-muted-foreground text-right">Unit Price</th>
+                          <th className="px-3 py-2 text-xs font-medium text-muted-foreground text-right">Total</th>
                         </tr>
                       </thead>
                       <tbody>
                         {lastCreatedInvoice.items.map((item, idx) => (
-                          <tr key={idx} className="border-b">
-                            <td className="py-2">{item.productName}</td>
-                            <td className="py-2">{item.quantity}</td>
-                            <td className="py-2">{item.unitPrice.toFixed(2)}</td>
-                            <td className="py-2">{item.lineTotal.toFixed(2)}</td>
+                          <tr key={idx} className={`border-b border-emerald-200/30 ${idx % 2 === 0 ? "bg-white/30" : "bg-transparent"}`}>
+                            <td className="px-3 py-2 font-medium">{item.productName}</td>
+                            <td className="px-3 py-2 text-right">{item.quantity}</td>
+                            <td className="px-3 py-2 text-right">KES {item.unitPrice.toFixed(2)}</td>
+                            <td className="px-3 py-2 text-right font-medium" style={{ color: primaryColor }}>KES {item.lineTotal.toFixed(2)}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -1952,7 +2277,7 @@ export function StockManagerContent({ view }: { view: StockView }) {
               </CardContent>
             </Card>
           )}
-        </>
+        </div>
       )}
 
       {view === "status" && (

@@ -120,6 +120,10 @@ export interface ICompany {
       employee: string[]
     }
     adminSectionsByUser?: Record<string, string[]>
+    adminSectionsByDepartment?: Record<string, string[]>
+    adminSectionsByBranch?: Record<string, string[]>
+    permissionMatrixByRole?: Record<string, string[]>
+    permissionMatrixByUser?: Record<string, string[]>
   }
   enabledPages?: string[]
   isFrozen?: boolean
