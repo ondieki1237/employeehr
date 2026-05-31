@@ -70,6 +70,8 @@ export interface ICompany {
   dispatchSmsSettings?: {
     officePhone?: string
     messageTemplate?: string
+    deliveryMessageTemplate?: string
+    smsSenderName?: string
   }
   invoiceSettings?: {
     invoiceEmail?: string

@@ -238,7 +238,16 @@ export function DispatchWorkflow({ invoiceId, allowBackTo }: DispatchWorkflowPro
       const json = await response.json()
       if (!response.ok) throw new Error(json.message || "Failed to confirm delivery")
       setInvoice(json.data)
-      setSuccess("Package marked as delivered")
+      const smsSuccess = json?.deliverySmsNotification?.success
+      const smsMessage = json?.deliverySmsNotification?.message
+      if (smsSuccess === false) {
+        setSuccess("Package marked as delivered")
+        setError(`Delivery SMS not sent: ${smsMessage || "Delivery SMS failed"}`)
+      } else if (smsMessage) {
+        setSuccess(`Package marked as delivered. SMS: ${smsMessage}`)
+      } else {
+        setSuccess("Package marked as delivered")
+      }
     } catch (deliveryError: any) {
       setError(deliveryError.message || "Failed to confirm delivery")
     } finally {

@@ -11,7 +11,8 @@ export interface IDispatchNotification {
   courierContactNumber: string
   officeContactNumber: string
   message: string
-  provider: "africastalking"
+  provider: "africastalking" | "websms"
+  notificationType?: "dispatch" | "delivery"
   status: "queued" | "sent" | "failed"
   providerMessageId?: string
   providerRawResponse?: string
@@ -35,7 +36,8 @@ const dispatchNotificationSchema = new Schema<IDispatchNotification>(
     courierContactNumber: { type: String, required: true },
     officeContactNumber: { type: String, required: true },
     message: { type: String, required: true },
-    provider: { type: String, enum: ["africastalking"], default: "africastalking" },
+    provider: { type: String, enum: ["africastalking", "websms"], default: "websms" },
+    notificationType: { type: String, enum: ["dispatch", "delivery"], default: "dispatch", index: true },
     status: { type: String, enum: ["queued", "sent", "failed"], default: "queued", index: true },
     providerMessageId: { type: String },
     providerRawResponse: { type: String },

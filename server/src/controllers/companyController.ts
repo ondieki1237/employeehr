@@ -113,6 +113,12 @@ const DEFAULT_DISPATCH_SMS_TEMPLATE = [
   "Thank you.",
 ].join(" ")
 
+const DEFAULT_DELIVERY_SMS_TEMPLATE = [
+  "Hello {{clientName}}, thank you for confirming delivery of invoice {{invoiceNumber}} (DN {{deliveryNoteNumber}}).",
+  "We appreciate your business and hope everything arrived in good condition.",
+  "For any support, call {{officeContactNumber}}.",
+].join(" ")
+
 const DEFAULT_INVOICE_TERMS = [
   "Payment is due within 7 days from the invoice date.",
   "All items remain the property of the company until fully paid.",
@@ -139,6 +145,13 @@ const DISPATCH_SMS_ALLOWED_PLACEHOLDERS = [
   "{{courierName}}",
   "{{courierContactNumber}}",
   "{{officeContactNumber}}",
+]
+
+const DELIVERY_SMS_ALLOWED_PLACEHOLDERS = [
+  ...DISPATCH_SMS_ALLOWED_PLACEHOLDERS,
+  "{{arrivalTime}}",
+  "{{deliveryCondition}}",
+  "{{deliveryNote}}",
 ]
 
 const buildBaseUrl = (req: AuthenticatedRequest) => {
@@ -310,21 +323,27 @@ export class CompanyController {
         return res.status(400).json({ success: false, message: "Organization context required" })
       }
 
-      const company = await Company.findById(req.org_id).select("phone dispatchSmsSettings")
+      const company = await Company.findById(req.org_id).select("name phone dispatchSmsSettings")
       if (!company) {
         return res.status(404).json({ success: false, message: "Company not found" })
       }
 
       const officePhone = String(company.dispatchSmsSettings?.officePhone || company.phone || "").trim()
       const messageTemplate = String(company.dispatchSmsSettings?.messageTemplate || DEFAULT_DISPATCH_SMS_TEMPLATE).trim()
+      const deliveryMessageTemplate = String(company.dispatchSmsSettings?.deliveryMessageTemplate || DEFAULT_DELIVERY_SMS_TEMPLATE).trim()
+      const smsSenderName = String(company.dispatchSmsSettings?.smsSenderName || company.name || "YourCompany").trim()
 
       return res.json({
         success: true,
         data: {
           officePhone,
           messageTemplate,
+          deliveryMessageTemplate,
+          smsSenderName,
           placeholders: DISPATCH_SMS_ALLOWED_PLACEHOLDERS,
+          deliveryPlaceholders: DELIVERY_SMS_ALLOWED_PLACEHOLDERS,
           defaultTemplate: DEFAULT_DISPATCH_SMS_TEMPLATE,
+          defaultDeliveryTemplate: DEFAULT_DELIVERY_SMS_TEMPLATE,
         },
       })
     } catch (error) {
@@ -341,6 +360,8 @@ export class CompanyController {
 
       const officePhone = String(req.body?.officePhone || "").trim()
       const messageTemplate = String(req.body?.messageTemplate || "").trim()
+      const deliveryMessageTemplate = String(req.body?.deliveryMessageTemplate || DEFAULT_DELIVERY_SMS_TEMPLATE).trim()
+      const smsSenderName = String(req.body?.smsSenderName || "YourCompany").trim()
 
       if (!officePhone) {
         return res.status(400).json({ success: false, message: "officePhone is required" })
@@ -350,8 +371,24 @@ export class CompanyController {
         return res.status(400).json({ success: false, message: "messageTemplate is required" })
       }
 
+      if (!deliveryMessageTemplate) {
+        return res.status(400).json({ success: false, message: "deliveryMessageTemplate is required" })
+      }
+
+      if (!smsSenderName) {
+        return res.status(400).json({ success: false, message: "smsSenderName is required" })
+      }
+
       if (messageTemplate.length > 800) {
         return res.status(400).json({ success: false, message: "messageTemplate is too long (max 800 characters)" })
+      }
+
+      if (deliveryMessageTemplate.length > 800) {
+        return res.status(400).json({ success: false, message: "deliveryMessageTemplate is too long (max 800 characters)" })
+      }
+
+      if (smsSenderName.length > 50) {
+        return res.status(400).json({ success: false, message: "smsSenderName is too long (max 50 characters)" })
       }
 
       const company = await Company.findByIdAndUpdate(
@@ -360,10 +397,12 @@ export class CompanyController {
           $set: {
             "dispatchSmsSettings.officePhone": officePhone,
             "dispatchSmsSettings.messageTemplate": messageTemplate,
+            "dispatchSmsSettings.deliveryMessageTemplate": deliveryMessageTemplate,
+            "dispatchSmsSettings.smsSenderName": smsSenderName,
           },
         },
         { new: true }
-      ).select("phone dispatchSmsSettings")
+      ).select("name phone dispatchSmsSettings")
 
       if (!company) {
         return res.status(404).json({ success: false, message: "Company not found" })
@@ -375,8 +414,12 @@ export class CompanyController {
         data: {
           officePhone: String(company.dispatchSmsSettings?.officePhone || company.phone || "").trim(),
           messageTemplate: String(company.dispatchSmsSettings?.messageTemplate || DEFAULT_DISPATCH_SMS_TEMPLATE).trim(),
+          deliveryMessageTemplate: String(company.dispatchSmsSettings?.deliveryMessageTemplate || DEFAULT_DELIVERY_SMS_TEMPLATE).trim(),
+          smsSenderName: String(company.dispatchSmsSettings?.smsSenderName || company.name || "YourCompany").trim(),
           placeholders: DISPATCH_SMS_ALLOWED_PLACEHOLDERS,
+          deliveryPlaceholders: DELIVERY_SMS_ALLOWED_PLACEHOLDERS,
           defaultTemplate: DEFAULT_DISPATCH_SMS_TEMPLATE,
+          defaultDeliveryTemplate: DEFAULT_DELIVERY_SMS_TEMPLATE,
         },
       })
     } catch (error) {

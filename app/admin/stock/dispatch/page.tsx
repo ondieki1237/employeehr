@@ -70,8 +70,12 @@ interface DispatchUser {
 interface DispatchSmsSettingsPayload {
   officePhone: string
   messageTemplate: string
+  deliveryMessageTemplate?: string
+  smsSenderName?: string
   placeholders?: string[]
+  deliveryPlaceholders?: string[]
   defaultTemplate?: string
+  defaultDeliveryTemplate?: string
 }
 
 export default function AdminDispatchManagementPage() {
@@ -82,9 +86,11 @@ export default function AdminDispatchManagementPage() {
   const [smsSettingsSaving, setSmsSettingsSaving] = useState(false)
   const [smsSettingsError, setSmsSettingsError] = useState("")
   const [smsSettingsStatus, setSmsSettingsStatus] = useState("")
-  const [smsSettings, setSmsSettings] = useState({ officePhone: "", messageTemplate: "" })
+  const [smsSettings, setSmsSettings] = useState({ officePhone: "", messageTemplate: "", deliveryMessageTemplate: "", smsSenderName: "" })
   const [smsPlaceholders, setSmsPlaceholders] = useState<string[]>([])
+  const [deliverySmsPlaceholders, setDeliverySmsPlaceholders] = useState<string[]>([])
   const [smsDefaultTemplate, setSmsDefaultTemplate] = useState("")
+  const [deliverySmsDefaultTemplate, setDeliverySmsDefaultTemplate] = useState("")
 
   const [dateFilter, setDateFilter] = useState<"week" | "month" | "custom">("week")
   const [customFrom, setCustomFrom] = useState("")
@@ -124,9 +130,13 @@ export default function AdminDispatchManagementPage() {
       setSmsSettings({
         officePhone: data.officePhone || "",
         messageTemplate: data.messageTemplate || "",
+        deliveryMessageTemplate: data.deliveryMessageTemplate || "",
+        smsSenderName: data.smsSenderName || "",
       })
       setSmsPlaceholders(data.placeholders || [])
+      setDeliverySmsPlaceholders(data.deliveryPlaceholders || [])
       setSmsDefaultTemplate(data.defaultTemplate || "")
+      setDeliverySmsDefaultTemplate(data.defaultDeliveryTemplate || "")
     } catch (error: any) {
       setSmsSettingsError(error.message || "Failed to load dispatch SMS settings")
     } finally {
@@ -146,6 +156,8 @@ export default function AdminDispatchManagementPage() {
         body: JSON.stringify({
           officePhone: smsSettings.officePhone,
           messageTemplate: smsSettings.messageTemplate,
+          deliveryMessageTemplate: smsSettings.deliveryMessageTemplate,
+          smsSenderName: smsSettings.smsSenderName,
         }),
       })
       const json = await response.json()
@@ -155,9 +167,13 @@ export default function AdminDispatchManagementPage() {
       setSmsSettings({
         officePhone: data.officePhone || "",
         messageTemplate: data.messageTemplate || "",
+        deliveryMessageTemplate: data.deliveryMessageTemplate || "",
+        smsSenderName: data.smsSenderName || "",
       })
       setSmsPlaceholders(data.placeholders || [])
+      setDeliverySmsPlaceholders(data.deliveryPlaceholders || [])
       setSmsDefaultTemplate(data.defaultTemplate || "")
+      setDeliverySmsDefaultTemplate(data.defaultDeliveryTemplate || "")
       setSmsSettingsStatus("Dispatch SMS settings saved")
     } catch (error: any) {
       setSmsSettingsError(error.message || "Failed to update dispatch SMS settings")
@@ -178,6 +194,22 @@ export default function AdminDispatchManagementPage() {
       .replace(/\s+/g, " ")
       .trim()
   }, [smsSettings.messageTemplate, smsSettings.officePhone, smsDefaultTemplate])
+
+  const deliverySmsPreview = useMemo(() => {
+    const template = smsSettings.deliveryMessageTemplate || deliverySmsDefaultTemplate
+    return template
+      .replace(/\{\{\s*clientName\s*\}\}/g, "Client Name")
+      .replace(/\{\{\s*invoiceNumber\s*\}\}/g, "INV-000123")
+      .replace(/\{\{\s*deliveryNoteNumber\s*\}\}/g, "DN-000123")
+      .replace(/\{\{\s*courierName\s*\}\}/g, "Sample Courier")
+      .replace(/\{\{\s*courierContactNumber\s*\}\}/g, "+254700000000")
+      .replace(/\{\{\s*officeContactNumber\s*\}\}/g, smsSettings.officePhone || "0700000000")
+      .replace(/\{\{\s*arrivalTime\s*\}\}/g, new Date().toLocaleString())
+      .replace(/\{\{\s*deliveryCondition\s*\}\}/g, "good")
+      .replace(/\{\{\s*deliveryNote\s*\}\}/g, "All products arrived")
+      .replace(/\s+/g, " ")
+      .trim()
+  }, [smsSettings.deliveryMessageTemplate, smsSettings.officePhone, deliverySmsDefaultTemplate])
 
   const isInDateRange = (value?: string) => {
     if (!value) return false
@@ -217,8 +249,6 @@ export default function AdminDispatchManagementPage() {
 
     load()
     loadDispatchSmsSettings()
-    const interval = setInterval(load, 30000)
-    return () => clearInterval(interval)
   }, [headers])
 
   const couriers = useMemo(() => {
@@ -449,6 +479,16 @@ export default function AdminDispatchManagementPage() {
               </div>
 
               <div className="space-y-2">
+                <Label htmlFor="dispatch-sender-name">SMS Sender Name</Label>
+                <Input
+                  id="dispatch-sender-name"
+                  placeholder="Company Name"
+                  value={smsSettings.smsSenderName}
+                  onChange={(e) => setSmsSettings((prev) => ({ ...prev, smsSenderName: e.target.value }))}
+                />
+              </div>
+
+              <div className="space-y-2">
                 <Label htmlFor="dispatch-message-template">SMS Message Template</Label>
                 <Textarea
                   id="dispatch-message-template"
@@ -463,8 +503,27 @@ export default function AdminDispatchManagementPage() {
               </div>
 
               <div className="rounded-md border p-3 bg-muted/30 space-y-1">
-                <p className="text-xs text-muted-foreground">Preview</p>
+                <p className="text-xs text-muted-foreground">Dispatch Preview</p>
                 <p className="text-sm">{smsPreview || "No preview available"}</p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="delivery-message-template">Delivery Complete SMS Template</Label>
+                <Textarea
+                  id="delivery-message-template"
+                  rows={4}
+                  value={smsSettings.deliveryMessageTemplate}
+                  onChange={(e) => setSmsSettings((prev) => ({ ...prev, deliveryMessageTemplate: e.target.value }))}
+                  placeholder="Customize delivery thank-you SMS with placeholders"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Placeholders: {deliverySmsPlaceholders.length ? deliverySmsPlaceholders.join(", ") : "{{clientName}}, {{invoiceNumber}}, {{deliveryNoteNumber}}, {{officeContactNumber}}, {{arrivalTime}}, {{deliveryCondition}}, {{deliveryNote}}"}
+                </p>
+              </div>
+
+              <div className="rounded-md border p-3 bg-muted/30 space-y-1">
+                <p className="text-xs text-muted-foreground">Delivery Complete Preview</p>
+                <p className="text-sm">{deliverySmsPreview || "No preview available"}</p>
               </div>
 
               {(smsSettingsError || smsSettingsStatus) && (
@@ -485,7 +544,17 @@ export default function AdminDispatchManagementPage() {
                   }))}
                   disabled={!smsDefaultTemplate}
                 >
-                  Use Default Template
+                  Use Dispatch Default
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setSmsSettings((prev) => ({
+                    ...prev,
+                    deliveryMessageTemplate: deliverySmsDefaultTemplate || prev.deliveryMessageTemplate,
+                  }))}
+                  disabled={!deliverySmsDefaultTemplate}
+                >
+                  Use Delivery Default
                 </Button>
               </div>
             </>

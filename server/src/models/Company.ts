@@ -93,6 +93,8 @@ const companySchema = new Schema<ICompany>(
     dispatchSmsSettings: {
       officePhone: { type: String },
       messageTemplate: { type: String },
+      deliveryMessageTemplate: { type: String },
+      smsSenderName: { type: String },
     },
     setupProgress: {
       completed: { type: Boolean, default: false },

@@ -294,6 +294,12 @@ const DEFAULT_DISPATCH_SMS_TEMPLATE = [
   "Thank you.",
 ].join(" ")
 
+const DEFAULT_DELIVERY_SMS_TEMPLATE = [
+  "Hello {{clientName}}, thank you for confirming delivery of invoice {{invoiceNumber}} (DN {{deliveryNoteNumber}}).",
+  "We appreciate your business and hope everything arrived in good condition.",
+  "For any support, call {{officeContactNumber}}.",
+].join(" ")
+
 function renderDispatchMessageTemplate(
   template: string,
   data: {
@@ -303,6 +309,9 @@ function renderDispatchMessageTemplate(
     courierName: string
     courierContactNumber: string
     officeContactNumber: string
+    arrivalTime?: string
+    deliveryCondition?: string
+    deliveryNote?: string
   },
 ) {
   return template
@@ -312,6 +321,9 @@ function renderDispatchMessageTemplate(
     .replace(/\{\{\s*courierName\s*\}\}/g, data.courierName)
     .replace(/\{\{\s*courierContactNumber\s*\}\}/g, data.courierContactNumber)
     .replace(/\{\{\s*officeContactNumber\s*\}\}/g, data.officeContactNumber)
+    .replace(/\{\{\s*arrivalTime\s*\}\}/g, data.arrivalTime || "")
+    .replace(/\{\{\s*deliveryCondition\s*\}\}/g, data.deliveryCondition || "")
+    .replace(/\{\{\s*deliveryNote\s*\}\}/g, data.deliveryNote || "")
 }
 
 function buildDispatchClientMessage(params: {
@@ -336,6 +348,39 @@ function buildDispatchClientMessage(params: {
   return renderDispatchMessageTemplate(template, data).replace(/\s+/g, " ").trim()
 }
 
+function buildDeliveryClientMessage(params: {
+  clientName?: string
+  invoiceNumber: string
+  deliveryNoteNumber: string
+  courierName: string
+  courierContactNumber: string
+  officeContactNumber: string
+  arrivalTime?: Date | string
+  deliveryCondition?: string
+  deliveryNote?: string
+  messageTemplate?: string
+}) {
+  const arrivalDate = params.arrivalTime ? new Date(params.arrivalTime) : null
+  const arrivalTime = arrivalDate && !Number.isNaN(arrivalDate.getTime())
+    ? arrivalDate.toLocaleString("en-KE", { timeZone: "Africa/Nairobi" })
+    : ""
+
+  const data = {
+    clientName: String(params.clientName || "Client").trim() || "Client",
+    invoiceNumber: String(params.invoiceNumber || "").trim(),
+    deliveryNoteNumber: String(params.deliveryNoteNumber || "").trim(),
+    courierName: String(params.courierName || "").trim(),
+    courierContactNumber: String(params.courierContactNumber || "").trim(),
+    officeContactNumber: String(params.officeContactNumber || "").trim(),
+    arrivalTime,
+    deliveryCondition: String(params.deliveryCondition || "").replace("_", " ").trim(),
+    deliveryNote: String(params.deliveryNote || "").trim(),
+  }
+
+  const template = String(params.messageTemplate || DEFAULT_DELIVERY_SMS_TEMPLATE).trim() || DEFAULT_DELIVERY_SMS_TEMPLATE
+  return renderDispatchMessageTemplate(template, data).replace(/\s+/g, " ").trim()
+}
+
 async function sendDispatchNotificationForInvoice(params: {
   orgId: string
   userId: string
@@ -351,8 +396,9 @@ async function sendDispatchNotificationForInvoice(params: {
     }
   }
 
-  const company = await Company.findById(orgId).select("phone dispatchSmsSettings").lean()
+  const company = await Company.findById(orgId).select("name phone dispatchSmsSettings").lean()
   const officeNumber = String(company?.dispatchSmsSettings?.officePhone || company?.phone || process.env.DISPATCH_OFFICE_NUMBER || "").trim()
+  const smsSenderName = String(company?.dispatchSmsSettings?.smsSenderName || company?.name || process.env.WEBSMS_DEFAULT_SENDER_NAME || "YourCompany").trim()
   const dispatchTemplate = String(company?.dispatchSmsSettings?.messageTemplate || DEFAULT_DISPATCH_SMS_TEMPLATE).trim()
   const clientNumber = String(invoice?.client?.number || "").trim()
 
@@ -392,7 +438,8 @@ async function sendDispatchNotificationForInvoice(params: {
     courierContactNumber: invoice.dispatch.courier.contactNumber,
     officeContactNumber: officeNumber,
     message,
-    provider: "africastalking",
+    provider: "websms",
+    notificationType: "dispatch",
     status: "queued",
     attempts: 0,
     createdBy: String(userId),
@@ -401,6 +448,7 @@ async function sendDispatchNotificationForInvoice(params: {
   const smsResult = await smsService.sendDispatchSms({
     to: clientNumber,
     message,
+    senderName: smsSenderName,
   })
 
   const now = new Date()
@@ -453,6 +501,134 @@ async function sendDispatchNotificationForInvoice(params: {
     attempted: true,
     success: false,
     message: smsResult.error || "Failed to send dispatch SMS",
+    notificationId: String(notification._id),
+  }
+}
+
+async function sendDeliveryNotificationForInvoice(params: {
+  orgId: string
+  userId: string
+  invoice: any
+}) {
+  const { orgId, userId, invoice } = params
+
+  if (!invoice?.dispatch?.courier) {
+    return {
+      attempted: false,
+      success: false,
+      message: "Courier details are missing on dispatch",
+    }
+  }
+
+  const company = await Company.findById(orgId).select("name phone dispatchSmsSettings").lean()
+  const officeNumber = String(company?.dispatchSmsSettings?.officePhone || company?.phone || process.env.DISPATCH_OFFICE_NUMBER || "").trim()
+  const smsSenderName = String(company?.dispatchSmsSettings?.smsSenderName || company?.name || process.env.WEBSMS_DEFAULT_SENDER_NAME || "YourCompany").trim()
+  const deliveryTemplate = String(company?.dispatchSmsSettings?.deliveryMessageTemplate || DEFAULT_DELIVERY_SMS_TEMPLATE).trim()
+  const clientNumber = String(invoice?.client?.number || "").trim()
+
+  if (!clientNumber) {
+    return {
+      attempted: false,
+      success: false,
+      message: "Client phone number is missing on invoice",
+    }
+  }
+
+  if (!officeNumber) {
+    return {
+      attempted: false,
+      success: false,
+      message: "Office phone number is missing (company.phone or DISPATCH_OFFICE_NUMBER)",
+    }
+  }
+
+  const delivery = invoice.dispatch?.delivery || {}
+  const message = buildDeliveryClientMessage({
+    clientName: invoice.client?.name,
+    invoiceNumber: invoice.invoiceNumber,
+    deliveryNoteNumber: invoice.deliveryNoteNumber,
+    courierName: invoice.dispatch.courier.name,
+    courierContactNumber: invoice.dispatch.courier.contactNumber,
+    officeContactNumber: officeNumber,
+    arrivalTime: delivery.arrivalTime || delivery.confirmedAt,
+    deliveryCondition: delivery.condition,
+    deliveryNote: delivery.note,
+    messageTemplate: deliveryTemplate,
+  })
+
+  const notification = await DispatchNotification.create({
+    org_id: orgId,
+    invoiceId: String(invoice._id),
+    invoiceNumber: invoice.invoiceNumber,
+    clientName: invoice.client?.name,
+    clientNumber,
+    courierName: invoice.dispatch.courier.name,
+    courierContactNumber: invoice.dispatch.courier.contactNumber,
+    officeContactNumber: officeNumber,
+    message,
+    provider: "websms",
+    notificationType: "delivery",
+    status: "queued",
+    attempts: 0,
+    createdBy: String(userId),
+  })
+
+  const smsResult = await smsService.sendDispatchSms({
+    to: clientNumber,
+    message,
+    senderName: smsSenderName,
+  })
+
+  const now = new Date()
+  if (smsResult.success) {
+    await DispatchNotification.updateOne(
+      { _id: notification._id },
+      {
+        $set: {
+          status: "sent",
+          sentAt: now,
+          lastAttemptAt: now,
+          providerMessageId: smsResult.providerMessageId,
+          providerRawResponse: smsResult.providerRawResponse,
+        },
+        $inc: { attempts: 1 },
+        $unset: { errorMessage: 1 },
+      },
+    )
+    return {
+      attempted: true,
+      success: true,
+      message: "Delivery thank-you SMS sent to client",
+      notificationId: String(notification._id),
+    }
+  }
+
+  await DispatchNotification.updateOne(
+    { _id: notification._id },
+    {
+      $set: {
+        status: "failed",
+        lastAttemptAt: now,
+        errorMessage: smsResult.error,
+        providerRawResponse: smsResult.providerRawResponse,
+      },
+      $inc: { attempts: 1 },
+    },
+  )
+
+  console.error("Delivery SMS failed", {
+    orgId,
+    invoiceId: String(invoice?._id || ""),
+    invoiceNumber: String(invoice?.invoiceNumber || ""),
+    clientNumber,
+    error: smsResult.error,
+    providerRawResponse: smsResult.providerRawResponse,
+  })
+
+  return {
+    attempted: true,
+    success: false,
+    message: smsResult.error || "Failed to send delivery SMS",
     notificationId: String(notification._id),
   }
 }
@@ -2625,9 +2801,13 @@ export class StockController {
         return res.status(403).json({ success: false, message: "Not allowed to retry this dispatch notification" })
       }
 
+      const company = await Company.findById(org_id).select("name dispatchSmsSettings").lean()
+      const smsSenderName = String(company?.dispatchSmsSettings?.smsSenderName || company?.name || process.env.WEBSMS_DEFAULT_SENDER_NAME || "YourCompany").trim()
+
       const smsResult = await smsService.sendDispatchSms({
         to: notification.clientNumber,
         message: notification.message,
+        senderName: smsSenderName,
       })
 
       const now = new Date()
@@ -2653,7 +2833,9 @@ export class StockController {
         data: notification,
         smsResult: {
           success: smsResult.success,
-          message: smsResult.success ? "Dispatch SMS resent successfully" : (smsResult.error || "Dispatch SMS resend failed"),
+          message: smsResult.success
+            ? `${notification.notificationType === "delivery" ? "Delivery" : "Dispatch"} SMS resent successfully`
+            : (smsResult.error || `${notification.notificationType === "delivery" ? "Delivery" : "Dispatch"} SMS resend failed`),
         },
       })
     } catch (error: any) {
@@ -2753,7 +2935,17 @@ export class StockController {
         { new: true },
       )
 
-      return res.status(200).json({ success: true, data: updatedInvoice })
+      if (!updatedInvoice) {
+        return res.status(404).json({ success: false, message: "Invoice not found after delivery update" })
+      }
+
+      const deliverySmsNotification = await sendDeliveryNotificationForInvoice({
+        orgId: org_id,
+        userId: String(userId),
+        invoice: updatedInvoice,
+      })
+
+      return res.status(200).json({ success: true, data: updatedInvoice, deliverySmsNotification })
     } catch (error: any) {
       return res.status(500).json({ success: false, message: error.message || "Failed to confirm delivery" })
     }
