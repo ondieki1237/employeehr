@@ -26,6 +26,7 @@ import {
 } from "recharts"
 import { Clock3, Truck, PackageCheck, PackageX, Search, ChevronDown, ChevronUp } from "lucide-react"
 
+
 type DispatchPackingItem = {
   requiredQuantity: number
   packedQuantity: number
@@ -82,6 +83,11 @@ export default function AdminDispatchManagementPage() {
   const [loading, setLoading] = useState(true)
   const [invoices, setInvoices] = useState<DispatchInvoice[]>([])
   const [users, setUsers] = useState<DispatchUser[]>([])
+  const [branding, setBranding] = useState<{ primaryColor?: string; secondaryColor?: string }>({})
+  const primaryColor = branding.primaryColor || "#0f766e"
+  const secondaryColor = branding.secondaryColor || "#0ea5e9"
+  const primarySoftColor = `${primaryColor}14`
+  const primaryBorderColor = `${primaryColor}2e`
   const [smsSettingsLoading, setSmsSettingsLoading] = useState(true)
   const [smsSettingsSaving, setSmsSettingsSaving] = useState(false)
   const [smsSettingsError, setSmsSettingsError] = useState("")
@@ -234,14 +240,20 @@ export default function AdminDispatchManagementPage() {
     const load = async () => {
       try {
         setLoading(true)
-        const [invoicesRes, usersRes] = await Promise.all([
+        const [invoicesRes, usersRes, brandingRes] = await Promise.all([
           fetch(`${API_URL}/api/stock/invoices`, { headers }),
           fetch(`${API_URL}/api/users`, { headers }),
+          fetch(`${API_URL}/api/company/branding`, { headers }),
         ])
 
-        const [invoicesJson, usersJson] = await Promise.all([invoicesRes.json(), usersRes.json()])
+        const [invoicesJson, usersJson, brandingJson] = await Promise.all([
+          invoicesRes.json(), 
+          usersRes.json(),
+          brandingRes.ok ? brandingRes.json() : Promise.resolve({})
+        ])
         setInvoices(invoicesJson.data || [])
         setUsers(usersJson.data || [])
+        setBranding(brandingJson.data || {})
       } finally {
         setLoading(false)
       }
@@ -441,13 +453,76 @@ export default function AdminDispatchManagementPage() {
   if (loading) return <div className="p-6">Loading dispatch management...</div>
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Dispatch Management</h1>
+    <div className="space-y-5">
+      <div className="rounded-2xl border px-4 py-3 shadow-sm" style={{ borderColor: primaryBorderColor, background: `linear-gradient(to right, ${primarySoftColor}, ${secondaryColor}14)` }}>
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div className="space-y-0.5">
+            <p className="text-sm font-medium tracking-wide" style={{ color: primaryColor }}>Dispatch</p>
+            <h1 className="text-xl font-semibold tracking-tight text-foreground">Dispatch dashboard</h1>
+            <p className="text-sm text-muted-foreground">Track courier movement, delivery quality, and client notifications from one screen.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={() => setSmsSettingsOpen(!smsSettingsOpen)}>
+              {smsSettingsOpen ? "Hide SMS Settings" : "SMS Settings"}
+            </Button>
+          </div>
+        </div>
 
-      <Card>
+        <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+          <Card className="shadow-sm">
+            <CardContent className="p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground">Dispatched today</div>
+                  <div className="mt-1 text-xl font-semibold">{metrics.totalDispatchedToday}</div>
+                </div>
+                <Truck className="h-5 w-5" style={{ color: primaryColor }} />
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="shadow-sm">
+            <CardContent className="p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground">Pending dispatch</div>
+                  <div className="mt-1 text-xl font-semibold text-amber-600">{metrics.pendingDispatch}</div>
+                </div>
+                <Clock3 className="h-5 w-5" style={{ color: secondaryColor }} />
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="shadow-sm">
+            <CardContent className="p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground">Delivered orders</div>
+                  <div className="mt-1 text-xl font-semibold text-green-600">{metrics.deliveredOrders}</div>
+                </div>
+                <PackageCheck className="h-5 w-5 text-green-600" />
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="shadow-sm">
+            <CardContent className="p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground">Failed / damaged</div>
+                  <div className="mt-1 text-xl font-semibold text-red-600">{metrics.failedOrDamaged}</div>
+                </div>
+                <PackageX className="h-5 w-5 text-red-600" />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      <Card className="shadow-sm">
         <CardHeader>
           <div className="flex items-center justify-between gap-3">
-            <CardTitle>Dispatch SMS Settings</CardTitle>
+            <div>
+              <CardTitle className="text-base">Dispatch SMS Settings</CardTitle>
+              <p className="mt-1 text-sm text-muted-foreground">Configure the dispatch and delivery-complete messages sent to clients.</p>
+            </div>
             <Button
               size="sm"
               variant="outline"
@@ -463,67 +538,75 @@ export default function AdminDispatchManagementPage() {
           </div>
         </CardHeader>
         {smsSettingsOpen && (
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-4 border-t pt-4">
           {smsSettingsLoading ? (
             <p className="text-sm text-muted-foreground">Loading SMS settings...</p>
           ) : (
             <>
-              <div className="space-y-2">
-                <Label htmlFor="dispatch-office-phone">Dispatch Office Phone</Label>
-                <Input
-                  id="dispatch-office-phone"
-                  placeholder="e.g. 0759433906"
-                  value={smsSettings.officePhone}
-                  onChange={(e) => setSmsSettings((prev) => ({ ...prev, officePhone: e.target.value }))}
-                />
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="dispatch-office-phone">Dispatch Office Phone</Label>
+                  <Input
+                    id="dispatch-office-phone"
+                    placeholder="e.g. 0759433906"
+                    value={smsSettings.officePhone}
+                    onChange={(e) => setSmsSettings((prev) => ({ ...prev, officePhone: e.target.value }))}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="dispatch-sender-name">SMS Sender Name</Label>
+                  <Input
+                    id="dispatch-sender-name"
+                    placeholder="Company Name"
+                    value={smsSettings.smsSenderName}
+                    onChange={(e) => setSmsSettings((prev) => ({ ...prev, smsSenderName: e.target.value }))}
+                  />
+                </div>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="dispatch-sender-name">SMS Sender Name</Label>
-                <Input
-                  id="dispatch-sender-name"
-                  placeholder="Company Name"
-                  value={smsSettings.smsSenderName}
-                  onChange={(e) => setSmsSettings((prev) => ({ ...prev, smsSenderName: e.target.value }))}
-                />
-              </div>
+              <div className="grid gap-4 xl:grid-cols-2">
+                <div className="space-y-3 rounded-xl border bg-white/90 p-3 shadow-sm">
+                  <div className="space-y-2">
+                    <Label htmlFor="dispatch-message-template">SMS Message Template</Label>
+                    <Textarea
+                      id="dispatch-message-template"
+                      rows={4}
+                      value={smsSettings.messageTemplate}
+                      onChange={(e) => setSmsSettings((prev) => ({ ...prev, messageTemplate: e.target.value }))}
+                      placeholder="Customize dispatch SMS with placeholders"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Placeholders: {smsPlaceholders.length ? smsPlaceholders.join(", ") : "{{clientName}}, {{invoiceNumber}}, {{deliveryNoteNumber}}, {{courierName}}, {{courierContactNumber}}, {{officeContactNumber}}"}
+                    </p>
+                  </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="dispatch-message-template">SMS Message Template</Label>
-                <Textarea
-                  id="dispatch-message-template"
-                  rows={4}
-                  value={smsSettings.messageTemplate}
-                  onChange={(e) => setSmsSettings((prev) => ({ ...prev, messageTemplate: e.target.value }))}
-                  placeholder="Customize dispatch SMS with placeholders"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Placeholders: {smsPlaceholders.length ? smsPlaceholders.join(", ") : "{{clientName}}, {{invoiceNumber}}, {{deliveryNoteNumber}}, {{courierName}}, {{courierContactNumber}}, {{officeContactNumber}}"}
-                </p>
-              </div>
+                  <div className="rounded-lg border p-3 bg-muted/30 space-y-1">
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Dispatch Preview</p>
+                    <p className="text-sm leading-6">{smsPreview || "No preview available"}</p>
+                  </div>
+                </div>
 
-              <div className="rounded-md border p-3 bg-muted/30 space-y-1">
-                <p className="text-xs text-muted-foreground">Dispatch Preview</p>
-                <p className="text-sm">{smsPreview || "No preview available"}</p>
-              </div>
+                <div className="space-y-3 rounded-xl border bg-white/90 p-3 shadow-sm">
+                  <div className="space-y-2">
+                    <Label htmlFor="delivery-message-template">Delivery Complete SMS Template</Label>
+                    <Textarea
+                      id="delivery-message-template"
+                      rows={4}
+                      value={smsSettings.deliveryMessageTemplate}
+                      onChange={(e) => setSmsSettings((prev) => ({ ...prev, deliveryMessageTemplate: e.target.value }))}
+                      placeholder="Customize delivery thank-you SMS with placeholders"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Placeholders: {deliverySmsPlaceholders.length ? deliverySmsPlaceholders.join(", ") : "{{clientName}}, {{invoiceNumber}}, {{deliveryNoteNumber}}, {{officeContactNumber}}, {{arrivalTime}}, {{deliveryCondition}}, {{deliveryNote}}"}
+                    </p>
+                  </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="delivery-message-template">Delivery Complete SMS Template</Label>
-                <Textarea
-                  id="delivery-message-template"
-                  rows={4}
-                  value={smsSettings.deliveryMessageTemplate}
-                  onChange={(e) => setSmsSettings((prev) => ({ ...prev, deliveryMessageTemplate: e.target.value }))}
-                  placeholder="Customize delivery thank-you SMS with placeholders"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Placeholders: {deliverySmsPlaceholders.length ? deliverySmsPlaceholders.join(", ") : "{{clientName}}, {{invoiceNumber}}, {{deliveryNoteNumber}}, {{officeContactNumber}}, {{arrivalTime}}, {{deliveryCondition}}, {{deliveryNote}}"}
-                </p>
-              </div>
-
-              <div className="rounded-md border p-3 bg-muted/30 space-y-1">
-                <p className="text-xs text-muted-foreground">Delivery Complete Preview</p>
-                <p className="text-sm">{deliverySmsPreview || "No preview available"}</p>
+                  <div className="rounded-lg border p-3 bg-muted/30 space-y-1">
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Delivery Complete Preview</p>
+                    <p className="text-sm leading-6">{deliverySmsPreview || "No preview available"}</p>
+                  </div>
+                </div>
               </div>
 
               {(smsSettingsError || smsSettingsStatus) && (
@@ -563,50 +646,9 @@ export default function AdminDispatchManagementPage() {
         )}
       </Card>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground">Total Dispatched Today</p>
-            <div className="flex items-center justify-between mt-1">
-              <p className="text-2xl font-bold">{metrics.totalDispatchedToday}</p>
-              <Truck className="w-5 h-5 text-blue-600" />
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground">Pending Dispatch</p>
-            <div className="flex items-center justify-between mt-1">
-              <p className="text-2xl font-bold">{metrics.pendingDispatch}</p>
-              <Clock3 className="w-5 h-5 text-amber-600" />
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground">Delivered Orders</p>
-            <div className="flex items-center justify-between mt-1">
-              <p className="text-2xl font-bold text-green-600">{metrics.deliveredOrders}</p>
-              <PackageCheck className="w-5 h-5 text-green-600" />
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground">Failed / Damaged</p>
-            <div className="flex items-center justify-between mt-1">
-              <p className="text-2xl font-bold text-red-600">{metrics.failedOrDamaged}</p>
-              <PackageX className="w-5 h-5 text-red-600" />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Filters & Controls</CardTitle>
-        </CardHeader>
-        <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-3">
+      <Card className="shadow-sm">
+        <CardContent className="p-3">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-6">
           <select
             className="h-10 rounded-md border bg-background px-3 text-sm"
             value={dateFilter}
@@ -682,13 +724,14 @@ export default function AdminDispatchManagementPage() {
               placeholder="Search invoice, client, courier..."
             />
           </div>
+        </div>
         </CardContent>
       </Card>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-        <Card>
+        <Card className="shadow-sm">
           <CardHeader>
-            <CardTitle>Deliveries Per Day</CardTitle>
+            <CardTitle className="text-base">Deliveries Per Day</CardTitle>
           </CardHeader>
           <CardContent className="h-72">
             <ResponsiveContainer width="100%" height="100%">
@@ -703,9 +746,9 @@ export default function AdminDispatchManagementPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="shadow-sm">
           <CardHeader>
-            <CardTitle>Courier Performance</CardTitle>
+            <CardTitle className="text-base">Courier Performance</CardTitle>
           </CardHeader>
           <CardContent className="h-72">
             <ResponsiveContainer width="100%" height="100%">
@@ -723,9 +766,9 @@ export default function AdminDispatchManagementPage() {
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-        <Card>
+        <Card className="shadow-sm">
           <CardHeader>
-            <CardTitle>Average Delivery Time</CardTitle>
+            <CardTitle className="text-base">Average Delivery Time</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold">{averageDeliveryTime.label}</div>
@@ -741,9 +784,9 @@ export default function AdminDispatchManagementPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="shadow-sm">
           <CardHeader>
-            <CardTitle>Dispatch Status Breakdown</CardTitle>
+            <CardTitle className="text-base">Dispatch Status Breakdown</CardTitle>
           </CardHeader>
           <CardContent className="h-72">
             <ResponsiveContainer width="100%" height="100%">
@@ -760,10 +803,15 @@ export default function AdminDispatchManagementPage() {
         </Card>
       </div>
 
-      <Card>
-        <CardHeader><CardTitle>Dispatch Logs</CardTitle></CardHeader>
+      <Card className="shadow-sm">
+        <CardHeader>
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+            <CardTitle className="text-base">Dispatch Logs</CardTitle>
+            <p className="text-sm text-muted-foreground">{filteredInvoices.length} records</p>
+          </div>
+        </CardHeader>
         <CardContent className="space-y-3">
-          <div className="hidden lg:grid grid-cols-7 text-xs font-semibold text-muted-foreground border-b pb-2">
+          <div className="hidden lg:grid grid-cols-7 text-xs font-semibold uppercase tracking-wide text-muted-foreground border-b pb-2">
             <span>Invoice ID</span>
             <span>Client</span>
             <span>Courier</span>
@@ -782,7 +830,7 @@ export default function AdminDispatchManagementPage() {
               "bg-gray-100 text-gray-700"
             
             return (
-              <div key={invoice._id} className="border rounded-lg p-3 grid grid-cols-1 lg:grid-cols-7 gap-2 items-center">
+              <div key={invoice._id} className="grid grid-cols-1 items-center gap-2 rounded-xl border bg-white/90 p-3 shadow-sm transition-colors hover:bg-muted/30 lg:grid-cols-7">
                 <div>
                   <p className="font-semibold">{invoice.invoiceNumber}</p>
                 </div>
@@ -809,7 +857,7 @@ export default function AdminDispatchManagementPage() {
                       ? new Date(invoice.dispatch.delivery.arrivalTime).toLocaleString()
                       : "—"}
                   </span>
-                  <Button size="sm" asChild>
+                  <Button size="sm" asChild style={{ backgroundColor: primaryColor }}>
                     <Link href={`/admin/stock/dispatch/${invoice._id}`}>Open</Link>
                   </Button>
                 </div>
@@ -823,16 +871,16 @@ export default function AdminDispatchManagementPage() {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="shadow-sm">
         <CardHeader>
-          <CardTitle>Courier Leaderboard</CardTitle>
+          <CardTitle className="text-base">Courier Leaderboard</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
           {courierPerformance.length === 0 ? (
             <p className="text-sm text-muted-foreground">No courier data available</p>
           ) : (
             courierPerformance.map((c) => (
-              <div key={c.courier} className="grid grid-cols-1 md:grid-cols-5 gap-2 border rounded-md p-2 text-sm">
+              <div key={c.courier} className="grid grid-cols-1 gap-2 rounded-xl border bg-white/90 p-3 text-sm shadow-sm md:grid-cols-5">
                 <span className="font-medium">{c.courier}</span>
                 <span>Delivered: {c.delivered}</span>
                 <span>Failed: {c.failed}</span>

@@ -26,6 +26,9 @@ router.get("/quotations/:quotationId/followups", StockController.getQuotationFol
 router.get("/clients", StockController.getClients)
 router.get("/clients/saved", StockController.getSavedClients)
 router.post("/accounts/clients", StockController.createOrUpdateClient)
+router.get("/bulk-sms/audience", StockController.getBulkSmsAudience)
+router.get("/bulk-sms/campaigns", StockController.getBulkSmsCampaigns)
+router.post("/bulk-sms/campaigns", StockController.sendBulkSmsCampaign)
 
 router.get("/invoices", StockController.getInvoices)
 router.post("/invoices/create", StockController.createInvoiceFromItems)

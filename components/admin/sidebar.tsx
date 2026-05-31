@@ -142,6 +142,12 @@ const adminMenuItems = [
     section: "CLIENTS"
   },
   {
+    label: "Bulk SMS",
+    icon: Mail,
+    href: "/admin/accounts/bulk-sms",
+    section: "CLIENTS"
+  },
+  {
     label: "Invoices",
     icon: FileCheck,
     href: "/admin/stock/invoices",

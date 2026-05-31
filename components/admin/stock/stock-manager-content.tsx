@@ -258,7 +258,9 @@ export function StockManagerContent({ view }: { view: StockView }) {
   )
 
   const primaryColor = branding.primaryColor || "#0f766e"
+  const secondaryColor = branding.secondaryColor || "#0ea5e9"
   const primarySoftColor = `${primaryColor}12`
+  const secondarySoftColor = `${secondaryColor}12`
   const primaryBorderColor = `${primaryColor}2E`
 
   const fetchAll = async () => {
@@ -1817,7 +1819,7 @@ export function StockManagerContent({ view }: { view: StockView }) {
       {view === "sales" && (
         <div className="space-y-5">
           {/* Premium Header Section */}
-          <div className="rounded-2xl border px-4 py-3 shadow-sm" style={{ borderColor: primaryBorderColor, backgroundColor: primarySoftColor }}>
+          <div className="rounded-2xl border px-4 py-3 shadow-sm" style={{ borderColor: primaryBorderColor, background: `linear-gradient(to right, ${primarySoftColor}, ${secondarySoftColor})` }}>
             <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
               <div className="space-y-0.5">
                 <p className="text-sm font-medium tracking-wide" style={{ color: primaryColor }}>Sales Management</p>
@@ -1873,7 +1875,7 @@ export function StockManagerContent({ view }: { view: StockView }) {
               <Card className="shadow-sm">
                 <CardContent className="p-3">
                   <div className="text-xs uppercase tracking-wide text-muted-foreground">Total Revenue</div>
-                  <div className="mt-1 text-xl font-semibold" style={{ color: primaryColor }}>
+                  <div className="mt-1 text-xl font-semibold" style={{ color: secondaryColor }}>
                     KES {sales.reduce((sum, sale) => sum + (Number(sale.quantitySold || 0) * Number(sale.soldPrice || 0)), 0).toLocaleString("en-KE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </div>
                 </CardContent>
@@ -2817,7 +2819,7 @@ export function StockManagerContent({ view }: { view: StockView }) {
       {view === "outsourced" && (
         <>
           <div className="space-y-5">
-            <div className="rounded-2xl border px-4 py-3 shadow-sm" style={{ borderColor: primaryBorderColor, backgroundColor: primarySoftColor }}>
+            <div className="rounded-2xl border px-4 py-3 shadow-sm" style={{ borderColor: primaryBorderColor, background: `linear-gradient(to right, ${primarySoftColor}, ${secondarySoftColor})` }}>
               <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                 <div className="space-y-0.5">
                   <p className="text-sm font-medium tracking-wide" style={{ color: primaryColor }}>Outsourced</p>
@@ -2995,7 +2997,7 @@ export function StockManagerContent({ view }: { view: StockView }) {
       {view === "history" && (
         <>
           <div className="space-y-5">
-            <div className="rounded-2xl border px-4 py-3 shadow-sm" style={{ borderColor: primaryBorderColor, backgroundColor: primarySoftColor }}>
+            <div className="rounded-2xl border px-4 py-3 shadow-sm" style={{ borderColor: primaryBorderColor, background: `linear-gradient(to right, ${primarySoftColor}, ${secondarySoftColor})` }}>
               <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                 <div className="space-y-0.5">
                   <p className="text-sm font-medium tracking-wide" style={{ color: primaryColor }}>History</p>

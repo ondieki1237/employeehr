@@ -14,6 +14,7 @@ import { StockRepeatBill } from "../models/StockRepeatBill"
 import { StockInvoicePayment } from "../models/StockInvoicePayment"
 import { CreditNote } from "../models/CreditNote"
 import { DispatchNotification } from "../models/DispatchNotification"
+import { BulkSmsCampaign } from "../models/BulkSmsCampaign"
 import { Task } from "../models/Task"
 import { Company } from "../models/Company"
 import { Branch } from "../models/Branch"
@@ -43,6 +44,203 @@ function buildClientSourceKey(client: { name?: string; number?: string; location
     sourceName: normalizeClientValue(String(client?.name || "")),
     sourceNumber: normalizeClientValue(String(client?.number || "")),
     sourceLocation: normalizeClientValue(String(client?.location || "")),
+  }
+}
+
+function buildBulkSmsClientKey(phone: string, name: string, location: string) {
+  return [
+    normalizeClientValue(phone),
+    normalizeClientValue(name),
+    normalizeClientValue(location),
+  ].join("|")
+}
+
+function uniqueStrings(values: string[]) {
+  return Array.from(new Set(values.map((value) => String(value || "").trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b))
+}
+
+type BulkSmsAudienceClient = {
+  key: string
+  name: string
+  phone: string
+  location: string
+  contactPerson?: string
+  branchId?: string
+  quotationsCount: number
+  pendingQuotationsCount: number
+  quotationNumbers: string[]
+  quotedProductIds: string[]
+  invoicesCount: number
+  purchasesValue: number
+  lastPurchaseAt?: Date
+  sources: string[]
+}
+
+function upsertBulkSmsClient(
+  map: Map<string, BulkSmsAudienceClient>,
+  client: { name?: string; number?: string; location?: string; contactPerson?: string; branchId?: string },
+  source: string,
+) {
+  const phone = String(client?.number || "").trim()
+  const name = String(client?.name || "").trim()
+  const location = String(client?.location || "").trim()
+  if (!phone || !name) return null
+
+  const key = buildBulkSmsClientKey(phone, name, location)
+  const existing = map.get(key)
+  if (existing) {
+    if (client?.contactPerson && !existing.contactPerson) existing.contactPerson = String(client.contactPerson).trim()
+    if (client?.branchId && !existing.branchId) existing.branchId = String(client.branchId).trim()
+    if (!existing.sources.includes(source)) existing.sources.push(source)
+    return existing
+  }
+
+  const row: BulkSmsAudienceClient = {
+    key,
+    name,
+    phone,
+    location,
+    contactPerson: client?.contactPerson ? String(client.contactPerson).trim() : undefined,
+    branchId: client?.branchId ? String(client.branchId).trim() : undefined,
+    quotationsCount: 0,
+    pendingQuotationsCount: 0,
+    quotationNumbers: [],
+    quotedProductIds: [],
+    invoicesCount: 0,
+    purchasesValue: 0,
+    sources: [source],
+  }
+  map.set(key, row)
+  return row
+}
+
+async function buildBulkSmsAudience(orgId: string, filters: Record<string, any> = {}) {
+  const [savedClients, quotations, invoices, sales] = await Promise.all([
+    StockClient.find({ org_id: orgId }).lean(),
+    StockQuotation.find({ org_id: orgId }).select("client quotationNumber status subTotal createdAt items.productId").lean(),
+    StockInvoice.find({ org_id: orgId, status: { $ne: "cancelled" } }).select("client invoiceNumber quotationNumber subTotal createdAt").lean(),
+    StockSale.find({ org_id: orgId, isWalkInClient: { $ne: true } }).select("buyerName buyerNumber buyerLocation quantitySold soldPrice createdAt").lean(),
+  ])
+
+  const map = new Map<string, BulkSmsAudienceClient>()
+
+  savedClients.forEach((client: any) => {
+    upsertBulkSmsClient(
+      map,
+      {
+        name: client.sourceName || client.legalName,
+        number: client.sourceNumber,
+        location: client.sourceLocation,
+        branchId: String(client.branchId || ""),
+      },
+      "saved_client",
+    )
+  })
+
+  quotations.forEach((quotation: any) => {
+    const row = upsertBulkSmsClient(map, quotation.client, "quotation")
+    if (!row) return
+    row.quotationsCount += 1
+    if (quotation.status === "draft" || quotation.status === "pending_approval") row.pendingQuotationsCount += 1
+    if (quotation.quotationNumber && !row.quotationNumbers.includes(quotation.quotationNumber)) {
+      row.quotationNumbers.push(quotation.quotationNumber)
+    }
+    if (quotation.items && Array.isArray(quotation.items)) {
+      quotation.items.forEach((item: any) => {
+        if (item.productId && !row.quotedProductIds.includes(String(item.productId))) {
+          row.quotedProductIds.push(String(item.productId))
+        }
+      })
+    }
+  })
+
+  invoices.forEach((invoice: any) => {
+    const row = upsertBulkSmsClient(map, invoice.client, "invoice")
+    if (!row) return
+    row.invoicesCount += 1
+    row.purchasesValue += Number(invoice.subTotal || 0)
+    const createdAt = invoice.createdAt ? new Date(invoice.createdAt) : null
+    if (createdAt && !Number.isNaN(createdAt.getTime())) {
+      if (!row.lastPurchaseAt || createdAt > row.lastPurchaseAt) row.lastPurchaseAt = createdAt
+    }
+    if (invoice.quotationNumber && !row.quotationNumbers.includes(invoice.quotationNumber)) {
+      row.quotationNumbers.push(invoice.quotationNumber)
+    }
+  })
+
+  sales.forEach((sale: any) => {
+    const row = upsertBulkSmsClient(
+      map,
+      {
+        name: sale.buyerName,
+        number: sale.buyerNumber,
+        location: sale.buyerLocation,
+      },
+      "sale",
+    )
+    if (!row) return
+    row.invoicesCount += 1
+    row.purchasesValue += Number(sale.soldPrice || 0) * Number(sale.quantitySold || 0)
+    const createdAt = sale.createdAt ? new Date(sale.createdAt) : null
+    if (createdAt && !Number.isNaN(createdAt.getTime())) {
+      if (!row.lastPurchaseAt || createdAt > row.lastPurchaseAt) row.lastPurchaseAt = createdAt
+    }
+  })
+
+  const search = String(filters.search || "").trim().toLowerCase()
+  const audienceType = String(filters.audienceType || "all")
+  const region = String(filters.region || "").trim().toLowerCase()
+  const quotationProductId = String(filters.quotationProductId || "").trim()
+  const branchId = String(filters.branchId || "").trim()
+  const inactiveDays = Math.max(1, Number(filters.inactiveDays || 90))
+  const inactiveCutoff = new Date()
+  inactiveCutoff.setDate(inactiveCutoff.getDate() - inactiveDays)
+
+  let clients = Array.from(map.values())
+
+  if (region) {
+    clients = clients.filter((client) => client.location.toLowerCase().includes(region))
+  }
+
+  if (audienceType === "pending_quotations") {
+    clients = clients.filter((client) => client.pendingQuotationsCount > 0)
+  } else if (audienceType === "quotation_product") {
+    clients = quotationProductId
+      ? clients.filter((client) => client.quotedProductIds.includes(quotationProductId))
+      : []
+  } else if (audienceType === "branch") {
+    clients = branchId
+      ? clients.filter((client) => client.branchId === branchId)
+      : []
+  } else if (audienceType === "inactive") {
+    clients = clients.filter((client) => !client.lastPurchaseAt || client.lastPurchaseAt < inactiveCutoff)
+  }
+
+  if (search) {
+    clients = clients.filter((client) =>
+      [
+        client.name,
+        client.phone,
+        client.location,
+        client.contactPerson || "",
+        client.quotationNumbers.join(" "),
+      ].join(" ").toLowerCase().includes(search),
+    )
+  }
+
+  clients = clients.sort((a, b) => a.name.localeCompare(b.name))
+
+  return {
+    clients: clients.map((client) => ({
+      ...client,
+      quotationNumbers: uniqueStrings(client.quotationNumbers),
+      sources: uniqueStrings(client.sources),
+    })),
+    meta: {
+      total: clients.length,
+      regions: uniqueStrings(Array.from(map.values()).map((client) => client.location)),
+      quotationNumbers: uniqueStrings(Array.from(map.values()).flatMap((client) => client.quotationNumbers)),
+    },
   }
 }
 
@@ -1479,6 +1677,129 @@ export class StockController {
       return res.status(200).json({ success: true, data })
     } catch (error: any) {
       return res.status(500).json({ success: false, message: error.message || "Failed to fetch accounts clients" })
+    }
+  }
+
+  static async getBulkSmsAudience(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = req.user?.org_id
+      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+      if (!isAdminRole(req.user?.role)) {
+        return res.status(403).json({ success: false, message: "Only admin/HR can use bulk SMS" })
+      }
+
+      const audience = await buildBulkSmsAudience(org_id, req.query || {})
+      return res.status(200).json({ success: true, data: audience.clients, meta: audience.meta })
+    } catch (error: any) {
+      return res.status(500).json({ success: false, message: error.message || "Failed to build SMS audience" })
+    }
+  }
+
+  static async getBulkSmsCampaigns(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = req.user?.org_id
+      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+      if (!isAdminRole(req.user?.role)) {
+        return res.status(403).json({ success: false, message: "Only admin/HR can view bulk SMS campaigns" })
+      }
+
+      const campaigns = await BulkSmsCampaign.find({ org_id }).sort({ createdAt: -1 }).limit(30).lean()
+      return res.status(200).json({ success: true, data: campaigns })
+    } catch (error: any) {
+      return res.status(500).json({ success: false, message: error.message || "Failed to fetch SMS campaigns" })
+    }
+  }
+
+  static async sendBulkSmsCampaign(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = req.user?.org_id
+      const userId = req.user?.userId
+      if (!org_id || !userId) return res.status(401).json({ success: false, message: "Unauthorized" })
+      if (!isAdminRole(req.user?.role)) {
+        return res.status(403).json({ success: false, message: "Only admin/HR can send bulk SMS campaigns" })
+      }
+
+      const name = String(req.body?.name || "").trim()
+      const message = String(req.body?.message || "").trim()
+      const filters = req.body?.filters || {}
+      const selectedRecipientKeys = Array.isArray(req.body?.selectedRecipientKeys)
+        ? req.body.selectedRecipientKeys.map((key: any) => String(key))
+        : []
+
+      if (!name) return res.status(400).json({ success: false, message: "Campaign name is required" })
+      if (!message) return res.status(400).json({ success: false, message: "Message is required" })
+      if (name.length > 120) return res.status(400).json({ success: false, message: "Campaign name is too long (max 120 characters)" })
+      if (message.length > 800) return res.status(400).json({ success: false, message: "Message is too long (max 800 characters)" })
+
+      const audience = await buildBulkSmsAudience(org_id, filters)
+      let recipients = audience.clients
+
+      if (selectedRecipientKeys.length > 0) {
+        const selected = new Set(selectedRecipientKeys)
+        recipients = recipients.filter((recipient) => selected.has(recipient.key))
+      }
+
+      if (recipients.length === 0) {
+        return res.status(400).json({ success: false, message: "No recipients selected for this campaign" })
+      }
+
+      const recipientResults = []
+      for (const recipient of recipients) {
+        try {
+          const smsResult = await smsService.sendDispatchSms({
+            to: recipient.phone,
+            message,
+          })
+
+          recipientResults.push({
+            key: recipient.key,
+            name: recipient.name,
+            phone: recipient.phone,
+            normalizedPhone: smsResult.normalizedTo,
+            location: recipient.location,
+            status: smsResult.success ? "sent" : "failed",
+            providerMessageId: smsResult.providerMessageId,
+            providerRawResponse: smsResult.providerRawResponse,
+            errorMessage: smsResult.success ? undefined : smsResult.error,
+            sentAt: smsResult.success ? new Date() : undefined,
+          })
+        } catch (sendError: any) {
+          recipientResults.push({
+            key: recipient.key,
+            name: recipient.name,
+            phone: recipient.phone,
+            location: recipient.location,
+            status: "failed",
+            errorMessage: sendError?.message || "Failed to send SMS",
+          })
+        }
+      }
+
+      const sentCount = recipientResults.filter((recipient) => recipient.status === "sent").length
+      const failedCount = recipientResults.filter((recipient) => recipient.status === "failed").length
+      const skippedCount = recipientResults.filter((recipient) => recipient.status === "skipped").length
+
+      const campaign = await BulkSmsCampaign.create({
+        org_id,
+        name,
+        message,
+        filters,
+        audienceCount: recipients.length,
+        sentCount,
+        failedCount,
+        skippedCount,
+        status: failedCount > 0 ? (sentCount > 0 ? "completed_with_errors" : "failed") : "completed",
+        recipients: recipientResults,
+        createdBy: String(userId),
+      })
+
+      return res.status(201).json({
+        success: true,
+        message: `Campaign sent to ${sentCount}/${recipients.length} clients`,
+        data: campaign,
+      })
+    } catch (error: any) {
+      return res.status(500).json({ success: false, message: error.message || "Failed to send bulk SMS campaign" })
     }
   }
 

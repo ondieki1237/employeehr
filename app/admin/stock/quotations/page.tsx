@@ -286,7 +286,9 @@ export default function QuotationsPage() {
   }, [])
 
   const primaryColor = branding.primaryColor || "#0f766e"
+  const secondaryColor = branding.secondaryColor || "#0ea5e9"
   const primarySoftColor = hexToRgba(primaryColor, 0.08)
+  const secondarySoftColor = hexToRgba(secondaryColor, 0.08)
   const primaryBorderColor = hexToRgba(primaryColor, 0.18)
 
   const getSellerName = (quotation: Quotation) => quotation.ownerUserName || quotation.createdByName || quotation.createdBy || "System User"
@@ -737,7 +739,7 @@ export default function QuotationsPage() {
 
   return (
     <div className="space-y-5">
-      <div className="rounded-2xl border px-4 py-3 shadow-sm" style={{ borderColor: primaryBorderColor, backgroundColor: primarySoftColor }}>
+      <div className="rounded-2xl border px-4 py-3 shadow-sm" style={{ borderColor: primaryBorderColor, background: `linear-gradient(to right, ${primarySoftColor}, ${secondarySoftColor})` }}>
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div className="space-y-0.5">
             <p className="text-sm font-medium tracking-wide" style={{ color: primaryColor }}>Quotations</p>
@@ -767,7 +769,7 @@ export default function QuotationsPage() {
           <Card className="shadow-sm">
             <CardContent className="p-3">
               <div className="text-xs uppercase tracking-wide text-muted-foreground">Pending approval</div>
-              <div className="mt-1 text-xl font-semibold" style={{ color: primaryColor }}>{summary.pending}</div>
+              <div className="mt-1 text-xl font-semibold" style={{ color: secondaryColor }}>{summary.pending}</div>
             </CardContent>
           </Card>
           <Card className="shadow-sm">

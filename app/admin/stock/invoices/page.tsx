@@ -176,7 +176,9 @@ export default function InvoicesPage() {
   )
 
   const primaryColor = branding.primaryColor || "#0f766e"
+  const secondaryColor = branding.secondaryColor || "#0ea5e9"
   const primarySoftColor = hexToRgba(primaryColor, 0.08)
+  const secondarySoftColor = hexToRgba(secondaryColor, 0.08)
   const primaryBorderColor = hexToRgba(primaryColor, 0.18)
 
   const loadInvoices = async () => {
@@ -549,7 +551,7 @@ export default function InvoicesPage() {
 
   return (
     <div className="space-y-5">
-      <div className="rounded-2xl border px-4 py-3 shadow-sm" style={{ borderColor: primaryBorderColor, backgroundColor: primarySoftColor }}>
+      <div className="rounded-2xl border px-4 py-3 shadow-sm" style={{ borderColor: primaryBorderColor, background: `linear-gradient(to right, ${primarySoftColor}, ${secondarySoftColor})` }}>
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div className="space-y-0.5">
             <p className="text-sm font-medium tracking-wide" style={{ color: primaryColor }}>Invoices</p>
@@ -573,7 +575,7 @@ export default function InvoicesPage() {
               <Card className="shadow-sm">
                 <CardContent className="p-3">
                   <div className="text-xs uppercase tracking-wide text-muted-foreground">Paid</div>
-                  <div className="mt-1 text-xl font-semibold" style={{ color: primaryColor }}>{totals.paid}</div>
+                  <div className="mt-1 text-xl font-semibold" style={{ color: secondaryColor }}>{totals.paid}</div>
                   <div className="mt-1 text-xs text-muted-foreground">KES {totals.amount.toLocaleString("en-KE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                 </CardContent>
               </Card>
