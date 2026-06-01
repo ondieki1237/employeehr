@@ -207,6 +207,10 @@ export function StockManagerContent({ view }: { view: StockView }) {
   const [saleItems, setSaleItems] = useState<QuotationItem[]>([])
   const [clientSearch, setClientSearch] = useState("")
   const [showNewClientForm, setShowNewClientForm] = useState(false)
+  const productsFileRef = useRef<HTMLInputElement | null>(null)
+  const [uploadingProducts, setUploadingProducts] = useState(false)
+  const [bulkProductBranchId, setBulkProductBranchId] = useState("")
+  const [productBranchId, setProductBranchId] = useState("")
   const filteredClientSuggestions = useMemo(() => {
     const seen = new Set<string>()
     const q = clientSearch.trim().toLowerCase()
@@ -1053,18 +1057,24 @@ export function StockManagerContent({ view }: { view: StockView }) {
   }
 
   const createProduct = async () => {
+    if (branches.length > 0 && Number(productForm.currentQuantity || 0) > 0 && !productBranchId) {
+      toast({ title: "Branch required", description: "Select the branch for initial stock.", variant: "destructive" })
+      return
+    }
+
     const response = await fetch(`${API_URL}/api/stock/products`, {
       method: "POST",
       headers,
       body: JSON.stringify({
         ...productForm,
-        startingPrice: Number(productForm.startingPrice),
+        buyingPrice: Number(productForm.startingPrice),
         sellingPrice: Number(productForm.sellingPrice),
         minAlertQuantity: Number(productForm.minAlertQuantity),
         currentQuantity: Number(productForm.currentQuantity || 0),
         isOutsourced: Boolean(productForm.isOutsourced),
         expiryDate: productForm.expiryEnabled ? productForm.expiryDate : undefined,
         expiryReminderDays: Number(productForm.expiryReminderDays || 0),
+        branchId: productBranchId || undefined,
       }),
     })
     const result = await response.json()
@@ -1085,6 +1095,7 @@ export function StockManagerContent({ view }: { view: StockView }) {
       expiryDate: "",
       expiryReminderDays: "7",
     })
+    setProductBranchId("")
     toast({ title: "Success", description: "Product created" })
     fetchAll()
   }
@@ -1699,6 +1710,68 @@ export function StockManagerContent({ view }: { view: StockView }) {
           </div>
 
           <Card>
+            <CardHeader><CardTitle>Bulk Upload Products</CardTitle></CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-sm">
+                Download sample CSV, fill rows and upload. Required columns:{" "}
+                <strong>name, category, buyingPrice, sellingPrice, currentQuantity</strong>.
+                {branches.length > 0 ? " Select a branch below when uploading stock quantities." : ""}
+              </p>
+              {branches.length > 0 ? (
+                <div className="max-w-sm">
+                  <Label>Branch for uploaded stock</Label>
+                  <Select value={bulkProductBranchId || "none"} onValueChange={(value) => setBulkProductBranchId(value === "none" ? "" : value)}>
+                    <SelectTrigger><SelectValue placeholder="Select branch" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Select branch</SelectItem>
+                      {branches.map((branch) => (
+                        <SelectItem key={branch._id} value={branch._id}>{branch.name} ({branch.code})</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : null}
+              <div className="flex items-center gap-3">
+                <a className="text-sm text-primary underline" href="/static/sample-products.csv" download>
+                  Download sample CSV
+                </a>
+                <input ref={productsFileRef} type="file" accept=".csv" className="hidden" onChange={async (e) => {
+                  const file = e.target.files && e.target.files[0]
+                  if (!file) return
+                  if (branches.length > 0 && !bulkProductBranchId) {
+                    toast({ title: "Branch required", description: "Select the branch where this stock should be recorded.", variant: "destructive" })
+                    if (productsFileRef.current) productsFileRef.current.value = ""
+                    return
+                  }
+                  try {
+                    setUploadingProducts(true)
+                    const formData = new FormData()
+                    formData.append("file", file)
+                    if (bulkProductBranchId) formData.append("branchId", bulkProductBranchId)
+                    const response = await fetch(`${API_URL}/api/stock/products/bulk`, {
+                      method: "POST",
+                      headers: { Authorization: `Bearer ${getToken()}` },
+                      body: formData,
+                    })
+                    const res = await response.json()
+                    if (!response.ok) throw new Error(res.message || "Upload failed")
+                    toast({ title: res.message || "Upload complete" })
+                    await fetchAll()
+                  } catch (err: any) {
+                    toast({ title: "Upload failed", description: err?.message || String(err), variant: "destructive" })
+                  } finally {
+                    setUploadingProducts(false)
+                    if (productsFileRef.current) productsFileRef.current.value = ""
+                  }
+                }} />
+                <Button onClick={() => productsFileRef.current?.click()} disabled={uploadingProducts} size="sm">
+                  {uploadingProducts ? "Uploading..." : "Upload CSV"}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
             <CardHeader><CardTitle>Create Product</CardTitle></CardHeader>
             <CardContent className="space-y-4">
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -1733,6 +1806,20 @@ export function StockManagerContent({ view }: { view: StockView }) {
                   <Label>Initial Stock</Label>
                   <Input type="number" min="0" value={productForm.currentQuantity} onChange={(event) => setProductForm((prev) => ({ ...prev, currentQuantity: event.target.value }))} />
                 </div>
+                {branches.length > 0 && Number(productForm.currentQuantity || 0) > 0 ? (
+                  <div>
+                    <Label>Branch for initial stock</Label>
+                    <Select value={productBranchId || "none"} onValueChange={(value) => setProductBranchId(value === "none" ? "" : value)}>
+                      <SelectTrigger><SelectValue placeholder="Select branch" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Select branch</SelectItem>
+                        {branches.map((branch) => (
+                          <SelectItem key={branch._id} value={branch._id}>{branch.name} ({branch.code})</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : null}
               </div>
 
               <div className="space-y-3 border rounded-md p-3">

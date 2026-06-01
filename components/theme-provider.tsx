@@ -54,6 +54,8 @@ export function ThemeProvider({ children, ...props }: ThemeProviderProps) {
           }
           if (fontFamily) {
             root.style.setProperty('--brand-font', fontFamily)
+            // Actually apply the font family to the entire document
+            root.style.fontFamily = fontFamily
           }
           if (logo) {
             root.style.setProperty('--company-logo-url', `url('${logo}')`)

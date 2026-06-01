@@ -30,14 +30,11 @@ export class SecondaryStorageService {
         isActive: mongoUser.isActive ?? true,
       }
 
-      if (action === "CREATE") {
-        await prisma.user.create({ data: userData as any })
-      } else if (action === "UPDATE") {
-        await prisma.user.update({
-          where: { mongoId },
-          data: userData as any,
-        })
-      }
+      await prisma.user.upsert({
+        where: { mongoId },
+        create: userData as any,
+        update: userData as any,
+      })
 
       console.log(`✅ User synced to MySQL: ${mongoUser.email}`)
     } catch (error) {
@@ -72,14 +69,11 @@ export class SecondaryStorageService {
         logo: mongoCompany.logo || null,
       }
 
-      if (action === "CREATE") {
-        await prisma.company.create({ data: companyData as any })
-      } else if (action === "UPDATE") {
-        await prisma.company.update({
-          where: { mongoId },
-          data: companyData as any,
-        })
-      }
+      await prisma.company.upsert({
+        where: { mongoId },
+        create: companyData as any,
+        update: companyData as any,
+      })
 
       console.log(`✅ Company synced to MySQL: ${mongoCompany.name}`)
     } catch (error) {

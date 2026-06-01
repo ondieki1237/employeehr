@@ -7,6 +7,7 @@ export interface IStockClient {
   sourceNumber: string
   sourceLocation: string
   legalName: string
+  contactPerson?: string
   kraPin?: string
   email?: string
   branchId?: string
@@ -24,6 +25,7 @@ const stockClientSchema = new Schema<IStockClient>(
     sourceNumber: { type: String, required: true },
     sourceLocation: { type: String, required: true },
     legalName: { type: String, required: true },
+    contactPerson: { type: String, trim: true },
     kraPin: { type: String },
     email: { type: String },
     branchId: { type: String },

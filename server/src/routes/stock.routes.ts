@@ -2,6 +2,7 @@ import { Router } from "express"
 import { StockController } from "../controllers/stockController"
 import { authMiddleware, orgMiddleware } from "../middleware/auth"
 import { tenantIsolation } from "../middleware/tenantIsolation.middleware"
+import { uploadApplicationFiles } from "../middleware/upload.middleware"
 
 const router = Router()
 
@@ -26,6 +27,7 @@ router.get("/quotations/:quotationId/followups", StockController.getQuotationFol
 router.get("/clients", StockController.getClients)
 router.get("/clients/saved", StockController.getSavedClients)
 router.post("/accounts/clients", StockController.createOrUpdateClient)
+router.post("/clients/bulk", uploadApplicationFiles.single("file"), StockController.bulkUploadClients)
 router.get("/bulk-sms/audience", StockController.getBulkSmsAudience)
 router.get("/bulk-sms/campaigns", StockController.getBulkSmsCampaigns)
 router.post("/bulk-sms/campaigns", StockController.sendBulkSmsCampaign)
@@ -69,6 +71,7 @@ router.post("/products", StockController.createProduct)
 router.get("/products", StockController.getProducts)
 router.put("/products/:id", StockController.updateProduct)
 router.delete("/products/:id", StockController.deleteProduct)
+router.post("/products/bulk", uploadApplicationFiles.single("file"), StockController.bulkUploadProducts)
 
 router.post("/add", StockController.addStock)
 router.get("/entries", StockController.getStockEntries)

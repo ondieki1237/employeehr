@@ -9,6 +9,10 @@ const SYNC_INTERVAL_MS = Number(process.env.AUTO_SYNC_INTERVAL_MS || 5 * 60 * 10
 let syncInProgress = false
 
 async function runFullSync() {
+  if (!process.env.MYSQL_DATABASE_URL?.trim()) {
+    return
+  }
+
   if (syncInProgress) {
     console.log('⏳ [SyncScheduler] Sync already running, skipping overlapping run')
     return

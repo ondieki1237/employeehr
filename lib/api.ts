@@ -637,8 +637,22 @@ export const stockApi = {
     getQuotationFollowUps: (quotationId: string) => client.get<any[]>(`/api/stock/quotations/${quotationId}/followups`),
 
     getAccountsClients: () => client.get<any[]>('/api/stock/accounts/clients'),
-    saveClient: (data: { sourceName: string; sourceNumber: string; sourceLocation: string; legalName: string; kraPin?: string; email?: string; branchId?: string }) =>
+    saveClient: (data: { sourceName: string; sourceNumber: string; sourceLocation: string; legalName?: string; contactPerson?: string; kraPin?: string; email?: string; branchId?: string }) =>
         client.post<any>('/api/stock/accounts/clients', data),
+
+    bulkUploadClients: async (file: File) => {
+        const token = getToken()
+        const headers: Record<string, string> = {}
+        if (token) headers['Authorization'] = `Bearer ${token}`
+        const form = new FormData()
+        form.append('file', file)
+        const response = await fetch(`${API_URL}/api/stock/clients/bulk`, { method: 'POST', headers, body: form })
+        const data = await response.json()
+        if (!response.ok) {
+            throw new Error(data?.message || 'Upload failed')
+        }
+        return data
+    },
 
     getAccountsPosts: () => client.get<any[]>('/api/stock/accounts/posts'),
 
@@ -690,6 +704,15 @@ export const stockApi = {
 
     runRepeatBill: (repeatBillId: string) =>
         client.post<any>(`/api/stock/accounts/repeat-bills/${repeatBillId}/run`, {}),
+    
+    bulkUploadProducts: (file: File) => {
+        const token = getToken()
+        const headers: Record<string, string> = {}
+        if (token) headers['Authorization'] = `Bearer ${token}`
+        const form = new FormData()
+        form.append('file', file)
+        return fetch(`${API_URL}/api/stock/products/bulk`, { method: 'POST', headers, body: form }).then(res => res.json())
+    },
 }
 
 // Setup API for onboarding wizard

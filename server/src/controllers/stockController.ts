@@ -1,5 +1,7 @@
 import type { Response } from "express"
 import type { AuthenticatedRequest } from "../middleware/auth"
+import { promises as fs } from "fs"
+import path from "path"
 import { StockCategory } from "../models/StockCategory"
 import { StockProduct } from "../models/StockProduct"
 import { StockEntry } from "../models/StockEntry"
@@ -23,7 +25,7 @@ import emailService from "../services/email.service"
 import { smsService } from "../services/sms.service"
 import { mpesaService } from "../services/mpesa.service"
 
-const ADMIN_ROLES = ["company_admin", "hr"]
+const ADMIN_ROLES = ["company_admin", "hr", "admin", "super_admin"]
 
 function isAdminRole(role?: string) {
   return !!role && ADMIN_ROLES.includes(role)
@@ -39,12 +41,29 @@ function normalizeClientValue(value: string) {
   return String(value || "").trim().toLowerCase().replace(/\s+/g, " ")
 }
 
-function buildClientSourceKey(client: { name?: string; number?: string; location?: string }) {
+function buildClientSourceKey(client: {
+  name?: string
+  number?: string
+  location?: string
+  sourceName?: string
+  sourceNumber?: string
+  sourceLocation?: string
+}) {
   return {
-    sourceName: normalizeClientValue(String(client?.name || "")),
-    sourceNumber: normalizeClientValue(String(client?.number || "")),
-    sourceLocation: normalizeClientValue(String(client?.location || "")),
+    sourceName: normalizeClientValue(String(client?.sourceName || client?.name || "")),
+    sourceNumber: normalizeClientValue(String(client?.sourceNumber || client?.number || "")),
+    sourceLocation: normalizeClientValue(String(client?.sourceLocation || client?.location || "")),
   }
+}
+
+function parseBuyingPrice(row: Record<string, string>) {
+  return parseAmount(
+    row.buyingPrice ||
+      row["Buying Price"] ||
+      row.startingPrice ||
+      row["Starting Price"] ||
+      "0",
+  )
 }
 
 function buildBulkSmsClientKey(phone: string, name: string, location: string) {
@@ -253,6 +272,80 @@ function splitPhoneList(raw: string) {
         .filter(Boolean),
     ),
   )
+}
+
+function parseCsvLine(line: string): string[] {
+  const cells: string[] = []
+  let current = ""
+  let inQuotes = false
+
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index]
+
+    if (char === '"') {
+      if (inQuotes && line[index + 1] === '"') {
+        current += '"'
+        index += 1
+      } else {
+        inQuotes = !inQuotes
+      }
+      continue
+    }
+
+    if (char === "," && !inQuotes) {
+      cells.push(current.trim())
+      current = ""
+      continue
+    }
+
+    current += char
+  }
+
+  cells.push(current.trim())
+  return cells
+}
+
+function parseCsv(content: string): Array<Record<string, string>> {
+  const lines = content
+    .split(/\r?\n/)
+    .map((line) => line.trimEnd())
+    .filter((line) => line.length > 0)
+
+  if (lines.length < 1) return []
+
+  const headers = parseCsvLine(lines[0]).map((header) => header.trim())
+
+  return lines.slice(1).map((line) => {
+    const values = parseCsvLine(line)
+    const row: Record<string, string> = {}
+    headers.forEach((header, headerIndex) => {
+      row[header] = values[headerIndex] ?? ""
+    })
+    return row
+  })
+}
+
+function parseAmount(value: string): number {
+  const normalized = String(value || "")
+    .replace(/,/g, "")
+    .replace(/\s/g, "")
+    .replace(/[^0-9.-]/g, "")
+  const numeric = Number(normalized)
+  return Number.isFinite(numeric) ? numeric : 0
+}
+
+function parseDate(value: string): Date {
+  const input = String(value || "").trim()
+  if (!input) return new Date()
+
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(input)) {
+    const [day, month, year] = input.split("/").map((n) => Number(n))
+    return new Date(Date.UTC(year, month - 1, day, 0, 0, 0))
+  }
+
+  const date = new Date(input)
+  if (Number.isNaN(date.getTime())) return new Date()
+  return date
 }
 
 function buildPackagingTaskContext(invoice: any) {
@@ -1345,11 +1438,13 @@ export class StockController {
       const actorId = req.user?.userId
       if (!org_id || !actorId) return res.status(401).json({ success: false, message: 'Unauthorized' })
 
-      const { sourceName, sourceNumber, sourceLocation, legalName, kraPin, email, branchId } = req.body || {}
+      const { sourceName, sourceNumber, sourceLocation, legalName, contactPerson, kraPin, email, branchId } = req.body || {}
 
-      if (!sourceName || !sourceNumber || !sourceLocation || !legalName) {
-        return res.status(400).json({ success: false, message: 'sourceName, sourceNumber, sourceLocation and legalName are required' })
+      if (!sourceName || !sourceNumber || !sourceLocation) {
+        return res.status(400).json({ success: false, message: 'sourceName, sourceNumber and sourceLocation are required' })
       }
+
+      const resolvedLegalName = String(legalName || sourceName).trim()
 
       const profile = await StockClient.findOneAndUpdate(
         {
@@ -1360,7 +1455,8 @@ export class StockController {
         },
         {
           $set: {
-            legalName: String(legalName).trim(),
+            legalName: resolvedLegalName,
+            contactPerson: contactPerson ? String(contactPerson).trim() : undefined,
             kraPin: kraPin ? String(kraPin).trim().toUpperCase() : undefined,
             email: email ? String(email).trim() : undefined,
             branchId: branchId ? String(branchId).trim() : undefined,
@@ -1381,6 +1477,137 @@ export class StockController {
       return res.status(200).json({ success: true, data: profile })
     } catch (error: any) {
       return res.status(500).json({ success: false, message: error.message || 'Failed to create/update client' })
+    }
+  }
+
+  static async bulkUploadClients(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = req.user?.org_id
+      const actorId = req.user?.userId
+      if (!org_id || !actorId) return res.status(401).json({ success: false, message: "Unauthorized" })
+
+      if (!isAdminRole(req.user?.role)) {
+        return res.status(403).json({ success: false, message: "Only admin/HR can bulk upload clients" })
+      }
+
+      const file = req.file as any
+      if (!file) {
+        return res.status(400).json({ success: false, message: "CSV file is required" })
+      }
+
+      const fileContent = await fs.readFile(file.path, "utf-8")
+      const rows = parseCsv(fileContent)
+
+      if (rows.length === 0) {
+        return res.status(400).json({ success: false, message: "CSV file is empty" })
+      }
+
+      let createdCount = 0
+      let updatedCount = 0
+      const errors: string[] = []
+
+      for (let index = 0; index < rows.length; index += 1) {
+        try {
+          const row = rows[index]
+          const sourceName = String(
+            row.client_name ||
+              row["Client Name"] ||
+              row.sourceName ||
+              row["Source Name"] ||
+              "",
+          ).trim()
+          const sourceNumber = String(
+            row.client_number ||
+              row["Client Number"] ||
+              row.sourceNumber ||
+              row["Source Number"] ||
+              row.client_phone ||
+              row["Client Phone"] ||
+              "",
+          ).trim()
+          const sourceLocation = String(
+            row.client_location ||
+              row["Client Location"] ||
+              row.sourceLocation ||
+              row["Source Location"] ||
+              row.client_address_1 ||
+              row["Client Address"] ||
+              "",
+          ).trim()
+          const contactPerson = String(
+            row.contact_person ||
+              row["Contact Person"] ||
+              row.contactPerson ||
+              "",
+          ).trim()
+          const legalName = String(row.legalName || row["Legal Name"] || sourceName).trim()
+          const kraPin = String(row.kraPin || row["KRA PIN"] || row.pin_no || row["PIN No"] || "").trim().toUpperCase()
+          const email = String(row.email || row["Email"] || row.client_email || row["Client Email"] || "").trim()
+          const branchId = String(row.branchId || row["Branch ID"] || "").trim()
+
+          if (!sourceName || !sourceNumber || !sourceLocation) {
+            errors.push(`Row ${index + 1}: Missing required fields (Client Name, Client Number, Client Location)`)
+            continue
+          }
+
+          const profile = await StockClient.findOneAndUpdate(
+            {
+              org_id,
+              sourceName,
+              sourceNumber,
+              sourceLocation,
+            },
+            {
+              $set: {
+                legalName,
+                contactPerson: contactPerson || undefined,
+                kraPin: kraPin || undefined,
+                email: email || undefined,
+                branchId: branchId || undefined,
+                hasKraDetails: Boolean(kraPin),
+                updatedBy: String(actorId),
+              },
+              $setOnInsert: {
+                org_id,
+                sourceName,
+                sourceNumber,
+                sourceLocation,
+                createdBy: String(actorId),
+              },
+            },
+            { upsert: true, new: true },
+          )
+
+          if (profile.isNew || !profile.updatedAt) {
+            createdCount += 1
+          } else {
+            updatedCount += 1
+          }
+        } catch (rowError: any) {
+          errors.push(`Row ${index + 1}: ${rowError?.message || "Unknown error"}`)
+        }
+      }
+
+      // Clean up uploaded file
+      try {
+        await fs.unlink(file.path)
+      } catch {
+        // Ignore cleanup errors
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: `Bulk upload completed: ${createdCount} created, ${updatedCount} updated${errors.length > 0 ? `, ${errors.length} errors` : ""}`,
+        data: {
+          totalRows: rows.length,
+          createdCount,
+          updatedCount,
+          errorCount: errors.length,
+          errors: errors.slice(0, 10),
+        },
+      })
+    } catch (error: any) {
+      return res.status(500).json({ success: false, message: error.message || "Failed to bulk upload clients" })
     }
   }
 
@@ -3390,6 +3617,7 @@ export class StockController {
         name,
         category,
         startingPrice,
+        buyingPrice,
         sellingPrice,
         minAlertQuantity,
         currentQuantity = 0,
@@ -3398,13 +3626,20 @@ export class StockController {
         expiryEnabled = false,
         expiryDate,
         expiryReminderDays = 7,
+        branchId,
       } = req.body
+
+      const resolvedBuyingPrice = buyingPrice !== undefined ? buyingPrice : startingPrice
 
       if (!name || !category) {
         return res.status(400).json({ success: false, message: "Product name and category are required" })
       }
 
-      if (Number(startingPrice) < 0 || Number(sellingPrice) < 0 || Number(minAlertQuantity) < 0 || Number(currentQuantity) < 0) {
+      if (resolvedBuyingPrice === undefined || resolvedBuyingPrice === null || sellingPrice === undefined || sellingPrice === null) {
+        return res.status(400).json({ success: false, message: "Buying price and selling price are required" })
+      }
+
+      if (Number(resolvedBuyingPrice) < 0 || Number(sellingPrice) < 0 || Number(minAlertQuantity) < 0 || Number(currentQuantity) < 0) {
         return res.status(400).json({ success: false, message: "Price and quantity values must be positive" })
       }
 
@@ -3421,11 +3656,19 @@ export class StockController {
         return res.status(404).json({ success: false, message: "Category not found" })
       }
 
+      const trimmedBranchId = branchId ? String(branchId).trim() : ""
+      if (trimmedBranchId) {
+        const branch = await Branch.findOne({ _id: trimmedBranchId, org_id }).select("_id").lean()
+        if (!branch) {
+          return res.status(404).json({ success: false, message: "Branch not found" })
+        }
+      }
+
       const product = await StockProduct.create({
         org_id,
         name: String(name).trim(),
         category,
-        startingPrice: Number(startingPrice),
+        startingPrice: Number(resolvedBuyingPrice),
         sellingPrice: Number(sellingPrice),
         minAlertQuantity: Number(minAlertQuantity),
         currentQuantity: Number(currentQuantity),
@@ -3437,6 +3680,21 @@ export class StockController {
         expiryLastReminderOn: null,
         createdBy,
       })
+
+      if (Number(currentQuantity) > 0 && trimmedBranchId) {
+        await StockEntry.create({
+          org_id,
+          productId: String(product._id),
+          branchId: trimmedBranchId,
+          quantityAdded: Number(currentQuantity),
+          isOutsourced: Boolean(isOutsourced),
+          expiryEnabled: Boolean(expiryEnabled),
+          expiryDate: expiryEnabled && expiryDate ? new Date(expiryDate) : null,
+          expiryReminderDays: Number(expiryReminderDays),
+          addedBy: createdBy,
+          note: "Initial stock from product create",
+        })
+      }
 
       return res.status(201).json({ success: true, data: product })
     } catch (error: any) {
@@ -3482,6 +3740,7 @@ export class StockController {
         name,
         category,
         startingPrice,
+        buyingPrice,
         sellingPrice,
         minAlertQuantity,
         currentQuantity,
@@ -3496,7 +3755,8 @@ export class StockController {
       const payload: any = {}
       if (name !== undefined) payload.name = String(name).trim()
       if (category !== undefined) payload.category = category
-      if (startingPrice !== undefined) payload.startingPrice = Number(startingPrice)
+      if (buyingPrice !== undefined) payload.startingPrice = Number(buyingPrice)
+      else if (startingPrice !== undefined) payload.startingPrice = Number(startingPrice)
       if (sellingPrice !== undefined) payload.sellingPrice = Number(sellingPrice)
       if (minAlertQuantity !== undefined) payload.minAlertQuantity = Number(minAlertQuantity)
       if (currentQuantity !== undefined) payload.currentQuantity = Number(currentQuantity)
@@ -3560,6 +3820,179 @@ export class StockController {
       return res.status(200).json({ success: true, message: "Product removed successfully" })
     } catch (error: any) {
       return res.status(500).json({ success: false, message: error.message || "Failed to delete product" })
+    }
+  }
+
+  static async bulkUploadProducts(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = req.user?.org_id
+      const actorId = req.user?.userId
+      if (!org_id || !actorId) return res.status(401).json({ success: false, message: "Unauthorized" })
+
+      if (!isAdminRole(req.user?.role)) {
+        return res.status(403).json({ success: false, message: "Only admin/HR can bulk upload products" })
+      }
+
+      const file = req.file as any
+      if (!file) {
+        return res.status(400).json({ success: false, message: "CSV file is required" })
+      }
+
+      const fileContent = await fs.readFile(file.path, "utf-8")
+      const rows = parseCsv(fileContent)
+
+      if (rows.length === 0) {
+        return res.status(400).json({ success: false, message: "CSV file is empty" })
+      }
+
+      const defaultBranchId = String(req.body?.branchId || "").trim()
+
+      // Get all categories for lookup
+      const [categories, orgBranches] = await Promise.all([
+        StockCategory.find({ org_id }).lean(),
+        Branch.find({ org_id, isActive: { $ne: false } }).select("_id name code").lean(),
+      ])
+      const categoryMap = new Map(
+        categories.map((cat: any) => [
+          String(cat.name).toLowerCase(),
+          String(cat._id),
+        ]),
+      )
+      const branchMap = new Map<string, string>()
+      for (const branch of orgBranches) {
+        branchMap.set(String(branch._id).toLowerCase(), String(branch._id))
+        branchMap.set(String(branch.name || "").trim().toLowerCase(), String(branch._id))
+        branchMap.set(String(branch.code || "").trim().toLowerCase(), String(branch._id))
+      }
+
+      const resolveBranchId = (row: Record<string, string>) => {
+        const raw = String(
+          row.branch ||
+            row["Branch"] ||
+            row.branchId ||
+            row["Branch ID"] ||
+            row.branch_code ||
+            row["Branch Code"] ||
+            defaultBranchId ||
+            "",
+        ).trim()
+        if (!raw) return ""
+        return branchMap.get(raw.toLowerCase()) || ""
+      }
+
+      let createdCount = 0
+      let updatedCount = 0
+      const errors: string[] = []
+
+      for (let index = 0; index < rows.length; index += 1) {
+        try {
+          const row = rows[index]
+          const name = String(row.name || row["Product Name"] || "").trim()
+          const categoryName = String(row.category || row["Category"] || "").trim()
+          const startingPrice = parseBuyingPrice(row)
+          const sellingPrice = parseAmount(row.sellingPrice || row["Selling Price"] || "0")
+          const minAlertQuantity = Number(row.minAlertQuantity || row["Min Alert Quantity"] || "0")
+          const currentQuantity = Number(row.currentQuantity || row["Current Quantity"] || "0")
+          const branchId = resolveBranchId(row)
+
+          if (!name || !categoryName) {
+            errors.push(`Row ${index + 1}: Missing required fields (name, category)`)
+            continue
+          }
+
+          const categoryId = categoryMap.get(categoryName.toLowerCase())
+          if (!categoryId) {
+            errors.push(`Row ${index + 1}: Category "${categoryName}" not found`)
+            continue
+          }
+
+          const branchLookup = String(
+            row.branch ||
+              row["Branch"] ||
+              row.branchId ||
+              row["Branch ID"] ||
+              row.branch_code ||
+              row["Branch Code"] ||
+              "",
+          ).trim()
+
+          if (branchLookup && !branchId) {
+            errors.push(`Row ${index + 1}: Branch "${branchLookup}" not found`)
+            continue
+          }
+
+          if (orgBranches.length > 0 && currentQuantity > 0 && !branchId) {
+            errors.push(`Row ${index + 1}: Select a branch for stock quantity`)
+            continue
+          }
+
+          const existingProduct = await StockProduct.findOne({ org_id, name })
+          let productId = existingProduct ? String(existingProduct._id) : ""
+
+          if (existingProduct) {
+            await StockProduct.findOneAndUpdate(
+              { org_id, name },
+              {
+                $set: {
+                  category: categoryId,
+                  startingPrice,
+                  sellingPrice,
+                  minAlertQuantity,
+                  currentQuantity,
+                },
+              },
+            )
+            updatedCount += 1
+          } else {
+            const created = await StockProduct.create({
+              org_id,
+              name,
+              category: categoryId,
+              startingPrice,
+              sellingPrice,
+              minAlertQuantity,
+              currentQuantity,
+              createdBy: actorId,
+            })
+            productId = String(created._id)
+            createdCount += 1
+          }
+
+          if (branchId && currentQuantity > 0 && productId) {
+            await StockEntry.create({
+              org_id,
+              productId,
+              branchId,
+              quantityAdded: currentQuantity,
+              addedBy: actorId,
+              note: "Bulk upload stock",
+            })
+          }
+        } catch (rowError: any) {
+          errors.push(`Row ${index + 1}: ${rowError?.message || "Unknown error"}`)
+        }
+      }
+
+      // Clean up uploaded file
+      try {
+        await fs.unlink(file.path)
+      } catch {
+        // Ignore cleanup errors
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: `Bulk upload completed: ${createdCount} created, ${updatedCount} updated${errors.length > 0 ? `, ${errors.length} errors` : ""}`,
+        data: {
+          totalRows: rows.length,
+          createdCount,
+          updatedCount,
+          errorCount: errors.length,
+          errors: errors.slice(0, 10),
+        },
+      })
+    } catch (error: any) {
+      return res.status(500).json({ success: false, message: error.message || "Failed to bulk upload products" })
     }
   }
 

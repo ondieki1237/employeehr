@@ -12,7 +12,9 @@
     "build": "npm run db:push && tsc",
     "prestart": "npm run db:push",
     "start": "node --experimental-specifier-resolution=node dist/index.js",
-    "db:push": "npx ts-node src/scripts/runMigrations.ts",
+    "db:push": "node src/scripts/runMigrations.mjs",
+    "db:setup": "npm run db:push",
+    "db:sync": "npx tsx src/scripts/syncMongoToMySQL.ts",
     "db:migrate": "npx prisma migrate dev",
     "db:reset": "npx prisma migrate reset",
     "lint": "eslint src/**/*.ts"

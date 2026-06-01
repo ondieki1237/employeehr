@@ -1,745 +1,435 @@
-# EmployeeHR Repository Understanding
+# EmployeeHR Repository Understanding (2026 refresh)
 
-This document explains how the application works end-to-end (frontend -> backend APIs -> MongoDB), with deep dives into:
+This document explains how the application works end-to-end: **Next.js frontend → Express API → MongoDB (primary) + MySQL/Prisma (secondary)**, with deep dives on **Meetings** (transcript-based AI) and **Stock / dispatch / invoices**.
 
-- Meetings (including AI processing and WebRTC signaling)
-- Stock dispatch / invoices workflow
+It supersedes earlier notes where the product was described as HR-only. The codebase is now a **multi-tenant HR + inventory/accounts + recruitment** platform.
 
-Where helpful, it also calls out mismatches between frontend API client code and backend route handlers.
+---
 
-## 1) High-level Architecture
+## 1) What this product is
 
-### Frontend (Next.js / React)
+**Elevate / EmployeeHR** is a multi-tenant SaaS-style platform where each **company** (`org_id`) gets:
 
-- Routing uses the Next.js `app/` directory.
-- Many pages are client components (`'use client'`) that call the backend with either:
-  - the centralized API client at `lib/api.ts` (for HR/meetings endpoints), or
-  - direct `fetch()` calls for the stock module (`/api/stock/...`) and other areas.
+| Area | What it does |
+|------|----------------|
+| **HR core** | Users, leave, payroll, attendance, contracts, tasks, messages, PDPs, KPIs, performance, awards, polls, alerts |
+| **Recruitment** | Jobs, application forms, applicants, communications, analytics |
+| **Meetings** | Schedule video/audio meetings, WebRTC rooms, guest links, **live transcript → AI summary → tasks → email** |
+| **360° feedback** | Anonymous pools, surveys, public token links |
+| **Inventory / ERP** | Products, quotations, invoices, dispatch, credit notes, clients, bulk SMS, M-Pesa payments, eTIMS hooks, analytics |
+| **Accounts** | Client CRM, complaints, debts, expenses, payments, posts |
+| **Platform** | Company branding, section-based page access, branches, owner super-admin, onboarding wizard |
 
-Key shared frontend glue:
+**Removed:** The `app/shule` school module and `shule` backend routes have been deleted from the tree.
 
-- `lib/auth.ts`: stores token + user in `localStorage` and provides `logout()` and role helpers.
-- `lib/apiBase.ts`: chooses `API_URL` (local vs production) based on environment/hostname.
-- `lib/api.ts`: centralized HTTP wrapper that attaches the `Authorization: Bearer <token>` header and provides typed API methods.
+---
 
-### Backend (Express / Node.js)
+## 2) Tech stack
 
-- Backend entrypoint: `server/src/index.ts`
-- MongoDB connection: `server/src/config/database.ts` (invoked from `index.ts`)
-- Express middleware chain includes:
-  - CORS
-  - JSON body parsing
-  - input sanitization (`server/src/middleware/sanitization.middleware.ts`)
-  - rate limiting (`server/src/middleware/rateLimit.middleware.ts`)
-  - route-level middleware: JWT auth + org/tenant isolation (`server/src/middleware/auth.ts`, `server/src/middleware/tenantIsolation.middleware.ts`)
+### Frontend (`/`)
 
-### Database (MongoDB / Mongoose)
+- **Next.js 15** App Router (`app/`), React 18
+- **UI:** Radix UI, Tailwind, `next-themes`, Framer Motion
+- **API:** `lib/api.ts` (central client for most HR modules) + direct `fetch()` for stock and some admin pages
+- **Realtime:** `socket.io-client` + `hooks/use-webrtc.ts` for meetings
+- **Branding:** `components/theme-provider.tsx` loads `/api/company/branding` into CSS variables
 
-- Tenancy is enforced by scoping queries with `org_id` (tenant identifier) that is taken from the JWT payload.
-- Each major entity has an `org_id` field (for example: `Meeting`, `Task`, `StockInvoice`, `StockProduct`, etc.).
+### Backend (`server/`)
 
-## 2) Multi-Tenant Auth + Tenant Isolation
+- **Express** on Node, default port **5010** (README still mentions 5000 in places)
+- **MongoDB + Mongoose** — primary application data (~66 models)
+- **MySQL + Prisma** — secondary layer (User/Company sync, audit; slim 5-table schema in `server/prisma/schema.prisma`)
+- **Redis + BullMQ** — optional queue `mongo-to-mysql-sync` for User/Company sync
+- **Socket.IO** — WebRTC signaling (`server/src/services/webrtcSignaling.ts`)
+- **OpenAI** — meeting analysis (`AIMeetingService`, `AIAnalysisService`)
+- **Multer** — uploads under `server/uploads/`
+- **Nodemailer** — per-tenant email via `CompanyEmailController`
 
-### JWT payload shape
+### API base URL (`lib/apiBase.ts`)
 
-- Backend token verify: `server/src/config/auth.ts`
-  - `generateToken(payload)` and `verifyToken(token)` produce/validate the JWT.
-- Auth middleware:
-  - `server/src/middleware/auth.ts` verifies the `Authorization: Bearer ...` header
-  - it sets `req.user = decoded` and (critically) `req.org_id = decoded.org_id`.
+| Environment | URL |
+|-------------|-----|
+| Localhost | `http://localhost:5010` |
+| Production (`*.codewithseth.co.ke`, Vercel) | `https://backend.codewithseth.co.ke` |
+| Override | `NEXT_PUBLIC_API_URL` |
 
-### Tenant isolation middleware
+---
 
-- `server/src/middleware/tenantIsolation.middleware.ts`
-  - reinforces `req.org_id` from the decoded user token
-  - logs an audit event via `AuditService.log(...)`.
+## 3) High-level architecture
 
-### Route mounting / middleware ordering
+```mermaid
+flowchart TB
+  subgraph clients [Clients]
+    AdminUI["/admin/*"]
+    EmpUI["/employee/*"]
+    MgrUI["/manager/*"]
+    MeetUI["/meeting/:meetingId"]
+    Public["/careers, /feedback, /auth"]
+  end
 
-Backend bootstrap mounts routes as:
+  subgraph next [Next.js]
+    Theme[ThemeProvider + branding CSS vars]
+    ApiClient[lib/api.ts + fetch]
+  end
 
-- Public endpoints first (no JWT required) in `server/src/index.ts`
-  - e.g. meeting guest access by `meeting_id`:
-    - `GET /api/meetings/by-meeting-id/:meetingId`
-    - `POST /api/meetings/by-meeting-id/:meetingId/join`
-- Then all API modules under `/api/...`:
-  - `app.use("/api/auth", authRoutes)`
-  - `app.use("/api/users", userRoutes)`
-  - ...and others.
+  subgraph api [Express API :5010]
+    AuthMW[JWT auth + org_id + tenantIsolation]
+    Routes["/api/* route modules"]
+    PublicRoutes[Public: jobs, meetings guest, webhooks]
+    RTC[Socket.IO WebRTC signaling]
+  end
 
-Most route modules use:
+  subgraph data [Data]
+    Mongo[(MongoDB primary)]
+    MySQL[(MySQL secondary)]
+    Redis[(Redis optional)]
+  end
 
-- `router.use(authMiddleware, orgMiddleware, tenantIsolation)`
+  clients --> next --> ApiClient --> Routes
+  MeetUI --> RTC
+  Routes --> AuthMW --> Mongo
+  Routes -.->|User/Company sync| MySQL
+  api --> Redis
+```
 
-so that controllers can rely on `req.user` and `req.org_id`.
+---
 
-## 3) Frontend Request Flow (Token -> API calls)
+## 4) Multi-tenant auth and isolation
 
-### Token storage & request headers
+### JWT flow
 
-- `lib/auth.ts`
-  - `setToken(token)`: stores JWT under `localStorage` key `elevate_auth_token`
-  - `getToken()`: retrieves token from `localStorage`
-  - `logout()`: clears token + user and redirects to `/auth/login`
-- `lib/api.ts`
-  - `ApiClient.request()` reads `getToken()`
-  - attaches `Authorization: Bearer ${token}` when present
-  - on `401`:
-    - if the request is not to an auth endpoint, it logs out and throws an error
+1. Login via `/api/auth/login`, company slug login, or employee ID login.
+2. Backend issues JWT (`server/src/config/auth.ts`).
+3. `authMiddleware` sets `req.user` and **`req.org_id`** from token payload.
+4. Guest meeting users use `guest_*` IDs — **rejected** by `authMiddleware` (valid MongoDB ObjectId required).
 
-### Base URL selection
+### Roles (`lib/auth.ts`)
 
-- `lib/apiBase.ts` uses `NEXT_PUBLIC_API_URL` when present, otherwise:
-  - local hostnames -> `http://localhost:5010`
-  - production hostnames -> `https://hrapi.codewithseth.co.ke`
+| Role | Primary UI |
+|------|------------|
+| `company_admin`, `admin`, `hr` | `/admin` |
+| `manager` | `/manager` |
+| `employee` | `/employee` |
 
-### Stock module uses direct fetch
+`roleMiddleware` treats legacy `admin` as `company_admin`.
 
-The stock pages do not use `lib/api.ts`. Instead they directly call:
+### Tenant isolation
 
-- `/api/stock/...` (dispatch, invoices, couriers, etc.)
+- Controllers scope queries with **`org_id`** from `req.org_id`.
+- `tenantIsolation.middleware.ts` reinforces org context and audit logging.
 
-using `API_URL` from `lib/apiBase.ts` and `getToken()` from `lib/auth.ts`.
+### Dynamic branding (per tenant)
 
-## 4) Backend Request Pipeline (Cross-cutting)
+- **Storage:** `Company` model — colors, logo, fonts, button style, location.
+- **API:** `GET/POST /api/company/branding` (logo via multipart).
+- **Frontend:** `ThemeProvider` sets CSS variables (`--brand-primary`, `--company-logo-url`, etc.).
+- **Meeting reports / emails:** UI uses brand vars; emails still use mixed templates (some hardcoded gradients in `AIAnalysisService.generateSummaryEmail`).
 
-In `server/src/index.ts`, the request pipeline includes:
+### Section-based page access
 
-- `helmet()` and `morgan("combined")`
-- CORS policy allowing local + known production origins
-- `express.json({ limit: "10mb" })` and `express.urlencoded(...)`
-- input sanitization middleware:
-  - `sanitizeInput` runs `sanitizeText()` over string fields in `req.body`
-- rate limiting:
-  - `apiLimiter` set to 100 requests/minute per client
-- error handling:
-  - `server/src/middleware/errorHandler.ts` formats JSON errors
+Admin and employee layouts call **`GET /api/company/page-access`** and hide nav sections (CORE, RECRUITMENT, EMPLOYEE MANAGEMENT, INVENTORY MANAGER, ACCOUNTS, PERFORMANCE, SYSTEM). Managers use `lib/manager-access.ts`.
 
-Additionally:
+### Platform owner
 
-- file uploads use `multer` middleware (only on routes that explicitly include it)
-  - example: company branding logo uses `uploadLogo.single("logo")`
-  - example: job application files use `uploadApplicationFiles.any()`
+- **`/owner`** — super-admin for all companies (email allowlist).
+- **API:** `/api/owner/companies/*` — freeze/unfreeze, page toggles.
 
-## 5) API Endpoint Catalog (from `lib/api.ts`)
+---
 
-This section lists the HTTP calls made by the centralized frontend API client (`lib/api.ts`) and maps each to the backend route module and primary controllers/models.
+## 5) Dual storage: MongoDB + MySQL
 
-Note: this frontend API client contains some paths that do not perfectly match the backend routes (especially around `meetingsApi.update` and `meetingsApi.processWithAI` audio uploads). Those are marked as "MISMATCH".
+### MongoDB (source of truth)
 
-### 5.1 Auth (`lib/api.ts` -> `/api/auth/*`)
+- All feature writes go to Mongoose models in `server/src/models/` (**66 models** across HR, stock, feedback, meetings, complaints, branches, etc.).
 
-1. `POST /api/auth/login` (`authApi.login`)
-   - Backend: `server/src/routes/auth.routes.ts`
-   - Controller: `AuthController.login`
-   - Main models: `User`, `Company` (used by `AuthService`)
+### MySQL (secondary)
 
-2. `POST /api/auth/register-company` (`authApi.registerCompany`)
-   - Backend: `server/src/routes/auth.routes.ts`
-   - Controller: `AuthController.registerCompany`
-   - Main models: `Company`, `User` (created during onboarding)
-
-3. `POST /api/auth/change-password` (`authApi.changePassword`)
-   - Backend: `server/src/routes/auth.routes.ts`
-   - Controller: `AuthController.changePassword`
-   - Main models: `User`
-
-### 5.2 Users (`lib/api.ts` -> `/api/users/*`)
-
-- `GET /api/users`
-  - Route: `server/src/routes/user.routes.ts`
-  - Controller: `UserController.getAllUsers`
-  - Main models: `User` (via `UserService`)
-
-- `GET /api/users/:userId`
-  - Route: `server/src/routes/user.routes.ts`
-  - Controller: `UserController.getUserById`
-  - Main models: `User` (via `UserService`)
-
-- `POST /api/users`
-  - Route: `server/src/routes/user.routes.ts`
-  - Controller: **Note**: route file attaches `UserController.createEmployee` at `POST /` with `roleMiddleware("company_admin","hr")`.
-  - Main models: `User` (via `AuthService.createEmployee`)
-
-- `PUT /api/users/:userId`
-  - Route: `server/src/routes/user.routes.ts`
-  - Controller: `UserController.updateUser`
-  - Main models: `User` (via `UserService.updateUser`)
-
-- `DELETE /api/users/:userId`
-  - `lib/api.ts` references this endpoint, but `user.routes.ts` (as currently present) does not expose `DELETE`.
-  - This should be treated as a potential mismatch.
-
-- `GET /api/users/team/:managerId`
-  - Route: `server/src/routes/user.routes.ts`
-  - Controller: `UserController.getTeamMembers`
-  - Main models: `User` (via `UserService.getTeamMembers`)
-
-### 5.3 Awards (`/api/awards/*`)
-
-- `GET /api/awards` -> `server/src/routes/award.routes.ts` -> `AwardController.getAwards`
-  - Main models: `Award`, `AwardNomination`
-
-- `POST /api/awards` -> `roleMiddleware("company_admin","hr")` -> `AwardController.createAward`
-  - Main models: `Award`
-
-- `GET /api/awards/leaderboard/top` -> `AwardController.getLeaderboard`
-  - Main models: `AwardNomination`
-
-### 5.4 KPIs (`/api/kpis/*`)
-
-- `GET /api/kpis` -> `KPIController.getAllKPIs` (main model: `KPI`)
-- `GET /api/kpis/:kpiId` -> `KPIController.getKPIById` (main model: `KPI`)
-- `POST /api/kpis` -> `roleMiddleware("company_admin","hr")` -> `KPIController.createKPI`
-- `PUT /api/kpis/:kpiId` -> `roleMiddleware(...)` -> `KPIController.updateKPI`
-- `DELETE /api/kpis/:kpiId` -> `KPIController.deleteKPI`
-
-### 5.5 Performance (`/api/performance/*`)
-
-- `GET /api/performance` is implemented as `GET /api/performance/?period=...` in `performance.routes.ts`:
-  - route: `router.get("/", PerformanceController.getOrganizationPerformances)`
-  - main model: `Performance` (and `PerformanceService`)
-
-- `PUT /api/performance/...` and `create` paths in `lib/api.ts`:
-  - `lib/api.ts` includes `create` and `update` for `/api/performance` and `/api/performance/:id`
-  - backend route file `performance.routes.ts` currently exposes:
-    - `GET /:userId/:period`
-    - `PUT /:performanceId/kpi/:kpiId`
-    - `GET /`
-  - treat `create` / some `update` calls in `lib/api.ts` as potentially outdated or unused.
-
-### 5.6 Feedback (`/api/feedback/*`)
-
-- `GET /api/feedback` is referenced by `lib/api.ts`, but `feedback.routes.ts` currently exposes:
-  - `GET /:userId`
-  - `POST /`
-  - `GET /:userId/summary`
-  - so a mismatch is likely unless the frontend uses a different method/endpoint elsewhere.
-
-### 5.7 PDPs (`/api/pdps/*`)
-
-- Route module: `server/src/routes/pdp.routes.ts`
-- Controllers: `PDPController.*`
-- Main model: `PDP`
-
-`lib/api.ts` uses:
-- `GET /api/pdps` -> `PDPController.getPDPs`
-- `GET /api/pdps/:id` -> `PDPController.getPDPById`
-- `POST /api/pdps` -> `PDPController.createPDP`
-- `PUT /api/pdps/:id` -> `PDPController.updatePDP`
-- `DELETE /api/pdps/:id` -> `lib/api.ts` references it, but `pdp.routes.ts` has no `DELETE`.
-  - Treat as mismatch unless there is a separate implementation.
-
-### 5.8 Attendance (`/api/attendance/*`)
-
-- Route module: `server/src/routes/attendance.routes.ts`
-- Main model: `Attendance`
-
-Backend exposes:
-- `GET /:userId` -> `AttendanceController.getAttendanceRecords`
-- `POST /` (role-protected) -> `AttendanceController.markAttendance`
-
-### 5.9 Invitations (`/api/invitations/*`)
-
-- Route module: `server/src/routes/invitation.routes.ts`
-- Backend `InvitationController` uses `Company`, `User`, and `Invitation`
-
-`lib/api.ts` uses:
-- `POST /api/invitations/send` -> `InvitationController.sendInvitations` (role: company_admin, hr)
-- `POST /api/invitations/accept` -> `InvitationController.acceptInvitation` (public)
-- `GET /api/invitations/pending` -> `InvitationController.getPendingInvitations`
-- `POST /api/invitations/resend` -> `InvitationController.resendInvitation`
-
-### 5.10 Reports (`/api/reports/*`)
-
-- Route module: `server/src/routes/report.routes.ts`
-- Controller: `ReportController`
-- Main models: `Report`, plus population from `User`
-
-`lib/api.ts` calls:
-- `POST /api/reports/save` -> `saveReport`
-- `POST /api/reports/submit` -> `submitReport`
-- `GET /api/reports/my-reports` -> `getUserReports`
-- `GET /api/reports/:report_id` -> `getReport`
-- `DELETE /api/reports/:report_id` -> `deleteReport`
-- Admin:
-  - `GET /api/reports/admin/all`
-  - `POST /api/reports/admin/approve`
-  - `POST /api/reports/admin/reject`
-  - `GET /api/reports/admin/analytics`
-- `POST /api/reports/generate-summary` -> `generateSummary`
-
-### 5.11 Company / Branding / Email Config (`/api/company/*`, `/api/company/email-config/*`)
-
-- Route module: `server/src/routes/company.routes.ts`
-- Branding logo upload uses:
-  - `uploadLogo.single("logo")` from `server/src/middleware/upload.middleware.ts`
-- Controllers:
-  - `CompanyController.getBranding`, `CompanyController.updateBranding`, `CompanyController.getPageAccessSettings`, ...
-  - `CompanyEmailController.getEmailConfig`, `updateEmailConfig`, `verifyEmailConfig`, `disableEmailConfig`
-- Main models: `Company`
-
-### 5.12 Holidays (`/api/holidays/*`)
-
-- Route: `server/src/routes/holiday.routes.ts`
-- Controller: `HolidayController`
-- Main models:
-  - `Company` (for `countryCode`)
-  - plus holiday storage via `HolidayService` (not shown in this doc)
-
-### 5.13 Leave (`/api/leave/*`)
-
-- Route: `server/src/routes/leave.routes.ts`
-- Controller: `LeaveController`
-- Main models:
-  - `LeaveRequest`, `LeaveBalance`, `User`
-
-### 5.14 Payroll (`/api/payroll/*`)
-
-- Route: `server/src/routes/payroll.routes.ts`
-- Controller: `PayrollController`
-- Main models: `Payroll`, `User`, `Company`
-
-### 5.15 Meetings (`/api/meetings/*`)
-
-- Route: `server/src/routes/meeting.routes.ts` (auth-protected)
-- Controller: `MeetingController`
-- Main models: `Meeting`, `Task`, `User`
-
-Endpoints exposed by the backend meeting router:
-
-- `POST /api/meetings` -> `MeetingController.createMeeting`
-- `GET /api/meetings` -> `MeetingController.getMeetings`
-- `GET /api/meetings/:id` -> `MeetingController.getMeetingById`
-- `POST /api/meetings/:id/join` -> `joinMeeting`
-- `POST /api/meetings/:id/leave` -> `leaveMeeting`
-- `PUT /api/meetings/:id/status` -> `updateMeetingStatus`
-- `POST /api/meetings/:id/start` -> `startMeeting`
-- `POST /api/meetings/:id/end` -> `endMeeting`
-- `POST /api/meetings/:id/process-ai` -> `processWithAI`
-- `GET /api/meetings/:id/report` -> `getMeetingReport`
-- `POST /api/meetings/:id/transcript` -> `uploadTranscript`
-- `DELETE /api/meetings/:id` -> `deleteMeeting`
-
-Public guest access endpoints are mounted directly in `server/src/index.ts`:
-
-- `GET /api/meetings/by-meeting-id/:meetingId`
-- `POST /api/meetings/by-meeting-id/:meetingId/join`
-
-MISMATCH notes:
-
-- `lib/api.ts` `meetingsApi.update(id, data)` uses `PUT /api/meetings/:id`, but backend exposes `PUT /api/meetings/:id/status`.
-- `lib/api.ts` `meetingsApi.processWithAI` sends audio as `FormData` under key `audio`, but `MeetingController.processWithAI` expects `audioUrl` and/or `transcript` in `req.body`.
-- The meeting WebRTC UI also does not appear to implement live transcript generation (transcript state exists but is not populated).
-
-### 5.16 Setup (`/api/setup/*`)
-
-- Route: `server/src/routes/setup.routes.ts`
-- Controller: `SetupController`
-- Main model: `Company` (and counts from `User`, `KPI`)
-
-`lib/api.ts` uses:
-- `GET /api/setup/progress`
-- `POST /api/setup/step`
-- `POST /api/setup/complete`
-- `POST /api/setup/skip`
-- `POST /api/setup/reset`
-
-### 5.17 Stamps (`/api/stamps/*`)
-
-- Route: `server/src/routes/stamp.routes.ts`
-- Controller: `StampController`
-- Main model: `Stamp`
-
-`lib/api.ts` maps directly to:
-- CRUD endpoints at `/api/stamps` and `/api/stamps/:stampId`
-- preview and SVG generation:
-  - `POST /api/stamps/preview`
-  - `GET /api/stamps/:stampId/svg`
-
-## 6) Meetings Module Deep Dive
-
-This section follows the most important paths users take:
-
-1. Employee schedules/joins meetings and views reports
-2. Meeting detail page supports guest join and WebRTC interactions
-3. Ending a meeting triggers AI processing that:
-   - produces summary + key points + action items
-   - creates `Task` documents for action items
-   - sends a summary email to attendees
-
-### 6.1 UI entrypoints
-
-1. Meetings list (authenticated UI)
-   - `app/employee/meetings/page.tsx`
-   - loads meetings via `meetingsApi.getAll()`
-   - switches views between:
-     - list
-     - in-meeting interface (non-webrtc)
-     - report view (reads `selectedMeeting.ai_*` fields)
-
-2. Meeting detail (guest + WebRTC UI)
-   - `app/meeting/[meetingId]/page.tsx`
-   - `meetingId` is the `meeting_id` (not Mongo `_id`)
-   - loads data using:
-     - `GET /api/meetings/by-meeting-id/:meetingId` (authenticated or public)
-   - uses `components/meetings/meeting-interface-webrtc.tsx` for the call UI
-
-### 6.2 Meeting scheduling and joining (authenticated)
-
-From the meetings list:
-
-- `MeetingList` creates meetings by calling:
-  - frontend -> `meetingsApi.create()` -> `POST /api/meetings`
-  - backend -> `MeetingController.createMeeting`
-    - generates a `meeting_id` and `meeting_link`
-    - stores meeting document in Mongo (`Meeting` model)
-    - optionally sends invite emails to attendee users (`emailService.sendEmail`)
-
-Starting / ending:
-
-- `components/meetings/meeting-interface.tsx` calls provided callbacks:
-  - `onStartMeeting(meeting._id)` -> frontend -> `POST /api/meetings/:id/start` -> `MeetingController.startMeeting`
-  - `onEndMeeting(meeting._id, transcript)` -> frontend -> `POST /api/meetings/:id/end` -> `MeetingController.endMeeting`
-
-Backend `MeetingController.endMeeting`:
-  - updates `status` to `completed`
-  - sets `actual_end_time`
-  - triggers AI processing asynchronously via `processMeetingWithAIAsync(...)`
-
-### 6.3 Public/guest join flow (meeting links)
-
-In `app/meeting/[meetingId]/page.tsx`:
-
-- guests call backend without JWT to fetch meeting details:
-  - `GET /api/meetings/by-meeting-id/:meetingId`
-  - if meeting requires password, backend enforces it
-- guests can join using:
-  - `POST /api/meetings/by-meeting-id/:meetingId/join`
-  - backend `MeetingController.joinMeetingByMeetingIdPublic`:
-    - either finds existing attendee by `guest_id` or adds a new attendee record
-
-### 6.4 AI Processing Pipeline (summary -> tasks -> emails)
-
-Backend AI entrypoint:
-
-- `MeetingController.processWithAI` (mounted at `POST /api/meetings/:id/process-ai`)
-  - sets:
-    - `meeting.ai_processing_status = "processing"`
-    - `meeting.status = "in-progress"`
-  - starts async pipeline:
-    - `processMeetingWithAIAsync(meetingId, org_id, audioUrl, transcript, organizerId)`
-
-Async steps inside `processMeetingWithAIAsync` (in `server/src/controllers/meetingController.ts`):
-
-1. Transcript acquisition
-   - If `audioUrl` is provided and `transcript` is missing:
-     - `aiMeetingService.transcribeAudio(audioUrl)`
-   - Otherwise uses `transcript` passed in from the request body.
-
-2. AI analysis
-   - `aiMeetingService.analyzeMeeting(finalTranscript, attendeeEmails)`
-   - `AIMeetingService` uses OpenAI:
-     - Whisper for transcription (optional)
-     - `gpt-4o` chat completion with `response_format: { type: "json_object" }`
-   - expects JSON with:
-     - `summary`
-     - `keyPoints`
-     - `actionItems` (each has `description`, `assigned_to`, optional `due_date`, optional `priority`)
-     - `sentiment`
-     - `topics`
-
-3. Persist AI results to meeting doc
-   - updates meeting fields:
-     - `ai_summary`
-     - `key_points`
-     - `action_items` (stored as objects with `description`, `assigned_to`, `due_date`, `task_id`)
-   - sets:
-     - `ai_processed = true`
-     - `ai_processing_status = "completed"`
-     - `status = "completed"`
-
-4. Create tasks for action items
-   - `aiMeetingService.createTasksFromActionItems(...)`
-   - for each action item:
-     - finds `User` by email (`email: item.assigned_to, org_id`)
-     - creates `Task` with fields:
-       - `org_id`
-       - `title` = `item.description`
-       - `description` = `Action item from meeting: ...`
-       - `assigned_to` = user `_id`
-       - `assigned_by` = organizer id
-       - `priority`, `due_date` defaults, and AI flags (`is_ai_generated`, `is_ai_reminder`, `ai_source`)
-   - returns created task IDs and writes `task_id` back into meeting `action_items` by index.
-
-5. Send attendee summary email
-   - `aiMeetingService.sendMeetingReportsToAttendees(...)`
-   - generates attendee-specific HTML and calls `emailService.sendEmail(...)`.
-
-Important implementation gaps / risks:
-
-- `AIMeetingService.generateAttendeeEmailBody(...)` currently filters action items with:
-  - `item.assigned_to === "your_email"`
-  This is almost certainly a placeholder bug; as a result, the email may not include correctly assigned action items for each attendee.
-- WebRTC UI transcript:
-  - `components/meetings/meeting-interface-webrtc.tsx` defines `transcript` state, but it does not appear to be populated by SpeechRecognition (no `SpeechRecognition` usage found).
-  - As a result, if end-meeting passes an empty transcript, AI analysis may fail.
-
-### 6.5 WebRTC signaling (socket.io)
-
-The WebRTC call UI uses:
-
-- `components/meetings/meeting-interface-webrtc.tsx`
-  - relies on `hooks/use-webrtc.ts`
-- signaling server:
-  - `server/src/services/webrtcSignaling.ts`
-
-WebRTC signaling flow:
+- **Canonical Prisma schema:** `server/prisma/schema.prisma` — **5 models:** `User`, `Company`, `AuditLog`, `Session`, `AnalyticsSnapshot`.
+- **Boot:** `index.ts` runs `runMigrations()` then starts server and **`startSyncScheduler()`** (every 5 minutes: migrations + bulk User/Company sync from Mongo).
+- **Queue:** `syncWorker.ts` (BullMQ) can sync User/Company on job types — **queue helpers are not widely wired from controllers yet**.
+- **Drift warning:** `server/src/generated/prisma/schema.prisma` still lists ~27 models; `WHATS_IN_MYSQL_NOW.md` may describe bulk-imported data that does not match the slim live schema. Treat MySQL reconciliation as an ops concern.
 
 ```mermaid
 flowchart LR
-  UIJoin[UI joins meeting] -->|socket.emit('join-meeting')| JoinServer[WebRTCSignalingService.on join-meeting]
-  JoinServer -->|socket.emit existing participants| UIOffer[Hook creates peer connections + offers]
-  UIOffer -->|socket.emit('offer')| SignalingForward[Signaling forwards offer]
-  SignalingForward -->|socket.emit 'answer' / 'ice-candidate'| PeerConnect[WebRTC peer connections established]
-  PeerConnect --> Chat[chat/reactions/raised-hand events forwarded]
+  Write[Controller write] --> Mongo[(MongoDB)]
+  Mongo -->|every 5 min + optional queue| Sync[syncMongoToMySQL / SecondaryStorageService]
+  Sync --> MySQL[(MySQL Prisma)]
 ```
 
-Events supported by the backend signaling service:
+---
 
-- `join-meeting`
-- `offer`, `answer`, `ice-candidate`
-- `raise-hand` -> `raise-hand-updated`
-- `meeting-reaction`
-- `meeting-chat`
-- participant disconnect handling
+## 6) Frontend routing (143 pages)
 
-### 6.6 Mermaids: end-to-end meeting lifecycle
+### Layout guards
+
+| Path | Guard |
+|------|--------|
+| `/admin/*` | Login + admin role + onboarding complete + section access |
+| `/employee/*` | Login + employee (others redirected) + section access |
+| `/manager/*` | Login + manager + manager sections |
+| `/dashboard/*` | **No auth layout** (legacy HR UI; still linked from some meeting exits) |
+| `/meeting/:meetingId` | Public guest form or authenticated join |
+| `/feedback/*`, `/careers/*` | Public |
+| `/owner` | Owner email check |
+
+### Major admin sections (examples)
+
+- **Stock:** `/admin/stock/*` — inventory, invoices, dispatch, quotations, credit notes, analytics (uses **direct** `/api/stock/...` fetch, not `lib/api.ts`).
+- **Accounts:** `/admin/accounts/*` — clients, complaints, debts, expenses, payments, bulk SMS.
+- **Meetings:** `/admin/meetings` — list + `MeetingInterface` (non-WebRTC) or links to `/meeting/:id` for WebRTC.
+- **Feedback 360:** `/admin/feedback-360/*` — surveys, pools, responses.
+- **Settings:** branding, branches, invoice generation, page access, email config, stamps.
+
+### Employee highlights
+
+- `/employee/meetings`, `/employee/dispatch`, `/employee/stock`, PDP, reports, payroll, etc.
+
+---
+
+## 7) Backend API catalog (by domain)
+
+Mount paths from `server/src/index.ts`. Most routers use `authMiddleware` + `orgMiddleware` + `tenantIsolation` unless noted.
+
+### Public / webhooks (no JWT)
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET | `/api/jobs/public/:companyName/:positionIndex` | Public job board |
+| GET | `/api/application-forms/job/:jobId` | Application form |
+| GET/POST | `/api/meetings/by-meeting-id/:meetingId` (+ `/join`) | Guest meeting access |
+| POST | `/api/sms/dlr` | SMS delivery reports |
+| POST | `/api/mpesa/callback` | M-Pesa STK callback |
+
+### Core HR & people
+
+| Mount | Domain |
+|-------|--------|
+| `/api/auth` | Login, register company, OTP, password reset |
+| `/api/users` | CRUD, team, signature upload |
+| `/api/branches` | Multi-branch org structure |
+| `/api/leave`, `/api/payroll`, `/api/attendance` | HR operations |
+| `/api/holidays` | Public holiday sync |
+| `/api/contracts`, `/api/alerts` | Contracts & alerts |
+| `/api/performance`, `/api/kpis`, `/api/pdps` | Performance cycle |
+| `/api/tasks`, `/api/messages` | Work & comms |
+| `/api/reports` | Employee reports + admin approval + monthly invoice summary |
+| `/api/invitations`, `/api/setup` | Onboarding |
+| `/api/company` | Branding, page access, departments, email config, invoice/dispatch SMS settings |
+
+### Engagement & feedback
+
+| Mount | Domain |
+|-------|--------|
+| `/api/awards`, `/api/badges`, `/api/polls`, `/api/suggestions` | Recognition & polls |
+| `/api/feedback` | 360 feedback (authenticated) |
+| `/api/feedback-360` | Anonymous pools (public submit endpoints) |
+| `/api/feedback-surveys` | Survey builder + public tokens |
+
+### Recruitment
+
+| Mount | Domain |
+|-------|--------|
+| `/api/jobs`, `/api/application-forms`, `/api/job-applications`, `/api/job-analytics`, `/api/communications` | ATS pipeline |
+
+### Meetings
+
+| Mount | Domain |
+|-------|--------|
+| `/api/meetings` | CRUD, join/leave, start/end, transcript upload, AI process, report, stats |
+
+### Stock / ERP (large surface)
+
+| Mount | Domain |
+|-------|--------|
+| `/api/stock` | Categories, products, entries, sales, quotations, invoices, dispatch, couriers, clients, bulk SMS, accounts (payments, debts, expenses, repeat bills), analytics |
+| `/api/stock/credit-notes` | Credit note lifecycle + PDF |
+| `/api/stamps` | Document stamp SVG for PDFs |
+
+### Other
+
+| Mount | Domain |
+|-------|--------|
+| `/api/complaints` | Client complaint case management |
+| `/api/resources` | Internal asset allocation (products/departments/allocations) |
+| `/api` + booking routes | **Bookable** resources (`GET /api/resources` on booking router — different from asset `/api/resources`) |
+| `/api/owner` | Platform super-admin |
+
+**Stock maintenance:** `StockController.runExpiryReminderCheck()` runs on an interval from `index.ts`.
+
+---
+
+## 8) Meetings module (deep dive — transcript-based)
+
+### Design choice: transcripts only (no raw audio storage)
+
+- The WebRTC UI captures speech via **browser `SpeechRecognition`** (organizer only).
+- On end, the frontend sends **`{ transcript }`** in the body of `POST /api/meetings/:id/end`.
+- Backend stores `meeting.transcript` and runs AI analysis on that text (no multer audio upload on the happy path).
+
+### UI entrypoints
+
+| Route | Component | Notes |
+|-------|-----------|--------|
+| `/admin/meetings`, `/employee/meetings`, `/dashboard/meetings` | `MeetingList` + `MeetingInterface` or callbacks | List uses `meetingsApi`; end passes transcript via `meetingsApi.end(id, transcript)` |
+| `/meeting/[meetingId]` | `meeting-interface-webrtc.tsx` | Public guest join; WebRTC; organizer ends with transcript |
+
+### Key frontend files
+
+- `components/meetings/meeting-interface-webrtc.tsx` — WebRTC UI, live transcript panel, report modal polls `/api/meetings/:id/report`
+- `components/meetings/meeting-interface.tsx` — simpler single-user UI (same transcript pattern)
+- `components/meetings/meeting-report.tsx` — branded report tabs (summary, key points, actions, transcript)
+- `hooks/use-webrtc.ts` — Socket.IO + RTCPeerConnection
+- `lib/api.ts` — `meetingsApi.end(id, transcript?)`, `getReport`, etc.
+
+### Backend flow
 
 ```mermaid
-flowchart TD
-  UI[List/Create/Start/End meeting in UI] -->|POST /api/meetings| Create[MeetingController.createMeeting]
-  UI -->|POST /api/meetings/:id/start| Start[MeetingController.startMeeting]
-  UI -->|POST /api/meetings/:id/end| End[MeetingController.endMeeting]
-  End -->|async processMeetingWithAIAsync| AI[AI pipeline: transcript -> analyze -> tasks -> emails]
-  AI -->|updates Meeting + creates Task| DB[MongoDB updates]
-  AI -->|emailService.sendEmail| Email[Emails to attendees]
-  UI -->|GET /api/meetings/:id/report| Report[MeetingController.getMeetingReport]
+sequenceDiagram
+  participant Org as Organizer browser
+  participant API as MeetingController
+  participant AI as AIMeetingService
+  participant DB as MongoDB Meeting/Task
+
+  Org->>Org: SpeechRecognition builds transcript
+  Org->>API: POST /api/meetings/:id/end { transcript }
+  API->>DB: status=completed, actual_end_time
+  API->>AI: processMeetingWithAIAsync (background)
+  AI->>DB: transcript, summary, key_points, action_items
+  AI->>DB: create Task per action item
+  AI->>Org: emails via emailService
+  Org->>API: GET /api/meetings/:id/report (poll until ready)
 ```
 
-## 7) Stock Dispatch / Invoices Module Deep Dive
+**Endpoints:**
 
-The stock dispatch workflow is built around `StockInvoice.dispatch` state stored inside the `StockInvoice` document.
+- `POST /api/meetings/:id/end` — accepts `transcript` (and optional legacy `audioUrl`)
+- `POST /api/meetings/:id/transcript` — dedicated transcript upload + `processTranscriptWithAI` (uses `AIAnalysisService`)
+- `POST /api/meetings/:id/process-ai` — manual AI trigger (`audioUrl` / `transcript` in JSON body)
+- `GET /api/meetings/:id/report` — returns summary, keyPoints, actionItems, transcript, sentiment
 
-### 7.1 UI entrypoints
+**AI services:**
 
-1. Dispatch management queue (admin view)
-   - `app/admin/stock/dispatch/page.tsx`
-   - Loads:
-     - `GET /api/stock/invoices` (invoice list)
-     - `GET /api/stock/dispatch/analytics` (counts + packing progress stats)
-   - Links each invoice to the detailed dispatch form:
-     - `/admin/stock/dispatch/:invoiceId`
+- `AIMeetingService` — GPT-4o JSON analysis, optional Whisper if `audioUrl` provided
+- `AIAnalysisService` — alternate path for `uploadTranscript` with mock fallback if no API key
 
-2. Dispatch detailed form
-   - `app/admin/stock/dispatch/[invoiceId]/page.tsx`
-   - Renders:
-     - `components/stock/dispatch-workflow.tsx`
+### WebRTC signaling
 
-3. Invoices list and dispatch assignment (admin view)
-   - `app/admin/stock/invoices/page.tsx`
-   - Loads:
-     - `GET /api/stock/invoices`
-     - `GET /api/company/branding` (for PDF branding)
-     - `GET /api/users` (dispatch user dropdown)
-   - Assign dispatch user:
-     - `POST /api/stock/invoices/:invoiceId/dispatch/assign`
+- Service: `server/src/services/webrtcSignaling.ts` (initialized in `index.ts`)
+- Events: `join-meeting`, `offer`, `answer`, `ice-candidate`, `raise-hand`, `meeting-reaction`, `meeting-chat`
 
-### 7.2 Backend dispatch endpoints and state transitions
+### Meetings: remaining gaps
 
-Stock routes:
+| Issue | Detail |
+|-------|--------|
+| Transcript quality | Browser STT only hears organizer mic; remote participants may be missing from transcript |
+| `meetingsApi.update` | Client uses `PUT /api/meetings/:id` but backend has `PUT /api/meetings/:id/status` only |
+| `meetingsApi.processWithAI(audioFile)` | Sends multipart `audio`; backend expects JSON `audioUrl` / `transcript` — not wired with multer |
+| Email action items | `AIMeetingService.generateAttendeeEmailBody` filters `assigned_to === "your_email"` (placeholder bug) |
+| `/dashboard/meetings` | Unguarded legacy route; WebRTC exit may redirect to `/dashboard` |
 
-- `server/src/routes/stock.routes.ts`
-- Controller:
-  - `server/src/controllers/stockController.ts`
-- Core model:
-  - `server/src/models/StockInvoice.ts`
-- Related models:
-  - `StockCourier`, `StockProduct`, `StockQuotation` (and `StockEntry`, `StockSale` for other stock activities)
+---
 
-Dispatch endpoints used by the dispatch workflow:
+## 9) Stock / dispatch / invoices (summary)
 
-1. Load invoice + existing dispatch data:
-   - `GET /api/stock/invoices/:invoiceId` -> `StockController.getInvoiceById`
+The stock module is a full **order-to-cash + dispatch** workflow scoped by `org_id`.
 
-2. Load couriers:
-   - `GET /api/stock/couriers` -> `StockController.getCouriers`
+### UI
 
-3. Packing step:
-   - `PUT /api/stock/invoices/:invoiceId/dispatch/packing`
-   - Controller: `StockController.updateDispatchPacking`
-   - Computes whether packing is complete via `computePackingCompletion(...)`
-   - Updates:
-     - `dispatch.status` to `packing` or `packed`
-     - `dispatch.packingItems` and `dispatch.packingCompleted`
+- Queue: `app/admin/stock/dispatch/page.tsx`
+- Detail: `app/admin/stock/dispatch/[invoiceId]/page.tsx` → `components/stock/dispatch-workflow.tsx`
+- Invoices: `app/admin/stock/invoices/page.tsx` (assign dispatch, PDF + stamps)
+- Employee dispatch: `/employee/dispatch`, `/employee/dispatch/[invoiceId]`
 
-4. Record dispatch (transport + courier) step:
-   - `POST /api/stock/invoices/:invoiceId/dispatch/dispatch`
-   - Controller: `StockController.markInvoiceDispatched`
-   - Validates:
-     - packing completion (`computePackingCompletion` must be true)
-     - `transportMeans` is present
-     - courier information is either:
-       - existing `courierId`, or
-       - new courier fields (`courierName`, `courierContactName`, `courierContactNumber`)
-   - Updates:
-     - `dispatch.status = "dispatched"`
-     - `dispatch.dispatchedAt`, `dispatch.dispatchedByUserId`
-     - `dispatch.transportMeans`
-     - `dispatch.courier` object
+### Dispatch state machine (`StockInvoice.dispatch.status`)
 
-5. Log dispatch inquiry (call):
-   - `POST /api/stock/invoices/:invoiceId/dispatch/inquiry`
-   - Controller: `StockController.addDispatchInquiry`
-   - Adds an entry into:
-     - `dispatch.inquiries[]` with:
-       - `mode` in `{ client, courier }`
-       - method fixed to `"call"`
+`not_assigned` → `assigned` → `packing` → `packed` → `dispatched` → `delivered`
 
-6. Confirm delivery:
-   - `POST /api/stock/invoices/:invoiceId/dispatch/delivery`
-   - Controller: `StockController.confirmInvoiceDelivery`
-   - Validates:
-     - invoice must already be `dispatch.status === "dispatched"`
-     - condition must be `"good"` or `"not_good"`
-   - Updates:
-     - `dispatch.status = "delivered"`
-     - sets `dispatch.delivery` details, including:
-       - `arrivalTime`, `condition`, `everythingPacked`, `confirmedBy`, `confirmedAt`
+Key APIs: `PUT .../dispatch/packing`, `POST .../dispatch/dispatch`, `POST .../dispatch/inquiry`, `POST .../dispatch/delivery`, `POST .../dispatch/assign`, `GET .../dispatch/analytics`.
 
-7. Assign dispatch queue owner:
-   - `POST /api/stock/invoices/:invoiceId/dispatch/assign`
-   - Controller: `StockController.assignInvoiceToDispatch`
-   - Admin-only action (checks `isAdminRole`)
-   - Updates:
-     - `dispatch.status = "assigned"`
-     - `dispatch.assignedToUserId` and related metadata
-     - initializes `dispatch.packingItems` from invoice items
+### Related models
 
-### 7.3 Dispatch workflow state machine
+`StockInvoice`, `StockProduct`, `StockQuotation`, `StockCourier`, `StockClient`, `StockSale`, `StockEntry`, `CreditNote`, `DispatchNotification`, etc.
 
-Key `dispatch.status` values in `StockInvoice`:
+Frontend uses **`fetch(`${API_URL}/api/stock/...`)`** + `getToken()` — not `lib/api.ts`.
 
-- `not_assigned`
-- `assigned`
-- `packing`
-- `packed`
-- `dispatched`
-- `delivered`
+---
 
-The UI uses these values to gate what steps are enabled.
+## 10) Other notable modules (short)
 
-```mermaid
-flowchart LR
-  NA[not_assigned] -->|assign dispatch| AS[assigned]
-  AS -->|update packing| PK[packing]
-  PK -->|packing complete| PD[packed]
-  PD -->|record dispatch| DI[dispatched]
-  DI -->|confirm delivery| DL[delivered]
-```
+| Module | Frontend | Backend | Models |
+|--------|----------|---------|--------|
+| Complaints | `/admin/accounts/complaints/*` | `/api/complaints` | `ClientComplaint` |
+| Branches | `/admin/settings/system/branches` | `/api/branches` | `Branch` |
+| Credit notes | `/admin/stock/credit-notes` | `/api/stock/credit-notes` | `CreditNote` |
+| Resource assets | `/admin/bookings` (related) | `/api/resources` (allocations) | `ResourceProduct`, `ResourceAllocation` |
+| Resource booking | employee bookings | `/api/bookings`, `/api/resources` (booking) | `ResourceBooking`, `Resource` |
+| M-Pesa / SMS | payments, bulk SMS UI | webhooks + stock bulk SMS | campaigns, payments on invoices |
+| Stamps | `/admin/stamps` | `/api/stamps` | `Stamp` |
 
-### 7.4 How packing completion works
+---
 
-Backend helper in `StockController`:
+## 11) Cross-cutting concerns
 
-- `computePackingCompletion(packingItems)`
-  - returns true if every item has `packedQuantity >= requiredQuantity`
+| Concern | Location |
+|---------|----------|
+| Rate limiting | `apiLimiter` — 100 req/min |
+| Input sanitization | `sanitizeInput` on `req.body` strings |
+| Errors | `errorHandler` middleware (last) |
+| File uploads | `upload.middleware.ts` — logos, job applications |
+| CORS | Permissive list + fallback allow |
+| Audit | `AuditLog` model + `AuditService` via tenant middleware |
+| Scheduled jobs | Stock expiry check interval; MySQL sync scheduler |
 
-`updateDispatchPacking` uses this to set `dispatch.status` to:
+---
 
-- `packing` if not complete
-- `packed` if complete
+## 12) `lib/api.ts` vs direct fetch
 
-### 7.5 Analytics endpoint
+**Uses `lib/api.ts`:** auth, users, meetings, leave, payroll, company branding, reports, setup, stamps, invitations, most HR modules.
 
-- `GET /api/stock/dispatch/analytics` -> `StockController.getDispatchAnalytics`
-- Returns:
-  - counts per `dispatch.status`
-  - `completionRate` based on delivered/total
-  - `averagePackingProgress` based on packing ratios across invoices
+**Uses direct `fetch`:** essentially all **`/api/stock/**`** pages, many admin accounts pages, meeting public page (`/meeting/[meetingId]`), owner portal.
 
-### 7.6 Related stock entities (for context)
+When adding features, follow the pattern of the surrounding module.
 
-- `StockInvoice`
-  - invoice metadata and the nested `dispatch` subdocument
-- `StockQuotation`
-  - invoices can be created by converting quotations (`convertQuotationToInvoice`)
-- `StockProduct`
-  - keeps `currentQuantity` and pricing
-- `StockCourier`
-  - used during dispatch recording
-- `StockEntry` / `StockSale`
-  - used for stock changes in other parts of the stock module
+---
 
-## 8) Cross-cutting Concerns + Notable Issues
+## 13) Glossary
 
-### 8.1 Where sanitization happens
+| Term | Meaning |
+|------|---------|
+| `org_id` | Tenant identifier; on JWT and almost all Mongo documents |
+| `meeting_id` | Short public id in meeting URLs (`/meeting/abc123`) |
+| `_id` | Mongo document id used in authenticated API paths (`/api/meetings/:id`) |
+| `guest_*` | Synthetic attendee id for public joiners (not valid JWT users) |
+| Section access | Per-role list of admin nav sections enabled for a company |
+| Dispatch status | Nested field on `StockInvoice` tracking fulfillment |
+| Primary vs secondary DB | Mongo writes first; MySQL holds synced User/Company (+ audit schema) |
 
-- `server/src/middleware/sanitization.middleware.ts` runs `sanitizeText` on string fields in `req.body`.
+---
 
-### 8.2 Where file uploads happen
+## 14) Related documentation in repo
 
-- Company branding logo:
-  - `server/src/routes/company.routes.ts`
-  - uses `uploadLogo.single("logo")` with multer disk storage
-  - saved under `server/uploads/logos/...`
+| File | Topic |
+|------|--------|
+| `DOCUMENTATIONS/MULTI_TENANT.md` | Tenancy concepts |
+| `DOCUMENTATIONS/AI_MEETING_SYSTEM.md` | Meeting AI setup |
+| `DOCUMENTATIONS/MEETINGIMPROVEMENTS.md` | Planned meeting features |
+| `DOCUMENTATIONS/BRANDING_SETUP.md` | Branding API & CSS vars |
+| `MYSQL_SECONDARY_STORAGE_SETUP.md` | MySQL secondary layer |
+| `WHATS_IN_MYSQL_NOW.md` | MySQL data snapshot (may drift) |
+| `INVOICES.md` | Invoice workflows |
+| `DOCUMENTATIONS/ARCHITECTURE_DIAGRAMS.md` | Visual architecture |
 
-- Job application files:
-  - `server/src/routes/jobApplication.routes.ts`
-  - uses `uploadApplicationFiles.any()`
-  - saved under `server/uploads/applications/...`
+---
 
-### 8.3 Meetings: potential mismatch between frontend and backend audio processing
+## 15) Suggested reading order for new developers
 
-- Frontend `meetingsApi.processWithAI`:
-  - if `audioFile` is provided, it sends `FormData` with key `audio`
-- Backend `MeetingController.processWithAI`:
-  - reads `audioUrl` and `transcript` from `req.body`
-- Backend routes do not wire multer for `process-ai` in `server/src/routes/meeting.routes.ts`
+1. `server/src/index.ts` — what exists and boot order  
+2. `lib/apiBase.ts`, `lib/auth.ts`, `lib/api.ts` — how the SPA talks to the API  
+3. `app/admin/layout.tsx` — role + section access  
+4. `server/src/middleware/auth.ts` — JWT + `org_id`  
+5. Pick one vertical: `meetingController.ts` + `meeting-interface-webrtc.tsx` **or** `stock.routes.ts` + `dispatch-workflow.tsx`  
+6. `server/src/models/Company.ts` + `User.ts` — tenant and user shape  
 
-Net effect:
+---
 
-- audio upload may not work as intended unless there is additional middleware elsewhere (not found in `meeting.routes.ts`).
-
-### 8.4 Meetings: transcript generation appears incomplete in WebRTC UI
-
-- `components/meetings/meeting-interface-webrtc.tsx` initializes `transcript` state
-- A repo search did not find `SpeechRecognition` usage in that component
-- Without a transcript, AI analysis may receive an empty string
-
-### 8.5 Meetings: attendee action items in email likely filtered incorrectly
-
-- `AIMeetingService.generateAttendeeEmailBody` filters action items with:
-  - `item.assigned_to === "your_email"`
-- This is likely a placeholder mismatch; action items may not render per-attendee in emails.
-
-## 9) Glossary (Quick Reference)
-
-- `org_id`: tenant identifier scoped in JWT payload and applied to all queries.
-- `role`:
-  - `company_admin`, `hr`, `manager`, `employee`
-- `Meeting`:
-  - scheduled meeting stored in Mongo with `meeting_id` (link id) and `_id` (Mongo document id).
-- `Task`:
-  - follow-up tasks created from AI action items, linked back to a meeting via `meeting_id` (string).
-- Stock dispatch statuses:
-  - `assigned`, `packing`, `packed`, `dispatched`, `delivered` etc. stored in `StockInvoice.dispatch.status`.
-
-## Appendix: Where to Look Next
-
-If you want a deeper “full repository” understanding beyond the two deep-dives above, the next highest-signal areas are:
-
-- `app/**/page.tsx` for workflows (UI state + API calls)
-- `server/src/controllers/*` for business logic
-- `server/src/models/*` for entity shapes and tenant scoping rules
-- any `server/src/services/*` used by controllers for external integrations (AI, email, holidays, compliance, etc.)
+*Last refreshed from codebase exploration: dual DB sync, 143 App Router pages, expanded stock/accounts/owner APIs, transcript-based meeting AI, removal of Shule module.*

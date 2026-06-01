@@ -91,6 +91,7 @@ export default function OnboardingWizard() {
     primaryColor: "#2563eb",
     secondaryColor: "#059669",
     accentColor: "#f59e0b",
+    logoFile: null as File | null,
   })
 
   const [emailForm, setEmailForm] = useState({
@@ -200,7 +201,12 @@ export default function OnboardingWizard() {
   const handleSaveBranding = async () => {
     try {
       setSaving(true)
-      const response = await api.company.updateBranding(brandingForm)
+      const response = await api.company.updateBranding({
+        primaryColor: brandingForm.primaryColor,
+        secondaryColor: brandingForm.secondaryColor,
+        accentColor: brandingForm.accentColor,
+        logoFile: brandingForm.logoFile || undefined,
+      })
       if (response.success) {
         await updateStepProgress("branding", true)
         toast.success("Branding saved!")
@@ -595,55 +601,81 @@ export default function OnboardingWizard() {
             )}
 
             {currentStep.id === "branding" && (
-              <div className="space-y-4">
-                <div className="grid md:grid-cols-3 gap-4">
-                  <div>
-                    <Label>Primary Color</Label>
-                    <div className="flex gap-2">
-                      <Input
-                        type="color"
-                        value={brandingForm.primaryColor}
-                        onChange={(e) =>
-                          setBrandingForm({ ...brandingForm, primaryColor: e.target.value })
+              <div className="space-y-6">
+                {/* Logo Section */}
+                <div className="border rounded-lg p-4 bg-muted/40">
+                  <Label className="text-base mb-3 block">Logo (Optional)</Label>
+                  <p className="text-sm text-muted-foreground mb-4">PNG or SVG format, up to 300 KB recommended</p>
+                  <label className="inline-flex items-center gap-2 px-4 py-2 border rounded-lg cursor-pointer hover:bg-background transition">
+                    <span className="text-sm font-medium">Upload Logo</span>
+                    <input
+                      type="file"
+                      accept="image/png,image/svg+xml"
+                      className="hidden"
+                      onChange={(e) => {
+                        if (e.target.files?.[0]) {
+                          setBrandingForm({ ...brandingForm, logoFile: e.target.files[0] })
                         }
-                        className="w-16 h-10"
-                      />
-                      <Input value={brandingForm.primaryColor} readOnly />
+                      }}
+                    />
+                  </label>
+                  {brandingForm.logoFile && (
+                    <p className="text-sm text-muted-foreground mt-2">Selected: {brandingForm.logoFile.name}</p>
+                  )}
+                </div>
+
+                {/* Colors Section */}
+                <div className="space-y-4">
+                  <Label className="text-base">Brand Colors</Label>
+                  <div className="grid md:grid-cols-3 gap-4">
+                    <div>
+                      <Label className="text-sm">Primary Color</Label>
+                      <div className="flex gap-2 mt-2">
+                        <Input
+                          type="color"
+                          value={brandingForm.primaryColor}
+                          onChange={(e) =>
+                            setBrandingForm({ ...brandingForm, primaryColor: e.target.value })
+                          }
+                          className="w-16 h-10"
+                        />
+                        <Input value={brandingForm.primaryColor} readOnly className="text-sm" />
+                      </div>
                     </div>
-                  </div>
-                  <div>
-                    <Label>Secondary Color</Label>
-                    <div className="flex gap-2">
-                      <Input
-                        type="color"
-                        value={brandingForm.secondaryColor}
-                        onChange={(e) =>
-                          setBrandingForm({ ...brandingForm, secondaryColor: e.target.value })
-                        }
-                        className="w-16 h-10"
-                      />
-                      <Input value={brandingForm.secondaryColor} readOnly />
+                    <div>
+                      <Label className="text-sm">Secondary Color</Label>
+                      <div className="flex gap-2 mt-2">
+                        <Input
+                          type="color"
+                          value={brandingForm.secondaryColor}
+                          onChange={(e) =>
+                            setBrandingForm({ ...brandingForm, secondaryColor: e.target.value })
+                          }
+                          className="w-16 h-10"
+                        />
+                        <Input value={brandingForm.secondaryColor} readOnly className="text-sm" />
+                      </div>
                     </div>
-                  </div>
-                  <div>
-                    <Label>Accent Color</Label>
-                    <div className="flex gap-2">
-                      <Input
-                        type="color"
-                        value={brandingForm.accentColor}
-                        onChange={(e) =>
-                          setBrandingForm({ ...brandingForm, accentColor: e.target.value })
-                        }
-                        className="w-16 h-10"
-                      />
-                      <Input value={brandingForm.accentColor} readOnly />
+                    <div>
+                      <Label className="text-sm">Accent Color</Label>
+                      <div className="flex gap-2 mt-2">
+                        <Input
+                          type="color"
+                          value={brandingForm.accentColor}
+                          onChange={(e) =>
+                            setBrandingForm({ ...brandingForm, accentColor: e.target.value })
+                          }
+                          className="w-16 h-10"
+                        />
+                        <Input value={brandingForm.accentColor} readOnly className="text-sm" />
+                      </div>
                     </div>
                   </div>
                 </div>
+
                 <div className="p-4 bg-muted rounded-lg">
                   <p className="text-sm text-muted-foreground">
-                    These colors will be used throughout your company's interface. You can change
-                    them later from settings.
+                    You can customize more branding options (fonts, button styles, background colors) after setup in Company Settings.
                   </p>
                 </div>
               </div>

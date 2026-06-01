@@ -23,43 +23,51 @@ MongoDB (Primary)              MySQL (Secondary)
 
 ## Setup
 
-### 1. Ensure MySQL is Running
+### 1. Start MySQL locally
+
+**Option A — Docker (recommended):**
 
 ```bash
-# Verify MySQL connection
-mysql -u elevate -p -h localhost elevate_dev
+docker compose -f docker-compose.mysql.yml up -d
 ```
 
-Connection string in `.env`:
+**Option B — existing MySQL:** create database `elevate_dev` and a user with access.
+
+Add to `server/.env`:
+
 ```
 MYSQL_DATABASE_URL=mysql://elevate:elevate123@localhost:3306/elevate_dev
 ```
 
-### 2. Generate Prisma Client
+### 2. Create sync tables + Prisma client
 
 ```bash
 cd server
-npx prisma generate
+npm run db:setup
 ```
 
-### 3. Run Database Migrations
+This creates dedicated tables (`mongo_sync_users`, `mongo_sync_companies`, …) separate from legacy ERP tables (`User`, `Company`).
+
+### 3. Initial data sync (MongoDB → MySQL)
 
 ```bash
-# Create MySQL tables
-npx prisma migrate dev --name init
-
-# Or push schema directly (if no migrations folder)
-npx prisma db push
+cd server
+npm run db:sync
 ```
 
-### 4. Initial Data Sync (MongoDB → MySQL)
+On server start, the sync scheduler runs migrations and sync automatically every 5 minutes.
+
+### 4. Production / server deploy
+
+1. Set `MYSQL_DATABASE_URL` in the deployment environment.
+2. Set `NODE_ENV=production`.
+3. On deploy, the server runs `prisma migrate deploy` (migrations in `server/prisma/migrations/`).
+4. Ensure MySQL is reachable from the app host.
 
 ```bash
-# Sync existing users and companies from MongoDB
-npx ts-node src/scripts/syncMongoToMySQL.ts
-
-# Or compiled version
-node dist/scripts/syncMongoToMySQL.js
+cd server
+npx prisma migrate deploy
+npm run db:sync   # optional one-time backfill
 ```
 
 ## Usage in Code

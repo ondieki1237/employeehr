@@ -14,6 +14,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { LocationSelector } from "@/components/ui/location-selector"
 import { Building2 } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible"
 import { MANAGER_SECTION_OPTIONS } from "@/lib/manager-access"
 
 export default function CompanySettingsPage() {
@@ -170,6 +171,8 @@ export default function CompanySettingsPage() {
     root.style.setProperty("--brand-radius", borderRadius)
     root.style.setProperty("--radius", borderRadius)
     root.style.setProperty("--brand-font", fontFamily)
+    // Actually apply the font family to the entire document
+    root.style.fontFamily = fontFamily
     // Apply to actual page background
     root.style.backgroundColor = backgroundColor
     if (logo) root.style.setProperty("--company-logo-url", `url('${logo}')`)
@@ -390,77 +393,86 @@ export default function CompanySettingsPage() {
           </CardContent>
         </Card>
 
-        {/* Department KPIs */}
-        <Card className="border-2">
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">Department KPIs</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
-              <Input placeholder="KPI name" value={newKpi.name} onChange={(e) => setNewKpi({ ...newKpi, name: e.target.value })} />
-              <Select value={newKpi.department_id} onValueChange={(v) => setNewKpi({ ...newKpi, department_id: v })}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Department" />
-                </SelectTrigger>
-                <SelectContent>
-                  {departments.map((d: any) => (
-                    <SelectItem key={d._id} value={d._id}>{d.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Input placeholder="Category" value={newKpi.category} onChange={(e) => setNewKpi({ ...newKpi, category: e.target.value })} />
-              <Input placeholder="Unit" value={newKpi.unit} onChange={(e) => setNewKpi({ ...newKpi, unit: e.target.value })} />
-              <Input placeholder="Weight" type="number" value={newKpi.weight} onChange={(e) => setNewKpi({ ...newKpi, weight: e.target.value })} />
-              <Input placeholder="Target" type="number" value={newKpi.target} onChange={(e) => setNewKpi({ ...newKpi, target: e.target.value })} />
-            </div>
-            <Input placeholder="Description" value={newKpi.description} onChange={(e) => setNewKpi({ ...newKpi, description: e.target.value })} />
-            <Button onClick={async () => {
-              if (!newKpi.name.trim()) return
-              try {
-                const r = await api.kpis.create({
-                  name: newKpi.name.trim(),
-                  description: newKpi.description.trim(),
-                  category: newKpi.category.trim(),
-                  weight: Number(newKpi.weight) || 50,
-                  target: Number(newKpi.target) || 100,
-                  unit: newKpi.unit.trim(),
-                  department_id: newKpi.department_id || undefined,
-                } as any)
-                if (r?.success) {
-                  toast({ description: 'KPI created' })
-                  setNewKpi({ name: '', description: '', category: 'Operations', weight: '50', target: '100', unit: '%', department_id: '' })
-                  loadKpis()
-                }
-              } catch (err: any) {
-                toast({ description: err.message || 'Failed to create KPI', variant: 'destructive' })
-              }
-            }}>Create KPI</Button>
-            <div className="space-y-2 max-h-56 overflow-y-auto">
-              {kpis.map((kpi: any) => (
-                <div key={kpi._id} className="flex items-center justify-between gap-2 rounded-md border p-3">
-                  <div>
-                    <div className="font-medium">{kpi.name}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {kpi.category} • {departments.find((d) => d._id === kpi.department_id)?.name || 'All departments'}
-                    </div>
-                  </div>
-                  <Button variant="ghost" className="text-destructive" size="sm" onClick={async () => {
-                    if (!confirm(`Delete KPI \"${kpi.name}\"?`)) return
-                    try {
-                      const r = await api.kpis.delete(kpi._id)
-                      if (r?.success) {
-                        toast({ description: 'KPI deleted' })
-                        loadKpis()
-                      }
-                    } catch (err: any) {
-                      toast({ description: err.message || 'Failed to delete KPI', variant: 'destructive' })
-                    }
-                  }}>Delete</Button>
+        {/* Department KPIs (collapsible) */}
+        <Collapsible defaultOpen>
+          <Card className="border-2">
+            <CardHeader>
+              <div className="flex items-center justify-between w-full">
+                <CardTitle className="text-base flex items-center gap-2">Department KPIs</CardTitle>
+                <CollapsibleTrigger asChild>
+                  <Button variant="outline" size="sm">Toggle</Button>
+                </CollapsibleTrigger>
+              </div>
+            </CardHeader>
+            <CollapsibleContent>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <Input placeholder="KPI name" value={newKpi.name} onChange={(e) => setNewKpi({ ...newKpi, name: e.target.value })} />
+                  <Select value={newKpi.department_id} onValueChange={(v) => setNewKpi({ ...newKpi, department_id: v })}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Department" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {departments.map((d: any) => (
+                        <SelectItem key={d._id} value={d._id}>{d.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Input placeholder="Category" value={newKpi.category} onChange={(e) => setNewKpi({ ...newKpi, category: e.target.value })} />
+                  <Input placeholder="Unit" value={newKpi.unit} onChange={(e) => setNewKpi({ ...newKpi, unit: e.target.value })} />
+                  <Input placeholder="Weight" type="number" value={newKpi.weight} onChange={(e) => setNewKpi({ ...newKpi, weight: e.target.value })} />
+                  <Input placeholder="Target" type="number" value={newKpi.target} onChange={(e) => setNewKpi({ ...newKpi, target: e.target.value })} />
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+                <Input placeholder="Description" value={newKpi.description} onChange={(e) => setNewKpi({ ...newKpi, description: e.target.value })} />
+                <Button onClick={async () => {
+                  if (!newKpi.name.trim()) return
+                  try {
+                    const r = await api.kpis.create({
+                      name: newKpi.name.trim(),
+                      description: newKpi.description.trim(),
+                      category: newKpi.category.trim(),
+                      weight: Number(newKpi.weight) || 50,
+                      target: Number(newKpi.target) || 100,
+                      unit: newKpi.unit.trim(),
+                      department_id: newKpi.department_id || undefined,
+                    } as any)
+                    if (r?.success) {
+                      toast({ description: 'KPI created' })
+                      setNewKpi({ name: '', description: '', category: 'Operations', weight: '50', target: '100', unit: '%', department_id: '' })
+                      loadKpis()
+                    }
+                  } catch (err: any) {
+                    toast({ description: err.message || 'Failed to create KPI', variant: 'destructive' })
+                  }
+                }}>Create KPI</Button>
+                <div className="space-y-2 max-h-56 overflow-y-auto">
+                  {kpis.map((kpi: any) => (
+                    <div key={kpi._id} className="flex items-center justify-between gap-2 rounded-md border p-3">
+                      <div>
+                        <div className="font-medium">{kpi.name}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {kpi.category} • {departments.find((d) => d._id === kpi.department_id)?.name || 'All departments'}
+                        </div>
+                      </div>
+                      <Button variant="ghost" className="text-destructive" size="sm" onClick={async () => {
+                        if (!confirm(`Delete KPI \"${kpi.name}\"?`)) return
+                        try {
+                          const r = await api.kpis.delete(kpi._id)
+                          if (r?.success) {
+                            toast({ description: 'KPI deleted' })
+                            loadKpis()
+                          }
+                        } catch (err: any) {
+                          toast({ description: err.message || 'Failed to delete KPI', variant: 'destructive' })
+                        }
+                      }}>Delete</Button>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </CollapsibleContent>
+          </Card>
+        </Collapsible>
 
         {/* Location & Holidays */}
         <Card className="md:col-span-2 border-2">

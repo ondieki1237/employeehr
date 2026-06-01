@@ -50,7 +50,6 @@ import stockRoutes from "./routes/stock.routes"
 import stampRoutes from "./routes/stamp.routes"
 import smsWebhookRoutes from "./routes/smsWebhook.routes"
 import mpesaWebhookRoutes from "./routes/mpesaWebhook.routes"
-import shuleRoutes from "./routes/shule.routes"
 import ownerRoutes from "./routes/owner.routes"
 import complaintRoutes from "./routes/complaint.routes"
 import branchRoutes from "./routes/branch.routes"
@@ -182,7 +181,6 @@ app.use("/api/stamps", stampRoutes)
 app.use("/api/resources", resourcesRoutes)
 app.use("/api/complaints", complaintRoutes)
 app.use("/api", bookingRoutes)
-app.use("/api/shule", shuleRoutes)
 app.use("/api/owner", ownerRoutes)
 
 // 404 handler
@@ -206,9 +204,16 @@ async function startServer() {
 
     // Always run Prisma migrations before starting sync scheduler
     // The sync scheduler depends on tables existing
-    console.log("🔄 Running database migrations...")
-    await runMigrations()
-    console.log("✅ Database migrations completed")
+    if (!process.env.MYSQL_DATABASE_URL?.trim()) {
+      console.warn("⚠️ MYSQL_DATABASE_URL is not set — Mongo→MySQL sync is disabled")
+    } else {
+      console.log("🔄 Running database migrations...")
+      const migrationsOk = await runMigrations()
+      if (!migrationsOk) {
+        throw new Error("MySQL migrations failed — check MYSQL_DATABASE_URL and that MySQL is running")
+      }
+      console.log("✅ Database migrations completed")
+    }
 
     server.listen(PORT, () => {
       console.log(`✅ Server running on port ${PORT}`)

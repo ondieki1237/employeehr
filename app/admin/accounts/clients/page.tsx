@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
+import { useRef } from "react"
 
 interface ClientActivity {
   type: "quotation" | "invoice" | "payment" | "sale"
@@ -72,6 +73,8 @@ export default function AccountsClientsPage() {
     location: "",
     contactPerson: "",
   })
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const [uploadingClients, setUploadingClients] = useState(false)
 
   const loadData = async () => {
     try {
@@ -167,6 +170,7 @@ export default function AccountsClientsPage() {
         sourceNumber: number,
         sourceLocation: location,
         legalName: name,
+        contactPerson: newClient.contactPerson.trim() || undefined,
       })
 
       setNewClient({
@@ -222,6 +226,42 @@ export default function AccountsClientsPage() {
           <div className="flex justify-end">
             <Button onClick={handleAddClient} disabled={savingClient}>
               {savingClient ? "Saving..." : "Save Client"}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Bulk Upload Clients</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm">
+            Download a sample CSV, fill rows and upload. Required columns:{" "}
+            <strong>client_name, client_number, client_location</strong>. Optional: <strong>contact_person</strong>.
+          </p>
+          <div className="flex items-center gap-3">
+            <a className="text-sm text-primary underline" href="/static/sample-clients.csv" download>
+              Download sample CSV
+            </a>
+            <input ref={fileInputRef} type="file" accept=".csv" className="hidden" onChange={async (e) => {
+              const file = e.target.files && e.target.files[0]
+              if (!file) return
+              try {
+                setUploadingClients(true)
+                const res = await stockApi.bulkUploadClients(file)
+                if (!res?.success) throw new Error(res?.message || "Upload failed")
+                window.alert(res?.message || "Upload complete")
+                await loadData()
+              } catch (err: any) {
+                window.alert(err?.message || "Upload failed")
+              } finally {
+                setUploadingClients(false)
+                if (fileInputRef.current) fileInputRef.current.value = ""
+              }
+            }} />
+            <Button onClick={() => fileInputRef.current?.click()} disabled={uploadingClients} size="sm">
+              {uploadingClients ? "Uploading..." : "Upload CSV"}
             </Button>
           </div>
         </CardContent>
