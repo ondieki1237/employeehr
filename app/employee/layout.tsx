@@ -6,6 +6,7 @@ import { getUser } from "@/lib/auth"
 import { companyApi } from "@/lib/api"
 import { EmployeeSidebar } from "@/components/employee/sidebar"
 import { EmployeeTopNav } from "@/components/employee/top-nav"
+import { AiAssistantChat } from "@/components/ai/ai-assistant-chat"
 
 const EMPLOYEE_SECTION_PATHS: Array<{ section: string; match: (path: string) => boolean }> = [
   { section: "CORE", match: (path) => ["/employee", "/employee/profile", "/employee/tasks", "/employee/messages"].some((prefix) => path === prefix || path.startsWith(prefix + "/")) },
@@ -112,6 +113,7 @@ export default function EmployeeLayout({
           {children}
         </main>
       </div>
+      <AiAssistantChat />
     </div>
   )
 }

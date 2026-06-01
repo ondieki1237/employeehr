@@ -904,6 +904,22 @@ const creditNoteApi = {
     delete: (id: string) => client.delete<any>(`/api/stock/credit-notes/${id}`),
 }
 
+export type AiChatTurn = {
+    role: 'user' | 'assistant'
+    content: string
+}
+
+export const aiAssistantApi = {
+    getStatus: () =>
+        client.get<{ enabled: boolean; model?: string; provider?: string }>('/api/ai-assistant/status'),
+
+    chat: (message: string, history: AiChatTurn[] = []) =>
+        client.post<{ answer: string; toolsUsed?: string[] }>('/api/ai-assistant/chat', {
+            message,
+            history,
+        }),
+}
+
 // Export all APIs
 export const api = {
     auth: authApi,
@@ -928,6 +944,7 @@ export const api = {
     stamps: stampsApi,
     complaints: complaintsApi,
     branches: branchesApi,
+    aiAssistant: aiAssistantApi,
 }
 
 export default api

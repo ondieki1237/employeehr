@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation"
 import { getUser } from "@/lib/auth"
 import ManagerSidebar from "@/components/manager/sidebar"
 import TopNav from "@/components/admin/top-nav"
+import { AiAssistantChat } from "@/components/ai/ai-assistant-chat"
 import { getManagerSectionForPath } from "@/lib/manager-access"
 
 export default function ManagerLayout({
@@ -102,6 +103,7 @@ export default function ManagerLayout({
         />
         <main className="flex-1 overflow-auto">{children}</main>
       </div>
+      <AiAssistantChat />
     </div>
   )
 }

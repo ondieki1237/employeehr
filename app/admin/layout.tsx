@@ -6,6 +6,7 @@ import { getUser, isAdmin, logout } from "@/lib/auth"
 import { api } from "@/lib/api"
 import Sidebar from "@/components/admin/sidebar"
 import TopNav from "@/components/admin/top-nav"
+import { AiAssistantChat } from "@/components/ai/ai-assistant-chat"
 
 const ADMIN_SECTION_PATHS: Array<{ section: string; match: (path: string) => boolean }> = [
   { section: "CORE", match: (path) => path === "/admin" || path.startsWith("/admin/users") },
@@ -156,6 +157,7 @@ export default function AdminLayout({
         />
         <main className="flex-1 overflow-auto">{children}</main>
       </div>
+      <AiAssistantChat />
     </div>
   )
 }
