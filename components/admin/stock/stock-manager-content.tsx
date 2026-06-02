@@ -149,6 +149,15 @@ interface ClientSuggestion {
   contactPerson?: string
 }
 
+function hexToRgba(hex: string, alpha: number) {
+  const normalized = hex.replace("#", "")
+  if (!/^[0-9a-fA-F]{6}$/.test(normalized)) return `rgba(15, 118, 110, ${alpha})`
+  const r = Number.parseInt(normalized.slice(0, 2), 16)
+  const g = Number.parseInt(normalized.slice(2, 4), 16)
+  const b = Number.parseInt(normalized.slice(4, 6), 16)
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`
+}
+
 export function StockManagerContent({ view }: { view: StockView }) {
   const { toast } = useToast()
   const [loading, setLoading] = useState(true)
@@ -237,6 +246,7 @@ export function StockManagerContent({ view }: { view: StockView }) {
   const [saleFormOpen, setSaleFormOpen] = useState(false)
   const [productAreaCollapsed, setProductAreaCollapsed] = useState(false)
   const [salesSearch, setSalesSearch] = useState("")
+  const [salesPage, setSalesPage] = useState(1)
   const [inventorySearch, setInventorySearch] = useState("")
   const [inventoryBranchFilter, setInventoryBranchFilter] = useState("all")
   const [selectedAnalyticsProductId, setSelectedAnalyticsProductId] = useState("")
@@ -263,14 +273,14 @@ export function StockManagerContent({ view }: { view: StockView }) {
 
   const primaryColor = branding.primaryColor || "#0f766e"
   const secondaryColor = branding.secondaryColor || "#0ea5e9"
-  const primarySoftColor = `${primaryColor}12`
-  const secondarySoftColor = `${secondaryColor}12`
-  const primaryBorderColor = `${primaryColor}2E`
+  const primarySoftColor = hexToRgba(primaryColor, 0.08)
+  const secondarySoftColor = hexToRgba(secondaryColor, 0.08)
+  const primaryBorderColor = hexToRgba(primaryColor, 0.18)
 
   const fetchAll = async () => {
     try {
       setLoading(true)
-      const [categoriesRes, productsRes, usersRes, salesRes, entriesRes, quotationsRes, invoicesRes, branchesRes, clientsRes] = await Promise.all([
+      const [categoriesRes, productsRes, usersRes, salesRes, entriesRes, quotationsRes, invoicesRes, branchesRes, clientsRes, brandingRes] = await Promise.all([
         fetch(`${API_URL}/api/stock/categories`, { headers }),
         fetch(`${API_URL}/api/stock/products`, { headers }),
         fetch(`${API_URL}/api/users`, { headers }),
@@ -280,9 +290,10 @@ export function StockManagerContent({ view }: { view: StockView }) {
         fetch(`${API_URL}/api/stock/invoices`, { headers }),
         fetch(`${API_URL}/api/branches`, { headers }),
         fetch(`${API_URL}/api/stock/clients`, { headers }),
+        fetch(`${API_URL}/api/company/branding`, { headers }),
       ])
 
-      const [categoriesJson, productsJson, usersJson, salesJson, entriesJson, quotationsJson, invoicesJson, branchesJson, clientsJson] = await Promise.all([
+      const [categoriesJson, productsJson, usersJson, salesJson, entriesJson, quotationsJson, invoicesJson, branchesJson, clientsJson, brandingJson] = await Promise.all([
         categoriesRes.json(),
         productsRes.json(),
         usersRes.json(),
@@ -292,6 +303,7 @@ export function StockManagerContent({ view }: { view: StockView }) {
         invoicesRes.json(),
         branchesRes.json(),
         clientsRes.json(),
+        brandingRes.json(),
       ])
 
       setCategories(categoriesJson.data || [])
@@ -303,6 +315,7 @@ export function StockManagerContent({ view }: { view: StockView }) {
       setInvoices(invoicesJson.data || [])
       setClients((clientsJson.data || []).filter((client: ClientSuggestion) => client.name && client.number && client.location))
       setBranches((branchesJson.data || []).filter((branch: any) => branch.isActive))
+      setBranding(brandingJson.data || {})
     } catch {
       toast({ title: "Error", description: "Failed to load inventory data", variant: "destructive" })
     } finally {
@@ -460,6 +473,17 @@ export function StockManagerContent({ view }: { view: StockView }) {
       productCategory.includes(normalizedSalesSearch)
     )
   })
+  const salesPageSize = 10
+  const salesTotalPages = Math.max(1, Math.ceil(filteredSales.length / salesPageSize))
+  const salesPageRows = filteredSales.slice((salesPage - 1) * salesPageSize, salesPage * salesPageSize)
+
+  useEffect(() => {
+    setSalesPage(1)
+  }, [salesSearch])
+
+  useEffect(() => {
+    setSalesPage((current) => Math.min(current, salesTotalPages))
+  }, [salesTotalPages])
 
   const filteredProductsForInventory = products.filter((product) => {
     if (!matchesProductAndCategory(product, normalizedInventorySearch)) return false
@@ -2292,46 +2316,70 @@ export function StockManagerContent({ view }: { view: StockView }) {
                   </div>
                 </div>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="min-w-[1400px] w-full table-fixed text-[13px]">
-                    <thead className="sticky top-0 z-10 bg-muted/80 text-left text-[11px] uppercase tracking-wide text-muted-foreground backdrop-blur">
-                      <tr className="border-b">
-                        <th className="px-3 py-3 font-medium w-[12%]">Date</th>
-                        <th className="px-3 py-3 font-medium w-[10%]">Receipt #</th>
-                        <th className="px-3 py-3 font-medium w-[16%]">Product</th>
-                        <th className="px-3 py-3 font-medium w-[10%]">Qty</th>
-                        <th className="px-3 py-3 font-medium w-[12%]">Price</th>
-                        <th className="px-3 py-3 font-medium w-[14%]">Buyer</th>
-                        <th className="px-3 py-3 font-medium w-[12%]">Sold By</th>
-                        <th className="px-3 py-3 font-medium w-[8%]">Remaining</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredSales.map((sale, index) => (
-                        <tr key={sale._id} className={`border-b align-top transition-colors hover:bg-muted/40 ${index % 2 === 0 ? "bg-white" : "bg-muted/20"}`}>
-                          <td className="px-3 py-2 align-top text-[11px] text-muted-foreground">
-                            <div>{new Date(sale.createdAt).toLocaleDateString("en-KE", { year: "numeric", month: "short", day: "2-digit" })}</div>
-                            <div className="mt-0.5 text-[10px]">{new Date(sale.createdAt).toLocaleTimeString("en-KE", { hour: "2-digit", minute: "2-digit" })}</div>
-                          </td>
-                          <td className="px-3 py-2 align-top font-medium">{sale.receiptNumber || "-"}</td>
-                          <td className="px-3 py-2 align-top min-w-0">
-                            <div className="truncate font-medium text-foreground" title={sale.product?.name || "-"}>{sale.product?.name || "-"}</div>
-                            <div className="truncate text-[11px] text-muted-foreground">{(sale.product as any)?.categoryDetails?.name || "-"}</div>
-                          </td>
-                          <td className="px-3 py-2 align-top font-medium">{sale.quantitySold}</td>
-                          <td className="px-3 py-2 align-top font-medium" style={{ color: primaryColor }}>KES {Number(sale.soldPrice || 0).toFixed(2)}</td>
-                          <td className="px-3 py-2 align-top text-muted-foreground">
-                            <div className="truncate" title={sale.isWalkInClient ? "Walk-in Client" : sale.buyerName || "-"}>
-                              {sale.isWalkInClient ? "Walk-in Client" : sale.buyerName || "-"}
-                            </div>
-                          </td>
-                          <td className="px-3 py-2 align-top text-muted-foreground">{sale.soldByUser ? `${sale.soldByUser.firstName} ${sale.soldByUser.lastName}` : "-"}</td>
-                          <td className="px-3 py-2 align-top font-medium">{sale.remainingQuantity}</td>
+                <>
+                  <div className="overflow-x-auto">
+                    <table className="min-w-[1400px] w-full table-fixed text-[13px]">
+                      <thead className="sticky top-0 z-10 bg-muted/80 text-left text-[11px] uppercase tracking-wide text-muted-foreground backdrop-blur">
+                        <tr className="border-b">
+                          <th className="px-3 py-3 font-medium w-[12%]">Date</th>
+                          <th className="px-3 py-3 font-medium w-[10%]">Receipt #</th>
+                          <th className="px-3 py-3 font-medium w-[16%]">Product</th>
+                          <th className="px-3 py-3 font-medium w-[10%]">Qty</th>
+                          <th className="px-3 py-3 font-medium w-[12%]">Price</th>
+                          <th className="px-3 py-3 font-medium w-[14%]">Buyer</th>
+                          <th className="px-3 py-3 font-medium w-[12%]">Sold By</th>
+                          <th className="px-3 py-3 font-medium w-[8%]">Remaining</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                      </thead>
+                      <tbody>
+                        {salesPageRows.map((sale, index) => (
+                          <tr key={sale._id} className={`border-b align-top transition-colors hover:bg-muted/40 ${index % 2 === 0 ? "bg-white" : "bg-muted/20"}`}>
+                            <td className="px-3 py-2 align-top text-[11px] text-muted-foreground">
+                              <div>{new Date(sale.createdAt).toLocaleDateString("en-KE", { year: "numeric", month: "short", day: "2-digit" })}</div>
+                              <div className="mt-0.5 text-[10px]">{new Date(sale.createdAt).toLocaleTimeString("en-KE", { hour: "2-digit", minute: "2-digit" })}</div>
+                            </td>
+                            <td className="px-3 py-2 align-top font-medium">{sale.receiptNumber || "-"}</td>
+                            <td className="px-3 py-2 align-top min-w-0">
+                              <div className="truncate font-medium text-foreground" title={sale.product?.name || "-"}>{sale.product?.name || "-"}</div>
+                              <div className="truncate text-[11px] text-muted-foreground">{(sale.product as any)?.categoryDetails?.name || "-"}</div>
+                            </td>
+                            <td className="px-3 py-2 align-top font-medium">{sale.quantitySold}</td>
+                            <td className="px-3 py-2 align-top font-medium" style={{ color: primaryColor }}>KES {Number(sale.soldPrice || 0).toFixed(2)}</td>
+                            <td className="px-3 py-2 align-top text-muted-foreground">
+                              <div className="truncate" title={sale.isWalkInClient ? "Walk-in Client" : sale.buyerName || "-"}>
+                                {sale.isWalkInClient ? "Walk-in Client" : sale.buyerName || "-"}
+                              </div>
+                            </td>
+                            <td className="px-3 py-2 align-top text-muted-foreground">{sale.soldByUser ? `${sale.soldByUser.firstName} ${sale.soldByUser.lastName}` : "-"}</td>
+                            <td className="px-3 py-2 align-top font-medium">{sale.remainingQuantity}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  {filteredSales.length > salesPageSize && (
+                    <div className="flex flex-col gap-3 border-t px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="text-sm text-muted-foreground">
+                        Showing {(salesPage - 1) * salesPageSize + 1}–{Math.min(salesPage * salesPageSize, filteredSales.length)} of {filteredSales.length}
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button variant="outline" size="sm" disabled={salesPage === 1} onClick={() => setSalesPage((current) => Math.max(1, current - 1))}>Prev</Button>
+                        {Array.from({ length: Math.min(5, salesTotalPages) }, (_, index) => index + 1).map((pageNumber) => (
+                          <Button key={pageNumber} variant={pageNumber === salesPage ? "default" : "outline"} size="sm" onClick={() => setSalesPage(pageNumber)} className="min-w-9">
+                            {pageNumber}
+                          </Button>
+                        ))}
+                        {salesTotalPages > 5 && <span className="px-1 text-sm text-muted-foreground">...</span>}
+                        {salesTotalPages > 5 && (
+                          <Button variant={salesPage === salesTotalPages ? "default" : "outline"} size="sm" onClick={() => setSalesPage(salesTotalPages)} className="min-w-9">
+                            {salesTotalPages}
+                          </Button>
+                        )}
+                        <Button variant="outline" size="sm" disabled={salesPage === salesTotalPages} onClick={() => setSalesPage((current) => Math.min(salesTotalPages, current + 1))}>Next</Button>
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
             </CardContent>
           </Card>

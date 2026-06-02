@@ -712,7 +712,7 @@ export default function AdminDashboard() {
 
   return (
     <div
-      className="min-h-screen p-3 sm:p-4 lg:p-6 bg-slate-50"
+      className="min-h-screen overflow-x-hidden p-2 sm:p-4 lg:p-6 bg-slate-50"
       style={{
         color: brand.text,
       }}
@@ -736,7 +736,7 @@ export default function AdminDashboard() {
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 sm:justify-end">
               <Badge variant="outline" className="gap-1.5 border-slate-300 bg-white text-slate-700 text-xs sm:text-sm hidden sm:flex">
                 <Clock3 className="h-3.5 w-3.5" />
                 {lastUpdatedAt ? `Last updated ${formatTime(lastUpdatedAt)}` : 'Updating...'}
@@ -776,12 +776,12 @@ export default function AdminDashboard() {
         {/* Main grid */}
         <div className="grid gap-4 lg:gap-6 xl:grid-cols-[1.65fr_1fr]">
           <div className="space-y-4 lg:space-y-6">
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
-              <MetricCard accentColor={brand.primary} trend={kpiTrends.employees} label="Total Employees" value={stats.totalUsers} sublabel={`${stats.activeUsers} active`} icon={<Users className="h-4 w-4 sm:h-5 sm:w-5" />} />
-              <MetricCard accentColor={brand.secondary} trend={kpiTrends.meetings} label="Meetings" value={stats.meetingsThisMonth} sublabel="Scheduled this month" icon={<ClipboardCheck className="h-4 w-4 sm:h-5 sm:w-5" />} />
-              <MetricCard accentColor={brand.accent} trend={kpiTrends.leave * -1} label="Pending Leave" value={stats.pendingLeave} sublabel="Requires review" icon={<CalendarDays className="h-4 w-4 sm:h-5 sm:w-5" />} />
-              <MetricCard accentColor={brand.primary} trend={kpiTrends.invoices} label="Invoices" value={data.stockInvoices.length} sublabel="Billing activity" icon={<DollarSign className="h-4 w-4 sm:h-5 sm:w-5" />} />
-              <MetricCard accentColor={brand.secondary} trend={Math.round(stats.avgPerformance)} label="Avg Performance" value={stats.avgPerformance > 0 ? stats.avgPerformance.toFixed(1) : 'N/A'} sublabel="Organization score" icon={<TrendingUp className="h-4 w-4 sm:h-5 sm:w-5" />} />
+            <div className="grid grid-cols-4 gap-1.5 sm:grid-cols-5 sm:gap-2 lg:grid-cols-5">
+              <MetricCard accentColor={brand.primary} trend={kpiTrends.employees} label="Total Employees" mobileLabel="Employees" value={stats.totalUsers} sublabel={`${stats.activeUsers} active`} mobileSublabel={`${stats.activeUsers} active`} icon={<Users className="h-5 w-5" />} />
+              <MetricCard className="hidden sm:block" accentColor={brand.secondary} trend={kpiTrends.meetings} label="Meetings" mobileLabel="Meet" value={stats.meetingsThisMonth} sublabel="Scheduled this month" mobileSublabel="month" icon={<ClipboardCheck className="h-5 w-5" />} />
+              <MetricCard accentColor={brand.accent} trend={kpiTrends.leave * -1} label="Pending Leave" mobileLabel="Leave" value={stats.pendingLeave} sublabel="Requires review" mobileSublabel="pending" icon={<CalendarDays className="h-5 w-5" />} />
+              <MetricCard accentColor={brand.primary} trend={kpiTrends.invoices} label="Invoices" mobileLabel="Invoices" value={data.stockInvoices.length} sublabel="Billing activity" mobileSublabel="bills" icon={<DollarSign className="h-5 w-5" />} />
+              <MetricCard accentColor={brand.secondary} trend={0} label="Quotations" mobileLabel="Quotation" value={data.stockQuotations.length} sublabel="Stock quotations" mobileSublabel="quotes" icon={<FileText className="h-5 w-5" />} />
             </div>
 
             <div className="grid gap-4 xl:grid-cols-2">
@@ -801,7 +801,7 @@ export default function AdminDashboard() {
                     </Select>
                   </div>
                 </CardHeader>
-                <CardContent className="h-64">
+                <CardContent className="h-44 sm:h-64">
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={monthlyTrends}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} />
@@ -820,7 +820,7 @@ export default function AdminDashboard() {
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base sm:text-lg font-semibold text-slate-900">Sales performance</CardTitle>
                 </CardHeader>
-                <CardContent className="h-48 sm:h-64">
+                <CardContent className="h-40 sm:h-64">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={performanceChart}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} />
@@ -837,13 +837,13 @@ export default function AdminDashboard() {
             <div className="grid gap-4 xl:grid-cols-2">
               <Card className="rounded-2xl border-slate-200 bg-white shadow-sm">
                 <CardHeader className="pb-2">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-lg font-semibold text-slate-900">Dispatch activity</CardTitle>
+                  <div className="flex items-center justify-between gap-2">
+                    <CardTitle className="text-base sm:text-lg font-semibold text-slate-900">Dispatch activity</CardTitle>
                     <Link href="/admin/stock/dispatch"><Button variant="outline" size="sm">Open dispatch</Button></Link>
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-[1fr_auto] items-center gap-2">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-[1fr_auto] sm:items-center">
                     <div className="space-y-2">
                       {dispatchChartData.map((item) => (
                         <div key={item.name} className="rounded-xl border border-slate-200 bg-slate-50 p-2.5">
@@ -855,7 +855,7 @@ export default function AdminDashboard() {
                         </div>
                       ))}
                     </div>
-                    <div className="h-40 w-40">
+                    <div className="hidden h-32 w-32 sm:block sm:h-40 sm:w-40">
                       <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
                           <Pie data={dispatchChartData} innerRadius={46} outerRadius={70} paddingAngle={2} dataKey="value">
@@ -874,7 +874,7 @@ export default function AdminDashboard() {
               <Card className="rounded-2xl border-slate-200 bg-white shadow-sm">
                 <CardHeader className="pb-2">
                   <div className="flex items-center justify-between">
-                    <CardTitle className="text-lg font-semibold text-slate-900">Recent activity</CardTitle>
+                    <CardTitle className="text-base sm:text-lg font-semibold text-slate-900">Recent activity</CardTitle>
                     <Activity className="h-4 w-4 text-slate-400" />
                   </div>
                 </CardHeader>
@@ -1069,24 +1069,48 @@ export default function AdminDashboard() {
   )
 }
 
-function MetricCard({ label, value, sublabel, icon, accentColor, trend }: { label: string; value: string | number; sublabel: string; icon: React.ReactNode; accentColor?: string; trend?: number }) {
+function MetricCard({
+  label,
+  mobileLabel,
+  value,
+  sublabel,
+  mobileSublabel,
+  icon,
+  accentColor,
+  trend,
+  className,
+}: {
+  label: string
+  mobileLabel?: string
+  value: string | number
+  sublabel: string
+  mobileSublabel?: string
+  icon: React.ReactNode
+  accentColor?: string
+  trend?: number
+  className?: string
+}) {
   const trendValue = Math.round(Number(trend || 0))
   const isPositive = trendValue >= 0
   return (
-    <Card className="rounded-2xl border-slate-200 bg-white shadow-sm">
-      <CardContent className="p-2.5 sm:p-3.5">
-        <div className="flex items-start justify-between gap-2 sm:gap-3">
-          <div>
-            <p className="text-[10px] sm:text-xs font-medium uppercase tracking-wide text-slate-500 line-clamp-2">{label}</p>
-            <p className="mt-1 sm:mt-2 text-xl sm:text-3xl font-semibold text-slate-900">{value}</p>
-            <div className="mt-1 sm:mt-2 flex items-center gap-1 sm:gap-2">
-              <p className="text-[10px] sm:text-xs text-slate-500 line-clamp-1">{sublabel}</p>
-              <span className={`inline-flex items-center gap-0.5 rounded-full px-1 sm:px-1.5 py-0.5 text-[8px] sm:text-[10px] font-semibold whitespace-nowrap ${isPositive ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
-                {isPositive ? <ArrowUpRight className="h-2 w-2 sm:h-3 sm:w-3" /> : <ArrowDownRight className="h-2 w-2 sm:h-3 sm:w-3" />} {Math.abs(trendValue)}%
+    <Card className={`min-w-0 rounded-md border-slate-200 bg-white shadow-sm sm:rounded-2xl ${className || ''}`}>
+      <CardContent className="h-[68px] px-1 py-1.5 sm:h-auto sm:p-3.5">
+        <div className="flex h-full min-w-0 flex-col items-center justify-center text-center sm:flex-row sm:items-start sm:justify-between sm:gap-3 sm:text-left">
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[10px] font-semibold uppercase leading-none tracking-normal text-slate-500 sm:text-xs sm:font-medium sm:tracking-wide">
+              <span className="sm:hidden">{mobileLabel || label}</span>
+              <span className="hidden sm:inline">{label}</span>
+            </p>
+            <p className="mt-1 truncate text-lg font-semibold leading-none text-slate-900 sm:mt-2 sm:text-3xl">{value}</p>
+            <p className="mt-1 truncate text-[9.5px] leading-none text-slate-500 sm:hidden">{mobileSublabel || sublabel}</p>
+            <div className="mt-1 flex min-w-0 items-center justify-center sm:mt-2 sm:justify-start sm:gap-2">
+              <p className="hidden min-w-0 flex-1 truncate text-xs text-slate-500 sm:block">{sublabel}</p>
+              <span className={`inline-flex max-w-full shrink-0 items-center justify-center gap-0.5 rounded-full px-1.5 py-0.5 text-[9px] font-semibold leading-none sm:text-[10px] ${isPositive ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
+                {isPositive ? <ArrowUpRight className="hidden h-3 w-3 sm:block" /> : <ArrowDownRight className="hidden h-3 w-3 sm:block" />} {Math.abs(trendValue)}%
               </span>
             </div>
           </div>
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 sm:h-12 sm:w-12" style={{ color: accentColor || '#334155' }}>{icon}</div>
+          <div className="hidden h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 sm:flex" style={{ color: accentColor || '#334155' }}>{icon}</div>
         </div>
       </CardContent>
     </Card>

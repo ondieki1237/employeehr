@@ -45,6 +45,8 @@ interface SidebarProps {
   onCollapseToggle: () => void
 }
 
+const COLLAPSED_SECTIONS_KEY = "admin_sidebar_collapsed_sections"
+
 const adminMenuItems = [
   // Core Management
   {
@@ -325,8 +327,20 @@ export default function AdminSidebar({ isOpen, isCollapsed, onToggle, onCollapse
   const pathname = usePathname()
   const [allowedSections, setAllowedSections] = useState<Set<string> | null>(null)
   const [pendingQuotationCount, setPendingQuotationCount] = useState(0)
+  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set())
 
   const currentUser = useMemo(() => getUser(), [])
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(COLLAPSED_SECTIONS_KEY)
+      if (saved) {
+        setCollapsedSections(new Set(JSON.parse(saved)))
+      }
+    } catch {
+      setCollapsedSections(new Set())
+    }
+  }, [])
 
   useEffect(() => {
     const loadSectionAccess = async () => {
@@ -413,6 +427,24 @@ export default function AdminSidebar({ isOpen, isCollapsed, onToggle, onCollapse
     logout()
   }
 
+  const toggleSection = (sectionName: string) => {
+    setCollapsedSections((current) => {
+      const next = new Set(current)
+      if (next.has(sectionName)) {
+        next.delete(sectionName)
+      } else {
+        next.add(sectionName)
+      }
+
+      try {
+        localStorage.setItem(COLLAPSED_SECTIONS_KEY, JSON.stringify(Array.from(next)))
+      } catch {
+      }
+
+      return next
+    })
+  }
+
   // Group menu items by section
   const sections: { [key: string]: typeof adminMenuItems } = {}
   adminMenuItems.forEach(item => {
@@ -455,12 +487,21 @@ export default function AdminSidebar({ isOpen, isCollapsed, onToggle, onCollapse
         <nav className={`px-3 py-4 space-y-4 flex-1 min-h-0 overflow-y-auto ${isCollapsed ? "" : ""}`}>
           {sectionEntries.map(([sectionName, items]) => (
             <div key={sectionName}>
-              {!isCollapsed && (
-                <h3 className="px-4 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                  {sectionName}
-                </h3>
-              )}
-              <div className="space-y-2">
+              {!isCollapsed ? (
+                <button
+                  type="button"
+                  onClick={() => toggleSection(sectionName)}
+                  className="mb-1 flex w-full items-center justify-between rounded-md px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground transition hover:bg-secondary hover:text-foreground"
+                  aria-expanded={!collapsedSections.has(sectionName)}
+                >
+                  <span>{sectionName}</span>
+                  <ChevronDown
+                    size={14}
+                    className={`transition-transform ${collapsedSections.has(sectionName) ? "-rotate-90" : "rotate-0"}`}
+                  />
+                </button>
+              ) : null}
+              <div className={`space-y-2 ${!isCollapsed && collapsedSections.has(sectionName) ? "hidden" : ""}`}>
                 {items.map((item) => {
                   const Icon = item.icon
                   const isActive = pathname === item.href || pathname.startsWith(item.href + "/")

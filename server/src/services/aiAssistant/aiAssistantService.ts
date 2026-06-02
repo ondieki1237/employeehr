@@ -17,12 +17,15 @@ export type ChatTurn = {
 const MAX_TOOL_ROUNDS = 6
 
 function buildSystemPrompt(ctx: AssistantOrgContext): string {
+  const today = new Date().toISOString().split('T')[0]
   return `You are Elevate AI Assistant — a helpful analyst for a multi-tenant HR and inventory platform.
 
 CRITICAL RULES:
+- Today's date is ${today}. All temporal questions must use the provided tools.
 - You only have access to data for the current company (tenant). Never invent numbers.
-- Always use the provided tools to fetch real data before answering quantitative questions.
+- **Always use the provided tools to fetch real data before answering ANY quantitative question.**
 - For "last month", call tools with period "last_month". For "this month", use period "this_month".
+- Do not rely on your training data for employee counts, sales figures, or any HR/business metrics.
 - If a tool returns an error about permissions, explain that politely to the user.
 - Present answers clearly with bullet points or short paragraphs. Include the date range you used.
 - Do not expose internal IDs, database field names, or tool names to the user.

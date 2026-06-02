@@ -11,6 +11,8 @@
   "dependencies": {
     "@emotion/is-prop-valid": "latest",
     "@hookform/resolvers": "^3.10.0",
+    "@langchain/core": "^1.1.48",
+    "@langchain/openai": "^1.4.7",
     "@radix-ui/react-accordion": "1.2.2",
     "@radix-ui/react-alert-dialog": "1.1.4",
     "@radix-ui/react-aspect-ratio": "1.1.1",
@@ -58,7 +60,9 @@
     "input-otp": "1.4.1",
     "jsonwebtoken": "latest",
     "jspdf": "^4.2.1",
+    "langchain": "^1.4.4",
     "lucide-react": "^0.454.0",
+    "mongodb": "^7.2.0",
     "mongoose": "latest",
     "morgan": "latest",
     "next": "15.5.7",
