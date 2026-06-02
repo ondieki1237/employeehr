@@ -2388,15 +2388,22 @@ export function StockManagerContent({ view }: { view: StockView }) {
 
       {view === "status" && (
         <>
-          <div className="mb-6 space-y-2">
-            <h1 className="text-2xl font-semibold tracking-tight">Inventory Status</h1>
+          <div
+            className="mb-6 rounded-2xl border px-4 py-4 shadow-sm"
+            style={{
+              borderColor: primaryBorderColor,
+              background: `linear-gradient(to right, ${primarySoftColor}, ${secondarySoftColor})`,
+            }}
+          >
+            <p className="text-sm font-medium tracking-wide" style={{ color: primaryColor }}>Stock Management</p>
+            <h1 className="mt-1 text-2xl font-semibold tracking-tight">Inventory Status</h1>
             <p className="text-sm text-muted-foreground">
               View stock health, manage category structure, and review products in one place.
             </p>
           </div>
 
           <Tabs value={statusTab} onValueChange={(value) => setStatusTab(value as "overview" | "categories" | "products")} className="w-full space-y-6">
-            <div className="rounded-xl border bg-card p-2 shadow-sm">
+            <div className="rounded-xl border bg-card p-2 shadow-sm" style={{ borderColor: primaryBorderColor }}>
               <TabsList className="grid h-auto w-full grid-cols-3 gap-2 bg-transparent p-0">
                 <TabsTrigger
                   value="overview"

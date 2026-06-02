@@ -33,6 +33,20 @@ interface Sale {
   clientLocation?: string
 }
 
+interface Branding {
+  primaryColor?: string
+  secondaryColor?: string
+}
+
+function hexToRgba(hex: string, alpha: number) {
+  const normalized = hex.replace("#", "")
+  if (!/^[0-9a-fA-F]{6}$/.test(normalized)) return `rgba(15, 118, 110, ${alpha})`
+  const r = Number.parseInt(normalized.slice(0, 2), 16)
+  const g = Number.parseInt(normalized.slice(2, 4), 16)
+  const b = Number.parseInt(normalized.slice(4, 6), 16)
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`
+}
+
 export default function ProductAnalyticsPage() {
   const searchParams = useSearchParams()
   const [products, setProducts] = useState<Product[]>([])
@@ -43,6 +57,13 @@ export default function ProductAnalyticsPage() {
   const [loading, setLoading] = useState(true)
   const [categorySales, setCategorySales] = useState<any | null>(null)
   const [allCategorySales, setAllCategorySales] = useState<any[]>([])
+  const [branding, setBranding] = useState<Branding>({})
+
+  const primaryColor = branding.primaryColor || "#0f766e"
+  const secondaryColor = branding.secondaryColor || "#0ea5e9"
+  const primarySoftColor = hexToRgba(primaryColor, 0.08)
+  const secondarySoftColor = hexToRgba(secondaryColor, 0.08)
+  const primaryBorderColor = hexToRgba(primaryColor, 0.18)
 
   useEffect(() => {
     fetchData()
@@ -57,14 +78,26 @@ export default function ProductAnalyticsPage() {
 
   const fetchData = async () => {
     try {
-      const token = localStorage.getItem("token")
-      const [productsRes, salesRes] = await Promise.all([
+      const token = getToken()
+      const headers = { "Content-Type": "application/json", Authorization: `Bearer ${token}` }
+      const [productsRes, salesRes, brandingRes] = await Promise.all([
         fetch(`${API_URL}/api/stock/products`, { headers: { Authorization: `Bearer ${token}` } }),
         fetch(`${API_URL}/api/stock/sales`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`${API_URL}/api/company/branding`, { headers }),
       ])
 
-      if (productsRes.ok) setProducts(await productsRes.json())
-      if (salesRes.ok) setSales(await salesRes.json())
+      if (productsRes.ok) {
+        const productsJson = await productsRes.json()
+        setProducts(productsJson.data || productsJson || [])
+      }
+      if (salesRes.ok) {
+        const salesJson = await salesRes.json()
+        setSales(salesJson.data || salesJson || [])
+      }
+      if (brandingRes.ok) {
+        const brandingJson = await brandingRes.json()
+        setBranding(brandingJson.data || {})
+      }
 
       // Set default date range to last 12 months
       if (!dateStart && !dateEnd) {
@@ -182,7 +215,13 @@ export default function ProductAnalyticsPage() {
 
   if (!selectedProduct) {
     return (
-      <div className="rounded-lg border border-slate-200 bg-slate-50 p-8 text-center">
+      <div
+        className="rounded-lg border p-8 text-center"
+        style={{
+          borderColor: primaryBorderColor,
+          background: `linear-gradient(to right, ${primarySoftColor}, ${secondarySoftColor})`,
+        }}
+      >
         <p className="text-slate-600">Select a product from the search bar above to view analytics</p>
       </div>
     )
@@ -190,11 +229,17 @@ export default function ProductAnalyticsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-5">
+      <div
+        className="rounded-2xl border p-4 shadow-sm md:p-5"
+        style={{
+          borderColor: primaryBorderColor,
+          background: `linear-gradient(to right, ${primarySoftColor}, ${secondarySoftColor})`,
+        }}
+      >
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <div className="rounded-2xl border border-slate-200 bg-slate-50/70 px-4 py-3">
             <p className="text-xs text-slate-500">Total Revenue</p>
-            <p className="mt-1 text-lg font-semibold text-slate-900">{analytics.totalRevenue.toFixed(2)}</p>
+            <p className="mt-1 text-lg font-semibold" style={{ color: primaryColor }}>{analytics.totalRevenue.toFixed(2)}</p>
           </div>
           <div className="rounded-2xl border border-slate-200 bg-slate-50/70 px-4 py-3">
             <p className="text-xs text-slate-500">Qty Sold</p>
@@ -206,13 +251,13 @@ export default function ProductAnalyticsPage() {
           </div>
           <div className="rounded-2xl border border-slate-200 bg-slate-50/70 px-4 py-3">
             <p className="text-xs text-slate-500">Gross Margin</p>
-            <p className="mt-1 text-lg font-semibold text-slate-900">{analytics.grossMargin}%</p>
+            <p className="mt-1 text-lg font-semibold" style={{ color: secondaryColor }}>{analytics.grossMargin}%</p>
           </div>
         </div>
       </div>
 
       <Card className="border-slate-200 shadow-sm">
-        <CardHeader className="border-b bg-slate-50/80">
+        <CardHeader className="border-b" style={{ backgroundColor: primarySoftColor }}>
           <CardTitle className="text-base font-semibold text-slate-900">Date Range</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4 p-5 md:p-6">
@@ -227,6 +272,7 @@ export default function ProductAnalyticsPage() {
             </div>
             <Button
               variant="outline"
+              style={{ borderColor: primaryBorderColor, color: primaryColor }}
               onClick={() => {
                 const end = new Date()
                 const start = new Date()
@@ -243,7 +289,7 @@ export default function ProductAnalyticsPage() {
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card className="border-slate-200 shadow-sm">
-          <CardHeader className="border-b bg-slate-50/70">
+          <CardHeader className="border-b" style={{ backgroundColor: primarySoftColor }}>
             <CardTitle className="text-base">Top Clients</CardTitle>
           </CardHeader>
           <CardContent className="p-4">
@@ -270,7 +316,7 @@ export default function ProductAnalyticsPage() {
           </CardContent>
         </Card>
         <Card className="border-slate-200 shadow-sm">
-          <CardHeader className="border-b bg-slate-50/70">
+          <CardHeader className="border-b" style={{ backgroundColor: secondarySoftColor }}>
             <CardTitle className="text-base">Category Sales</CardTitle>
           </CardHeader>
           <CardContent className="p-4">
@@ -298,8 +344,8 @@ export default function ProductAnalyticsPage() {
                         <YAxis />
                         <Tooltip />
                         <Legend />
-                        <Line type="monotone" dataKey="units" stroke="#2563eb" name="Units" strokeWidth={2} />
-                        <Line type="monotone" dataKey="revenue" stroke="#10b981" name="Revenue" strokeWidth={2} />
+                        <Line type="monotone" dataKey="units" stroke={primaryColor} name="Units" strokeWidth={2} />
+                        <Line type="monotone" dataKey="revenue" stroke={secondaryColor} name="Revenue" strokeWidth={2} />
                       </LineChart>
                     </ResponsiveContainer>
                   </div>
@@ -322,7 +368,7 @@ export default function ProductAnalyticsPage() {
           </CardContent>
         </Card>
         <Card className="border-slate-200 shadow-sm">
-          <CardHeader className="border-b bg-slate-50/70">
+          <CardHeader className="border-b" style={{ backgroundColor: primarySoftColor }}>
             <CardTitle className="text-base">Price Breakdown</CardTitle>
           </CardHeader>
           <CardContent className="p-4">
@@ -349,7 +395,7 @@ export default function ProductAnalyticsPage() {
       </div>
 
       <Card className="border-slate-200 shadow-sm">
-        <CardHeader className="border-b bg-slate-50/70">
+        <CardHeader className="border-b" style={{ backgroundColor: primarySoftColor }}>
           <CardTitle className="text-base">Sales History</CardTitle>
         </CardHeader>
         <CardContent className="p-4 md:p-5">
@@ -388,7 +434,7 @@ export default function ProductAnalyticsPage() {
       </Card>
 
       <Card className="border-slate-200 shadow-sm">
-        <CardHeader className="border-b bg-slate-50/70">
+        <CardHeader className="border-b" style={{ backgroundColor: secondarySoftColor }}>
           <CardTitle className="text-base">Categories Overview</CardTitle>
         </CardHeader>
         <CardContent className="p-4">

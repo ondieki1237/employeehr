@@ -39,6 +39,20 @@ interface Invoice {
   subTotal: number
 }
 
+interface Branding {
+  primaryColor?: string
+  secondaryColor?: string
+}
+
+function hexToRgba(hex: string, alpha: number) {
+  const normalized = hex.replace("#", "")
+  if (!/^[0-9a-fA-F]{6}$/.test(normalized)) return `rgba(15, 118, 110, ${alpha})`
+  const r = Number.parseInt(normalized.slice(0, 2), 16)
+  const g = Number.parseInt(normalized.slice(2, 4), 16)
+  const b = Number.parseInt(normalized.slice(4, 6), 16)
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`
+}
+
 const REASON_OPTIONS = {
   returned: "Goods are returned",
   overcharged: "Services were overcharged",
@@ -62,6 +76,13 @@ export default function CreditNotesPage() {
   const [statusFilter, setStatusFilter] = useState("all")
   const [reasons, setReasons] = useState<Record<string, string>>({})
   const [invoiceSearchQuery, setInvoiceSearchQuery] = useState("")
+  const [branding, setBranding] = useState<Branding>({})
+
+  const primaryColor = branding.primaryColor || "#0f766e"
+  const secondaryColor = branding.secondaryColor || "#0ea5e9"
+  const primarySoftColor = hexToRgba(primaryColor, 0.08)
+  const secondarySoftColor = hexToRgba(secondaryColor, 0.08)
+  const primaryBorderColor = hexToRgba(primaryColor, 0.18)
 
   // Fetch credit notes
   const fetchCreditNotes = async () => {
@@ -103,10 +124,25 @@ export default function CreditNotesPage() {
     }
   }
 
+  const fetchBranding = async () => {
+    try {
+      const res = await api.company.getBranding()
+      if (res.success) {
+        setBranding(res.data || {})
+      }
+    } catch {
+      setBranding({})
+    }
+  }
+
   useEffect(() => {
     fetchCreditNotes()
     fetchReasons()
   }, [statusFilter])
+
+  useEffect(() => {
+    fetchBranding()
+  }, [])
 
   useEffect(() => {
     if (view === "create") {
@@ -248,12 +284,23 @@ export default function CreditNotesPage() {
       {view === "list" ? (
         <>
           {/* Header */}
-          <div className="flex items-start justify-between">
+          <div
+            className="flex flex-col gap-3 rounded-2xl border px-4 py-4 shadow-sm sm:flex-row sm:items-start sm:justify-between"
+            style={{
+              borderColor: primaryBorderColor,
+              background: `linear-gradient(to right, ${primarySoftColor}, ${secondarySoftColor})`,
+            }}
+          >
             <div className="space-y-2">
+              <p className="text-sm font-medium tracking-wide" style={{ color: primaryColor }}>Credit Management</p>
               <h1 className="text-3xl font-bold">Credit Notes</h1>
               <p className="text-muted-foreground">Manage credit notes for invoices</p>
             </div>
-            <Button onClick={() => { resetForm(); setView("create") }} className="gap-2">
+            <Button
+              onClick={() => { resetForm(); setView("create") }}
+              className="gap-2 text-white hover:opacity-90"
+              style={{ backgroundColor: primaryColor, borderColor: primaryColor }}
+            >
               <Plus className="h-4 w-4" /> Create Credit Note
             </Button>
           </div>
@@ -374,7 +421,7 @@ export default function CreditNotesPage() {
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <h1 className="text-2xl font-bold">Create Credit Note</h1>
+            <h1 className="text-2xl font-bold" style={{ color: primaryColor }}>Create Credit Note</h1>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -542,7 +589,7 @@ export default function CreditNotesPage() {
                   </div>
                   <div className="border-t pt-2 flex justify-between">
                     <span className="font-semibold">Total Credit:</span>
-                    <strong className="text-lg">KSh {calculateTotal().toLocaleString()}</strong>
+                    <strong className="text-lg" style={{ color: primaryColor }}>KSh {calculateTotal().toLocaleString()}</strong>
                   </div>
                 </div>
 
@@ -559,7 +606,8 @@ export default function CreditNotesPage() {
                   <Button
                     onClick={handleCreateCreditNote}
                     disabled={loading || !selectedInvoice}
-                    className="flex-1"
+                    className="flex-1 text-white hover:opacity-90"
+                    style={{ backgroundColor: primaryColor, borderColor: primaryColor }}
                   >
                     {loading ? "Creating..." : "Create"}
                   </Button>

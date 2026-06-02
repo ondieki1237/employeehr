@@ -14,6 +14,20 @@ interface Product {
   sku: string
 }
 
+interface Branding {
+  primaryColor?: string
+  secondaryColor?: string
+}
+
+function hexToRgba(hex: string, alpha: number) {
+  const normalized = hex.replace("#", "")
+  if (!/^[0-9a-fA-F]{6}$/.test(normalized)) return `rgba(15, 118, 110, ${alpha})`
+  const r = Number.parseInt(normalized.slice(0, 2), 16)
+  const g = Number.parseInt(normalized.slice(2, 4), 16)
+  const b = Number.parseInt(normalized.slice(4, 6), 16)
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`
+}
+
 const analyticsPages = [
   { href: "/admin/stock/analytics/product", label: "Product", icon: "📦" },
   { href: "/admin/stock/analytics/sales", label: "Sales", icon: "💰" },
@@ -30,9 +44,17 @@ export default function AnalyticsLayout({ children }: { children: React.ReactNod
   const [searchText, setSearchText] = useState("")
   const [showDropdown, setShowDropdown] = useState(false)
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
+  const [branding, setBranding] = useState<Branding>({})
+
+  const primaryColor = branding.primaryColor || "#0f766e"
+  const secondaryColor = branding.secondaryColor || "#0ea5e9"
+  const primarySoftColor = hexToRgba(primaryColor, 0.08)
+  const secondarySoftColor = hexToRgba(secondaryColor, 0.08)
+  const primaryBorderColor = hexToRgba(primaryColor, 0.18)
 
   useEffect(() => {
     fetchProducts()
+    fetchBranding()
   }, [])
 
   const fetchProducts = async () => {
@@ -48,6 +70,22 @@ export default function AnalyticsLayout({ children }: { children: React.ReactNod
       }
     } catch (error) {
       console.error("Failed to fetch products:", error)
+    }
+  }
+
+  const fetchBranding = async () => {
+    try {
+      const headers = {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${getToken()}`,
+      }
+      const res = await fetch(`${API_URL}/api/company/branding`, { headers })
+      if (res.ok) {
+        const json = await res.json()
+        setBranding(json.data || {})
+      }
+    } catch {
+      setBranding({})
     }
   }
 
@@ -80,11 +118,17 @@ export default function AnalyticsLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="space-y-6">
-      <div className="rounded-3xl border border-slate-200 bg-gradient-to-br from-white to-slate-50/70 p-5 shadow-sm md:p-6">
+      <div
+        className="rounded-3xl border p-5 shadow-sm md:p-6"
+        style={{
+          borderColor: primaryBorderColor,
+          background: `linear-gradient(to right, ${primarySoftColor}, ${secondarySoftColor})`,
+        }}
+      >
         <div className="space-y-4">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div className="max-w-2xl space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Inventory analytics</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: primaryColor }}>Inventory analytics</p>
               <h1 className="text-2xl font-semibold tracking-tight text-slate-900 md:text-3xl">Performance reports</h1>
               <p className="text-sm leading-6 text-slate-600">
                 Analyze your inventory performance across multiple dimensions
@@ -98,7 +142,7 @@ export default function AnalyticsLayout({ children }: { children: React.ReactNod
                   value={searchText}
                   onChange={(e) => setSearchText(e.target.value)}
                   onFocus={() => setShowDropdown(searchText.length > 0)}
-                  className="w-full"
+                  className="w-full bg-white/90"
                 />
                 {showDropdown && filteredProducts.length > 0 && (
                   <div className="absolute top-full left-0 right-0 mt-1 max-h-64 overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-lg z-50">
@@ -123,17 +167,17 @@ export default function AnalyticsLayout({ children }: { children: React.ReactNod
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-2 border-t pt-4">
+          <div className="flex flex-wrap gap-2 border-t pt-4" style={{ borderColor: primaryBorderColor }}>
             {analyticsPages.map((page) => (
               <Link
                 key={page.href}
                 href={`${page.href}${searchParams.toString() ? `?${searchParams.toString()}` : ""}`}
-                className={cn(
-                  "rounded-lg px-4 py-2 text-sm font-medium transition-colors",
+                className={cn("rounded-lg px-4 py-2 text-sm font-medium transition-colors")}
+                style={
                   pathname?.includes(page.href.split("/").pop() || "")
-                    ? "bg-blue-100 text-blue-900"
-                    : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-                )}
+                    ? { backgroundColor: primaryColor, color: "#ffffff" }
+                    : { backgroundColor: "rgba(255, 255, 255, 0.82)", color: "#334155" }
+                }
               >
                 <span className="mr-2">{page.icon}</span>
                 {page.label}
