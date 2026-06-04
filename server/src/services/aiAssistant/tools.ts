@@ -6,8 +6,23 @@ import { StockInvoice } from "../../models/StockInvoice"
 import { StockQuotation } from "../../models/StockQuotation"
 import { User } from "../../models/User"
 import { LeaveRequest } from "../../models/LeaveRequest"
+import { Payroll } from "../../models/Payroll"
+import { Attendance } from "../../models/Attendance"
 import type { AssistantOrgContext } from "./orgContext"
-import { endOfMonth, parseIsoDate, startOfMonth, startOfLastMonth, endOfLastMonth } from "./orgContext"
+import {
+  endOfMonth,
+  parseIsoDate,
+  startOfMonth,
+  startOfLastMonth,
+  endOfLastMonth,
+  startOfYear,
+  endOfYear,
+  startOfLastYear,
+  endOfLastYear,
+  formatMonthLabel,
+} from "./orgContext"
+
+// ─── Shared helpers ───────────────────────────────────────────────────────────
 
 const dateRangeSchema = z.object({
   startDate: z
@@ -16,50 +31,91 @@ const dateRangeSchema = z.object({
     .describe("ISO date start (YYYY-MM-DD). Omit to let the tool infer from period."),
   endDate: z.string().optional().describe("ISO date end (YYYY-MM-DD), inclusive."),
   period: z
-    .enum(["last_month", "this_month", "last_7_days", "last_30_days", "custom"])
+    .enum([
+      "last_month",
+      "this_month",
+      "last_7_days",
+      "last_30_days",
+      "last_90_days",
+      "this_year",
+      "last_year",
+      "custom",
+    ])
     .optional()
-    .describe("Shortcut when exact dates are unknown. Prefer last_month for 'last month' questions."),
+    .describe(
+      "Shortcut period. Prefer 'last_month' for 'last month', 'this_month' for 'this month', 'this_year' for year-to-date questions.",
+    ),
 })
 
 function resolveRange(input: z.infer<typeof dateRangeSchema>) {
   const now = new Date()
-  if (input.period === "last_month") {
-    return { start: startOfLastMonth(now), end: endOfLastMonth(now) }
+  switch (input.period) {
+    case "last_month":
+      return { start: startOfLastMonth(now), end: endOfLastMonth(now), label: formatMonthLabel(startOfLastMonth(now)) }
+    case "this_month":
+      return { start: startOfMonth(now), end: endOfMonth(now), label: formatMonthLabel(now) }
+    case "last_7_days": {
+      const start = new Date(now)
+      start.setUTCDate(start.getUTCDate() - 7)
+      return { start, end: now, label: "last 7 days" }
+    }
+    case "last_30_days": {
+      const start = new Date(now)
+      start.setUTCDate(start.getUTCDate() - 30)
+      return { start, end: now, label: "last 30 days" }
+    }
+    case "last_90_days": {
+      const start = new Date(now)
+      start.setUTCDate(start.getUTCDate() - 90)
+      return { start, end: now, label: "last 90 days" }
+    }
+    case "this_year":
+      return { start: startOfYear(now), end: endOfYear(now), label: `${now.getUTCFullYear()} (year-to-date)` }
+    case "last_year":
+      return {
+        start: startOfLastYear(now),
+        end: endOfLastYear(now),
+        label: `${now.getUTCFullYear() - 1} (full year)`,
+      }
+    default: {
+      const start = parseIsoDate(input.startDate, startOfLastMonth(now))
+      const end = parseIsoDate(input.endDate, endOfLastMonth(now))
+      const label = `${start.toISOString().split("T")[0]} → ${end.toISOString().split("T")[0]}`
+      return { start, end, label }
+    }
   }
-  if (input.period === "this_month") {
-    return { start: startOfMonth(now), end: endOfMonth(now) }
-  }
-  if (input.period === "last_7_days") {
-    const start = new Date(now)
-    start.setUTCDate(start.getUTCDate() - 7)
-    return { start, end: now }
-  }
-  if (input.period === "last_30_days") {
-    const start = new Date(now)
-    start.setUTCDate(start.getUTCDate() - 30)
-    return { start, end: now }
-  }
+}
 
-  const start = parseIsoDate(input.startDate, startOfLastMonth(now))
-  const end = parseIsoDate(input.endDate, endOfLastMonth(now))
-  return { start, end }
+/** Guard: reject any query where orgId is empty  */
+function assertOrgId(orgId: string) {
+  if (!orgId || orgId.trim() === "") {
+    throw new Error("Organization context is missing. Cannot query the database.")
+  }
 }
 
 function canViewHr(ctx: AssistantOrgContext) {
   return ["company_admin", "admin", "hr", "manager"].includes(ctx.role)
 }
 
+// ─── Tool factory ─────────────────────────────────────────────────────────────
+
 export function createAssistantTools(ctx: AssistantOrgContext) {
-  const orgFilter = { org_id: ctx.orgId }
+  assertOrgId(ctx.orgId)
+
+  // Hard-typed org filter used in EVERY query — never interpolated or overridable
+  const orgFilter = { org_id: ctx.orgId } as const
+
+  // ── Sales ──────────────────────────────────────────────────────────────────
 
   const getSalesSummary = tool(
     async (input) => {
-      const { start, end } = resolveRange(input)
+      assertOrgId(ctx.orgId)
+      const { start, end, label } = resolveRange(input)
       const sales = await StockSale.find({
         ...orgFilter,
         createdAt: { $gte: start, $lte: end },
       })
-        .select("quantitySold soldPrice productId createdAt")
+        .select("quantitySold soldPrice createdAt")
         .lean()
 
       const totalUnits = sales.reduce((sum, row) => sum + Number(row.quantitySold || 0), 0)
@@ -69,25 +125,26 @@ export function createAssistantTools(ctx: AssistantOrgContext) {
       )
 
       return JSON.stringify({
-        period: { start: start.toISOString(), end: end.toISOString() },
-        saleCount: sales.length,
+        period: label,
+        dateRange: { from: start.toISOString().split("T")[0], to: end.toISOString().split("T")[0] },
+        saleTransactions: sales.length,
         totalUnitsSold: totalUnits,
         totalRevenue: Number(totalRevenue.toFixed(2)),
-        currencyNote: "Amounts use sold unit prices from sales records.",
       })
     },
     {
       name: "get_sales_summary",
       description:
-        "Sales totals for this company: number of sale lines, units sold, and revenue in a date range. Use for questions like 'how much did we sell last month?'.",
+        "Sales totals for this company: transaction count, units sold, and revenue in a date range. Use for 'how much did we sell?' or 'what is our sales revenue?' questions.",
       schema: dateRangeSchema,
     },
   )
 
   const getTopProducts = tool(
     async (input) => {
-      const { start, end } = resolveRange(input)
-      const limit = Math.min(Math.max(input.limit ?? 5, 1), 20)
+      assertOrgId(ctx.orgId)
+      const { start, end, label } = resolveRange(input)
+      const limit = Math.min(Math.max((input as any).limit ?? 5, 1), 20)
 
       const sales = await StockSale.find({
         ...orgFilter,
@@ -113,32 +170,29 @@ export function createAssistantTools(ctx: AssistantOrgContext) {
 
       const ranked = Array.from(byProduct.entries())
         .map(([productId, stats]) => ({
-          productId,
-          productName: nameById.get(productId) || productId,
+          productName: nameById.get(productId) || "Unknown Product",
           unitsSold: stats.units,
           revenue: Number(stats.revenue.toFixed(2)),
         }))
         .sort((a, b) => b.revenue - a.revenue)
         .slice(0, limit)
 
-      return JSON.stringify({
-        period: { start: start.toISOString(), end: end.toISOString() },
-        topProducts: ranked,
-      })
+      return JSON.stringify({ period: label, topProducts: ranked })
     },
     {
       name: "get_top_products",
-      description: "Best-selling products by revenue for a date range.",
+      description: "Best-selling products by revenue for a date range. Shows product names, units, and revenue.",
       schema: dateRangeSchema.extend({
-        limit: z.number().int().min(1).max(20).optional(),
+        limit: z.number().int().min(1).max(20).optional().describe("How many top products to return (default 5)"),
       }),
     },
   )
 
   const getInventorySummary = tool(
     async () => {
+      assertOrgId(ctx.orgId)
       const products = await StockProduct.find({ ...orgFilter, isActive: { $ne: false } })
-        .select("name currentQuantity minAlertQuantity sellingPrice")
+        .select("name currentQuantity minAlertQuantity sellingPrice category")
         .lean()
 
       const lowStock = products
@@ -161,19 +215,21 @@ export function createAssistantTools(ctx: AssistantOrgContext) {
         totalUnitsOnHand: totalUnits,
         estimatedRetailStockValue: Number(stockValue.toFixed(2)),
         lowStockCount: lowStock.length,
-        lowStockSamples: lowStock,
+        lowStockItems: lowStock,
       })
     },
     {
       name: "get_inventory_summary",
-      description: "Current inventory: product count, units on hand, low-stock items.",
+      description:
+        "Current inventory status: total products, units on hand, estimated stock value, and low-stock alerts. Use for 'which products are low on stock?' or 'what is our inventory value?'.",
       schema: z.object({}),
     },
   )
 
   const getInvoiceSummary = tool(
     async (input) => {
-      const { start, end } = resolveRange(input)
+      assertOrgId(ctx.orgId)
+      const { start, end, label } = resolveRange(input)
       const invoices = await StockInvoice.find({
         ...orgFilter,
         status: { $ne: "cancelled" },
@@ -190,22 +246,25 @@ export function createAssistantTools(ctx: AssistantOrgContext) {
       }
 
       return JSON.stringify({
-        period: { start: start.toISOString(), end: end.toISOString() },
+        period: label,
+        dateRange: { from: start.toISOString().split("T")[0], to: end.toISOString().split("T")[0] },
         invoiceCount: invoices.length,
-        totalInvoiced: Number(totalInvoiced.toFixed(2)),
+        totalInvoicedValue: Number(totalInvoiced.toFixed(2)),
         byStatus,
       })
     },
     {
       name: "get_invoice_summary",
-      description: "Invoice counts and subtotal amounts for a date range (excludes cancelled).",
+      description:
+        "Invoice counts and subtotal values for a date range (excludes cancelled). Broken down by status (paid, unpaid, overdue, etc.).",
       schema: dateRangeSchema,
     },
   )
 
   const getQuotationSummary = tool(
     async (input) => {
-      const { start, end } = resolveRange(input)
+      assertOrgId(ctx.orgId)
+      const { start, end, label } = resolveRange(input)
       const quotations = await StockQuotation.find({
         ...orgFilter,
         createdAt: { $gte: start, $lte: end },
@@ -214,106 +273,65 @@ export function createAssistantTools(ctx: AssistantOrgContext) {
         .lean()
 
       const totalQuoted = quotations.reduce((sum, q) => sum + Number(q.subTotal || 0), 0)
-      const pending = quotations.filter((q) => ["draft", "pending_approval"].includes(String(q.status))).length
-
-      return JSON.stringify({
-        period: { start: start.toISOString(), end: end.toISOString() },
-        quotationCount: quotations.length,
-        pendingCount: pending,
-        totalQuotedValue: Number(totalQuoted.toFixed(2)),
-      })
-    },
-    {
-      name: "get_quotation_summary",
-      description: "Quotation counts and values for a date range.",
-      schema: dateRangeSchema,
-    },
-  )
-
-  const getEmployeeSummary = tool(
-    async () => {
-      if (!canViewHr(ctx)) {
-        return JSON.stringify({ error: "You do not have permission to view HR workforce summaries." })
-      }
-
-      const users = await User.find({ org_id: ctx.orgId }).select("status role").lean()
-      const active = users.filter((u) => String(u.status) === "active").length
-      const byRole: Record<string, number> = {}
-      for (const user of users) {
-        const role = String(user.role || "unknown")
-        byRole[role] = (byRole[role] || 0) + 1
-      }
-
-      return JSON.stringify({
-        totalUsers: users.length,
-        activeUsers: active,
-        byRole,
-      })
-    },
-    {
-      name: "get_employee_summary",
-      description: "Workforce counts by role (admin/HR/manager only).",
-      schema: z.object({}),
-    },
-  )
-
-  const getLeaveSummary = tool(
-    async (input) => {
-      if (!canViewHr(ctx)) {
-        return JSON.stringify({ error: "You do not have permission to view leave summaries." })
-      }
-
-      const { start, end } = resolveRange(input)
-      const requests = await LeaveRequest.find({
-        org_id: ctx.orgId,
-        createdAt: { $gte: start, $lte: end },
-      })
-        .select("status type")
-        .lean()
-
       const byStatus: Record<string, number> = {}
-      for (const req of requests) {
-        const status = String(req.status || "unknown")
+      for (const q of quotations) {
+        const status = String(q.status || "unknown")
         byStatus[status] = (byStatus[status] || 0) + 1
       }
 
       return JSON.stringify({
-        period: { start: start.toISOString(), end: end.toISOString() },
-        requestCount: requests.length,
+        period: label,
+        quotationCount: quotations.length,
+        totalQuotedValue: Number(totalQuoted.toFixed(2)),
         byStatus,
       })
     },
     {
-      name: "get_leave_summary",
-      description: "Leave request counts by status for a date range (admin/HR/manager only).",
+      name: "get_quotation_summary",
+      description: "Quotation counts and values for a date range. Shows how many are pending, approved, or converted.",
       schema: dateRangeSchema,
     },
   )
 
-  const getEmployeeCount = tool(
+  // ── HR ────────────────────────────────────────────────────────────────────
+
+  const getEmployeeSummary = tool(
     async () => {
+      assertOrgId(ctx.orgId)
       if (!canViewHr(ctx)) {
-        return JSON.stringify({ error: "You do not have permission to view HR metrics." })
+        return JSON.stringify({ error: "You do not have permission to view HR workforce summaries." })
       }
 
-      const count = await User.countDocuments({ org_id: ctx.orgId })
-      const activeCount = await User.countDocuments({ org_id: ctx.orgId, status: "active" })
+      const users = await User.find({ ...orgFilter }).select("status role department position").lean()
+      const active = users.filter((u) => String(u.status) === "active").length
+      const byRole: Record<string, number> = {}
+      const byDept: Record<string, number> = {}
+      for (const user of users) {
+        const role = String(user.role || "unknown")
+        byRole[role] = (byRole[role] || 0) + 1
+        const dept = String(user.department || "Unassigned")
+        byDept[dept] = (byDept[dept] || 0) + 1
+      }
 
       return JSON.stringify({
-        totalEmployees: count,
-        activeEmployees: activeCount,
-        inactiveEmployees: count - activeCount,
+        totalEmployees: users.length,
+        activeEmployees: active,
+        inactiveEmployees: users.length - active,
+        byRole,
+        byDepartment: byDept,
       })
     },
     {
-      name: "get_employee_count",
-      description: "Returns total number of employees in the company, separated by active/inactive status (admin/HR/manager only).",
+      name: "get_employee_summary",
+      description:
+        "Workforce overview: total employees, active/inactive counts, breakdown by role and department (admin/HR/manager only).",
       schema: z.object({}),
     },
   )
 
   const searchEmployees = tool(
     async (input) => {
+      assertOrgId(ctx.orgId)
       if (!canViewHr(ctx)) {
         return JSON.stringify({ error: "You do not have permission to search employees." })
       }
@@ -327,14 +345,15 @@ export function createAssistantTools(ctx: AssistantOrgContext) {
 
       const employees = await User.find(
         {
-          org_id: ctx.orgId,
+          ...orgFilter,
           $or: [
             { firstName: { $regex: query, $options: "i" } },
             { lastName: { $regex: query, $options: "i" } },
             { email: { $regex: query, $options: "i" } },
+            { position: { $regex: query, $options: "i" } },
           ],
         },
-        "firstName lastName email role status department"
+        "firstName lastName email role status department position",
       )
         .limit(limit)
         .lean()
@@ -346,6 +365,7 @@ export function createAssistantTools(ctx: AssistantOrgContext) {
           name: `${e.firstName || ""} ${e.lastName || ""}`.trim(),
           email: e.email,
           role: e.role,
+          position: e.position || "Not set",
           status: e.status,
           department: e.department || "Not set",
         })),
@@ -354,122 +374,227 @@ export function createAssistantTools(ctx: AssistantOrgContext) {
     {
       name: "search_employees",
       description:
-        "Search for employees by name or email. Returns up to 10 matching employees with their role and status (admin/HR/manager only).",
+        "Search for employees by name, email, or job title. Returns role, department, and status (admin/HR/manager only).",
       schema: z.object({
-        query: z.string().min(2).describe("Employee name or email to search for"),
-        limit: z.number().int().min(1).max(50).optional().describe("Max results (default 10, max 50)"),
+        query: z.string().min(2).describe("Employee name, email, or position to search for"),
+        limit: z.number().int().min(1).max(50).optional().describe("Max results (default 10)"),
       }),
     },
   )
 
-  const getDepartmentHeadcount = tool(
-    async () => {
+  const getLeaveSummary = tool(
+    async (input) => {
+      assertOrgId(ctx.orgId)
       if (!canViewHr(ctx)) {
-        return JSON.stringify({ error: "You do not have permission to view department metrics." })
+        return JSON.stringify({ error: "You do not have permission to view leave summaries." })
       }
 
-      const employees = await User.find({ org_id: ctx.orgId }).select("department status").lean()
+      const { start, end, label } = resolveRange(input)
+      const requests = await LeaveRequest.find({
+        org_id: ctx.orgId, // explicit — not spread to avoid accidental override
+        createdAt: { $gte: start, $lte: end },
+      })
+        .select("status type userId")
+        .lean()
 
-      const byDept: Record<string, { total: number; active: number }> = {}
-      for (const emp of employees) {
-        const dept = String(emp.department || "Unassigned")
-        if (!byDept[dept]) {
-          byDept[dept] = { total: 0, active: 0 }
-        }
-        byDept[dept].total += 1
-        if (String(emp.status) === "active") {
-          byDept[dept].active += 1
-        }
+      const byStatus: Record<string, number> = {}
+      const byType: Record<string, number> = {}
+      for (const req of requests) {
+        const status = String(req.status || "unknown")
+        byStatus[status] = (byStatus[status] || 0) + 1
+        const type = String((req as any).type || "unknown")
+        byType[type] = (byType[type] || 0) + 1
       }
-
-      const departments = Object.entries(byDept)
-        .map(([name, stats]) => ({
-          department: name,
-          totalEmployees: stats.total,
-          activeEmployees: stats.active,
-          inactiveEmployees: stats.total - stats.active,
-        }))
-        .sort((a, b) => b.totalEmployees - a.totalEmployees)
 
       return JSON.stringify({
-        departmentCount: departments.length,
-        totalEmployees: employees.length,
-        departments,
+        period: label,
+        totalRequests: requests.length,
+        byStatus,
+        byType,
       })
     },
     {
-      name: "get_department_headcount",
-      description: "Returns employee count per department, broken down by active/inactive status (admin/HR/manager only).",
-      schema: z.object({}),
+      name: "get_leave_summary",
+      description:
+        "Leave request counts by status and type for a date range. Use for 'how many employees are on leave?' or leave approval stats (admin/HR/manager only).",
+      schema: dateRangeSchema,
     },
   )
 
-  // ========== COMPREHENSIVE SALES PERFORMANCE TOOLS (NO RESTRICTIONS) ==========
+  // ── Payroll ───────────────────────────────────────────────────────────────
+
+  const getPayrollSummary = tool(
+    async (input) => {
+      assertOrgId(ctx.orgId)
+      if (!canViewHr(ctx)) {
+        return JSON.stringify({ error: "You do not have permission to view payroll data." })
+      }
+
+      // month filter: "YYYY-MM" format from period or explicit month
+      const now = new Date()
+      let monthFilter: string | undefined = (input as any).month
+
+      if (!monthFilter) {
+        const period: string | undefined = (input as any).period
+        if (period === "last_month") {
+          const last = startOfLastMonth(now)
+          monthFilter = `${last.getUTCFullYear()}-${String(last.getUTCMonth() + 1).padStart(2, "0")}`
+        } else {
+          // default: current month
+          monthFilter = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`
+        }
+      }
+
+      const payrolls = await Payroll.find({
+        org_id: ctx.orgId,
+        month: monthFilter,
+      })
+        .select("net_pay base_salary bonus total_deductions status user_id")
+        .lean()
+
+      if (!payrolls.length) {
+        return JSON.stringify({
+          month: monthFilter,
+          message: `No payroll records found for ${monthFilter}. Payroll may not have been generated yet.`,
+        })
+      }
+
+      const totalNetPay = payrolls.reduce((sum, p) => sum + Number(p.net_pay || 0), 0)
+      const totalBaseSalary = payrolls.reduce((sum, p) => sum + Number(p.base_salary || 0), 0)
+      const totalBonuses = payrolls.reduce((sum, p) => sum + Number(p.bonus || 0), 0)
+      const totalDeductions = payrolls.reduce((sum, p) => sum + Number(p.total_deductions || 0), 0)
+      const byStatus: Record<string, number> = {}
+      for (const p of payrolls) {
+        const status = String(p.status || "unknown")
+        byStatus[status] = (byStatus[status] || 0) + 1
+      }
+
+      return JSON.stringify({
+        month: monthFilter,
+        employeesPaid: payrolls.length,
+        totalNetPay: Number(totalNetPay.toFixed(2)),
+        totalBaseSalary: Number(totalBaseSalary.toFixed(2)),
+        totalBonuses: Number(totalBonuses.toFixed(2)),
+        totalDeductions: Number(totalDeductions.toFixed(2)),
+        byStatus,
+        avgNetPay: Number((totalNetPay / payrolls.length).toFixed(2)),
+      })
+    },
+    {
+      name: "get_payroll_summary",
+      description:
+        "Payroll summary for a specific month: total net pay, base salaries, bonuses, deductions, and employee count. Use for 'what is our payroll this month?' or 'how much did we pay in salaries?' (admin/HR only).",
+      schema: z.object({
+        month: z
+          .string()
+          .optional()
+          .describe("Month in YYYY-MM format (e.g. 2026-05). Leave blank for current month."),
+        period: z.enum(["last_month", "this_month"]).optional().describe("Period shortcut instead of month"),
+      }),
+    },
+  )
+
+  // ── Attendance ────────────────────────────────────────────────────────────
+
+  const getAttendanceSummary = tool(
+    async (input) => {
+      assertOrgId(ctx.orgId)
+      if (!canViewHr(ctx)) {
+        return JSON.stringify({ error: "You do not have permission to view attendance data." })
+      }
+
+      const { start, end, label } = resolveRange(input)
+      const records = await Attendance.find({
+        org_id: ctx.orgId,
+        date: { $gte: start, $lte: end },
+      })
+        .select("status hoursWorked")
+        .lean()
+
+      const byStatus: Record<string, number> = {}
+      let totalHours = 0
+      for (const rec of records) {
+        const status = String(rec.status || "unknown")
+        byStatus[status] = (byStatus[status] || 0) + 1
+        totalHours += Number(rec.hoursWorked || 0)
+      }
+
+      const presentCount = (byStatus["present"] || 0) + (byStatus["late"] || 0) + (byStatus["half_day"] || 0)
+      const absenceCount = byStatus["absent"] || 0
+      const attendanceRate =
+        records.length > 0 ? Number(((presentCount / records.length) * 100).toFixed(1)) : null
+
+      return JSON.stringify({
+        period: label,
+        totalAttendanceRecords: records.length,
+        presentOrPartial: presentCount,
+        absent: absenceCount,
+        attendanceRatePercent: attendanceRate,
+        totalHoursLogged: Number(totalHours.toFixed(1)),
+        breakdown: byStatus,
+      })
+    },
+    {
+      name: "get_attendance_summary",
+      description:
+        "Attendance overview for a period: present, absent, late, half-day counts, total hours logged, and attendance rate (admin/HR/manager only).",
+      schema: dateRangeSchema,
+    },
+  )
+
+  // ── Comprehensive analytics ───────────────────────────────────────────────
 
   const getSalesByCustomer = tool(
     async (input) => {
-      const { start, end } = resolveRange(input)
-      const limit = Math.min(Math.max(input.limit ?? 10, 1), 50)
+      assertOrgId(ctx.orgId)
+      const { start, end, label } = resolveRange(input)
+      const limit = Math.min(Math.max((input as any).limit ?? 10, 1), 50)
 
       const sales = await StockSale.find({
         ...orgFilter,
         createdAt: { $gte: start, $lte: end },
       })
-        .select("clientId quantitySold soldPrice")
+        .select("clientId clientName quantitySold soldPrice")
         .lean()
 
-      const byCustomer = new Map<string, { units: number; revenue: number; count: number }>()
+      const byCustomer = new Map<string, { name: string; units: number; revenue: number; count: number }>()
       for (const sale of sales) {
-        const clientId = String(sale.clientId || "Unknown")
-        const row = byCustomer.get(clientId) || { units: 0, revenue: 0, count: 0 }
+        const key = String(sale.clientId || "unknown")
+        const row = byCustomer.get(key) || { name: String((sale as any).clientName || key), units: 0, revenue: 0, count: 0 }
         row.units += Number(sale.quantitySold || 0)
         row.revenue += Number(sale.quantitySold || 0) * Number(sale.soldPrice || 0)
         row.count += 1
-        byCustomer.set(clientId, row)
+        if ((sale as any).clientName) row.name = String((sale as any).clientName)
+        byCustomer.set(key, row)
       }
 
-      const clients = await Promise.all(
-        Array.from(byCustomer.keys()).map(async (id) => {
-          try {
-            const client = await StockSale.findOne({ clientId: id, ...orgFilter }).select("clientName").lean()
-            return { id, name: client?.clientName || id }
-          } catch {
-            return { id, name: id }
-          }
-        })
-      )
-      const nameMap = new Map(clients.map((c) => [c.id, c.name]))
-
-      const ranked = Array.from(byCustomer.entries())
-        .map(([clientId, stats]) => ({
-          customerName: nameMap.get(clientId) || clientId,
-          transactionCount: stats.count,
-          unitsSold: stats.units,
-          totalRevenue: Number(stats.revenue.toFixed(2)),
-          avgOrderValue: Number((stats.revenue / stats.count).toFixed(2)),
+      const ranked = Array.from(byCustomer.values())
+        .map((v) => ({
+          customerName: v.name,
+          transactions: v.count,
+          unitsSold: v.units,
+          totalRevenue: Number(v.revenue.toFixed(2)),
+          avgOrderValue: Number((v.revenue / v.count).toFixed(2)),
         }))
         .sort((a, b) => b.totalRevenue - a.totalRevenue)
         .slice(0, limit)
 
-      return JSON.stringify({
-        period: { start: start.toISOString(), end: end.toISOString() },
-        totalCustomers: byCustomer.size,
-        topCustomers: ranked,
-      })
+      return JSON.stringify({ period: label, uniqueCustomers: byCustomer.size, topCustomers: ranked })
     },
     {
       name: "get_sales_by_customer",
       description:
-        "*** Top-spending customers by revenue *** | Shows transaction count, units sold, and average order value for each customer.",
+        "Top customers by revenue for a date range. Shows transaction count, units bought, and average order value.",
       schema: dateRangeSchema.extend({
-        limit: z.number().int().min(1).max(50).optional(),
+        limit: z.number().int().min(1).max(50).optional().describe("Max customers to return (default 10)"),
       }),
     },
   )
 
   const getSalesPerformanceTrend = tool(
     async (input) => {
-      const { start, end } = resolveRange(input)
+      assertOrgId(ctx.orgId)
+      const { start, end, label } = resolveRange(input)
 
       const sales = await StockSale.find({
         ...orgFilter,
@@ -493,31 +618,35 @@ export function createAssistantTools(ctx: AssistantOrgContext) {
           date,
           dailyRevenue: Number(stats.revenue.toFixed(2)),
           unitsSold: stats.units,
-          transactionCount: stats.count,
+          transactions: stats.count,
         }))
         .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
 
       const totalRevenue = trend.reduce((sum, d) => sum + d.dailyRevenue, 0)
-      const avgDailyRevenue = Number((totalRevenue / trend.length).toFixed(2))
+      const avgDaily = trend.length > 0 ? Number((totalRevenue / trend.length).toFixed(2)) : 0
+      const bestDay = trend.reduce((best, d) => (d.dailyRevenue > (best?.dailyRevenue ?? 0) ? d : best), trend[0])
 
       return JSON.stringify({
-        period: { start: start.toISOString(), end: end.toISOString() },
-        totalDaysWithSales: trend.length,
+        period: label,
+        daysWithSales: trend.length,
         totalRevenue: Number(totalRevenue.toFixed(2)),
-        avgDailyRevenue,
-        trend: trend.slice(-31), // Last 31 days
+        avgDailyRevenue: avgDaily,
+        bestDay: bestDay ? { date: bestDay.date, revenue: bestDay.dailyRevenue } : null,
+        trend: trend.slice(-31),
       })
     },
     {
       name: "get_sales_performance_trend",
-      description: "*** Daily sales performance trend *** | Shows revenue, units sold, and transaction count by day. Perfect for analyzing sales patterns over time.",
+      description:
+        "Daily sales trend showing revenue, units, and transactions per day. Best for identifying peak days and revenue patterns.",
       schema: dateRangeSchema,
     },
   )
 
   const getProductCategoryPerformance = tool(
     async (input) => {
-      const { start, end } = resolveRange(input)
+      assertOrgId(ctx.orgId)
+      const { start, end, label } = resolveRange(input)
 
       const sales = await StockSale.find({
         ...orgFilter,
@@ -528,7 +657,7 @@ export function createAssistantTools(ctx: AssistantOrgContext) {
 
       const productIds = Array.from(new Set(sales.map((s) => s.productId)))
       const products = await StockProduct.find({ _id: { $in: productIds }, ...orgFilter })
-        .select("category name currentQuantity")
+        .select("category name")
         .lean()
 
       const categoryMap = new Map(products.map((p) => [String(p._id), p.category || "Uncategorized"]))
@@ -546,96 +675,39 @@ export function createAssistantTools(ctx: AssistantOrgContext) {
       const categories = Array.from(byCategory.entries())
         .map(([name, stats]) => ({
           category: name,
-          transactionCount: stats.count,
+          transactions: stats.count,
           unitsSold: stats.units,
-          categoryRevenue: Number(stats.revenue.toFixed(2)),
-          avgPricePerUnit: Number((stats.revenue / stats.units).toFixed(2)),
+          revenue: Number(stats.revenue.toFixed(2)),
+          avgPricePerUnit: stats.units > 0 ? Number((stats.revenue / stats.units).toFixed(2)) : 0,
         }))
-        .sort((a, b) => b.categoryRevenue - a.categoryRevenue)
+        .sort((a, b) => b.revenue - a.revenue)
 
-      return JSON.stringify({
-        period: { start: start.toISOString(), end: end.toISOString() },
-        totalCategories: categories.length,
-        categories,
-      })
+      return JSON.stringify({ period: label, totalCategories: categories.length, categories })
     },
     {
       name: "get_product_category_performance",
-      description:
-        "*** Sales by product category *** | Breaks down revenue and units by category. Shows which categories drive the most sales.",
-      schema: dateRangeSchema,
-    },
-  )
-
-  const getComprehensiveSalesAnalysis = tool(
-    async (input) => {
-      const { start, end } = resolveRange(input)
-
-      const sales = await StockSale.find({
-        ...orgFilter,
-        createdAt: { $gte: start, $lte: end },
-      })
-        .select("quantitySold soldPrice clientId productId createdAt")
-        .lean()
-
-      if (!sales.length) {
-        return JSON.stringify({
-          period: { start: start.toISOString(), end: end.toISOString() },
-          message: "*** No sales data found for this period ***",
-        })
-      }
-
-      const totalRevenue = sales.reduce((sum, s) => sum + Number(s.quantitySold || 0) * Number(s.soldPrice || 0), 0)
-      const totalUnits = sales.reduce((sum, s) => sum + Number(s.quantitySold || 0), 0)
-      const uniqueCustomers = new Set(sales.map((s) => s.clientId)).size
-
-      const dates = sales.map((s) => new Date(s.createdAt || new Date()).getTime())
-      const firstSale = new Date(Math.min(...dates))
-      const lastSale = new Date(Math.max(...dates))
-
-      return JSON.stringify({
-        "*** PERIOD SUMMARY ***": {
-          start: start.toISOString(),
-          end: end.toISOString(),
-        },
-        "*** KEY METRICS ***": {
-          totalSalesTransactions: sales.length,
-          totalRevenue: Number(totalRevenue.toFixed(2)),
-          totalUnitsSold: totalUnits,
-          uniqueCustomers,
-          avgTransactionValue: Number((totalRevenue / sales.length).toFixed(2)),
-          avgUnitsPerSale: Number((totalUnits / sales.length).toFixed(2)),
-        },
-        "*** PERFORMANCE INDICATORS ***": {
-          firstSaleDate: firstSale.toISOString(),
-          lastSaleDate: lastSale.toISOString(),
-          daysWithActivity: new Set(sales.map((s) => new Date(s.createdAt || new Date()).toISOString().split("T")[0]))
-            .size,
-        },
-      })
-    },
-    {
-      name: "get_comprehensive_sales_analysis",
-      description:
-        "*** Complete sales overview *** | All-encompassing analysis showing transaction count, revenue, units, customers, and performance indicators.",
+      description: "Sales by product category. Shows which categories drive the most revenue and units sold.",
       schema: dateRangeSchema,
     },
   )
 
   return [
+    // Sales
     getSalesSummary,
     getTopProducts,
     getInventorySummary,
     getInvoiceSummary,
     getQuotationSummary,
-    getEmployeeSummary,
-    getLeaveSummary,
-    getEmployeeCount,
-    searchEmployees,
-    getDepartmentHeadcount,
     getSalesByCustomer,
     getSalesPerformanceTrend,
     getProductCategoryPerformance,
-    getComprehensiveSalesAnalysis,
+    // HR
+    getEmployeeSummary,
+    searchEmployees,
+    getLeaveSummary,
+    // Payroll
+    getPayrollSummary,
+    // Attendance
+    getAttendanceSummary,
   ]
 }

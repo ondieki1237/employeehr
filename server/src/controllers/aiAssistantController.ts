@@ -10,12 +10,14 @@ export class AiAssistantController {
         return res.status(401).json({ success: false, message: "Unauthorized" })
       }
 
+      const { model, provider } = AiAssistantService.getModelInfo()
+
       return res.status(200).json({
         success: true,
         data: {
           enabled: AiAssistantService.isConfigured(),
-          model: process.env.OPENROUTER_MODEL || "openai/gpt-4o-mini",
-          provider: process.env.OPENROUTER_API_KEY ? "openrouter" : "openai",
+          model,
+          provider,
         },
       })
     } catch (error: any) {
@@ -32,17 +34,26 @@ export class AiAssistantController {
       if (!AiAssistantService.isConfigured()) {
         return res.status(503).json({
           success: false,
-          message: "AI assistant is not configured. Set OPENROUTER_API_KEY in server environment.",
+          message: "AI assistant is not configured. Set OPENROUTER_API_KEY in server/.env to enable it.",
         })
       }
 
       const { message, history } = req.body || {}
-      const ctx = buildOrgContext(req.user)
+
+      // Build enriched org context (fetches company name from DB)
+      const ctx = await buildOrgContext(req.user)
+
+      // Sanitise conversation history
       const safeHistory: ChatTurn[] = Array.isArray(history)
         ? history
-            .filter((turn: any) => turn && (turn.role === "user" || turn.role === "assistant") && typeof turn.content === "string")
+            .filter(
+              (turn: any) =>
+                turn &&
+                (turn.role === "user" || turn.role === "assistant") &&
+                typeof turn.content === "string",
+            )
             .map((turn: any) => ({
-              role: turn.role,
+              role: turn.role as "user" | "assistant",
               content: String(turn.content).slice(0, 8000),
             }))
         : []
@@ -54,10 +65,11 @@ export class AiAssistantController {
         data: result,
       })
     } catch (error: any) {
-      const status = error.message?.includes("not configured") ? 503 : 400
-      return res.status(status).json({
+      const is503 =
+        error.message?.includes("not configured") || error.message?.includes("Missing organization context")
+      return res.status(is503 ? 503 : 400).json({
         success: false,
-        message: error.message || "Failed to process chat message",
+        message: error.message || "Failed to process your request",
       })
     }
   }

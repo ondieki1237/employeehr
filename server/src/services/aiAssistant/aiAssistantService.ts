@@ -14,60 +14,101 @@ export type ChatTurn = {
   content: string
 }
 
-const MAX_TOOL_ROUNDS = 6
+const MAX_TOOL_ROUNDS = 8
 
 function buildSystemPrompt(ctx: AssistantOrgContext): string {
-  const today = new Date().toISOString().split('T')[0]
-  return `You are Elevate AI Assistant — a helpful analyst for a multi-tenant HR and inventory platform.
+  const now = new Date()
+  const today = now.toISOString().split("T")[0]
+  const currentMonth = now.toLocaleString("en-US", { month: "long", year: "numeric", timeZone: "UTC" })
+  const lastMonthDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1))
+  const lastMonth = lastMonthDate.toLocaleString("en-US", { month: "long", year: "numeric", timeZone: "UTC" })
+  const currentYear = now.getUTCFullYear()
 
-CRITICAL RULES:
-- Today's date is ${today}. All temporal questions must use the provided tools.
-- You only have access to data for the current company (tenant). Never invent numbers.
-- **Always use the provided tools to fetch real data before answering ANY quantitative question.**
-- For "last month", call tools with period "last_month". For "this month", use period "this_month".
-- Do not rely on your training data for employee counts, sales figures, or any HR/business metrics.
-- If a tool returns an error about permissions, explain that politely to the user.
-- Present answers clearly with bullet points or short paragraphs. Include the date range you used.
-- Do not expose internal IDs, database field names, or tool names to the user.
-- Currency amounts are in the company's local practice (no symbol unless known); label as "revenue" or "value".
+  return `You are Elevate AI — a smart, concise data analyst assistant built into the **${ctx.companyName}** HR & business platform.
 
-Current user: ${ctx.userName} (${ctx.role})
-Company scope: org_id is fixed server-side — you cannot query other tenants.`
+## WHO YOU ARE
+You are a trusted internal analyst. You always answer with real data from the company's database. You never invent figures.
+
+## CURRENT DATE & TIME CONTEXT
+- **Today**: ${today} (${now.toLocaleString("en-US", { weekday: "long", timeZone: "UTC" })})
+- **This month**: ${currentMonth}
+- **Last month**: ${lastMonth}
+- **Current year**: ${currentYear}
+
+## USER CONTEXT
+- Name: ${ctx.userName}
+- Role: ${ctx.role}
+- Company: ${ctx.companyName}
+
+## CRITICAL DATA RULES
+1. **Always call tools first.** Never answer a numeric or business question without calling the appropriate tool.
+2. **You are strictly scoped to ${ctx.companyName}.** The org_id is enforced server-side — you cannot see any other company's data.
+3. **Date accuracy**: Use the date context above for relative terms:
+   - "last month" → use period: "last_month" (= ${lastMonth})
+   - "this month" → use period: "this_month" (= ${currentMonth})
+   - "this year" → use period: "this_year" (= ${currentYear})
+   - "last week" → use period: "last_7_days"
+4. **No hallucination.** If a tool returns empty results, say so honestly.
+5. **Permission boundaries**: HR tools (employees, leave, payroll, attendance) are restricted to admin/HR/manager roles. If restricted, explain politely.
+
+## RESPONSE FORMAT
+- Be **concise and direct** — lead with the key number or finding.
+- Use **bullet points** for lists of items.
+- Use **bold** for key metrics (e.g., **KES 450,000 revenue**).
+- Always state the **time period** the data covers.
+- End with a brief **insight or observation** when relevant.
+- Do NOT expose internal IDs, tool names, field names, or database details.
+- Do NOT repeat the user's question back to them.
+
+## EXAMPLE GOOD RESPONSE
+Asked "How many products sold last month?":
+> In **${lastMonth}**, your company sold **1,240 units** across 87 transactions, generating **KES 312,000** in revenue.
+> - Top seller: Product X (340 units)
+> - The 15th was the busiest sales day.`
 }
 
 function getModel(): ChatOpenAI {
-  const apiKey = process.env.OPENROUTER_API_KEY || process.env.OPENAI_API_KEY
-  if (!apiKey) {
+  const openRouterKey = process.env.OPENROUTER_API_KEY
+  const openAiKey = process.env.OPENAI_API_KEY
+
+  if (!openRouterKey && !openAiKey) {
     throw new Error(
-      "OPENROUTER_API_KEY is not configured. Add it to server/.env to enable the AI assistant.",
+      "AI assistant is not configured. Add OPENROUTER_API_KEY or OPENAI_API_KEY to server/.env to enable it.",
     )
   }
 
-  const model = process.env.OPENROUTER_MODEL || "openai/gpt-4o-mini"
-  const useOpenRouter = Boolean(process.env.OPENROUTER_API_KEY)
+  // Prefer OpenRouter (supports many models including free ones)
+  if (openRouterKey) {
+    const model = process.env.OPENROUTER_MODEL || "google/gemini-2.0-flash-001"
+    return new ChatOpenAI({
+      model,
+      apiKey: openRouterKey,
+      temperature: 0.1, // Low temp for factual accuracy
+      maxTokens: 1500,
+      configuration: {
+        baseURL: "https://openrouter.ai/api/v1",
+        defaultHeaders: {
+          "HTTP-Referer":
+            process.env.OPENROUTER_HTTP_REFERER || process.env.FRONTEND_URL || "http://localhost:3000",
+          "X-Title": process.env.OPENROUTER_APP_NAME || "Elevate HR",
+        },
+      },
+    })
+  }
 
+  // Fallback: direct OpenAI
   return new ChatOpenAI({
-    model,
-    apiKey,
-    temperature: 0.2,
-    maxTokens: 1200,
-    ...(useOpenRouter
-      ? {
-          configuration: {
-            baseURL: "https://openrouter.ai/api/v1",
-            defaultHeaders: {
-              "HTTP-Referer": process.env.OPENROUTER_HTTP_REFERER || process.env.FRONTEND_URL || "http://localhost:3000",
-              "X-Title": process.env.OPENROUTER_APP_NAME || "Elevate HR",
-            },
-          },
-        }
-      : {}),
+    model: "gpt-4o-mini",
+    apiKey: openAiKey!,
+    temperature: 0.1,
+    maxTokens: 1500,
   })
 }
 
 function toLangChainMessages(history: ChatTurn[], systemPrompt: string): BaseMessage[] {
   const messages: BaseMessage[] = [new SystemMessage(systemPrompt)]
-  for (const turn of history.slice(-12)) {
+  // Keep last 10 turns to stay within context limits
+  for (const turn of history.slice(-10)) {
     if (turn.role === "user") messages.push(new HumanMessage(turn.content))
     else messages.push(new AIMessage(turn.content))
   }
@@ -79,13 +120,24 @@ export class AiAssistantService {
     return Boolean(process.env.OPENROUTER_API_KEY || process.env.OPENAI_API_KEY)
   }
 
+  static getModelInfo(): { model: string; provider: string } {
+    if (process.env.OPENROUTER_API_KEY) {
+      return {
+        provider: "openrouter",
+        model: process.env.OPENROUTER_MODEL || "google/gemini-2.0-flash-001",
+      }
+    }
+    return { provider: "openai", model: "gpt-4o-mini" }
+  }
+
   static async chat(ctx: AssistantOrgContext, message: string, history: ChatTurn[] = []) {
     const trimmed = String(message || "").trim()
-    if (!trimmed) {
-      throw new Error("Message is required")
-    }
-    if (trimmed.length > 4000) {
-      throw new Error("Message is too long (max 4000 characters)")
+    if (!trimmed) throw new Error("Message is required")
+    if (trimmed.length > 4000) throw new Error("Message is too long (max 4000 characters)")
+
+    // Extra safety: ensure org context is valid before building tools
+    if (!ctx.orgId || ctx.orgId.trim() === "") {
+      throw new Error("Missing organization context — cannot process your request.")
     }
 
     const tools = createAssistantTools(ctx)
@@ -138,7 +190,7 @@ export class AiAssistantService {
 
     return {
       answer:
-        "I needed more steps than allowed to finish this question. Please ask a more specific question or narrow the date range.",
+        "I needed more steps than expected to answer this. Please try a more specific question or narrow the time period.",
       toolsUsed: Array.from(new Set(toolsUsed)),
     }
   }
