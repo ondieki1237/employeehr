@@ -34,6 +34,8 @@ export const metadata: Metadata = {
   },
 }
 
+import { UserActivityTracker } from "@/components/UserActivityTracker"
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -44,6 +46,7 @@ export default function RootLayout({
       <body className={`font-sans antialiased`}>
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
           <AppInitializer />
+          <UserActivityTracker />
           {children}
         </ThemeProvider>
         <Analytics />

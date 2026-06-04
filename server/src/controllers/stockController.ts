@@ -1970,12 +1970,16 @@ export class StockController {
         return res.status(400).json({ success: false, message: "No recipients selected for this campaign" })
       }
 
+      const company = await Company.findById(org_id).select("name dispatchSmsSettings").lean()
+      const smsSenderName = String(company?.dispatchSmsSettings?.smsSenderName || company?.name || "ELEVATE").trim()
+
       const recipientResults = []
       for (const recipient of recipients) {
         try {
           const smsResult = await smsService.sendDispatchSms({
             to: recipient.phone,
             message,
+            senderName: smsSenderName,
           })
 
           recipientResults.push({
@@ -2248,21 +2252,18 @@ export class StockController {
         }
       }
 
-      const rows = Array.from(marginByProduct.values())
-        .map((row) => {
-          const grossProfit = row.revenue - row.estimatedCost
-          const grossMarginPercent = row.revenue > 0 ? (grossProfit / row.revenue) * 100 : 0
-          return {
-            ...row,
-            revenue: Number(row.revenue.toFixed(2)),
-            estimatedCost: Number(row.estimatedCost.toFixed(2)),
-            grossProfit: Number(grossProfit.toFixed(2)),
-            grossMarginPercent: Number(grossMarginPercent.toFixed(1)),
-          }
-        })
-        .sort((a, b) => b.grossProfit - a.grossProfit)
+      const results = Array.from(marginByProduct.values()).map((row) => {
+        const grossProfit = row.revenue - row.estimatedCost
+        return {
+          ...row,
+          grossProfit: Number(grossProfit.toFixed(2)),
+          revenue: Number(row.revenue.toFixed(2)),
+          estimatedCost: Number(row.estimatedCost.toFixed(2)),
+          grossMarginPercent: row.revenue > 0 ? Number(((grossProfit / row.revenue) * 100).toFixed(1)) : 0,
+        }
+      })
 
-      const totals = rows.reduce(
+      const totals = results.reduce(
         (acc, row) => ({
           revenue: acc.revenue + row.revenue,
           estimatedCost: acc.estimatedCost + row.estimatedCost,
@@ -2280,11 +2281,167 @@ export class StockController {
             grossProfit: Number(totals.grossProfit.toFixed(2)),
             grossMarginPercent: totals.revenue > 0 ? Number(((totals.grossProfit / totals.revenue) * 100).toFixed(1)) : 0,
           },
-          rows,
+          rows: results.sort((a, b) => b.revenue - a.revenue),
         },
       })
     } catch (error: any) {
       return res.status(500).json({ success: false, message: error.message || "Failed to fetch profit margin analytics" })
+    }
+  }
+
+  static async getFinancialBreakdown(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = req.user?.org_id
+      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+
+      const { startDate, endDate, branchId, userId } = req.query as any
+
+      // Sanitize inputs to prevent "undefined" string artifacts
+      const cleanStartDate = startDate && startDate !== "undefined" ? startDate : null
+      const cleanEndDate = endDate && endDate !== "undefined" ? endDate : null
+      const cleanBranchId = branchId && branchId !== "undefined" && branchId !== "all" ? branchId : null
+      const cleanUserId = userId && userId !== "undefined" && userId !== "all" ? userId : null
+
+      const query: any = { org_id }
+      const dateQuery: any = {}
+      if (cleanStartDate) dateQuery.$gte = new Date(cleanStartDate)
+      if (cleanEndDate) dateQuery.$lte = new Date(cleanEndDate)
+      if (Object.keys(dateQuery).length > 0) query.createdAt = dateQuery
+      
+      const branchQuery = cleanBranchId ? { branchId: cleanBranchId } : {}
+
+      const fetchPeriodData = async (filterQuery: any) => {
+        const [payments, expenses, sales, invoices, products, categoriesRaw] = await Promise.all([
+          StockInvoicePayment.find({ ...filterQuery, ...(cleanUserId ? { addedBy: cleanUserId } : {}) }).lean(),
+          StockExpense.find({ ...filterQuery, status: "completed", ...(cleanUserId ? { addedBy: cleanUserId } : {}) }).lean(),
+          StockSale.find({ ...filterQuery, ...(cleanUserId ? { soldBy: cleanUserId } : {}) }).lean(),
+          StockInvoice.find({ ...filterQuery, status: { $ne: "cancelled" }, ...(cleanUserId ? { createdBy: cleanUserId } : {}) }).lean(),
+          StockProduct.find({ org_id, isActive: { $ne: false } }).lean(),
+          StockCategory.find({ org_id }).lean(),
+        ])
+
+        const totalInflow = payments.reduce((sum, p) => sum + Number(p.amount || 0), 0)
+        const totalOutflow = expenses.reduce((sum, e) => sum + Number(e.amount || 0), 0)
+
+        const categoryMap = new Map(categoriesRaw.map((c: any) => [String(c._id), c.name]))
+        const productStats = new Map<string, any>()
+
+        for (const prod of products as any[]) {
+          const catName = categoryMap.get(String(prod.category)) || prod.category || "Uncategorized"
+          productStats.set(String(prod._id), {
+            productId: String(prod._id),
+            productName: prod.name,
+            category: catName,
+            currentQuantity: Number(prod.currentQuantity || 0),
+            unitCost: Number(prod.startingPrice || 0),
+            unitPrice: Number(prod.sellingPrice || 0),
+            quantitySold: 0,
+            revenue: 0,
+            cogs: 0,
+            stockValue: Number(prod.currentQuantity || 0) * Number(prod.startingPrice || 0)
+          })
+        }
+
+        for (const sale of sales as any[]) {
+          const row = productStats.get(String(sale.productId))
+          if (row) {
+            const qty = Number(sale.quantitySold || 0)
+            const rev = Number(sale.soldPrice || 0) * qty
+            row.quantitySold += qty
+            row.revenue += rev
+            row.cogs += row.unitCost * qty
+          }
+        }
+
+        for (const invoice of invoices as any[]) {
+          for (const item of invoice.items || []) {
+            const row = productStats.get(String(item.productId))
+            if (row) {
+              const qty = Number(item.quantity || 0)
+              const rev = Number(item.lineTotal || Number(item.unitPrice || 0) * qty)
+              row.quantitySold += qty
+              row.revenue += rev
+              row.cogs += row.unitCost * qty
+            }
+          }
+        }
+
+        const breakdown = Array.from(productStats.values()).map(row => {
+          const profit = row.revenue - row.cogs
+          const margin = row.revenue > 0 ? (profit / row.revenue) * 100 : 0
+          return { ...row, profit, margin }
+        })
+
+        const categoryStatsMap = new Map<string, any>()
+        breakdown.forEach(item => {
+          if (!categoryStatsMap.has(item.category)) {
+            categoryStatsMap.set(item.category, { category: item.category, revenue: 0, profit: 0, items: 0 })
+          }
+          const cat = categoryStatsMap.get(item.category)
+          cat.revenue += item.revenue
+          cat.profit += item.profit
+          cat.items += 1
+        })
+
+        const categories = Array.from(categoryStatsMap.values()).map(c => ({
+          ...c,
+          margin: c.revenue > 0 ? (c.profit / c.revenue) * 100 : 0
+        })).sort((a, b) => b.revenue - a.revenue)
+
+        return {
+          summary: {
+            totalInflow,
+            totalOutflow,
+            netCashFlow: totalInflow - totalOutflow,
+            totalRevenue: breakdown.reduce((sum, r) => sum + r.revenue, 0),
+            totalProfit: breakdown.reduce((sum, r) => sum + r.profit, 0),
+            totalInventoryValue: breakdown.reduce((sum, r) => sum + r.stockValue, 0),
+          },
+          breakdown: breakdown.sort((a, b) => b.revenue - a.revenue),
+          categories
+        }
+      }
+
+      const currentData = await fetchPeriodData({ ...query, ...branchQuery })
+
+      // Calculate Comparison if date range is provided
+      let comparison: any = null
+      if (startDate && endDate) {
+        const start = new Date(startDate)
+        const end = new Date(endDate)
+        const diff = end.getTime() - start.getTime()
+        const prevStart = new Date(start.getTime() - diff)
+        const prevEnd = new Date(end.getTime() - diff)
+        
+        const prevQuery = { 
+          org_id, 
+          createdAt: { $gte: prevStart, $lte: prevEnd },
+          ...branchQuery
+        }
+        const prevData = await fetchPeriodData(prevQuery)
+        
+        const calcChange = (curr: number, prev: number) => {
+          if (prev === 0) return curr > 0 ? 100 : 0
+          return ((curr - prev) / prev) * 100
+        }
+
+        comparison = {
+          revenueChange: calcChange(currentData.summary.totalRevenue, prevData.summary.totalRevenue),
+          profitChange: calcChange(currentData.summary.totalProfit, prevData.summary.totalProfit),
+          inflowChange: calcChange(currentData.summary.totalInflow, prevData.summary.totalInflow),
+          outflowChange: calcChange(currentData.summary.totalOutflow, prevData.summary.totalOutflow),
+        }
+      }
+
+      return res.status(200).json({
+        success: true,
+        data: {
+          ...currentData,
+          comparison
+        }
+      })
+    } catch (error: any) {
+      return res.status(500).json({ success: false, message: error.message || "Failed to fetch financial breakdown" })
     }
   }
 

@@ -9,7 +9,14 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
-import { MessageSquare, Search, Send, Users } from "lucide-react"
+import { History, MessageSquare, Search, Send, Users } from "lucide-react"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
 
 type AudienceType = "all" | "pending_quotations" | "quotation_product" | "branch" | "inactive"
 
@@ -51,6 +58,7 @@ export default function BulkSmsPage() {
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set())
   const [status, setStatus] = useState("")
   const [error, setError] = useState("")
+  const [historyOpen, setHistoryOpen] = useState(false)
 
   const [branding, setBranding] = useState<{ primaryColor?: string; secondaryColor?: string }>({})
   const primaryColor = branding.primaryColor || "#0f766e"
@@ -163,7 +171,7 @@ export default function BulkSmsPage() {
 
   useEffect(() => {
     loadCampaigns().catch((campaignError) => setError(campaignError.message || "Failed to load campaigns"))
-  }, [])
+  }, [open, historyOpen])
 
   const toggleClient = (key: string) => {
     setSelectedKeys((prev) => {
@@ -230,6 +238,60 @@ export default function BulkSmsPage() {
             <p className="text-sm text-muted-foreground">Build an audience from clients, quotations, regions, and purchase history.</p>
           </div>
           <div className="flex flex-wrap gap-2">
+            <Dialog open={historyOpen} onOpenChange={setHistoryOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline"><History className="mr-2 h-4 w-4" /> Campaign History</Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>Campaign History</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  {campaigns.length === 0 ? (
+                    <div className="py-12 text-center text-muted-foreground">No campaigns found.</div>
+                  ) : (
+                    campaigns.map((item) => (
+                      <div key={item._id} className="rounded-xl border p-4 space-y-3">
+                        <div className="flex items-start justify-between gap-4">
+                          <div>
+                            <h3 className="font-semibold text-lg">{item.name}</h3>
+                            <p className="text-sm text-muted-foreground">{new Date(item.createdAt).toLocaleString()}</p>
+                          </div>
+                          <Badge className={
+                            item.status === "completed" ? "bg-green-100 text-green-700" :
+                            item.status === "completed_with_errors" ? "bg-amber-100 text-amber-700" :
+                            "bg-red-100 text-red-700"
+                          }>
+                            {item.status.replace(/_/g, " ")}
+                          </Badge>
+                        </div>
+                        <div className="bg-muted/30 rounded-lg p-3 text-sm italic text-muted-foreground">
+                          "{item.message}"
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-2">
+                          <div className="space-y-1">
+                            <p className="text-xs text-muted-foreground uppercase font-medium">Audience</p>
+                            <p className="text-xl font-bold">{item.audienceCount}</p>
+                          </div>
+                          <div className="space-y-1 text-green-600">
+                            <p className="text-xs text-muted-foreground uppercase font-medium">Sent</p>
+                            <p className="text-xl font-bold">{item.sentCount}</p>
+                          </div>
+                          <div className="space-y-1 text-red-600">
+                            <p className="text-xs text-muted-foreground uppercase font-medium">Failed</p>
+                            <p className="text-xl font-bold">{item.failedCount}</p>
+                          </div>
+                          <div className="space-y-1 text-muted-foreground">
+                            <p className="text-xs text-muted-foreground uppercase font-medium">Skipped</p>
+                            <p className="text-xl font-bold">{item.skippedCount}</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </DialogContent>
+            </Dialog>
             <Button variant="outline" onClick={loadAudience} disabled={loading}>Refresh Audience</Button>
           </div>
         </div>

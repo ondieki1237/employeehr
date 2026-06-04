@@ -12,7 +12,7 @@ const PasswordResetSchema = new Schema<IPasswordResetDocument>(
   {
     email: { type: String, required: true, lowercase: true, index: true },
     otp: { type: String, required: true },
-    expiresAt: { type: Date, required: true, index: true },
+    expiresAt: { type: Date, required: true },
     used: { type: Boolean, default: false },
   },
   { timestamps: { createdAt: true, updatedAt: false } },

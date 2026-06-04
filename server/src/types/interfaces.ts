@@ -13,6 +13,7 @@ export interface IUser {
   manager_id?: string
   avatar?: string
   signatureUrl?: string
+  promptStampOnPdf?: boolean
   phone?: string
   dateOfJoining?: Date
   status: "active" | "inactive" | "pending"
@@ -27,6 +28,8 @@ export interface IUser {
     bankName: string
     bankBranch?: string
   }
+  lastLoginAt?: Date
+  lastActiveAt?: Date
   createdAt?: Date
   updatedAt?: Date
 }

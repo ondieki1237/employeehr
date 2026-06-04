@@ -234,6 +234,12 @@ const adminMenuItems = [
     section: "ACCOUNTS"
   },
   {
+    label: "Financial Breakdown",
+    icon: TrendingUp,
+    href: "/admin/accounts/financial-breakdown",
+    section: "ACCOUNTS"
+  },
+  {
     label: "Stamps",
     icon: Stamp,
     href: "/admin/stamps",

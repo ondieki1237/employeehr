@@ -189,7 +189,12 @@ class SmsService {
   }
 
   private async sendViaBulkSmsEndpoint(input: SendSmsInput, normalizedTo: string): Promise<SendSmsResult> {
-    const senderId = String(input.senderName || this.senderId || this.defaultSenderName).trim()
+    const rawSenderId = String(input.senderName || this.senderId || this.defaultSenderName).trim()
+    // If senderId looks like a UUID/GUID, it's probably a ClientId/AppId mistake in .env
+    // SenderIds must be < 11 chars alphanumeric.
+    const isGuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(rawSenderId)
+    const senderId = isGuid || rawSenderId.length > 13 ? "ELEVATE" : rawSenderId
+
     const payload = {
       SenderId: senderId,
       IsUnicode: false,
@@ -226,7 +231,9 @@ class SmsService {
   }
 
   private async sendViaEncryptedCampaignEndpoint(input: SendSmsInput, normalizedTo: string): Promise<SendSmsResult> {
-    const senderName = String(input.senderName || this.defaultSenderName).trim()
+    const rawSenderName = String(input.senderName || this.defaultSenderName).trim()
+    const isGuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(rawSenderName)
+    const senderName = isGuid || rawSenderName.length > 13 ? "ELEVATE" : rawSenderName
 
     const payload = {
       SenderId: senderName,

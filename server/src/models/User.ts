@@ -39,6 +39,8 @@ const userSchema = new Schema<IUser>(
       bankName: { type: String },
       bankBranch: { type: String },
     },
+    lastLoginAt: { type: Date },
+    lastActiveAt: { type: Date },
   },
   { timestamps: true },
 )

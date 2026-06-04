@@ -24,7 +24,7 @@ const LoginOtpSchema = new Schema<ILoginOtpDocument>(
     loginType: { type: String, enum: ["standard", "company", "employee"], required: true, index: true },
     otp: { type: String, required: true },
     companySlug: { type: String, required: false },
-    expiresAt: { type: Date, required: true, index: true },
+    expiresAt: { type: Date, required: true },
     used: { type: Boolean, default: false },
   },
   { timestamps: { createdAt: true, updatedAt: false } },

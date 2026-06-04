@@ -63,6 +63,7 @@ router.get("/dispatch/analytics", StockController.getDispatchAnalytics)
 router.get("/analytics/profit-margins", StockController.getProfitMarginAnalytics)
 router.get("/analytics/movement-forecast", StockController.getProductMovementForecast)
 router.get("/analytics/valuation", StockController.getInventoryValuationReport)
+router.get("/analytics/financial-breakdown", StockController.getFinancialBreakdown)
 
 router.get("/couriers", StockController.getCouriers)
 router.post("/couriers", StockController.createCourier)

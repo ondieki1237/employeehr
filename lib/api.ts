@@ -682,6 +682,10 @@ export const stockApi = {
     getProfitMargins: () => client.get<any>('/api/stock/analytics/profit-margins'),
     getMovementForecast: () => client.get<any[]>('/api/stock/analytics/movement-forecast'),
     getInventoryValuation: () => client.get<any>('/api/stock/analytics/valuation'),
+    getFinancialBreakdown: (params?: any) => {
+        const query = params ? `?${new URLSearchParams(params).toString()}` : ''
+        return client.get<any>(`/api/stock/analytics/financial-breakdown${query}`)
+    },
 
     getExpenses: () => client.get<any[]>('/api/stock/accounts/expenses'),
 

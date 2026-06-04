@@ -243,6 +243,9 @@ export class AuthService {
         }
       }
 
+      user.lastLoginAt = new Date()
+      await user.save()
+
       const token = this.getTokenFromUser(user.toObject() as any)
 
       return {
@@ -324,6 +327,9 @@ export class AuthService {
 
       challenge.used = true
       await challenge.save()
+
+      user.lastLoginAt = new Date()
+      await user.save()
 
       const token = this.getTokenFromUser(user.toObject() as any)
 

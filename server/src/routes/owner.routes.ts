@@ -31,4 +31,8 @@ router.put("/companies/:companyId/pages", (req, res) => {
   OwnerController.updateCompanyPages(req as any, res)
 })
 
+// User activity logs across all organizations
+import { ActivityController } from "../controllers/activityController"
+router.get("/user-activity", ActivityController.getOwnerActivitySummary)
+
 export default router

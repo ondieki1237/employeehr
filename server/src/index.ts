@@ -16,6 +16,7 @@ import startSyncScheduler from './services/scheduler/syncScheduler'
 
 // Routes
 import authRoutes from "./routes/auth.routes"
+import activityRoutes from "./routes/activity.routes"
 import userRoutes from "./routes/user.routes"
 import performanceRoutes from "./routes/performance.routes"
 import kpiRoutes from "./routes/kpi.routes"
@@ -146,6 +147,7 @@ app.use("/api/mpesa", mpesaWebhookRoutes)
 
 // API Routes
 app.use("/api/auth", authRoutes)
+app.use("/api/activity", activityRoutes)
 app.use("/api/users", userRoutes)
 app.use("/api/branches", branchRoutes)
 app.use("/api/performance", performanceRoutes)
