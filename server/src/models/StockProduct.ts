@@ -17,6 +17,9 @@ export interface IStockProduct {
   expiryLastReminderOn?: string | null
   createdBy: string
   isActive: boolean
+  productType: "physical" | "service"
+  isRecurring?: boolean
+  intervalDays?: number
   createdAt?: Date
   updatedAt?: Date
 }
@@ -38,6 +41,9 @@ const stockProductSchema = new Schema<IStockProduct>(
     expiryLastReminderOn: { type: String, default: null },
     createdBy: { type: String, required: true },
     isActive: { type: Boolean, default: true },
+    productType: { type: String, enum: ["physical", "service"], default: "physical" },
+    isRecurring: { type: Boolean, default: false },
+    intervalDays: { type: Number, default: 0 },
   },
   { timestamps: true },
 )

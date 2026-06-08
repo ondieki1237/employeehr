@@ -35,7 +35,21 @@ import {
   type TenantBranding,
 } from "@/lib/stock-document-pdf"
 
-type StockView = "add-inventory" | "sales" | "status" | "analytics" | "history" | "outsourced"
+type StockView = "add-inventory" | "sales" | "status" | "analytics" | "history" | "outsourced" | "services"
+
+interface ServiceJob {
+  _id: string
+  serviceId: string
+  serviceName: string
+  clientId?: string
+  clientName?: string
+  scheduledDate: string
+  completedDate?: string
+  status: "pending" | "done" | "overdue" | "cancelled"
+  notes?: string
+  isRecurring: boolean
+  intervalDays: number
+}
 
 interface Category {
   _id: string
@@ -60,6 +74,9 @@ interface Product {
   expiryDate?: string | null
   expiryReminderDays?: number
   categoryDetails?: { _id: string; name: string }
+  productType?: "physical" | "service"
+  isRecurring?: boolean
+  intervalDays?: number
 }
 
 interface Employee {
@@ -171,6 +188,7 @@ export function StockManagerContent({ view }: { view: StockView }) {
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [clients, setClients] = useState<ClientSuggestion[]>([])
   const [branches, setBranches] = useState<any[]>([])
+  const [serviceJobs, setServiceJobs] = useState<ServiceJob[]>([])
 
   const [categoryForm, setCategoryForm] = useState({ name: "", description: "" })
   const [categoryMode, setCategoryMode] = useState<"main" | "sub">("main")
@@ -187,6 +205,9 @@ export function StockManagerContent({ view }: { view: StockView }) {
     expiryEnabled: false,
     expiryDate: "",
     expiryReminderDays: "7",
+    productType: "physical" as "physical" | "service",
+    isRecurring: false,
+    intervalDays: "",
   })
   const [stockForm, setStockForm] = useState({
     productId: "",
@@ -280,7 +301,7 @@ export function StockManagerContent({ view }: { view: StockView }) {
   const fetchAll = async () => {
     try {
       setLoading(true)
-      const [categoriesRes, productsRes, usersRes, salesRes, entriesRes, quotationsRes, invoicesRes, branchesRes, clientsRes, brandingRes] = await Promise.all([
+      const [categoriesRes, productsRes, usersRes, salesRes, entriesRes, quotationsRes, invoicesRes, branchesRes, clientsRes, brandingRes, jobsRes] = await Promise.all([
         fetch(`${API_URL}/api/stock/categories`, { headers }),
         fetch(`${API_URL}/api/stock/products`, { headers }),
         fetch(`${API_URL}/api/users`, { headers }),
@@ -291,9 +312,10 @@ export function StockManagerContent({ view }: { view: StockView }) {
         fetch(`${API_URL}/api/branches`, { headers }),
         fetch(`${API_URL}/api/stock/clients`, { headers }),
         fetch(`${API_URL}/api/company/branding`, { headers }),
+        fetch(`${API_URL}/api/stock/services/jobs`, { headers }),
       ])
 
-      const [categoriesJson, productsJson, usersJson, salesJson, entriesJson, quotationsJson, invoicesJson, branchesJson, clientsJson, brandingJson] = await Promise.all([
+      const [categoriesJson, productsJson, usersJson, salesJson, entriesJson, quotationsJson, invoicesJson, branchesJson, clientsJson, brandingJson, jobsJson] = await Promise.all([
         categoriesRes.json(),
         productsRes.json(),
         usersRes.json(),
@@ -304,6 +326,7 @@ export function StockManagerContent({ view }: { view: StockView }) {
         branchesRes.json(),
         clientsRes.json(),
         brandingRes.json(),
+        jobsRes.json(),
       ])
 
       setCategories(categoriesJson.data || [])
@@ -316,6 +339,7 @@ export function StockManagerContent({ view }: { view: StockView }) {
       setClients((clientsJson.data || []).filter((client: ClientSuggestion) => client.name && client.number && client.location))
       setBranches((branchesJson.data || []).filter((branch: any) => branch.isActive))
       setBranding(brandingJson.data || {})
+      setServiceJobs(jobsJson.data || [])
     } catch {
       toast({ title: "Error", description: "Failed to load inventory data", variant: "destructive" })
     } finally {
@@ -1118,6 +1142,9 @@ export function StockManagerContent({ view }: { view: StockView }) {
       expiryEnabled: false,
       expiryDate: "",
       expiryReminderDays: "7",
+      productType: "physical",
+      isRecurring: false,
+      intervalDays: "",
     })
     setProductBranchId("")
     toast({ title: "Success", description: "Product created" })
@@ -1799,6 +1826,36 @@ export function StockManagerContent({ view }: { view: StockView }) {
             <CardHeader><CardTitle>Create Product</CardTitle></CardHeader>
             <CardContent className="space-y-4">
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                <div className="md:col-span-2 lg:col-span-3 pb-3 border-b mb-2">
+                  <Label className="text-xs uppercase font-bold text-muted-foreground mb-3 block">Category Type</Label>
+                  <div className="flex gap-6">
+                    <label className="flex items-center gap-2 cursor-pointer group">
+                      <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${productForm.productType === 'physical' ? 'border-primary' : 'border-muted-foreground'}`}>
+                        {productForm.productType === 'physical' && <div className="w-2 h-2 rounded-full bg-primary" />}
+                      </div>
+                      <input
+                        type="radio"
+                        className="hidden"
+                        checked={productForm.productType === "physical"}
+                        onChange={() => setProductForm(prev => ({ ...prev, productType: "physical" }))}
+                      />
+                      <span className={`text-sm font-medium ${productForm.productType === 'physical' ? 'text-foreground' : 'text-muted-foreground'}`}>Physical Product</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer group">
+                      <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${productForm.productType === 'service' ? 'border-primary' : 'border-muted-foreground'}`}>
+                        {productForm.productType === 'service' && <div className="w-2 h-2 rounded-full bg-primary" />}
+                      </div>
+                      <input
+                        type="radio"
+                        className="hidden"
+                        checked={productForm.productType === "service"}
+                        onChange={() => setProductForm(prev => ({ ...prev, productType: "service" }))}
+                      />
+                      <span className={`text-sm font-medium ${productForm.productType === 'service' ? 'text-foreground' : 'text-muted-foreground'}`}>Professional Service</span>
+                    </label>
+                  </div>
+                </div>
+
                 <div>
                   <Label>Name</Label>
                   <Input value={productForm.name} onChange={(event) => setProductForm((prev) => ({ ...prev, name: event.target.value }))} />
@@ -1844,6 +1901,30 @@ export function StockManagerContent({ view }: { view: StockView }) {
                     </Select>
                   </div>
                 ) : null}
+                {productForm.productType === "service" && (
+                  <div className="md:col-span-2 lg:col-span-3 bg-muted/30 p-3 rounded-md border flex items-center gap-6">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <Checkbox
+                        checked={productForm.isRecurring}
+                        onCheckedChange={(value) => setProductForm(prev => ({ ...prev, isRecurring: !!value }))}
+                      />
+                      <span className="text-sm font-medium">Recurring Service (Maintenance/Renewing)</span>
+                    </label>
+                    {productForm.isRecurring && (
+                      <div className="flex items-center gap-2">
+                        <Label className="mt-0">Renew Every:</Label>
+                        <Input
+                          type="number"
+                          className="w-20"
+                          placeholder="Days"
+                          value={productForm.intervalDays}
+                          onChange={(e) => setProductForm(prev => ({ ...prev, intervalDays: e.target.value }))}
+                        />
+                        <span className="text-xs text-muted-foreground">Days</span>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="space-y-3 border rounded-md p-3">

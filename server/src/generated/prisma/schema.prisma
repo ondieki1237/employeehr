@@ -69,6 +69,8 @@ model Company {
   stockSales      StockSale[]
   stockQuotations StockQuotation[]
   stockInvoices   StockInvoice[]
+  services        Service[]
+  serviceJobs     ServiceJob[]
   meetings        Meeting[]
   leaves          LeaveRequest[]
   holidays        Holiday[]
@@ -149,6 +151,7 @@ model StockClient {
   quotations StockQuotation[]
   invoices   StockInvoice[]
   sales      StockSale[]
+  serviceJobs ServiceJob[]
   complaints ClientComplaint[]
 
   @@unique([orgId, sourceName, sourceNumber, sourceLocation])
@@ -247,6 +250,8 @@ model StockQuotation {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  serviceItems ServiceQuotationItem[]
+
   @@unique([orgId, quotationNumber])
   @@index([clientId])
 }
@@ -333,6 +338,94 @@ model StockSaleItem {
 
   @@index([saleId])
   @@index([productId])
+}
+
+// ==================== SERVICE MANAGEMENT ====================
+
+model Service {
+  id    String  @id @default(cuid())
+  orgId String
+  org   Company @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  name          String
+  description   String?  @db.Text
+  category      String   // e.g., "Installation", "Maintenance", "Inspection", etc.
+  price         Float
+  duration      String?  // e.g., "2 hours", "1 day", etc.
+  
+  // Recurring service configuration
+  isRecurring   Boolean  @default(false)
+  intervalDays  Int      @default(0) // Days between recurring services (0 = one-time)
+  
+  // Status tracking
+  status        String   @default("active") // active, inactive, archived
+  
+  createdBy     String
+  updatedBy     String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  jobs ServiceJob[]
+  quotationItems ServiceQuotationItem[]
+
+  @@unique([orgId, name])
+  @@index([category])
+  @@index([isRecurring])
+}
+
+model ServiceJob {
+  id    String  @id @default(cuid())
+  orgId String
+  org   Company @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  serviceId String
+  service   Service @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+
+  clientId  String
+  client    StockClient @relation(fields: [clientId], references: [id], onDelete: Restrict)
+
+  // Job scheduling & tracking
+  scheduledDate  DateTime
+  completedDate  DateTime?
+  status         String   @default("pending") // pending, in-progress, completed, cancelled, overdue
+  
+  // Details
+  notes          String?  @db.Text
+  price          Float    // Can differ from service base price
+  
+  // Recurring management
+  isRecurring    Boolean  @default(false)
+  intervalDays   Int      @default(0)
+  recurringJobId String?  // Reference to parent recurring job if auto-generated
+  
+  // Tracking
+  createdBy      String
+  updatedBy      String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([orgId])
+  @@index([clientId])
+  @@index([status])
+  @@index([scheduledDate])
+  @@index([isRecurring])
+}
+
+model ServiceQuotationItem {
+  id    String  @id @default(cuid())
+  
+  serviceId String
+  service   Service @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+
+  quotationId String
+  quotation   StockQuotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+
+  quantity   Int
+  unitPrice  Float
+  totalPrice Float
+
+  @@index([serviceId])
+  @@index([quotationId])
 }
 
 // ==================== CLIENT COMPLAINTS ====================

@@ -24,6 +24,7 @@ import { User } from "../models/User"
 import emailService from "../services/email.service"
 import { smsService } from "../services/sms.service"
 import { mpesaService } from "../services/mpesa.service"
+import { StockServiceJob } from "../models/StockServiceJob"
 
 const ADMIN_ROLES = ["company_admin", "hr", "admin", "super_admin"]
 
@@ -3784,6 +3785,9 @@ export class StockController {
         expiryDate,
         expiryReminderDays = 7,
         branchId,
+        productType = "physical",
+        isRecurring = false,
+        intervalDays = 0,
       } = req.body
 
       const resolvedBuyingPrice = buyingPrice !== undefined ? buyingPrice : startingPrice
@@ -3802,10 +3806,6 @@ export class StockController {
 
       if (expiryEnabled && !expiryDate) {
         return res.status(400).json({ success: false, message: "Expiry date is required when expiry checker is enabled" })
-      }
-
-      if (Number(expiryReminderDays) < 0) {
-        return res.status(400).json({ success: false, message: "Expiry reminder days must be zero or positive" })
       }
 
       const categoryExists = await StockCategory.findOne({ _id: category, org_id })
@@ -3836,6 +3836,9 @@ export class StockController {
         expiryReminderDays: Number(expiryReminderDays),
         expiryLastReminderOn: null,
         createdBy,
+        productType,
+        isRecurring: Boolean(isRecurring),
+        intervalDays: Number(intervalDays),
       })
 
       if (Number(currentQuantity) > 0 && trimmedBranchId) {
@@ -4552,6 +4555,348 @@ export class StockController {
       return res.status(200).json({ success: true, message: "Category deleted successfully" })
     } catch (error: any) {
       return res.status(500).json({ success: false, message: error.message || "Failed to delete category" })
+    }
+  }
+
+  // SERVICES & JOBS
+  static async getServiceJobs(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = req.user?.org_id
+      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+
+      const { status, clientId } = req.query
+      const query: any = { org_id }
+      if (status) query.status = status
+      if (clientId) query.clientId = clientId
+
+      const jobs = await StockServiceJob.find(query).sort({ scheduledDate: 1 }).lean()
+      return res.json({ success: true, data: jobs })
+    } catch (error: any) {
+      return res.status(500).json({ success: false, message: error.message })
+    }
+  }
+
+  static async createServiceJob(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = req.user?.org_id
+      const createdBy = req.user?.userId
+      if (!org_id || !createdBy) return res.status(401).json({ success: false, message: "Unauthorized" })
+
+      const { serviceId, clientId, scheduledDate, notes } = req.body
+      if (!serviceId || !scheduledDate) return res.status(400).json({ success: false, message: "Service and date required" })
+
+      const service = await StockProduct.findOne({ _id: serviceId, org_id })
+      if (!service) return res.status(404).json({ success: false, message: "Service not found" })
+
+      let clientName = ""
+      if (clientId) {
+        const client = await StockClient.findOne({ _id: clientId, org_id })
+        clientName = client?.name || ""
+      }
+
+      const job = await StockServiceJob.create({
+        org_id,
+        serviceId,
+        serviceName: service.name,
+        clientId,
+        clientName,
+        scheduledDate: new Date(scheduledDate),
+        status: "pending",
+        notes,
+        isRecurring: !!service.isRecurring,
+        intervalDays: service.intervalDays || 0,
+        createdBy,
+      })
+
+      return res.status(201).json({ success: true, data: job })
+    } catch (error: any) {
+      return res.status(500).json({ success: false, message: error.message })
+    }
+  }
+
+  static async updateServiceJobStatus(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = req.user?.org_id
+      const userId = req.user?.userId
+      if (!org_id || !userId) return res.status(401).json({ success: false, message: "Unauthorized" })
+
+      const { jobId } = req.params
+      const { status, notes } = req.body
+
+      const job = await StockServiceJob.findOne({ _id: jobId, org_id })
+      if (!job) return res.status(404).json({ success: false, message: "Job not found" })
+
+      job.status = status
+      if (status === "done") {
+        job.completedDate = new Date()
+
+        // If recurring, create next job
+        if (job.isRecurring && job.intervalDays > 0) {
+          const nextDate = new Date()
+          nextDate.setDate(nextDate.getDate() + job.intervalDays)
+
+          await StockServiceJob.create({
+            org_id,
+            serviceId: job.serviceId,
+            serviceName: job.serviceName,
+            clientId: job.clientId,
+            clientName: job.clientName,
+            scheduledDate: nextDate,
+            status: "pending",
+            notes: `Auto-recurring from completed job on ${new Date().toLocaleDateString()}`,
+            isRecurring: true,
+            intervalDays: job.intervalDays,
+            createdBy: userId,
+          })
+        }
+      }
+      if (notes) job.notes = notes
+
+      await job.save()
+      return res.json({ success: true, message: "Status updated" })
+    } catch (error: any) {
+      return res.status(500).json({ success: false, message: error.message })
+    }
+  }
+
+  // SERVICES MANAGEMENT
+  static async createService(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = req.user?.org_id
+      const createdBy = req.user?.userId
+      if (!org_id || !createdBy) return res.status(401).json({ success: false, message: "Unauthorized" })
+
+      if (!isAdminRole(req.user?.role)) {
+        return res.status(403).json({ success: false, message: "Only admin/HR can create services" })
+      }
+
+      const { name, description, category, price, duration, isRecurring, intervalDays } = req.body
+      if (!name || !category || !price) {
+        return res.status(400).json({ success: false, message: "Name, category, and price are required" })
+      }
+
+      const service = await StockProduct.create({
+        org_id,
+        name: String(name).trim(),
+        description: description ? String(description).trim() : undefined,
+        category: String(category).trim(),
+        startingPrice: Number(price),
+        sellingPrice: Number(price),
+        minAlertQuantity: 0,
+        currentQuantity: 0,
+        productType: "service",
+        isRecurring: Boolean(isRecurring),
+        intervalDays: Number(intervalDays || 0),
+        createdBy,
+      })
+
+      return res.status(201).json({ success: true, data: service })
+    } catch (error: any) {
+      return res.status(500).json({ success: false, message: error.message || "Failed to create service" })
+    }
+  }
+
+  static async getServices(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = req.user?.org_id
+      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+
+      const services = await StockProduct.find({ org_id, productType: "service", isActive: { $ne: false } })
+        .sort({ createdAt: -1 })
+        .lean()
+
+      return res.status(200).json({ success: true, data: services })
+    } catch (error: any) {
+      return res.status(500).json({ success: false, message: error.message || "Failed to fetch services" })
+    }
+  }
+
+  static async getServiceById(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = req.user?.org_id
+      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+
+      const { serviceId } = req.params
+      const service = await StockProduct.findOne({ _id: serviceId, org_id, productType: "service" }).lean()
+
+      if (!service) return res.status(404).json({ success: false, message: "Service not found" })
+      return res.status(200).json({ success: true, data: service })
+    } catch (error: any) {
+      return res.status(500).json({ success: false, message: error.message || "Failed to fetch service" })
+    }
+  }
+
+  static async updateService(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = req.user?.org_id
+      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+
+      if (!isAdminRole(req.user?.role)) {
+        return res.status(403).json({ success: false, message: "Only admin/HR can update services" })
+      }
+
+      const { serviceId } = req.params
+      const { name, description, category, price, duration, isRecurring, intervalDays, status } = req.body
+
+      const payload: any = {}
+      if (name) payload.name = String(name).trim()
+      if (category) payload.category = String(category).trim()
+      if (price) payload.sellingPrice = Number(price)
+      if (description) payload.description = String(description).trim()
+      if (isRecurring !== undefined) payload.isRecurring = Boolean(isRecurring)
+      if (intervalDays !== undefined) payload.intervalDays = Number(intervalDays)
+      if (status) payload.isActive = status === "active"
+
+      const service = await StockProduct.findOneAndUpdate(
+        { _id: serviceId, org_id, productType: "service" },
+        { $set: payload },
+        { new: true }
+      )
+
+      if (!service) return res.status(404).json({ success: false, message: "Service not found" })
+      return res.status(200).json({ success: true, data: service })
+    } catch (error: any) {
+      return res.status(500).json({ success: false, message: error.message || "Failed to update service" })
+    }
+  }
+
+  static async deleteService(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = req.user?.org_id
+      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+
+      if (!isAdminRole(req.user?.role)) {
+        return res.status(403).json({ success: false, message: "Only admin/HR can delete services" })
+      }
+
+      const { serviceId } = req.params
+      const service = await StockProduct.findOneAndUpdate(
+        { _id: serviceId, org_id, productType: "service" },
+        { $set: { isActive: false } },
+        { new: true }
+      )
+
+      if (!service) return res.status(404).json({ success: false, message: "Service not found" })
+      return res.status(200).json({ success: true, message: "Service deleted successfully" })
+    } catch (error: any) {
+      return res.status(500).json({ success: false, message: error.message || "Failed to delete service" })
+    }
+  }
+
+  static async getServiceJobsByStatus(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = req.user?.org_id
+      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+
+      const { status } = req.params
+      const jobs = await StockServiceJob.find({ org_id, status }).sort({ scheduledDate: 1 }).lean()
+
+      return res.status(200).json({ success: true, data: jobs })
+    } catch (error: any) {
+      return res.status(500).json({ success: false, message: error.message })
+    }
+  }
+
+  static async getServiceJobById(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = req.user?.org_id
+      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+
+      const { jobId } = req.params
+      const job = await StockServiceJob.findOne({ _id: jobId, org_id }).lean()
+
+      if (!job) return res.status(404).json({ success: false, message: "Job not found" })
+      return res.status(200).json({ success: true, data: job })
+    } catch (error: any) {
+      return res.status(500).json({ success: false, message: error.message })
+    }
+  }
+
+  static async deleteServiceJob(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = req.user?.org_id
+      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+
+      if (!isAdminRole(req.user?.role)) {
+        return res.status(403).json({ success: false, message: "Only admin/HR can delete jobs" })
+      }
+
+      const { jobId } = req.params
+      const result = await StockServiceJob.deleteOne({ _id: jobId, org_id })
+
+      if (result.deletedCount === 0) return res.status(404).json({ success: false, message: "Job not found" })
+      return res.status(200).json({ success: true, message: "Job deleted successfully" })
+    } catch (error: any) {
+      return res.status(500).json({ success: false, message: error.message })
+    }
+  }
+
+  static async getServicesAnalyticsSummary(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = req.user?.org_id
+      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+
+      const jobs = await StockServiceJob.find({ org_id }).lean()
+
+      const summary = {
+        totalJobs: jobs.length,
+        pending: jobs.filter(j => j.status === "pending").length,
+        inProgress: jobs.filter(j => j.status === "in-progress").length,
+        completed: jobs.filter(j => j.status === "done").length,
+        cancelled: jobs.filter(j => j.status === "cancelled").length,
+        overdue: jobs.filter(j => j.status !== "done" && j.status !== "cancelled" && new Date(j.scheduledDate) < new Date()).length,
+      }
+
+      const byStatus = {
+        pending: jobs.filter(j => j.status === "pending"),
+        inProgress: jobs.filter(j => j.status === "in-progress"),
+        completed: jobs.filter(j => j.status === "done"),
+      }
+
+      return res.status(200).json({ success: true, data: { summary, byStatus } })
+    } catch (error: any) {
+      return res.status(500).json({ success: false, message: error.message })
+    }
+  }
+
+  static async getServicesAnalyticsByCategory(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = req.user?.org_id
+      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+
+      const services = await StockProduct.find({ org_id, productType: "service" }).lean()
+      const jobs = await StockServiceJob.find({ org_id }).lean()
+
+      const byCategory = new Map()
+      services.forEach(s => {
+        byCategory.set(String(s.category), {
+          category: s.category,
+          totalServices: 0,
+          totalJobs: 0,
+          completedJobs: 0,
+          pendingJobs: 0,
+        })
+      })
+
+      services.forEach(s => {
+        const cat = byCategory.get(String(s.category))
+        if (cat) cat.totalServices += 1
+      })
+
+      jobs.forEach(j => {
+        const service = services.find(s => s._id.toString() === j.serviceId)
+        if (service && byCategory.has(String(service.category))) {
+          const cat = byCategory.get(String(service.category))
+          cat.totalJobs += 1
+          if (j.status === "done") cat.completedJobs += 1
+          if (j.status === "pending") cat.pendingJobs += 1
+        }
+      })
+
+      const data = Array.from(byCategory.values()).sort((a, b) => b.totalJobs - a.totalJobs)
+      return res.status(200).json({ success: true, data })
+    } catch (error: any) {
+      return res.status(500).json({ success: false, message: error.message })
     }
   }
 }

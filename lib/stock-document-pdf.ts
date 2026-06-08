@@ -414,6 +414,10 @@ function drawItemsTable(
       y = 20;
       drawTableHeader(y);
       y += headerHeight;
+      // Reset text color to dark after page break
+      doc.setTextColor(30, 30, 30);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
     }
 
     // Light row stripe
@@ -493,6 +497,7 @@ function drawTotalsSection(
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8.5);
+  // Ensure text color is dark/readable (not white from header)
   setColorFromHex(doc, DEFAULT_TEXT, "text");
 
   const labelX = boxX + 4;

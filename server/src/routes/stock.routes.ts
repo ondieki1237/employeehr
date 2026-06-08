@@ -81,4 +81,23 @@ router.post("/check-expiry", StockController.checkExpiringProducts)
 router.post("/sales", StockController.createSale)
 router.get("/sales", StockController.getSales)
 
+// Services Management
+router.post("/services", StockController.createService)
+router.get("/services", StockController.getServices)
+router.get("/services/:serviceId", StockController.getServiceById)
+router.put("/services/:serviceId", StockController.updateService)
+router.delete("/services/:serviceId", StockController.deleteService)
+
+// Service Jobs Management
+router.post("/services/jobs", StockController.createServiceJob)
+router.get("/services/jobs", StockController.getServiceJobs)
+router.get("/services/jobs/status/:status", StockController.getServiceJobsByStatus)
+router.put("/services/jobs/:jobId/status", StockController.updateServiceJobStatus)
+router.get("/services/jobs/:jobId", StockController.getServiceJobById)
+router.delete("/services/jobs/:jobId", StockController.deleteServiceJob)
+
+// Service Analytics
+router.get("/services/analytics/summary", StockController.getServicesAnalyticsSummary)
+router.get("/services/analytics/by-category", StockController.getServicesAnalyticsByCategory)
+
 export default router
