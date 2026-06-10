@@ -79,7 +79,7 @@ function getModel(): ChatOpenAI {
 
   // Prefer OpenRouter (supports many models including free ones)
   if (openRouterKey) {
-    const model = process.env.OPENROUTER_MODEL || "google/gemini-2.0-flash-001"
+    const model = process.env.OPENROUTER_MODEL || "gpt-4o-mini"
     return new ChatOpenAI({
       model,
       apiKey: openRouterKey,
@@ -124,7 +124,7 @@ export class AiAssistantService {
     if (process.env.OPENROUTER_API_KEY) {
       return {
         provider: "openrouter",
-        model: process.env.OPENROUTER_MODEL || "google/gemini-2.0-flash-001",
+        model: process.env.OPENROUTER_MODEL || "gpt-4o-mini",
       }
     }
     return { provider: "openai", model: "gpt-4o-mini" }
