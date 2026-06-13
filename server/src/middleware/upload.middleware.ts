@@ -69,6 +69,8 @@ const applicationFileFilter = (req: any, file: Express.Multer.File, cb: multer.F
     "application/vnd.ms-excel",
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     "text/plain",
+    "text/csv",
+    "application/csv",
     "image/png",
     "image/jpeg",
     "image/jpg",

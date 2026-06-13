@@ -166,7 +166,6 @@ export function ProductEditDialog({ open, product, categories, onOpenChange, onS
               disabled={loading}
             />
           </div>
-
           <div className="space-y-2">
             <Label htmlFor="categoryId">Category</Label>
             <Select value={formData.categoryId} onValueChange={(value) => handleSelectChange("categoryId", value)} disabled={loading}>

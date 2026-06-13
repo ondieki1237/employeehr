@@ -57,6 +57,7 @@ export interface DocumentItem {
   lineTotal: number;
   taxRate?: number;
   totalAfterTax?: number;
+  description?: string;
 }
 
 interface HeaderArgs {
@@ -330,7 +331,8 @@ function drawItemsTable(
   const tableX = 12;
   const tableWidth = 186;
   const headerHeight = 11;
-  const rowHeight = 10.5;
+  const baseRowHeight = 10.5; // row height when no description
+  const descLineH = 3; // line height for description text
 
   const columns = compact
     ? [
@@ -358,6 +360,25 @@ function drawItemsTable(
   const columnStartX = columns.map((_, index) => {
     return tableX + columns.slice(0, index).reduce((sum, c) => sum + c.width, 0);
   });
+
+  // Pre-compute description lines for each item so we know the row height
+  const descColWidth = columns[1].width - 8;
+  doc.setFont("helvetica", "italic");
+  doc.setFontSize(7);
+  const itemDescLines: string[][] = items.map((item) => {
+    if (!item.description) return [];
+    return doc.splitTextToSize(item.description, descColWidth) as string[];
+  });
+  // Reset font
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+
+  const getRowHeight = (index: number) => {
+    const lines = itemDescLines[index];
+    if (!lines || lines.length === 0) return baseRowHeight;
+    // product name takes ~7.5mm, then each desc line is descLineH, plus padding
+    return Math.max(baseRowHeight, 10 + lines.length * descLineH + 2);
+  };
 
   const drawTableHeader = (headerY: number) => {
     setColorFromHex(doc, primary, "fill");
@@ -388,14 +409,14 @@ function drawItemsTable(
     });
   };
 
-  const drawRowGrid = (rowY: number) => {
+  const drawRowGrid = (rowY: number, rh: number) => {
     setColorFromHex(doc, primary, "draw");
     doc.setLineWidth(0.35);
-    doc.rect(tableX, rowY, tableWidth, rowHeight);
+    doc.rect(tableX, rowY, tableWidth, rh);
     columns.forEach((_, index) => {
       if (index === 0) return;
       const x = columnStartX[index];
-      doc.line(x, rowY, x, rowY + rowHeight);
+      doc.line(x, rowY, x, rowY + rh);
     });
   };
 
@@ -409,12 +430,13 @@ function drawItemsTable(
   doc.setFontSize(9);
 
   items.forEach((item, i) => {
-    if (y > 246) {
+    const rh = getRowHeight(i);
+
+    if (y + rh > 270) {
       doc.addPage();
       y = 20;
       drawTableHeader(y);
       y += headerHeight;
-      // Reset text color to dark after page break
       doc.setTextColor(30, 30, 30);
       doc.setFont("helvetica", "normal");
       doc.setFontSize(9);
@@ -423,38 +445,60 @@ function drawItemsTable(
     // Light row stripe
     if (i % 2 === 0) {
       doc.setFillColor(248, 250, 252);
-      doc.rect(tableX, y, tableWidth, rowHeight, "F");
+      doc.rect(tableX, y, tableWidth, rh, "F");
     }
+
+    drawRowGrid(y, rh);
 
     const maxNameLength = compact ? 76 : includeTax ? 48 : 62;
     const name = item.productName.length > maxNameLength
       ? item.productName.slice(0, maxNameLength - 3) + "..."
       : item.productName;
 
-    drawRowGrid(y);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(30, 30, 30);
+    doc.text(String(i + 1).padStart(2, "0"), columnStartX[0] + 2, y + 7);
+    doc.text(name, columnStartX[1] + 3, y + 7);
 
-    doc.text(String(i + 1).padStart(2, "0"), columnStartX[0] + 2, y + 7.5);
-    doc.text(name, columnStartX[1] + 3, y + 7.5);
+    // Render description lines below the product name
+    const descLines = itemDescLines[i];
+    if (descLines && descLines.length > 0) {
+      doc.setFont("helvetica", "italic");
+      doc.setFontSize(7);
+      setColorFromHex(doc, DEFAULT_GRAY, "text");
+
+      let descY = y + 11;
+      descLines.forEach((line: string) => {
+        doc.text(`• ${line}`, columnStartX[1] + 5, descY);
+        descY += descLineH;
+      });
+
+      // Restore
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      doc.setTextColor(30, 30, 30);
+    }
 
     if (compact) {
       const qtyCol = columns[2];
-      doc.text(String(item.quantity), tableX + qtyCol.width + columns[0].width + columns[1].width - 2, y + 7.5, { align: "right" });
+      doc.text(String(item.quantity), tableX + qtyCol.width + columns[0].width + columns[1].width - 2, y + 7, { align: "right" });
     } else if (includeTax) {
       const taxRate = Number(item.taxRate || 0);
       const baseTotal = Number(item.lineTotal || 0);
       const totalAfterTax = Number(item.totalAfterTax || (baseTotal + baseTotal * (taxRate / 100)));
 
-      doc.text(String(item.quantity), columnStartX[2] + columns[2].width - 3, y + 7.5, { align: "right" });
-      doc.text(formatAmount(item.unitPrice), columnStartX[3] + columns[3].width - 3, y + 7.5, { align: "right" });
-      doc.text(`${taxRate.toFixed(2)}%`, columnStartX[4] + columns[4].width - 3, y + 7.5, { align: "right" });
-      doc.text(formatAmount(totalAfterTax), columnStartX[5] + columns[5].width - 3, y + 7.5, { align: "right" });
+      doc.text(String(item.quantity), columnStartX[2] + columns[2].width - 3, y + 7, { align: "right" });
+      doc.text(formatAmount(item.unitPrice), columnStartX[3] + columns[3].width - 3, y + 7, { align: "right" });
+      doc.text(`${taxRate.toFixed(2)}%`, columnStartX[4] + columns[4].width - 3, y + 7, { align: "right" });
+      doc.text(formatAmount(totalAfterTax), columnStartX[5] + columns[5].width - 3, y + 7, { align: "right" });
     } else {
-      doc.text(String(item.quantity), columnStartX[2] + columns[2].width - 3, y + 7.5, { align: "right" });
-      doc.text(formatAmount(item.unitPrice), columnStartX[3] + columns[3].width - 3, y + 7.5, { align: "right" });
-      doc.text(formatAmount(item.lineTotal), columnStartX[4] + columns[4].width - 3, y + 7.5, { align: "right" });
+      doc.text(String(item.quantity), columnStartX[2] + columns[2].width - 3, y + 7, { align: "right" });
+      doc.text(formatAmount(item.unitPrice), columnStartX[3] + columns[3].width - 3, y + 7, { align: "right" });
+      doc.text(formatAmount(item.lineTotal), columnStartX[4] + columns[4].width - 3, y + 7, { align: "right" });
     }
 
-    y += rowHeight;
+    y += rh;
   });
 
   return y + 6;

@@ -1,6 +1,8 @@
 'use client'
 
 import React, { useState } from 'react'
+import { useToast } from '@/hooks/use-toast'
+import { fetchJson } from '@/lib/fetchUtils'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -11,7 +13,6 @@ import { Checkbox } from '@/components/ui/checkbox'
 interface Service {
   _id: string
   name: string
-  category: string
   description?: string
   sellingPrice: number
   isRecurring: boolean
@@ -26,6 +27,7 @@ interface EditServiceDialogProps {
 }
 
 export default function EditServiceDialog({ open, onOpenChange, service, onSuccess }: EditServiceDialogProps) {
+  const { toast } = useToast()
   const [loading, setLoading] = useState(false)
   const [form, setForm] = useState({
     name: service.name,
@@ -40,7 +42,7 @@ export default function EditServiceDialog({ open, onOpenChange, service, onSucce
     setLoading(true)
 
     try {
-      const res = await fetch(`/api/stock/services/${service._id}`, {
+      const result = await fetchJson<{ success: boolean; data?: any; message?: string }>(`/api/stock/services/${service._id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -50,11 +52,15 @@ export default function EditServiceDialog({ open, onOpenChange, service, onSucce
         }),
       })
 
-      if (res.ok) {
+      if (result.response.ok && result.data?.success) {
         onSuccess()
+      } else {
+        throw new Error(result.errorMessage || 'Failed to update service')
       }
     } catch (error) {
       console.error('Failed to update service:', error)
+      const message = error instanceof Error ? error.message : 'Failed to update service'
+      toast({ title: 'Error', description: message, variant: 'destructive' })
     } finally {
       setLoading(false)
     }

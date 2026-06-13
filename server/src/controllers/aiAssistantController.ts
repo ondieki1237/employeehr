@@ -65,6 +65,7 @@ export class AiAssistantController {
         data: result,
       })
     } catch (error: any) {
+      console.error("AI assistant chat error:", { error })
       const is503 =
         error.message?.includes("not configured") || error.message?.includes("Missing organization context")
       return res.status(is503 ? 503 : 400).json({

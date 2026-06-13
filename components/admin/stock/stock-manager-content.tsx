@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, useRef } from "react"
 import Link from "next/link"
 import API_URL from "@/lib/apiBase"
 import { getToken, getUser } from "@/lib/auth"
+import { fetchJson } from "@/lib/fetchUtils"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -302,44 +303,35 @@ export function StockManagerContent({ view }: { view: StockView }) {
     try {
       setLoading(true)
       const [categoriesRes, productsRes, usersRes, salesRes, entriesRes, quotationsRes, invoicesRes, branchesRes, clientsRes, brandingRes, jobsRes] = await Promise.all([
-        fetch(`${API_URL}/api/stock/categories`, { headers }),
-        fetch(`${API_URL}/api/stock/products`, { headers }),
-        fetch(`${API_URL}/api/users`, { headers }),
-        fetch(`${API_URL}/api/stock/sales`, { headers }),
-        fetch(`${API_URL}/api/stock/entries`, { headers }),
-        fetch(`${API_URL}/api/stock/quotations`, { headers }),
-        fetch(`${API_URL}/api/stock/invoices`, { headers }),
-        fetch(`${API_URL}/api/branches`, { headers }),
-        fetch(`${API_URL}/api/stock/clients`, { headers }),
-        fetch(`${API_URL}/api/company/branding`, { headers }),
-        fetch(`${API_URL}/api/stock/services/jobs`, { headers }),
+        fetchJson(`${API_URL}/api/stock/categories`, { headers }),
+        fetchJson(`${API_URL}/api/stock/products`, { headers }),
+        fetchJson(`${API_URL}/api/users`, { headers }),
+        fetchJson(`${API_URL}/api/stock/sales`, { headers }),
+        fetchJson(`${API_URL}/api/stock/entries`, { headers }),
+        fetchJson(`${API_URL}/api/stock/quotations`, { headers }),
+        fetchJson(`${API_URL}/api/stock/invoices`, { headers }),
+        fetchJson(`${API_URL}/api/branches`, { headers }),
+        fetchJson(`${API_URL}/api/stock/clients`, { headers }),
+        fetchJson(`${API_URL}/api/company/branding`, { headers }),
+        fetchJson(`${API_URL}/api/stock/services/jobs`, { headers }),
       ])
 
-      const [categoriesJson, productsJson, usersJson, salesJson, entriesJson, quotationsJson, invoicesJson, branchesJson, clientsJson, brandingJson, jobsJson] = await Promise.all([
-        categoriesRes.json(),
-        productsRes.json(),
-        usersRes.json(),
-        salesRes.json(),
-        entriesRes.json(),
-        quotationsRes.json(),
-        invoicesRes.json(),
-        branchesRes.json(),
-        clientsRes.json(),
-        brandingRes.json(),
-        jobsRes.json(),
-      ])
+      if (categoriesRes.errorMessage || productsRes.errorMessage || usersRes.errorMessage || salesRes.errorMessage || entriesRes.errorMessage || quotationsRes.errorMessage || invoicesRes.errorMessage || branchesRes.errorMessage || clientsRes.errorMessage || brandingRes.errorMessage || jobsRes.errorMessage) {
+        const firstError = [categoriesRes, productsRes, usersRes, salesRes, entriesRes, quotationsRes, invoicesRes, branchesRes, clientsRes, brandingRes, jobsRes].find(r => r.errorMessage)
+        throw new Error(firstError?.errorMessage || 'Failed to load inventory data')
+      }
 
-      setCategories(categoriesJson.data || [])
-      setProducts(productsJson.data || [])
-      setEmployees((usersJson.data || []).filter((user: Employee) => ["employee", "manager", "hr", "company_admin"].includes(user.role)))
-      setSales(salesJson.data || [])
-      setEntries(entriesJson.data || [])
-      setQuotations(quotationsJson.data || [])
-      setInvoices(invoicesJson.data || [])
-      setClients((clientsJson.data || []).filter((client: ClientSuggestion) => client.name && client.number && client.location))
-      setBranches((branchesJson.data || []).filter((branch: any) => branch.isActive))
-      setBranding(brandingJson.data || {})
-      setServiceJobs(jobsJson.data || [])
+      setCategories(categoriesRes.data?.data || [])
+      setProducts(productsRes.data?.data || [])
+      setEmployees((usersRes.data?.data || []).filter((user: Employee) => ["employee", "manager", "hr", "company_admin"].includes(user.role)))
+      setSales(salesRes.data?.data || [])
+      setEntries(entriesRes.data?.data || [])
+      setQuotations(quotationsRes.data?.data || [])
+      setInvoices(invoicesRes.data?.data || [])
+      setClients((clientsRes.data?.data || []).filter((client: ClientSuggestion) => client.name && client.number && client.location))
+      setBranches((branchesRes.data?.data || []).filter((branch: any) => branch.isActive))
+      setBranding(brandingRes.data?.data || {})
+      setServiceJobs(jobsRes.data?.data || [])
     } catch {
       toast({ title: "Error", description: "Failed to load inventory data", variant: "destructive" })
     } finally {
@@ -1092,9 +1084,9 @@ export function StockManagerContent({ view }: { view: StockView }) {
         parentId: categoryMode === "sub" && categoryParentId !== "none" ? categoryParentId : null,
       }),
     })
-    const result = await response.json()
-    if (!response.ok) {
-      toast({ title: "Category Error", description: result.message || "Failed", variant: "destructive" })
+    const result = await parseResponse<{ success: boolean; message?: string }>(response)
+    if (!result.response.ok) {
+      toast({ title: "Category Error", description: result.errorMessage || "Failed to create category", variant: "destructive" })
       return
     }
     setCategoryForm({ name: "", description: "" })
@@ -1125,9 +1117,9 @@ export function StockManagerContent({ view }: { view: StockView }) {
         branchId: productBranchId || undefined,
       }),
     })
-    const result = await response.json()
-    if (!response.ok) {
-      toast({ title: "Product Error", description: result.message || "Failed", variant: "destructive" })
+    const result = await parseResponse<{ success: boolean; message?: string }>(response)
+    if (!result.response.ok) {
+      toast({ title: "Product Error", description: result.errorMessage || "Failed to create product", variant: "destructive" })
       return
     }
     setProductForm({
@@ -1168,9 +1160,9 @@ export function StockManagerContent({ view }: { view: StockView }) {
         entryDate: stockForm.backdateEnabled && stockForm.entryDate ? stockForm.entryDate : undefined,
       }),
     })
-    const result = await response.json()
-    if (!response.ok) {
-      toast({ title: "Stock Error", description: result.message || "Failed", variant: "destructive" })
+    const result = await parseResponse<{ success: boolean; message?: string }>(response)
+    if (!result.response.ok) {
+      toast({ title: "Stock Error", description: result.errorMessage || "Failed to add stock", variant: "destructive" })
       return
     }
     setStockForm({
@@ -1804,9 +1796,9 @@ export function StockManagerContent({ view }: { view: StockView }) {
                       headers: { Authorization: `Bearer ${getToken()}` },
                       body: formData,
                     })
-                    const res = await response.json()
-                    if (!response.ok) throw new Error(res.message || "Upload failed")
-                    toast({ title: res.message || "Upload complete" })
+                    const res = await parseResponse<{ success: boolean; message?: string }>(response)
+                    if (!res.response.ok) throw new Error(res.errorMessage || "Upload failed")
+                    toast({ title: res.data?.message || "Upload complete" })
                     await fetchAll()
                   } catch (err: any) {
                     toast({ title: "Upload failed", description: err?.message || String(err), variant: "destructive" })

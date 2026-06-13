@@ -55,9 +55,13 @@ class ApiClient {
             })
 
             let data: any = null
+            let text: string | null = null
             try {
-                data = await response.json()
+                const body = await response.text()
+                text = body
+                data = body ? JSON.parse(body) : null
             } catch {
+                // If the response is not JSON, preserve the raw text
                 data = null
             }
 
@@ -65,15 +69,14 @@ class ApiClient {
             if (response.status === 401) {
                 const isAuthEndpoint = endpoint.startsWith('/api/auth/')
                 if (!isAuthEndpoint && token) {
-                    console.error('Auth failed - logging out user', { endpoint, message: data?.message })
+                    console.error('Auth failed - logging out user', { endpoint, message: data?.message || text })
                     logout()
                     throw new Error('Session expired or invalid. Please login again.')
                 }
-                throw new Error(data?.message || data?.error || 'Unauthorized')
+                throw new Error(data?.message || data?.error || text || 'Unauthorized')
             }
 
             if (!response.ok) {
-                // Log more details about the error for debugging
                 const errorInfo = {
                     endpoint: endpoint || 'unknown',
                     status: response.status || 'unknown',
@@ -81,28 +84,28 @@ class ApiClient {
                     message: data?.message || null,
                     error: data?.error || null,
                     success: data?.success || null,
+                    rawText: text,
                     headers: {
                         contentType: response.headers?.get?.('content-type'),
                     },
                     timestamp: new Date().toISOString(),
                 }
                 console.error('API request failed:', errorInfo)
-                console.error('Full response data:', data)
-                
-                // Provide better error messages based on status code
+                console.error('Full response body:', text)
+
                 let errorMessage = 'Request failed'
                 if (response.status === 400) {
-                    errorMessage = data?.message || 'Bad request'
+                    errorMessage = data?.message || data?.error || text || 'Bad request'
                 } else if (response.status === 403) {
-                    errorMessage = data?.message || 'Access denied'
+                    errorMessage = data?.message || data?.error || text || 'Access denied'
                 } else if (response.status === 404) {
                     errorMessage = `Endpoint not found: ${endpoint}`
                 } else if (response.status === 500) {
-                    errorMessage = data?.message || 'Server error'
+                    errorMessage = data?.message || data?.error || text || 'Server error'
                 } else if (response.status >= 500) {
                     errorMessage = `Server error (${response.status})`
                 }
-                
+
                 throw new Error(data?.message || data?.error || errorMessage)
             }
 
@@ -110,7 +113,7 @@ class ApiClient {
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : String(error)
             const fullError = error instanceof Error ? error : new Error(String(error))
-            
+
             console.error('API Error:', {
                 endpoint,
                 message: errorMessage,
@@ -449,7 +452,12 @@ export const companyApi = {
             })
 
             if (!response.ok) {
-                const errorData = await response.json()
+                let errorData: any = null
+                try {
+                    errorData = await response.json()
+                } catch {
+                    errorData = { message: 'Upload failed' }
+                }
                 throw new Error(errorData.message || 'Upload failed')
             }
 
@@ -604,7 +612,15 @@ export const meetingsApi = {
                 method: 'POST',
                 headers,
                 body: formData
-            }).then(res => res.json())
+            }).then(async res => {
+                const text = await res.text()
+                try {
+                    return text ? JSON.parse(text) : null
+                } catch {
+                    if (!res.ok) throw new Error(`AI Processing failed (${res.status})`)
+                    return null
+                }
+            })
         }
         return client.post<Meeting>(`/api/meetings/${id}/process-ai`, {})
     },
@@ -647,7 +663,14 @@ export const stockApi = {
         const form = new FormData()
         form.append('file', file)
         const response = await fetch(`${API_URL}/api/stock/clients/bulk`, { method: 'POST', headers, body: form })
-        const data = await response.json()
+        const data = await response.text().then(text => {
+            try {
+                return text ? JSON.parse(text) : null
+            } catch {
+                return null
+            }
+        })
+
         if (!response.ok) {
             throw new Error(data?.message || 'Upload failed')
         }
@@ -715,7 +738,15 @@ export const stockApi = {
         if (token) headers['Authorization'] = `Bearer ${token}`
         const form = new FormData()
         form.append('file', file)
-        return fetch(`${API_URL}/api/stock/products/bulk`, { method: 'POST', headers, body: form }).then(res => res.json())
+        return fetch(`${API_URL}/api/stock/products/bulk`, { method: 'POST', headers, body: form }).then(async res => {
+            const text = await res.text()
+            try {
+                return text ? JSON.parse(text) : null
+            } catch {
+                if (!res.ok) throw new Error(`Upload failed (${res.status})`)
+                return null
+            }
+        })
     },
 }
 

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 import API_URL from "@/lib/apiBase"
 import { getToken, getUser } from "@/lib/auth"
+import { parseResponse, fetchJson } from "@/lib/fetchUtils"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -20,6 +21,8 @@ interface Product {
   name: string
   sellingPrice: number
   currentQuantity: number
+  category?: string
+  productType?: string
   categoryDetails?: { _id: string; name: string }
 }
 
@@ -61,6 +64,7 @@ interface DraftItem {
   soldUnitPrice?: number
   unitPrice: number
   isOutsourced?: boolean
+  productType?: string
 }
 
 interface StampOption {
@@ -74,6 +78,7 @@ export default function EmployeeQuotationsPage() {
 
   const [loading, setLoading] = useState(true)
   const [products, setProducts] = useState<Product[]>([])
+  const [services, setServices] = useState<Product[]>([])
   const [clients, setClients] = useState<Client[]>([])
   const [quotations, setQuotations] = useState<Quotation[]>([])
   const [branding, setBranding] = useState<TenantBranding>({})
@@ -108,29 +113,50 @@ export default function EmployeeQuotationsPage() {
   const loadData = async () => {
     try {
       setLoading(true)
-      const [productsRes, quotationsRes, clientsRes, brandingRes, invoiceSettingsRes] = await Promise.all([
+      const [productsRes, servicesRes, quotationsRes, clientsRes, brandingRes, invoiceSettingsRes] = await Promise.all([
         fetch(`${API_URL}/api/stock/products`, { headers: getAuthHeaders() }),
+        fetch(`${API_URL}/api/stock/services`, { headers: getAuthHeaders() }),
         fetch(`${API_URL}/api/stock/quotations`, { headers: getAuthHeaders() }),
         fetch(`${API_URL}/api/stock/clients`, { headers: getAuthHeaders() }),
         fetch(`${API_URL}/api/company/branding`, { headers: getAuthHeaders() }),
         fetch(`${API_URL}/api/company/invoice-settings`, { headers: getAuthHeaders() }),
       ])
 
-      const [productsJson, quotationsJson, clientsJson, brandingJson, invoiceSettingsJson] = await Promise.all([
-        productsRes.json(),
-        quotationsRes.json(),
-        clientsRes.json(),
-        brandingRes.json(),
-        invoiceSettingsRes.json(),
+      const [productsResult, servicesResult, quotationsResult, clientsResult, brandingResult, invoiceSettingsResult] = await Promise.all([
+        parseResponse(productsRes),
+        parseResponse(servicesRes),
+        parseResponse(quotationsRes),
+        parseResponse(clientsRes),
+        parseResponse(brandingRes),
+        parseResponse(invoiceSettingsRes),
       ])
 
-      setProducts(productsJson.data || [])
-      setQuotations(quotationsJson.data || [])
-      setClients(clientsJson.data || [])
-      setBranding(brandingJson.data || {})
-      setInvoiceSettings(invoiceSettingsJson.data || {})
-    } catch {
-      toast({ title: "Error", description: "Failed to load quotations", variant: "destructive" })
+      const failedResponses = [
+        productsResult,
+        servicesResult,
+        quotationsResult,
+        clientsResult,
+        brandingResult,
+        invoiceSettingsResult,
+      ].filter((result) => !result.response.ok)
+
+      if (failedResponses.length > 0) {
+        const message = failedResponses
+          .map((result) => result.errorMessage || `HTTP ${result.response.status}`)
+          .join(' · ')
+        throw new Error(message || 'Failed to load quotation data')
+      }
+
+      setProducts(productsResult.data?.data || [])
+      setServices(servicesResult.data?.data || [])
+      setQuotations(quotationsResult.data?.data || [])
+      setClients(clientsResult.data?.data || [])
+      setBranding(brandingResult.data?.data || {})
+      setInvoiceSettings(invoiceSettingsResult.data?.data || {})
+    } catch (error) {
+      console.error('Load quotations failed:', error)
+      const message = error instanceof Error ? error.message : 'Failed to load quotations'
+      toast({ title: 'Error', description: message, variant: 'destructive' })
     } finally {
       setLoading(false)
     }
@@ -160,16 +186,16 @@ export default function EmployeeQuotationsPage() {
     )
   })
 
-  const productSuggestions = products
+  const productSuggestions = [...products, ...services]
     .filter((product) => {
       const query = productSearch.trim().toLowerCase()
       if (!query) return false
       return (
         product.name.toLowerCase().includes(query) ||
-        (product.categoryDetails?.name || "").toLowerCase().includes(query)
+        (product.categoryDetails?.name || product.category || "").toLowerCase().includes(query)
       )
     })
-    .filter((product) => Number(product.currentQuantity || 0) > 0)
+    .filter((product) => product.productType === "service" || Number(product.currentQuantity || 0) > 0)
     .slice(0, 8)
 
   const resetForm = () => {
@@ -228,6 +254,7 @@ export default function EmployeeQuotationsPage() {
         productUnitPrice: referencePrice,
         soldUnitPrice: soldPrice,
         unitPrice: soldPrice,
+        productType: product.productType,
         isOutsourced: false,
       },
     ])
@@ -274,7 +301,7 @@ export default function EmployeeQuotationsPage() {
         : `${API_URL}/api/stock/quotations`
       const method = editingQuotationId ? "PUT" : "POST"
 
-      const response = await fetch(endpoint, {
+      const result = await fetchJson<{ success: boolean; data: Quotation; message?: string }>(endpoint, {
         method,
         headers: getAuthHeaders(),
         body: JSON.stringify({
@@ -286,24 +313,29 @@ export default function EmployeeQuotationsPage() {
         }),
       })
 
-      const result = await response.json()
-      if (!response.ok) {
-        toast({ title: "Error", description: result.message || "Failed to save quotation", variant: "destructive" })
+      if (!result.response.ok) {
+        toast({ title: "Error", description: result.errorMessage || "Failed to save quotation", variant: "destructive" })
+        return
+      }
+
+      if (!result.data?.success) {
+        toast({ title: "Error", description: result.data?.message || result.errorMessage || "Failed to save quotation", variant: "destructive" })
         return
       }
 
       toast({
         title: "Success",
         description: editingQuotationId
-          ? `Quotation ${result.data.quotationNumber} updated`
-          : `Quotation ${result.data.quotationNumber} submitted for admin approval`,
+          ? `Quotation ${result.data.data.quotationNumber} updated`
+          : `Quotation ${result.data.data.quotationNumber} submitted for admin approval`,
       })
 
       resetForm()
       loadData()
     } catch (error) {
       console.error("Failed to save quotation:", error)
-      toast({ title: "Error", description: "Failed to save quotation", variant: "destructive" })
+      const message = error instanceof Error ? error.message : "Failed to save quotation"
+      toast({ title: "Error", description: message, variant: "destructive" })
     } finally {
       setSavingQuotation(false)
     }
@@ -347,8 +379,12 @@ export default function EmployeeQuotationsPage() {
     if (selectedDate === null) return null
 
     const stampsRes = await fetch(`${API_URL}/api/stamps`, { headers: getAuthHeaders() })
-    const stampsJson = await stampsRes.json()
-    const stamps: StampOption[] = stampsJson.data || stampsJson || []
+    const stampsResult = await parseResponse<{ success: boolean; data: StampOption[]; message?: string }>(stampsRes)
+    if (!stampsResult.response.ok || !stampsResult.data?.success) {
+      toast({ title: "Stamp error", description: stampsResult.errorMessage || stampsResult.data?.message || "Failed to load stamps", variant: "destructive" })
+      return null
+    }
+    const stamps: StampOption[] = stampsResult.data.data || []
 
     if (!stamps.length) {
       toast({ title: "No stamps", description: "Create a stamp first in System > Stamps", variant: "destructive" })
@@ -395,10 +431,12 @@ export default function EmployeeQuotationsPage() {
           poBox: "",
         }).toString()
         const stampRes = await fetch(`${API_URL}/api/stamps/${stampSelection.stampId}/svg?${query}`, { headers: getAuthHeaders() })
-        if (stampRes.ok) {
-          const stampSvg = await stampRes.text()
-          await applyStampToPdf(doc, stampSvg, 140, 255, 55, 33)
+        if (!stampRes.ok) {
+          const failedStampRes = await parseResponse(stampRes.clone())
+          throw new Error(failedStampRes.errorMessage || failedStampRes.data?.message || 'Failed to fetch stamp')
         }
+        const stampSvg = await stampRes.text()
+        await applyStampToPdf(doc, stampSvg, 140, 255, 55, 33)
       } catch {
       }
     }
@@ -509,8 +547,8 @@ export default function EmployeeQuotationsPage() {
               <div className="rounded-md border p-4 space-y-4">
                 <div className="grid gap-4 md:grid-cols-3">
                   <div>
-                    <Label>Type Product Name</Label>
-                    <Input placeholder="Start typing product name" value={productSearch} onChange={(event) => setProductSearch(event.target.value)} />
+                    <Label>Type Product or Service Name</Label>
+                    <Input placeholder="Start typing product or service name" value={productSearch} onChange={(event) => setProductSearch(event.target.value)} />
                   </div>
                   <div>
                     <Label>Quantity</Label>
@@ -521,14 +559,14 @@ export default function EmployeeQuotationsPage() {
                     <Input type="number" min="0" value={itemSoldPrice} onChange={(event) => setItemSoldPrice(event.target.value)} placeholder="Defaults to product price" />
                   </div>
                   <div className="flex items-end rounded-md border px-3 py-2 text-xs text-muted-foreground">
-                    Choose a product from the list below.
+                    Choose a product or service from the list below.
                   </div>
                 </div>
 
                 {productSearch.trim() && (
                   <div className="border rounded-md divide-y">
                     {productSuggestions.length === 0 ? (
-                      <div className="p-3 text-sm text-muted-foreground">No matching products found.</div>
+                      <div className="p-3 text-sm text-muted-foreground">No matching products or services found.</div>
                     ) : (
                       productSuggestions.map((product) => (
                         <button
@@ -538,7 +576,9 @@ export default function EmployeeQuotationsPage() {
                           onClick={() => addItemFromSuggestion(product)}
                         >
                           <div className="font-medium">{product.name}</div>
-                          <div className="text-muted-foreground">Category: {product.categoryDetails?.name || "N/A"} | Price: {product.sellingPrice}</div>
+                          <div className="text-muted-foreground">
+                            Category: {product.categoryDetails?.name || product.category || "N/A"} • {product.productType === "service" ? "Service" : "Product"} • Price: {product.sellingPrice}
+                          </div>
                         </button>
                       ))
                     )}

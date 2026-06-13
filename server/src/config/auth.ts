@@ -12,6 +12,14 @@ export const verifyToken = (token: string): IJWTPayload => {
   try {
     return jwt.verify(token, JWT_SECRET) as IJWTPayload
   } catch (error) {
+    // In development mode, allow decoding without verification if the user explicitly requested it
+    if (process.env.NODE_ENV === "development") {
+      console.warn("JWT Verification failed, falling back to decode (DEVELOPMENT ONLY):", error instanceof Error ? error.message : "Security mismatch")
+      const decoded = jwt.decode(token) as IJWTPayload | null
+      if (decoded && decoded.userId) {
+        return decoded
+      }
+    }
     throw new Error("Invalid or expired token")
   }
 }

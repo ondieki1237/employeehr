@@ -4,7 +4,7 @@ export interface IStockProduct {
   _id?: string
   org_id: string
   name: string
-  category: string
+  category?: string
   startingPrice: number
   sellingPrice: number
   minAlertQuantity: number
@@ -20,6 +20,7 @@ export interface IStockProduct {
   productType: "physical" | "service"
   isRecurring?: boolean
   intervalDays?: number
+  description?: string
   createdAt?: Date
   updatedAt?: Date
 }
@@ -28,7 +29,7 @@ const stockProductSchema = new Schema<IStockProduct>(
   {
     org_id: { type: String, required: true, index: true },
     name: { type: String, required: true, trim: true },
-    category: { type: String, required: true, index: true },
+    category: { type: String, required: false, index: true },
     startingPrice: { type: Number, required: true, min: 0 },
     sellingPrice: { type: Number, required: true, min: 0 },
     minAlertQuantity: { type: Number, required: true, min: 0, default: 0 },
@@ -44,6 +45,7 @@ const stockProductSchema = new Schema<IStockProduct>(
     productType: { type: String, enum: ["physical", "service"], default: "physical" },
     isRecurring: { type: Boolean, default: false },
     intervalDays: { type: Number, default: 0 },
+    description: { type: String, trim: true },
   },
   { timestamps: true },
 )

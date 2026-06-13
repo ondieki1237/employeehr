@@ -1,6 +1,8 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
+import { useToast } from '@/hooks/use-toast'
+import { fetchJson } from '@/lib/fetchUtils'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -13,7 +15,6 @@ import EditServiceDialog from './EditServiceDialog'
 interface Service {
   _id: string
   name: string
-  category: string
   sellingPrice: number
   isRecurring: boolean
   intervalDays: number
@@ -24,10 +25,10 @@ export default function ServicesList() {
   const [services, setServices] = useState<Service[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const [category, setCategory] = useState('all')
   const [selectedService, setSelectedService] = useState<Service | null>(null)
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [isEditOpen, setIsEditOpen] = useState(false)
+  const { toast } = useToast()
 
   useEffect(() => {
     fetchServices()
@@ -35,11 +36,16 @@ export default function ServicesList() {
 
   const fetchServices = async () => {
     try {
-      const res = await fetch('/api/stock/services')
-      const data = await res.json()
-      if (data.success) setServices(data.data)
+      const result = await fetchJson<{ success: boolean; data: Service[]; message?: string }>('/api/stock/services')
+      if (result.response.ok && result.data?.success) {
+        setServices(result.data.data)
+      } else {
+        throw new Error(result.errorMessage || 'Failed to fetch services')
+      }
     } catch (error) {
       console.error('Failed to fetch services:', error)
+      const message = error instanceof Error ? error.message : 'Failed to fetch services'
+      toast({ title: 'Error', description: message, variant: 'destructive' })
     } finally {
       setLoading(false)
     }
@@ -53,21 +59,23 @@ export default function ServicesList() {
   const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this service?')) return
     try {
-      const res = await fetch(`/api/stock/services/${id}`, { method: 'DELETE' })
-      if (res.ok) {
+      const result = await fetchJson<{ success: boolean; message?: string }>(`/api/stock/services/${id}`, { method: 'DELETE' })
+      if (result.response.ok && result.data?.success) {
         setServices(services.filter(s => s._id !== id))
+      } else {
+        throw new Error(result.errorMessage || 'Failed to delete service')
       }
     } catch (error) {
       console.error('Failed to delete service:', error)
+      const message = error instanceof Error ? error.message : 'Failed to delete service'
+      toast({ title: 'Error', description: message, variant: 'destructive' })
     }
   }
 
   const filteredServices = services.filter(s =>
-    (search === '' || s.name.toLowerCase().includes(search.toLowerCase())) &&
-    (category === 'all' || s.category === category)
+    search === '' || s.name.toLowerCase().includes(search.toLowerCase())
   )
 
-  const categories = [...new Set(services.map(s => s.category))]
 
   return (
     <div className="space-y-4">
@@ -84,17 +92,6 @@ export default function ServicesList() {
               onChange={(e) => setSearch(e.target.value)}
               className="flex-1"
             />
-            <Select value={category} onValueChange={setCategory}>
-              <SelectTrigger className="w-40">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Categories</SelectItem>
-                {categories.map(cat => (
-                  <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
             <Button onClick={() => setIsCreateOpen(true)}>
               <Plus className="w-4 h-4 mr-2" />
               New Service
@@ -108,7 +105,6 @@ export default function ServicesList() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Name</TableHead>
-                  <TableHead>Category</TableHead>
                   <TableHead>Price</TableHead>
                   <TableHead>Recurring</TableHead>
                   <TableHead>Actions</TableHead>
@@ -118,7 +114,6 @@ export default function ServicesList() {
                 {filteredServices.map(service => (
                   <TableRow key={service._id}>
                     <TableCell className="font-medium">{service.name}</TableCell>
-                    <TableCell>{service.category}</TableCell>
                     <TableCell>KES {service.sellingPrice.toLocaleString()}</TableCell>
                     <TableCell>
                       {service.isRecurring ? `Every ${service.intervalDays} days` : 'No'}

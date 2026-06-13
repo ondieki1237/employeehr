@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Mail, CheckCircle, XCircle, AlertCircle, Loader2 } from "lucide-react"
 import { api } from "@/lib/api"
+import { API_URL } from "@/lib/apiBase"
 import { toast } from "sonner"
 
 export default function EmailSettingsPage() {
@@ -38,7 +39,7 @@ export default function EmailSettingsPage() {
   const fetchEmailConfig = async () => {
     try {
       setLoading(true)
-      const response = await fetch("/api/company/email-config", {
+      const response = await fetch(`${API_URL}/api/company/email-config`, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem("token")}`,
         },
@@ -69,7 +70,7 @@ export default function EmailSettingsPage() {
     try {
       setSaving(true)
 
-      const response = await fetch("/api/company/email-config", {
+      const response = await fetch(`${API_URL}/api/company/email-config`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -104,7 +105,7 @@ export default function EmailSettingsPage() {
     try {
       setTesting(true)
 
-      const response = await fetch("/api/company/email-config/verify", {
+      const response = await fetch(`${API_URL}/api/company/email-config/verify`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -131,7 +132,7 @@ export default function EmailSettingsPage() {
 
   const handleDisable = async () => {
     try {
-      const response = await fetch("/api/company/email-config/disable", {
+      const response = await fetch(`${API_URL}/api/company/email-config/disable`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${localStorage.getItem("token")}`,

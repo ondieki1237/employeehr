@@ -1,4 +1,5 @@
 import api from "@/lib/api";
+import { API_URL } from "./apiBase";
 
 export interface IStamp {
   _id?: string;
@@ -123,7 +124,7 @@ export const stampAPI = {
       if (email) params.append("email", email);
 
       const response = await fetch(
-        `/api/stamps/${stampId}/svg?${params.toString()}`,
+        `${API_URL}/api/stamps/${stampId}/svg?${params.toString()}`,
         {
           headers: {
             Accept: "image/svg+xml",
@@ -146,7 +147,7 @@ export const stampAPI = {
    */
   async generatePreview(config: any): Promise<string> {
     try {
-      const response = await fetch("/api/stamps/preview", {
+      const response = await fetch(`${API_URL}/api/stamps/preview`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(config),

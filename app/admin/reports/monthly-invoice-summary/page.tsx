@@ -1,5 +1,6 @@
 "use client"
 import React, { useState } from "react"
+import { API_URL } from "@/lib/apiBase"
 import { Download, Calendar, FileText, Package, Receipt, CheckCircle2 } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -41,7 +42,7 @@ export default function Page() {
       if (includeInvoices) includeParts.push("invoices")
       if (includeStock) includeParts.push("stock")
 
-      const res = await fetch(`/api/reports/admin/monthly-invoice-summary?startDate=${encodeURIComponent(start)}&endDate=${encodeURIComponent(end)}&include=${includeParts.join(",")}`)
+      const res = await fetch(`${API_URL}/api/reports/admin/monthly-invoice-summary?startDate=${encodeURIComponent(start)}&endDate=${encodeURIComponent(end)}&include=${includeParts.join(",")}`)
       const payload = await res.json()
       if (!payload.success) throw new Error(payload.message || "Failed to fetch")
       return payload.data.map((r: any) => ({ date: formatDateISO(r.date), type: r.type, reference: r.reference }))
@@ -61,7 +62,7 @@ export default function Page() {
       if (includeInvoices) includeParts.push("invoices")
       if (includeStock) includeParts.push("stock")
 
-      const url = `/api/reports/admin/monthly-invoice-summary/download?startDate=${encodeURIComponent(start)}&endDate=${encodeURIComponent(end)}&include=${includeParts.join(",")}`
+      const url = `${API_URL}/api/reports/admin/monthly-invoice-summary/download?startDate=${encodeURIComponent(start)}&endDate=${encodeURIComponent(end)}&include=${includeParts.join(",")}`
       // navigate to URL to trigger download (keeps auth cookies)
       const filename = `monthly-summary-${month}` + (asExcel ? ".xlsx" : ".csv")
       const a = document.createElement('a')

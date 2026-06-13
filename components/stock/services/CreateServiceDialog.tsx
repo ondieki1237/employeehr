@@ -1,6 +1,8 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
+import { useToast } from '@/hooks/use-toast'
+import { fetchJson } from '@/lib/fetchUtils'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -16,11 +18,10 @@ interface CreateServiceDialogProps {
 }
 
 export default function CreateServiceDialog({ open, onOpenChange, onSuccess }: CreateServiceDialogProps) {
+  const { toast } = useToast()
   const [loading, setLoading] = useState(false)
-  const [categories, setCategories] = useState<any[]>([])
   const [form, setForm] = useState({
     name: '',
-    category: '',
     description: '',
     price: '',
     isRecurring: false,
@@ -28,25 +29,16 @@ export default function CreateServiceDialog({ open, onOpenChange, onSuccess }: C
   })
 
   useEffect(() => {
-    if (open) fetchCategories()
+    // No longer fetching categories
   }, [open])
 
-  const fetchCategories = async () => {
-    try {
-      const res = await fetch('/api/stock/categories')
-      const data = await res.json()
-      if (data.success) setCategories(data.data)
-    } catch (error) {
-      console.error('Failed to fetch categories:', error)
-    }
-  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
 
     try {
-      const res = await fetch('/api/stock/services', {
+      const result = await fetchJson<{ success: boolean; data?: any; message?: string }>('/api/stock/services', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -56,13 +48,16 @@ export default function CreateServiceDialog({ open, onOpenChange, onSuccess }: C
         }),
       })
 
-      const data = await res.json()
-      if (data.success) {
+      if (result.response.ok && result.data?.success) {
         onSuccess()
-        setForm({ name: '', category: '', description: '', price: '', isRecurring: false, intervalDays: '30' })
+        setForm({ name: '', description: '', price: '', isRecurring: false, intervalDays: '30' })
+      } else {
+        throw new Error(result.errorMessage || 'Failed to create service')
       }
     } catch (error) {
       console.error('Failed to create service:', error)
+      const message = error instanceof Error ? error.message : 'Failed to create service'
+      toast({ title: 'Error', description: message, variant: 'destructive' })
     } finally {
       setLoading(false)
     }
@@ -87,19 +82,6 @@ export default function CreateServiceDialog({ open, onOpenChange, onSuccess }: C
             />
           </div>
 
-          <div>
-            <Label htmlFor="category">Category</Label>
-            <Select value={form.category} onValueChange={(val) => setForm({ ...form, category: val })}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select category" />
-              </SelectTrigger>
-              <SelectContent>
-                {categories.map(cat => (
-                  <SelectItem key={cat._id} value={cat._id}>{cat.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
 
           <div>
             <Label htmlFor="price">Price (KES)</Label>

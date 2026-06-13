@@ -8,6 +8,9 @@ interface IQuotationItem {
   soldUnitPrice?: number
   unitPrice: number
   lineTotal: number
+  description?: string
+  productDescription?: string
+  productType?: string
   isOutsourced?: boolean
 }
 
@@ -45,6 +48,9 @@ const quotationItemSchema = new Schema<IQuotationItem>(
     soldUnitPrice: { type: Number, min: 0 },
     unitPrice: { type: Number, required: true, min: 0 },
     lineTotal: { type: Number, required: true, min: 0 },
+    description: { type: String },
+    productDescription: { type: String },
+    productType: { type: String },
     isOutsourced: { type: Boolean, default: false },
   },
   { _id: false },

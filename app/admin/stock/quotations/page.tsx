@@ -7,6 +7,7 @@ import { getToken, getUser } from "@/lib/auth"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
@@ -68,6 +69,7 @@ interface QuotationItem {
   taxRate?: number
   totalAfterTax?: number
   isOutsourced?: boolean
+  description?: string
 }
 
 interface Quotation {
@@ -96,6 +98,7 @@ interface DraftItem {
   unitPrice: number
   taxRate?: number
   isOutsourced?: boolean
+  description?: string
 }
 
 interface StampOption {
@@ -169,6 +172,7 @@ export default function QuotationsPage() {
   const [itemQuantity, setItemQuantity] = useState("1")
   const [itemUnitPrice, setItemUnitPrice] = useState("")
   const [itemTaxRate, setItemTaxRate] = useState("0")
+  const [itemDescription, setItemDescription] = useState("")
   const [items, setItems] = useState<DraftItem[]>([])
 
   useEffect(() => {
@@ -423,6 +427,7 @@ export default function QuotationsPage() {
     setItemQuantity("1")
     setItemUnitPrice("")
     setItemTaxRate("0")
+    setItemDescription("")
     setItems([])
     setEditingQuotationId(null)
     setShowCreate(false)
@@ -473,12 +478,14 @@ export default function QuotationsPage() {
         productUnitPrice: Number(product.sellingPrice || 0),
         soldUnitPrice: unitPrice,
         unitPrice,
+        description: itemDescription,
       },
     ])
 
     setProductSearch("")
     setItemQuantity("1")
     setItemUnitPrice("")
+    setItemDescription("")
   }
 
   const removeDraftItem = (index: number) => {
@@ -499,6 +506,18 @@ export default function QuotationsPage() {
           ...item,
           soldUnitPrice: nextSoldPrice,
           unitPrice: nextSoldPrice,
+        }
+      }),
+    )
+  }
+
+  const updateDraftItemDescription = (index: number, value: string) => {
+    setItems((prev) =>
+      prev.map((item, currentIndex) => {
+        if (currentIndex !== index) return item
+        return {
+          ...item,
+          description: value,
         }
       }),
     )
@@ -581,6 +600,7 @@ export default function QuotationsPage() {
         soldUnitPrice: item.soldUnitPrice ?? item.unitPrice,
         unitPrice: item.unitPrice,
         isOutsourced: Boolean(item.isOutsourced),
+        description: item.description,
       })),
     )
   }
@@ -1031,6 +1051,16 @@ export default function QuotationsPage() {
                   <Label>Sold Price (optional override)</Label>
                   <Input type="number" min="0" value={itemUnitPrice} onChange={(event) => setItemUnitPrice(event.target.value)} />
                 </div>
+                <div className="md:col-span-4">
+                  <Label>Product Description / Scope of Work (optional, supports bullet points)</Label>
+                  <Textarea
+                    placeholder="Enter additional details or bullet points here..."
+                    value={itemDescription}
+                    onChange={(event: React.ChangeEvent<HTMLTextAreaElement>) => setItemDescription(event.target.value)}
+                    className="mt-1"
+                    rows={3}
+                  />
+                </div>
               </div>
 
               {productSearch.trim() && (
@@ -1088,7 +1118,15 @@ export default function QuotationsPage() {
                       const soldPrice = item.soldUnitPrice ?? item.unitPrice
                       return (
                         <tr key={`${item.productId}-${index}`} className="border-b">
-                          <td className="py-2 px-2">{name}</td>
+                          <td className="py-2 px-2">
+                             <div className="font-medium">{name}</div>
+                             <Textarea
+                               value={item.description || ""}
+                               onChange={(e) => updateDraftItemDescription(index, e.target.value)}
+                               placeholder="Add description/notes..."
+                               className="mt-1 h-16 w-full text-xs"
+                             />
+                          </td>
                           <td className="py-2 px-2">{item.quantity}</td>
                           <td className="py-2 px-2">{referencePrice}</td>
                           <td className="py-2 px-2">

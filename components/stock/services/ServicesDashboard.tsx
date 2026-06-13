@@ -1,6 +1,8 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
+import { useToast } from '@/hooks/use-toast'
+import { fetchJson } from '@/lib/fetchUtils'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
@@ -15,17 +17,10 @@ interface Summary {
   overdue: number
 }
 
-interface Category {
-  category: string
-  totalServices: number
-  totalJobs: number
-  completedJobs: number
-  pendingJobs: number
-}
 
 export default function ServicesDashboard() {
+  const { toast } = useToast()
   const [summary, setSummary] = useState<Summary | null>(null)
-  const [categories, setCategories] = useState<Category[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -34,18 +29,17 @@ export default function ServicesDashboard() {
 
   const fetchAnalytics = async () => {
     try {
-      const [summaryRes, categoryRes] = await Promise.all([
-        fetch('/api/stock/services/analytics/summary'),
-        fetch('/api/stock/services/analytics/by-category'),
-      ])
-
-      const summaryData = await summaryRes.json()
-      const categoryData = await categoryRes.json()
-
-      if (summaryData.success) setSummary(summaryData.data.summary)
-      if (categoryData.success) setCategories(categoryData.data)
+      const summaryResult = await fetchJson<{ success: boolean; data: { summary: Summary }; message?: string }>('/api/stock/services/analytics/summary')
+ 
+      if (summaryResult.response.ok && summaryResult.data?.success) {
+        setSummary(summaryResult.data.data.summary)
+      } else {
+        throw new Error(summaryResult.errorMessage || 'Failed to fetch job summary')
+      }
     } catch (error) {
       console.error('Failed to fetch analytics:', error)
+      const message = error instanceof Error ? error.message : 'Failed to load analytics'
+      toast({ title: 'Error', description: message, variant: 'destructive' })
     } finally {
       setLoading(false)
     }
@@ -63,12 +57,6 @@ export default function ServicesDashboard() {
     { name: 'Completed', value: summary.completed, fill: '#34d399' },
   ]
 
-  const categoryStats = categories.map(cat => ({
-    name: cat.category,
-    completed: cat.completedJobs,
-    pending: cat.pendingJobs,
-    total: cat.totalJobs,
-  }))
 
   return (
     <div className="space-y-6">
@@ -137,7 +125,6 @@ export default function ServicesDashboard() {
       <Tabs defaultValue="overview" className="space-y-4">
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="categories">By Category</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview">
@@ -178,27 +165,6 @@ export default function ServicesDashboard() {
           </div>
         </TabsContent>
 
-        <TabsContent value="categories">
-          <Card>
-            <CardHeader>
-              <CardTitle>Jobs by Category</CardTitle>
-              <CardDescription>Service performance by category</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={400}>
-                <BarChart data={categoryStats}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" />
-                  <YAxis />
-                  <Tooltip />
-                  <Legend />
-                  <Bar dataKey="completed" stackId="a" fill="#34d399" />
-                  <Bar dataKey="pending" stackId="a" fill="#fbbf24" />
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        </TabsContent>
       </Tabs>
     </div>
   )

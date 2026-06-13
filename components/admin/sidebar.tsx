@@ -35,6 +35,7 @@ import {
 import { getUser, logout } from "@/lib/auth"
 import { getToken } from "@/lib/auth"
 import API_URL from "@/lib/apiBase"
+import { parseResponse } from "@/lib/fetchUtils"
 import { companyApi } from "@/lib/api"
 import { useEffect, useMemo, useState } from "react"
 
@@ -135,6 +136,12 @@ const adminMenuItems = [
     label: "Quotations",
     icon: FileText,
     href: "/admin/stock/quotations",
+    section: "INVENTORY MANAGER"
+  },
+  {
+    label: "Services",
+    icon: Stamp,
+    href: "/admin/stock/services",
     section: "INVENTORY MANAGER"
   },
   {
@@ -413,9 +420,9 @@ export default function AdminSidebar({ isOpen, isCollapsed, onToggle, onCollapse
         const response = await fetch(`${API_URL}/api/stock/quotations`, {
           headers: { Authorization: `Bearer ${token}` },
         })
-        const result = await response.json()
-        if (!response.ok) return
-        const pending = (result?.data || []).filter((quotation: any) => quotation.status === "pending_approval").length
+        const parsed = await parseResponse(response)
+        if (!parsed.response.ok) return
+        const pending = (parsed.data?.data || []).filter((quotation: any) => quotation.status === "pending_approval").length
         if (mounted) setPendingQuotationCount(pending)
       } catch {
       }

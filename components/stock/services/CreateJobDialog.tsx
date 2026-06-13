@@ -1,6 +1,8 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
+import { useToast } from '@/hooks/use-toast'
+import { fetchJson } from '@/lib/fetchUtils'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -15,6 +17,7 @@ interface CreateJobDialogProps {
 }
 
 export default function CreateJobDialog({ open, onOpenChange, onSuccess }: CreateJobDialogProps) {
+  const { toast } = useToast()
   const [loading, setLoading] = useState(false)
   const [services, setServices] = useState<any[]>([])
   const [clients, setClients] = useState<any[]>([])
@@ -34,21 +37,31 @@ export default function CreateJobDialog({ open, onOpenChange, onSuccess }: Creat
 
   const fetchServices = async () => {
     try {
-      const res = await fetch('/api/stock/services')
-      const data = await res.json()
-      if (data.success) setServices(data.data)
+      const result = await fetchJson<{ success: boolean; data: any[]; message?: string }>('/api/stock/services')
+      if (result.response.ok && result.data?.success) {
+        setServices(result.data.data)
+      } else {
+        throw new Error(result.errorMessage || 'Failed to fetch services')
+      }
     } catch (error) {
       console.error('Failed to fetch services:', error)
+      const message = error instanceof Error ? error.message : 'Failed to fetch services'
+      toast({ title: 'Error', description: message, variant: 'destructive' })
     }
   }
 
   const fetchClients = async () => {
     try {
-      const res = await fetch('/api/stock/saved-clients')
-      const data = await res.json()
-      if (data.success) setClients(data.data)
+      const result = await fetchJson<{ success: boolean; data: any[]; message?: string }>('/api/stock/saved-clients')
+      if (result.response.ok && result.data?.success) {
+        setClients(result.data.data)
+      } else {
+        throw new Error(result.errorMessage || 'Failed to fetch clients')
+      }
     } catch (error) {
       console.error('Failed to fetch clients:', error)
+      const message = error instanceof Error ? error.message : 'Failed to fetch clients'
+      toast({ title: 'Error', description: message, variant: 'destructive' })
     }
   }
 
@@ -57,19 +70,22 @@ export default function CreateJobDialog({ open, onOpenChange, onSuccess }: Creat
     setLoading(true)
 
     try {
-      const res = await fetch('/api/stock/services/jobs', {
+      const result = await fetchJson<{ success: boolean; data?: any; message?: string }>('/api/stock/services/jobs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
       })
 
-      const data = await res.json()
-      if (data.success) {
+      if (result.response.ok && result.data?.success) {
         onSuccess()
         setForm({ serviceId: '', clientId: '', scheduledDate: '', notes: '' })
+      } else {
+        throw new Error(result.errorMessage || 'Failed to create job')
       }
     } catch (error) {
       console.error('Failed to create job:', error)
+      const message = error instanceof Error ? error.message : 'Failed to create job'
+      toast({ title: 'Error', description: message, variant: 'destructive' })
     } finally {
       setLoading(false)
     }

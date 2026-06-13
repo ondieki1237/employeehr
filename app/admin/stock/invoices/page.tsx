@@ -37,6 +37,7 @@ interface InvoiceItem {
   quantity: number
   unitPrice: number
   lineTotal: number
+  description?: string
 }
 
 interface Invoice {

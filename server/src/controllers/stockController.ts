@@ -463,7 +463,7 @@ function withOptionalDispatchObjects(baseDispatch: any, sourceDispatch: any) {
 
 async function buildQuotationItems(
   orgId: string,
-  items: Array<{ productId?: string; productName?: string; quantity: number; unitPrice?: number; isOutsourced?: boolean }>,
+  items: Array<{ productId?: string; productName?: string; quantity: number; unitPrice?: number; isOutsourced?: boolean; description?: string }>,
 ) {
   if (!Array.isArray(items) || items.length === 0) {
     throw new Error("At least one item is required")
@@ -501,6 +501,7 @@ async function buildQuotationItems(
         soldUnitPrice: unitPrice,
         unitPrice,
         lineTotal: Number((quantity * unitPrice).toFixed(2)),
+        description: item.description,
         isOutsourced: true,
       }
     }
@@ -536,6 +537,9 @@ async function buildQuotationItems(
       soldUnitPrice: unitPrice,
       unitPrice,
       lineTotal: Number((quantity * unitPrice).toFixed(2)),
+      description: item.description,
+      productDescription: (product as any).description,
+      productType: product.productType,
       isOutsourced: false,
     }
   })
@@ -2790,13 +2794,23 @@ export class StockController {
         return res.status(200).json({ success: true, data: existingInvoice })
       }
 
-      const stockManagedItems = quotation.items.filter((item: any) => !item.isOutsourced)
-      const productIds = [...new Set(stockManagedItems.map((item) => item.productId).filter(Boolean))]
-      const products = await StockProduct.find({ _id: { $in: productIds }, org_id })
-      const productMap = new Map(products.map((product) => [String(product._id), product]))
+      const quotationProductIds = [...new Set(quotation.items.map((item: any) => item.productId).filter(Boolean))]
+      const allProducts = await StockProduct.find({ _id: { $in: quotationProductIds }, org_id })
+      const productMap = new Map(allProducts.map((product) => [String(product._id), product]))
+
+      const stockManagedItems = quotation.items.filter((item: any) => {
+        if (item.isOutsourced) return false
+        if (item.productType === "service") return false
+        const product = productMap.get(String(item.productId))
+        return product ? product.productType !== "service" : true
+      })
+
+      const stockManagedProductIds = [...new Set(stockManagedItems.map((item) => item.productId).filter(Boolean))]
+      const stockManagedProducts = allProducts.filter((product) => stockManagedProductIds.includes(String(product._id)))
+      const stockManagedProductMap = new Map(stockManagedProducts.map((product) => [String(product._id), product]))
 
       for (const item of stockManagedItems) {
-        const product = productMap.get(String(item.productId))
+        const product = stockManagedProductMap.get(String(item.productId))
         if (!product) {
           return res.status(400).json({ success: false, message: `Product not found for quotation item: ${item.productName}` })
         }
@@ -2820,13 +2834,13 @@ export class StockController {
         status: "issued",
         dispatch: {
           status: "not_assigned",
-          packingItems: quotation.items.map((item) => ({
+          packingItems: stockManagedItems.map((item) => ({
             productId: item.productId,
             productName: item.productName,
             requiredQuantity: item.quantity,
             packedQuantity: 0,
           })),
-          packingCompleted: false,
+          packingCompleted: stockManagedItems.length === 0,
           inquiries: [],
         },
         createdBy: String(quotation.createdBy || actorId),
@@ -2835,7 +2849,7 @@ export class StockController {
       const receiptNumber = generateDocumentNumber("RCP")
 
       const salesToCreate = stockManagedItems.map((item) => {
-        const product = productMap.get(String(item.productId))!
+        const product = stockManagedProductMap.get(String(item.productId))!
         product.currentQuantity -= item.quantity
 
         return {
@@ -2856,9 +2870,9 @@ export class StockController {
         }
       })
 
-      if (products.length > 0) {
-        await Promise.all(products.map((product) => product.save()))
-        await Promise.all(products.map((product) => sendLowStockAlert(product, org_id)))
+      if (stockManagedProducts.length > 0) {
+        await Promise.all(stockManagedProducts.map((product) => product.save()))
+        await Promise.all(stockManagedProducts.map((product) => sendLowStockAlert(product, org_id)))
       }
 
       if (salesToCreate.length > 0) {
@@ -2893,6 +2907,21 @@ export class StockController {
       const normalizedItems = await buildQuotationItems(org_id, items || [])
       const subTotal = Number(normalizedItems.reduce((sum, item) => sum + item.lineTotal, 0).toFixed(2))
 
+      const stockManagedItems = normalizedItems.filter((i: any) => !i.isOutsourced && i.productType !== "service")
+      const productIds = [...new Set(stockManagedItems.map((item: any) => item.productId).filter(Boolean))]
+      const products = await StockProduct.find({ _id: { $in: productIds }, org_id })
+      const productMap = new Map(products.map((p) => [String(p._id), p]))
+
+      for (const item of stockManagedItems) {
+        const product = productMap.get(String(item.productId))
+        if (!product) {
+          return res.status(400).json({ success: false, message: `Product not found: ${item.productName}` })
+        }
+        if (product.currentQuantity < item.quantity) {
+          return res.status(400).json({ success: false, message: `Insufficient stock for ${item.productName}. Available: ${product.currentQuantity}, requested: ${item.quantity}` })
+        }
+      }
+
       const invoice = await StockInvoice.create({
         org_id,
         invoiceNumber: generateDocumentNumber("INV"),
@@ -2907,28 +2936,12 @@ export class StockController {
         status: payNow ? "paid" : "issued",
         dispatch: {
           status: "not_assigned",
-          packingItems: normalizedItems.map((item: any) => ({ productId: item.productId, productName: item.productName, requiredQuantity: item.quantity, packedQuantity: 0 })),
-          packingCompleted: false,
+          packingItems: stockManagedItems.map((item: any) => ({ productId: item.productId, productName: item.productName, requiredQuantity: item.quantity, packedQuantity: 0 })),
+          packingCompleted: stockManagedItems.length === 0,
           inquiries: [],
         },
         createdBy: String(actorId),
       })
-
-      // Handle stock-managed items → create StockSale records and decrement stock
-      const stockManagedItems = normalizedItems.filter((i: any) => !i.isOutsourced)
-      const productIds = [...new Set(stockManagedItems.map((item: any) => item.productId).filter(Boolean))]
-      const products = await StockProduct.find({ _id: { $in: productIds }, org_id })
-      const productMap = new Map(products.map((p) => [String(p._id), p]))
-
-      for (const item of stockManagedItems) {
-        const product = productMap.get(String(item.productId))
-        if (!product) {
-          return res.status(400).json({ success: false, message: `Product not found: ${item.productName}` })
-        }
-        if (product.currentQuantity < item.quantity) {
-          return res.status(400).json({ success: false, message: `Insufficient stock for ${item.productName}. Available: ${product.currentQuantity}, requested: ${item.quantity}` })
-        }
-      }
 
       const receiptNumber = generateDocumentNumber("RCP")
 
@@ -4671,15 +4684,15 @@ export class StockController {
       }
 
       const { name, description, category, price, duration, isRecurring, intervalDays } = req.body
-      if (!name || !category || !price) {
-        return res.status(400).json({ success: false, message: "Name, category, and price are required" })
+      if (!name || !price) {
+        return res.status(400).json({ success: false, message: "Name and price are required" })
       }
 
       const service = await StockProduct.create({
         org_id,
         name: String(name).trim(),
         description: description ? String(description).trim() : undefined,
-        category: String(category).trim(),
+        category: category ? String(category).trim() : undefined,
         startingPrice: Number(price),
         sellingPrice: Number(price),
         minAlertQuantity: 0,
@@ -4736,11 +4749,10 @@ export class StockController {
       }
 
       const { serviceId } = req.params
-      const { name, description, category, price, duration, isRecurring, intervalDays, status } = req.body
+      const { name, description, price, duration, isRecurring, intervalDays, status } = req.body
 
       const payload: any = {}
       if (name) payload.name = String(name).trim()
-      if (category) payload.category = String(category).trim()
       if (price) payload.sellingPrice = Number(price)
       if (description) payload.description = String(description).trim()
       if (isRecurring !== undefined) payload.isRecurring = Boolean(isRecurring)

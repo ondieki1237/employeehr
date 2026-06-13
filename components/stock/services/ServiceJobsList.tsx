@@ -1,6 +1,8 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
+import { useToast } from '@/hooks/use-toast'
+import { fetchJson } from '@/lib/fetchUtils'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -41,6 +43,7 @@ export default function ServiceJobsList() {
   const [statusFilter, setStatusFilter] = useState('all')
   const [searchClient, setSearchClient] = useState('')
   const [isCreateOpen, setIsCreateOpen] = useState(false)
+  const { toast } = useToast()
 
   useEffect(() => {
     fetchJobs()
@@ -52,11 +55,17 @@ export default function ServiceJobsList() {
       if (statusFilter !== 'all') {
         url.searchParams.append('status', statusFilter)
       }
-      const res = await fetch(url)
-      const data = await res.json()
-      if (data.success) setJobs(data.data)
+
+      const result = await fetchJson<{ success: boolean; data: Job[]; message?: string }>(url.toString())
+      if (result.response.ok && result.data?.success) {
+        setJobs(result.data.data)
+      } else {
+        throw new Error(result.errorMessage || 'Failed to fetch jobs')
+      }
     } catch (error) {
       console.error('Failed to fetch jobs:', error)
+      const message = error instanceof Error ? error.message : 'Failed to fetch jobs'
+      toast({ title: 'Error', description: message, variant: 'destructive' })
     } finally {
       setLoading(false)
     }
@@ -64,17 +73,21 @@ export default function ServiceJobsList() {
 
   const handleStatusChange = async (jobId: string, newStatus: string) => {
     try {
-      const res = await fetch(`/api/stock/services/jobs/${jobId}/status`, {
+      const result = await fetchJson<{ success: boolean; message?: string }>(`/api/stock/services/jobs/${jobId}/status`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: newStatus }),
       })
 
-      if (res.ok) {
+      if (result.response.ok && result.data?.success) {
         fetchJobs()
+      } else {
+        throw new Error(result.errorMessage || 'Failed to update job status')
       }
     } catch (error) {
       console.error('Failed to update job:', error)
+      const message = error instanceof Error ? error.message : 'Failed to update job'
+      toast({ title: 'Error', description: message, variant: 'destructive' })
     }
   }
 
