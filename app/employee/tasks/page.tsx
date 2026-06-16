@@ -39,6 +39,7 @@ export default function EmployeeTasksPage() {
   const [noteText, setNoteText] = useState("")
   const [postponeDate, setPostponeDate] = useState<string | null>(null)
   const [postponeReason, setPostponeReason] = useState("")
+  const [showPostponeForm, setShowPostponeForm] = useState(false)
 
   useEffect(() => {
     fetchTasks()
@@ -130,22 +131,30 @@ export default function EmployeeTasksPage() {
   }
 
   const handleOpenTask = (taskId: string) => {
+    setShowPostponeForm(false)
     fetchTaskDetails(taskId)
   }
 
   const handleAddNote = async () => {
     if (!selectedTask) return
+    const trimmedNote = noteText.trim()
+    if (!trimmedNote) {
+      setError("Please enter a work note before saving.")
+      return
+    }
+
     try {
       const token = getToken()
       if (!token) return
       const res = await fetch(`${API_URL}/api/tasks/${selectedTask._id}/notes`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ text: noteText }),
+        body: JSON.stringify({ text: trimmedNote }),
       })
       const data = await res.json()
       if (data.success) {
         setNoteText("")
+        setError(null)
         // refresh details and tasks
         fetchTaskDetails(selectedTask._id)
         fetchTasks()
@@ -172,6 +181,7 @@ export default function EmployeeTasksPage() {
       if (data.success) {
         setPostponeDate(null)
         setPostponeReason("")
+        setShowPostponeForm(false)
         fetchTaskDetails(selectedTask._id)
         fetchTasks()
       } else {
@@ -397,29 +407,69 @@ export default function EmployeeTasksPage() {
                 </div>
 
                 <div className="mb-3">
-                  <h4 className="font-medium">Notes</h4>
+                  <h4 className="font-medium">Work Notes</h4>
                   <div className="space-y-2 max-h-40 overflow-auto">
-                    {(selectedTask.notes_history || []).map((n: any, i: number) => (
-                      <div key={i} className="text-sm p-2 bg-gray-100 dark:bg-gray-700 rounded">
-                        <div className="text-xs text-gray-500">{n.user_name} • {new Date(n.createdAt).toLocaleString()}</div>
-                        <div>{n.text}</div>
-                      </div>
-                    ))}
+                    {(selectedTask.notes_history || []).length > 0 ? (
+                      (selectedTask.notes_history || []).map((n: any, i: number) => (
+                        <div key={i} className="text-sm p-2 bg-gray-100 dark:bg-gray-700 rounded">
+                          <div className="text-xs text-gray-500">{n.user_name} • {new Date(n.createdAt).toLocaleString()}</div>
+                          <div>{n.text}</div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-sm text-muted-foreground">No work notes added yet.</div>
+                    )}
                   </div>
-                  <textarea value={noteText} onChange={(e) => setNoteText(e.target.value)} className="w-full mt-2 p-2 border rounded" placeholder="Write a note..." />
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mt-4">Add Work Note</label>
+                  <textarea
+                    value={noteText}
+                    onChange={(e) => setNoteText(e.target.value)}
+                    className="w-full mt-2 p-2 border rounded"
+                    placeholder="Write your work note here..."
+                  />
                   <div className="flex gap-2 mt-2">
-                    <Button onClick={handleAddNote}>Add Note</Button>
+                    <Button onClick={handleAddNote}>Save Work Note</Button>
+                    <Button
+                      variant="default"
+                      className="bg-green-600 hover:bg-green-700"
+                      onClick={() => handleCompleteTask(selectedTask._id)}
+                    >
+                      Record Work as done
+                    </Button>
                   </div>
                 </div>
 
                 <div>
-                  <h4 className="font-medium">Request Postpone</h4>
-                  <input type="date" value={postponeDate || ""} onChange={(e) => setPostponeDate(e.target.value)} className="w-full mt-2 p-2 border rounded" />
-                  <textarea value={postponeReason} onChange={(e) => setPostponeReason(e.target.value)} className="w-full mt-2 p-2 border rounded" placeholder="Reason (optional)" />
-                  <div className="flex gap-2 mt-2">
-                    <Button onClick={handleRequestPostpone}>Request Postpone</Button>
-                  </div>
+                  <Button variant="outline" onClick={() => setShowPostponeForm((prev) => !prev)}>
+                    {showPostponeForm ? "Hide postpone request" : "Request postpone"}
+                  </Button>
                 </div>
+                {showPostponeForm && (
+                  <div className="mt-4 rounded-lg border p-4 bg-gray-50 dark:bg-gray-900 dark:border-gray-700">
+                    <h4 className="font-medium">Request Postpone</h4>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
+                      Add a new due date and optional reason for this task.
+                    </p>
+                    <input
+                      type="date"
+                      value={postponeDate || ""}
+                      onChange={(e) => setPostponeDate(e.target.value)}
+                      className="w-full mt-2 p-2 border rounded"
+                    />
+                    <textarea
+                      value={postponeReason}
+                      onChange={(e) => setPostponeReason(e.target.value)}
+                      className="w-full mt-2 p-2 border rounded"
+                      placeholder="Reason (optional)"
+                    />
+                    <div className="flex gap-2 mt-2">
+                      <Button onClick={handleRequestPostpone}>Submit request</Button>
+                      <Button variant="ghost" onClick={() => setShowPostponeForm(false)}>
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>

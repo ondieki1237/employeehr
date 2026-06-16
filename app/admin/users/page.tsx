@@ -968,14 +968,25 @@ export default function AdminUsersPage() {
                   {employeeTasks.length > 0 ? (
                     <div className="space-y-2">
                       {employeeTasks.map((task: any) => (
-                        <div key={task._id} className="flex items-center justify-between p-3 border rounded-lg">
-                          <div>
-                            <p className="font-medium">{task.title}</p>
-                            <p className="text-sm text-muted-foreground">{task.description}</p>
+                        <div key={task._id} className="flex flex-col gap-2 p-3 border rounded-lg">
+                          <div className="flex items-center justify-between gap-4">
+                            <div>
+                              <p className="font-medium">{task.title}</p>
+                              <p className="text-sm text-muted-foreground">{task.description}</p>
+                            </div>
+                            <Badge variant={task.status === 'completed' ? 'default' : 'secondary'}>
+                              {task.status}
+                            </Badge>
                           </div>
-                          <Badge variant={task.status === 'completed' ? 'default' : 'secondary'}>
-                            {task.status}
-                          </Badge>
+                          <div>
+                            {task.notes ? (
+                              <p className="text-sm text-muted-foreground">
+                                <span className="font-semibold">Work note:</span> {task.notes}
+                              </p>
+                            ) : (
+                              <p className="text-sm text-muted-foreground">No work note added yet.</p>
+                            )}
+                          </div>
                         </div>
                       ))}
                     </div>
