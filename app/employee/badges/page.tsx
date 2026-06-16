@@ -4,9 +4,9 @@ import { useState, useEffect } from "react"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { getToken } from "@/lib/auth"
+import API_URL from "@/lib/apiBase"
 import { Trophy, Award, Star, Medal } from "lucide-react"
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5010"
 
 interface BadgeData {
   _id: string

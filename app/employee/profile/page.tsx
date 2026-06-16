@@ -10,8 +10,8 @@ import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { User, Mail, Phone, Calendar, Building, MapPin, Edit, Save, X } from "lucide-react"
 import { getUser, getToken } from "@/lib/auth"
+import API_URL from "@/lib/apiBase"
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5010"
 
 interface UserProfile {
   _id: string

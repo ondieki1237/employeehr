@@ -8,8 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { CheckCircle2, Circle, Clock, AlertCircle } from "lucide-react"
 import { getToken } from "@/lib/auth"
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5010"
+import API_URL from "@/lib/apiBase"
 
 interface Task {
   _id: string

@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Mail, Lock, AlertCircle, ShieldCheck } from "lucide-react"
 import { setToken, setUser } from "@/lib/auth"
+import API_URL from "@/lib/apiBase"
 
 interface Company {
   name: string
@@ -39,7 +40,6 @@ export default function CompanyLoginPage() {
   useEffect(() => {
     const validateCompany = async () => {
       try {
-        const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5010"
         const response = await fetch(`${API_URL}/api/auth/validate-company/${slug}`)
         const data = await response.json()
 
@@ -75,7 +75,6 @@ export default function CompanyLoginPage() {
     setLoginError("")
 
     try {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5010"
       let data: any
 
       if (!otpStep) {
@@ -153,7 +152,6 @@ export default function CompanyLoginPage() {
       setIsLoggingIn(true)
       setLoginError("")
 
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5010"
       const response = await fetch(`${API_URL}/api/auth/resend-login-otp`, {
         method: "POST",
         headers: {

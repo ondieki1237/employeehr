@@ -11,8 +11,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { getToken } from "@/lib/auth"
 import { Calendar, Car, MapPin, Clock, CheckCircle, XCircle } from "lucide-react"
+import API_URL from "@/lib/apiBase"
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5010"
 
 type ResourceType = "desk" | "car" | "meeting_room" | "parking" | "equipment"
 

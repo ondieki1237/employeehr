@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { getToken } from "@/lib/auth"
+import API_URL from "@/lib/apiBase"
 import {
   AlertTriangle,
   CheckCircle,
@@ -17,7 +18,6 @@ import {
   EyeOff,
 } from "lucide-react"
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5010"
 
 interface AlertData {
   _id: string

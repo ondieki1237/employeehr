@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react'
 import { usePathname } from 'next/navigation'
 import { getToken, logout } from '@/lib/auth'
+import API_URL from '@/lib/apiBase'
 
 /**
  * UserActivityTracker
@@ -31,9 +32,7 @@ export function UserActivityTracker() {
     }
 
     try {
-      // Using a slightly more robust approach for the API URL
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 
-                      (typeof window !== 'undefined' ? `${window.location.protocol}//${window.location.hostname}:5010` : 'http://localhost:5010')
+      const baseUrl = API_URL
 
       await fetch(`${baseUrl}/api/activity/track`, {
         method: 'POST',

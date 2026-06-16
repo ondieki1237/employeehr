@@ -13,8 +13,8 @@ import {
 } from "@/components/ui/dialog"
 import { getToken } from "@/lib/auth"
 import Image from "next/image"
+import API_URL from "@/lib/apiBase"
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5010"
 
 interface Payslip {
   _id: string

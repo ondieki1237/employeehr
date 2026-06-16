@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { io, Socket } from 'socket.io-client'
+import API_URL from '@/lib/apiBase'
 
 interface Participant {
   socketId: string
@@ -146,9 +147,7 @@ export function useWebRTC(
   useEffect(() => {
     if (!enabled || !meetingId || !userId) return
 
-    const host = typeof window !== 'undefined' ? window.location.hostname : ''
-    const isLocalHost = host === 'localhost' || host === '127.0.0.1'
-    const socketBaseUrl = process.env.NEXT_PUBLIC_API_URL || (isLocalHost ? 'http://localhost:5010' : 'https://backend.codewithseth.co.ke')
+    const socketBaseUrl = API_URL
 
     const newSocket = io(socketBaseUrl, {
       transports: ['websocket', 'polling'],

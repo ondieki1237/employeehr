@@ -12,8 +12,8 @@ import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
 import { getToken } from "@/lib/auth"
 import { Lightbulb, ThumbsUp, MessageSquare } from "lucide-react"
+import API_URL from "@/lib/apiBase"
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5010"
 
 interface Suggestion {
   _id: string

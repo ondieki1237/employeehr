@@ -88,6 +88,10 @@ router.get("/services/:serviceId", StockController.getServiceById)
 router.put("/services/:serviceId", StockController.updateService)
 router.delete("/services/:serviceId", StockController.deleteService)
 
+// Manufacturers / Importation
+router.post("/manufacturers", StockController.createManufacturer)
+router.get("/manufacturers", StockController.getManufacturers)
+
 // Service Jobs Management
 router.post("/services/jobs", StockController.createServiceJob)
 router.get("/services/jobs", StockController.getServiceJobs)

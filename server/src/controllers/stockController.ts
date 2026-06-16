@@ -25,6 +25,7 @@ import emailService from "../services/email.service"
 import { smsService } from "../services/sms.service"
 import { mpesaService } from "../services/mpesa.service"
 import { StockServiceJob } from "../models/StockServiceJob"
+import { StockManufacturer } from "../models/StockManufacturer"
 
 const ADMIN_ROLES = ["company_admin", "hr", "admin", "super_admin"]
 
@@ -3888,9 +3889,21 @@ export class StockController {
       const categories = await StockCategory.find({ _id: { $in: categoryIds }, org_id }).lean()
       const categoryMap = new Map(categories.map((category) => [String(category._id), category]))
 
+      // attach manufacturer details when available (defensive: avoid failing whole request if lookup errors)
+      let manufacturerMap = new Map()
+      try {
+        const manufacturerIds = Array.from(new Set(products.map((p) => String((p as any).manufacturer)).filter(Boolean)))
+        const manufacturers = manufacturerIds.length ? await StockManufacturer.find({ _id: { $in: manufacturerIds }, org_id }).lean() : []
+        manufacturerMap = new Map(manufacturers.map((m) => [String(m._id), m]))
+      } catch (manErr) {
+        console.error('Failed to load manufacturers for products list:', manErr)
+        manufacturerMap = new Map()
+      }
+
       const data = products.map((product) => ({
         ...product,
         categoryDetails: categoryMap.get(String(product.category)) || null,
+        manufacturerDetails: product.manufacturer ? manufacturerMap.get(String(product.manufacturer)) || null : null,
       }))
 
       return res.status(200).json({ success: true, data })
@@ -3939,6 +3952,7 @@ export class StockController {
       if (expiryEnabled !== undefined) payload.expiryEnabled = Boolean(expiryEnabled)
       if (expiryDate !== undefined) payload.expiryDate = expiryDate ? new Date(expiryDate) : null
       if (expiryReminderDays !== undefined) payload.expiryReminderDays = Number(expiryReminderDays)
+      if (req.body.manufacturer !== undefined) payload.manufacturer = req.body.manufacturer
 
       if (payload.expiryEnabled === true && !payload.expiryDate) {
         return res.status(400).json({ success: false, message: "Expiry date is required when expiry checker is enabled" })
@@ -4840,6 +4854,45 @@ export class StockController {
       return res.status(200).json({ success: true, message: "Job deleted successfully" })
     } catch (error: any) {
       return res.status(500).json({ success: false, message: error.message })
+    }
+  }
+
+  // Manufacturers (Importation)
+  static async createManufacturer(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = req.user?.org_id
+      const createdBy = req.user?.userId
+      if (!org_id || !createdBy) return res.status(401).json({ success: false, message: "Unauthorized" })
+
+      const { type, companyName, countryOrLocation, contactPerson, contactPhone, comments } = req.body
+      if (!type || !companyName) return res.status(400).json({ success: false, message: "Type and company name are required" })
+
+      const manufacturer = await StockManufacturer.create({
+        org_id,
+        type,
+        companyName: String(companyName).trim(),
+        countryOrLocation: countryOrLocation ? String(countryOrLocation).trim() : undefined,
+        contactPerson: contactPerson ? String(contactPerson).trim() : undefined,
+        contactPhone: contactPhone ? String(contactPhone).trim() : undefined,
+        comments: comments ? String(comments).trim() : undefined,
+        createdBy,
+      })
+
+      return res.status(201).json({ success: true, data: manufacturer })
+    } catch (error: any) {
+      return res.status(500).json({ success: false, message: error.message || "Failed to create manufacturer" })
+    }
+  }
+
+  static async getManufacturers(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = req.user?.org_id
+      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+
+      const manufacturers = await StockManufacturer.find({ org_id }).sort({ createdAt: -1 }).lean()
+      return res.status(200).json({ success: true, data: manufacturers })
+    } catch (error: any) {
+      return res.status(500).json({ success: false, message: error.message || "Failed to fetch manufacturers" })
     }
   }
 

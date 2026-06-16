@@ -21,6 +21,7 @@ export interface IStockProduct {
   isRecurring?: boolean
   intervalDays?: number
   description?: string
+  manufacturer?: string
   createdAt?: Date
   updatedAt?: Date
 }
@@ -46,6 +47,7 @@ const stockProductSchema = new Schema<IStockProduct>(
     isRecurring: { type: Boolean, default: false },
     intervalDays: { type: Number, default: 0 },
     description: { type: String, trim: true },
+    manufacturer: { type: String, required: false },
   },
   { timestamps: true },
 )
