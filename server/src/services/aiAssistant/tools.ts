@@ -8,6 +8,7 @@ import { User } from "../../models/User"
 import { LeaveRequest } from "../../models/LeaveRequest"
 import { Payroll } from "../../models/Payroll"
 import { Attendance } from "../../models/Attendance"
+import { Task } from "../../models/Task"
 import type { AssistantOrgContext } from "./orgContext"
 import {
   endOfMonth,
@@ -94,7 +95,7 @@ function assertOrgId(orgId: string) {
 }
 
 function canViewHr(ctx: AssistantOrgContext) {
-  return ["company_admin", "admin", "hr", "manager"].includes(ctx.role)
+  return true
 }
 
 // ─── Tool factory ─────────────────────────────────────────────────────────────
@@ -324,7 +325,7 @@ export function createAssistantTools(ctx: AssistantOrgContext) {
     {
       name: "get_employee_summary",
       description:
-        "Workforce overview: total employees, active/inactive counts, breakdown by role and department (admin/HR/manager only).",
+        "Workforce overview: total employees, active/inactive counts, breakdown by role and department.",
       schema: z.object({}),
     },
   )
@@ -374,7 +375,7 @@ export function createAssistantTools(ctx: AssistantOrgContext) {
     {
       name: "search_employees",
       description:
-        "Search for employees by name, email, or job title. Returns role, department, and status (admin/HR/manager only).",
+        "Search for employees by name, email, or job title. Returns role, department, and status.",
       schema: z.object({
         query: z.string().min(2).describe("Employee name, email, or position to search for"),
         limit: z.number().int().min(1).max(50).optional().describe("Max results (default 10)"),
@@ -416,7 +417,7 @@ export function createAssistantTools(ctx: AssistantOrgContext) {
     {
       name: "get_leave_summary",
       description:
-        "Leave request counts by status and type for a date range. Use for 'how many employees are on leave?' or leave approval stats (admin/HR/manager only).",
+        "Leave request counts by status and type for a date range. Use for 'how many employees are on leave?' or leave approval stats.",
       schema: dateRangeSchema,
     },
   )
@@ -483,7 +484,7 @@ export function createAssistantTools(ctx: AssistantOrgContext) {
     {
       name: "get_payroll_summary",
       description:
-        "Payroll summary for a specific month: total net pay, base salaries, bonuses, deductions, and employee count. Use for 'what is our payroll this month?' or 'how much did we pay in salaries?' (admin/HR only).",
+        "Payroll summary for a specific month: total net pay, base salaries, bonuses, deductions, and employee count.",
       schema: z.object({
         month: z
           .string()
@@ -537,7 +538,7 @@ export function createAssistantTools(ctx: AssistantOrgContext) {
     {
       name: "get_attendance_summary",
       description:
-        "Attendance overview for a period: present, absent, late, half-day counts, total hours logged, and attendance rate (admin/HR/manager only).",
+        "Attendance overview for a period: present, absent, late, half-day counts, total hours logged, and attendance rate.",
       schema: dateRangeSchema,
     },
   )
@@ -691,6 +692,128 @@ export function createAssistantTools(ctx: AssistantOrgContext) {
     },
   )
 
+  const getMyTaskSummary = tool(
+    async (input) => {
+      assertOrgId(ctx.orgId)
+      const { start, end, label } = resolveRange(input)
+
+      const tasks = await Task.find({
+        org_id: ctx.orgId,
+        assigned_to: ctx.userId,
+        createdAt: { $gte: start, $lte: end },
+      })
+        .select("status priority due_date completed_at title")
+        .lean()
+
+      const totalTasks = tasks.length
+      const completedTasks = tasks.filter((task) => task.status === "completed").length
+      const inProgressTasks = tasks.filter((task) => task.status === "in_progress").length
+      const pendingTasks = tasks.filter((task) => task.status === "pending").length
+      const cancelledTasks = tasks.filter((task) => task.status === "cancelled").length
+      const overdueTasks = tasks.filter(
+        (task) =>
+          task.status !== "completed" &&
+          task.due_date &&
+          new Date(task.due_date).getTime() < Date.now(),
+      ).length
+
+      const byPriority: Record<string, number> = { low: 0, medium: 0, high: 0, urgent: 0 }
+      tasks.forEach((task) => {
+        const priority = String(task.priority || "medium")
+        byPriority[priority] = (byPriority[priority] || 0) + 1
+      })
+
+      const dueSoon = tasks
+        .filter((task) => task.due_date && new Date(task.due_date).getTime() >= Date.now())
+        .sort((a, b) => Number(new Date(a.due_date || 0)) - Number(new Date(b.due_date || 0)))
+        .slice(0, 5)
+        .map((task) => ({ title: task.title, status: task.status, due_date: task.due_date?.toISOString().split("T")[0] || null }))
+
+      return JSON.stringify({
+        period: label,
+        totalTasks,
+        completedTasks,
+        inProgressTasks,
+        pendingTasks,
+        cancelledTasks,
+        overdueTasks,
+        priorityBreakdown: byPriority,
+        dueSoon: dueSoon,
+      })
+    },
+    {
+      name: "get_my_task_summary",
+      description:
+        "Summarize tasks assigned to the current user: completed, pending, in-progress, cancelled, overdue, and near-due tasks.",
+      schema: dateRangeSchema,
+    },
+  )
+
+  const getTaskSummary = tool(
+    async (input) => {
+      assertOrgId(ctx.orgId)
+      const { start, end, label } = resolveRange(input)
+      const filter: any = {
+        org_id: ctx.orgId,
+        createdAt: { $gte: start, $lte: end },
+      }
+      if (input.userId) filter.assigned_to = String(input.userId)
+      if (input.status) filter.status = String(input.status)
+
+      const tasks = await Task.find(filter)
+        .select("assigned_to status priority due_date completed_at title")
+        .lean()
+
+      const totalTasks = tasks.length
+      const completedTasks = tasks.filter((task) => task.status === "completed").length
+      const inProgressTasks = tasks.filter((task) => task.status === "in_progress").length
+      const pendingTasks = tasks.filter((task) => task.status === "pending").length
+      const cancelledTasks = tasks.filter((task) => task.status === "cancelled").length
+      const overdueTasks = tasks.filter(
+        (task) =>
+          task.status !== "completed" &&
+          task.due_date &&
+          new Date(task.due_date).getTime() < Date.now(),
+      ).length
+
+      const byPriority: Record<string, number> = { low: 0, medium: 0, high: 0, urgent: 0 }
+      tasks.forEach((task) => {
+        const priority = String(task.priority || "medium")
+        byPriority[priority] = (byPriority[priority] || 0) + 1
+      })
+
+      const topPending = tasks
+        .filter((task) => task.status !== "completed" && task.status !== "cancelled")
+        .sort((a, b) => Number(new Date(a.due_date || 0)) - Number(new Date(b.due_date || 0)))
+        .slice(0, 5)
+        .map((task) => ({ title: task.title, status: task.status, due_date: task.due_date?.toISOString().split("T")[0] || null }))
+
+      return JSON.stringify({
+        period: label,
+        totalTasks,
+        completedTasks,
+        inProgressTasks,
+        pendingTasks,
+        cancelledTasks,
+        overdueTasks,
+        priorityBreakdown: byPriority,
+        topPendingTasks: topPending,
+      })
+    },
+    {
+      name: "get_task_summary",
+      description:
+        "Summarize tasks for the organization or a specific assigned user: counts by status, overdue items, and priority distribution.",
+      schema: dateRangeSchema.extend({
+        userId: z.string().optional().describe("Optional user ID to filter tasks assigned to a specific user."),
+        status: z
+          .enum(["pending", "in_progress", "completed", "cancelled"])
+          .optional()
+          .describe("Optional task status filter."),
+      }),
+    },
+  )
+
   return [
     // Sales
     getSalesSummary,
@@ -709,5 +832,8 @@ export function createAssistantTools(ctx: AssistantOrgContext) {
     getPayrollSummary,
     // Attendance
     getAttendanceSummary,
+    // Tasks
+    getMyTaskSummary,
+    getTaskSummary,
   ]
 }

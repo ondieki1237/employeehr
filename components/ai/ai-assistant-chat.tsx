@@ -175,7 +175,7 @@ export function AiAssistantChat() {
       setLoading(true)
 
       try {
-        const res = await aiAssistantApi.chat(trimmed, messages)
+        const res = await aiAssistantApi.chat(trimmed, history)
         const answer = res.data?.answer || "No response received."
         setMessages([...history, { role: "assistant", content: answer }])
       } catch (err: any) {
