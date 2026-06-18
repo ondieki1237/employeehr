@@ -38,20 +38,6 @@ import {
 
 type StockView = "add-inventory" | "sales" | "status" | "analytics" | "history" | "outsourced" | "services"
 
-interface ServiceJob {
-  _id: string
-  serviceId: string
-  serviceName: string
-  clientId?: string
-  clientName?: string
-  scheduledDate: string
-  completedDate?: string
-  status: "pending" | "done" | "overdue" | "cancelled"
-  notes?: string
-  isRecurring: boolean
-  intervalDays: number
-}
-
 interface Category {
   _id: string
   name: string
@@ -189,7 +175,6 @@ export function StockManagerContent({ view }: { view: StockView }) {
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [clients, setClients] = useState<ClientSuggestion[]>([])
   const [branches, setBranches] = useState<any[]>([])
-  const [serviceJobs, setServiceJobs] = useState<ServiceJob[]>([])
 
   const [categoryForm, setCategoryForm] = useState({ name: "", description: "" })
   const [categoryMode, setCategoryMode] = useState<"main" | "sub">("main")
@@ -302,7 +287,7 @@ export function StockManagerContent({ view }: { view: StockView }) {
   const fetchAll = async () => {
     try {
       setLoading(true)
-      const [categoriesRes, productsRes, usersRes, salesRes, entriesRes, quotationsRes, invoicesRes, branchesRes, clientsRes, brandingRes, jobsRes] = await Promise.all([
+      const [categoriesRes, productsRes, usersRes, salesRes, entriesRes, quotationsRes, invoicesRes, branchesRes, clientsRes, brandingRes] = await Promise.all([
         fetchJson(`${API_URL}/api/stock/categories`, { headers }),
         fetchJson(`${API_URL}/api/stock/products`, { headers }),
         fetchJson(`${API_URL}/api/users`, { headers }),
@@ -313,11 +298,10 @@ export function StockManagerContent({ view }: { view: StockView }) {
         fetchJson(`${API_URL}/api/branches`, { headers }),
         fetchJson(`${API_URL}/api/stock/clients`, { headers }),
         fetchJson(`${API_URL}/api/company/branding`, { headers }),
-        fetchJson(`${API_URL}/api/stock/services/jobs`, { headers }),
       ])
 
-      if (categoriesRes.errorMessage || productsRes.errorMessage || usersRes.errorMessage || salesRes.errorMessage || entriesRes.errorMessage || quotationsRes.errorMessage || invoicesRes.errorMessage || branchesRes.errorMessage || clientsRes.errorMessage || brandingRes.errorMessage || jobsRes.errorMessage) {
-        const firstError = [categoriesRes, productsRes, usersRes, salesRes, entriesRes, quotationsRes, invoicesRes, branchesRes, clientsRes, brandingRes, jobsRes].find(r => r.errorMessage)
+      if (categoriesRes.errorMessage || productsRes.errorMessage || usersRes.errorMessage || salesRes.errorMessage || entriesRes.errorMessage || quotationsRes.errorMessage || invoicesRes.errorMessage || branchesRes.errorMessage || clientsRes.errorMessage || brandingRes.errorMessage) {
+        const firstError = [categoriesRes, productsRes, usersRes, salesRes, entriesRes, quotationsRes, invoicesRes, branchesRes, clientsRes, brandingRes].find(r => r.errorMessage)
         throw new Error(firstError?.errorMessage || 'Failed to load inventory data')
       }
 
@@ -331,7 +315,6 @@ export function StockManagerContent({ view }: { view: StockView }) {
       setClients((clientsRes.data?.data || []).filter((client: ClientSuggestion) => client.name && client.number && client.location))
       setBranches((branchesRes.data?.data || []).filter((branch: any) => branch.isActive))
       setBranding(brandingRes.data?.data || {})
-      setServiceJobs(jobsRes.data?.data || [])
     } catch {
       toast({ title: "Error", description: "Failed to load inventory data", variant: "destructive" })
     } finally {
