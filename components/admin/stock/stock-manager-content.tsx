@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState, useRef } from "react"
 import Link from "next/link"
 import API_URL from "@/lib/apiBase"
 import { getToken, getUser } from "@/lib/auth"
-import { fetchJson } from "@/lib/fetchUtils"
+import { fetchJson, parseResponse } from "@/lib/fetchUtils"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -1051,32 +1051,48 @@ export function StockManagerContent({ view }: { view: StockView }) {
     URL.revokeObjectURL(url)
   }
 
+  const normalizeInputValue = (value?: string) => String(value || "").trim().replace(/\s+/g, " ")
+
   const createCategory = async () => {
-    if (!categoryForm.name.trim()) return
+    const cleanedName = normalizeInputValue(categoryForm.name)
+    const cleanedDescription = normalizeInputValue(categoryForm.description)
+
+    if (!cleanedName) {
+      toast({ title: "Category Error", description: "Category name is required", variant: "destructive" })
+      return
+    }
 
     if (categoryMode === "sub" && categoryParentId === "none") {
       toast({ title: "Category Error", description: "Please select a parent category for the sub category", variant: "destructive" })
       return
     }
 
-    const response = await fetch(`${API_URL}/api/stock/categories`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        ...categoryForm,
-        parentId: categoryMode === "sub" && categoryParentId !== "none" ? categoryParentId : null,
-      }),
-    })
-    const result = await parseResponse<{ success: boolean; message?: string }>(response)
-    if (!result.response.ok) {
-      toast({ title: "Category Error", description: result.errorMessage || "Failed to create category", variant: "destructive" })
-      return
+    try {
+      const response = await fetch(`${API_URL}/api/stock/categories`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          ...categoryForm,
+          name: cleanedName,
+          description: cleanedDescription || undefined,
+          parentId: categoryMode === "sub" && categoryParentId !== "none" ? categoryParentId : null,
+        }),
+      })
+
+      const result = await parseResponse<{ success: boolean; message?: string }>(response)
+      if (!result.response.ok) {
+        toast({ title: "Category Error", description: result.errorMessage || "Failed to create category", variant: "destructive" })
+        return
+      }
+
+      setCategoryForm({ name: "", description: "" })
+      setCategoryMode("main")
+      setCategoryParentId("none")
+      toast({ title: "Success", description: "Category created successfully" })
+      await fetchAll()
+    } catch (error: any) {
+      toast({ title: "Category Error", description: error?.message || "Failed to create category", variant: "destructive" })
     }
-    setCategoryForm({ name: "", description: "" })
-    setCategoryMode("main")
-    setCategoryParentId("none")
-    toast({ title: "Success", description: "Category created" })
-    fetchAll()
   }
 
   const createProduct = async () => {

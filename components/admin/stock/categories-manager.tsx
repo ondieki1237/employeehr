@@ -210,8 +210,11 @@ export function CategoriesManager({ categories, products, onRefresh }: Categorie
     return categories.filter((cat) => !cat.level || cat.level < 3)
   }
 
+  const normalizeInputValue = (value: string) => String(value || "").trim().replace(/\s+/g, " ")
+
   const handleCreateCategory = async () => {
-    if (!newCategoryName.trim()) {
+    const cleanedName = normalizeInputValue(newCategoryName)
+    if (!cleanedName) {
       toast({ title: "Error", description: "Category name is required", variant: "destructive" })
       return
     }
@@ -225,8 +228,8 @@ export function CategoriesManager({ categories, products, onRefresh }: Categorie
           Authorization: `Bearer ${getToken()}`,
         },
         body: JSON.stringify({
-          name: newCategoryName.trim(),
-          description: newCategoryDesc.trim() || null,
+          name: cleanedName,
+          description: normalizeInputValue(newCategoryDesc) || null,
           parentId: newCategoryParentId && newCategoryParentId !== "none" ? newCategoryParentId : null,
         }),
       })
