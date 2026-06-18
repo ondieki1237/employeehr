@@ -17,7 +17,23 @@ import {
   YAxis,
   CartesianGrid,
 } from "recharts"
-import { Target, CheckSquare, Mail, Package, Clock, ClipboardList, Wallet, CalendarDays, Bell } from "lucide-react"
+import { 
+  Target, 
+  CheckSquare, 
+  Mail, 
+  Package, 
+  Clock, 
+  ClipboardList, 
+  Wallet, 
+  CalendarDays, 
+  Bell, 
+  ChevronRight,
+  ListChecks,
+  Truck,
+  FileText,
+  MessageSquare,
+  LayoutDashboard
+} from "lucide-react"
 import API_URL from "@/lib/apiBase"
 import { getToken, getUser } from "@/lib/auth"
 import { api } from "@/lib/api"
@@ -53,6 +69,21 @@ interface MessageItem {
   is_read?: boolean
 }
 
+function hexToRgb(hex: string) {
+  const normalized = hex.replace("#", "")
+  if (normalized.length !== 6) return { r: 15, g: 118, b: 110 }
+  return {
+    r: Number.parseInt(normalized.slice(0, 2), 16),
+    g: Number.parseInt(normalized.slice(2, 4), 16),
+    b: Number.parseInt(normalized.slice(4, 6), 16),
+  }
+}
+
+function hexToRgba(hex: string, alpha: number) {
+  const { r, g, b } = hexToRgb(hex)
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`
+}
+
 const COLORS = ["#2563eb", "#059669", "#f59e0b", "#8b5cf6"]
 
 function getCurrentPeriod() {
@@ -71,6 +102,13 @@ export default function EmployeeDashboard() {
   const [meetingsCount, setMeetingsCount] = useState(0)
   const [alertsCount, setAlertsCount] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [branding, setBranding] = useState<{ primaryColor?: string; secondaryColor?: string }>({})
+
+  const primaryColor = branding.primaryColor || "#0f766e"
+  const secondaryColor = branding.secondaryColor || "#0ea5e9"
+  const primarySoftColor = hexToRgba(primaryColor, 0.08)
+  const secondarySoftColor = hexToRgba(secondaryColor, 0.08)
+  const primaryBorderColor = hexToRgba(primaryColor, 0.18)
 
   useEffect(() => {
     const currentUser = getUser()
@@ -86,6 +124,19 @@ export default function EmployeeDashboard() {
 
         const userId = currentUser.userId || currentUser._id
         const period = getCurrentPeriod()
+
+        // Load branding first
+        try {
+          const brandingRes = await fetch(`${API_URL}/api/company/branding`, {
+            headers: { Authorization: `Bearer ${token}` },
+          })
+          const brandingData = await brandingRes.json()
+          if (brandingData.success) {
+            setBranding(brandingData.data || {})
+          }
+        } catch {
+          // Silently fail
+        }
 
         const [tasksRes, messagesRes, performanceRes, alertsRes, leaveRes, payslipsRes, meetingsRes] = await Promise.all([
           fetch(`${API_URL}/api/tasks`, { headers: { Authorization: `Bearer ${token}` } }),
@@ -213,293 +264,344 @@ export default function EmployeeDashboard() {
   if (loading) {
     return (
       <div className="flex h-full items-center justify-center p-6">
-        <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-primary" />
+        <div className="h-12 w-12 animate-spin rounded-full border-b-2" style={{ borderColor: primaryColor }} />
       </div>
     )
   }
 
+  // Quick links data for compact mobile display
+  const quickLinks = [
+    { href: "/employee/tasks", icon: ListChecks, label: "Tasks", color: "text-blue-500" },
+    { href: "/employee/dispatch", icon: Truck, label: "Dispatch", color: "text-amber-500" },
+    { href: "/employee/reports", icon: FileText, label: "Reports", color: "text-emerald-500" },
+    { href: "/employee/messages", icon: MessageSquare, label: "Messages", color: "text-purple-500" },
+  ]
+
   return (
-    <div className="space-y-8 p-6">
-      <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-bold">Welcome, {user?.first_name || user?.firstName || "Employee"}</h1>
-        <p className="text-muted-foreground">
-          Your dashboard is driven by your actual duties, packaging work, and live performance.
-        </p>
+    <div className="space-y-5 pb-6">
+      {/* Header Section */}
+      <div className="rounded-2xl border px-4 py-3 shadow-sm" style={{ borderColor: primaryBorderColor, background: `linear-gradient(to right, ${primarySoftColor}, ${secondarySoftColor})` }}>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+          <div className="space-y-0.5">
+            <p className="text-sm font-medium tracking-wide" style={{ color: primaryColor }}>Dashboard</p>
+            <h1 className="text-xl font-semibold tracking-tight text-foreground">
+              Welcome, {user?.first_name || user?.firstName || "Employee"}
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              Your dashboard is driven by your actual duties, packaging work, and live performance.
+            </p>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => window.location.reload()} className="self-start shrink-0">
+            Refresh
+          </Button>
+        </div>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
-        <Card className="p-6">
-          <div className="flex items-start justify-between mb-4">
-            <div>
-              <p className="text-sm text-muted-foreground">Unique KPI</p>
-              <p className="text-3xl font-bold mt-1">{derived.uniqueKpi}/100</p>
+      {/* Stats Cards - Mobile optimized with 2-column grid */}
+      <div className="grid gap-3 grid-cols-2 md:grid-cols-2 xl:grid-cols-4">
+        <Card className="shadow-sm">
+          <CardContent className="p-3 sm:p-6">
+            <div className="flex items-start justify-between">
+              <div className="min-w-0">
+                <p className="text-[10px] sm:text-sm text-muted-foreground truncate">Unique KPI</p>
+                <p className="text-lg sm:text-3xl font-bold mt-0.5">{derived.uniqueKpi}/100</p>
+              </div>
+              <div className="w-7 h-7 sm:w-12 sm:h-12 rounded-lg shrink-0 flex items-center justify-center ml-1.5" style={{ backgroundColor: hexToRgba(primaryColor, 0.1) }}>
+                <Target className="w-3.5 h-3.5 sm:w-6 sm:h-6" style={{ color: primaryColor }} />
+              </div>
             </div>
-            <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
-              <Target className="w-6 h-6 text-primary" />
-            </div>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Based on duties completed, packaging output, and performance score.
-          </p>
+            <p className="text-[8px] sm:text-xs text-muted-foreground mt-1 hidden sm:block">
+              Based on duties completed, packaging output, and performance score.
+            </p>
+          </CardContent>
         </Card>
 
-        <Card className="p-6">
-          <div className="flex items-start justify-between mb-4">
-            <div>
-              <p className="text-sm text-muted-foreground">Duties Allocated</p>
-              <p className="text-3xl font-bold mt-1">{derived.totalTasks}</p>
+        <Card className="shadow-sm">
+          <CardContent className="p-3 sm:p-6">
+            <div className="flex items-start justify-between">
+              <div className="min-w-0">
+                <p className="text-[10px] sm:text-sm text-muted-foreground truncate">Duties</p>
+                <p className="text-lg sm:text-3xl font-bold mt-0.5">{derived.totalTasks}</p>
+              </div>
+              <div className="w-7 h-7 sm:w-12 sm:h-12 rounded-lg shrink-0 flex items-center justify-center ml-1.5" style={{ backgroundColor: hexToRgba("#2563eb", 0.1) }}>
+                <CheckSquare className="w-3.5 h-3.5 sm:w-6 sm:h-6 text-blue-500" />
+              </div>
             </div>
-            <div className="w-12 h-12 rounded-lg bg-blue-500/10 flex items-center justify-center">
-              <CheckSquare className="w-6 h-6 text-blue-500" />
-            </div>
-          </div>
-          <p className="text-xs text-blue-500">
-            {derived.completedTasks} completed, {derived.pendingTasks} pending
-          </p>
+            <p className="text-[8px] sm:text-xs text-blue-500 mt-0.5">
+              {derived.completedTasks} done, {derived.pendingTasks} pending
+            </p>
+          </CardContent>
         </Card>
 
-        <Card className="p-6">
-          <div className="flex items-start justify-between mb-4">
-            <div>
-              <p className="text-sm text-muted-foreground">Packaging Duties</p>
-              <p className="text-3xl font-bold mt-1">{derived.packagingTasks.length}</p>
+        <Card className="shadow-sm">
+          <CardContent className="p-3 sm:p-6">
+            <div className="flex items-start justify-between">
+              <div className="min-w-0">
+                <p className="text-[10px] sm:text-sm text-muted-foreground truncate">Packaging</p>
+                <p className="text-lg sm:text-3xl font-bold mt-0.5">{derived.packagingTasks.length}</p>
+              </div>
+              <div className="w-7 h-7 sm:w-12 sm:h-12 rounded-lg shrink-0 flex items-center justify-center ml-1.5" style={{ backgroundColor: hexToRgba("#f59e0b", 0.1) }}>
+                <Package className="w-3.5 h-3.5 sm:w-6 sm:h-6 text-amber-500" />
+              </div>
             </div>
-            <div className="w-12 h-12 rounded-lg bg-amber-500/10 flex items-center justify-center">
-              <Package className="w-6 h-6 text-amber-500" />
-            </div>
-          </div>
-          <p className="text-xs text-amber-500">
-            {derived.packagingCompleted} completed, {derived.packagingCompletionRate}% done
-          </p>
+            <p className="text-[8px] sm:text-xs text-amber-500 mt-0.5">
+              {derived.packagingCompletionRate}% done
+            </p>
+          </CardContent>
         </Card>
 
-        <Card className="p-6">
-          <div className="flex items-start justify-between mb-4">
-            <div>
-              <p className="text-sm text-muted-foreground">Unread Messages</p>
-              <p className="text-3xl font-bold mt-1">{messagesUnread}</p>
+        <Card className="shadow-sm">
+          <CardContent className="p-3 sm:p-6">
+            <div className="flex items-start justify-between">
+              <div className="min-w-0">
+                <p className="text-[10px] sm:text-sm text-muted-foreground truncate">Messages</p>
+                <p className="text-lg sm:text-3xl font-bold mt-0.5">{messagesUnread}</p>
+              </div>
+              <div className="w-7 h-7 sm:w-12 sm:h-12 rounded-lg shrink-0 flex items-center justify-center ml-1.5" style={{ backgroundColor: hexToRgba("#f59e0b", 0.1) }}>
+                <Mail className="w-3.5 h-3.5 sm:w-6 sm:h-6 text-orange-500" />
+              </div>
             </div>
-            <div className="w-12 h-12 rounded-lg bg-orange-500/10 flex items-center justify-center">
-              <Mail className="w-6 h-6 text-orange-500" />
-            </div>
-          </div>
-          <p className="text-xs text-orange-500">Messages waiting for review</p>
+            <p className="text-[8px] sm:text-xs text-orange-500 mt-0.5">Unread</p>
+          </CardContent>
         </Card>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <Card className="p-5">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-sm text-muted-foreground">Leave Balance</p>
-              <p className="mt-1 text-2xl font-semibold">
+      {/* Quick Stats Row - Compact mobile */}
+      <div className="grid gap-2 grid-cols-2 md:grid-cols-2 xl:grid-cols-4">
+        <Card className="shadow-sm p-2.5 sm:p-5">
+          <div className="flex items-center justify-between gap-1.5">
+            <div className="min-w-0">
+              <p className="text-[9px] sm:text-xs text-muted-foreground truncate">Leave</p>
+              <p className="text-base sm:text-2xl font-semibold">
                 {leaveBalance?.remainingDays ?? leaveBalance?.annual?.remaining ?? leaveBalance?.balance ?? "—"}
               </p>
             </div>
-            <div className="rounded-lg bg-emerald-500/10 p-2 text-emerald-600">
-              <CalendarDays className="h-5 w-5" />
+            <div className="rounded-lg shrink-0 p-1 sm:p-2" style={{ backgroundColor: hexToRgba("#059669", 0.1) }}>
+              <CalendarDays className="h-3.5 w-3.5 sm:h-5 sm:w-5 text-emerald-600" />
             </div>
           </div>
-          <Link href="/employee/leave" className="mt-3 inline-flex text-xs font-medium text-primary hover:underline">
-            View leave timeline
+          <Link href="/employee/leave" className="text-[9px] sm:text-xs font-medium inline-flex items-center mt-0.5" style={{ color: primaryColor }}>
+            View <ChevronRight className="h-2.5 w-2.5 ml-0.5" />
           </Link>
         </Card>
 
-        <Card className="p-5">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-sm text-muted-foreground">Payslips</p>
-              <p className="mt-1 text-2xl font-semibold">{payslipsCount}</p>
+        <Card className="shadow-sm p-2.5 sm:p-5">
+          <div className="flex items-center justify-between gap-1.5">
+            <div className="min-w-0">
+              <p className="text-[9px] sm:text-xs text-muted-foreground truncate">Payslips</p>
+              <p className="text-base sm:text-2xl font-semibold">{payslipsCount}</p>
             </div>
-            <div className="rounded-lg bg-sky-500/10 p-2 text-sky-600">
-              <Wallet className="h-5 w-5" />
+            <div className="rounded-lg shrink-0 p-1 sm:p-2" style={{ backgroundColor: hexToRgba("#0ea5e9", 0.1) }}>
+              <Wallet className="h-3.5 w-3.5 sm:h-5 sm:w-5 text-sky-600" />
             </div>
           </div>
-          <Link href="/employee/payslip" className="mt-3 inline-flex text-xs font-medium text-primary hover:underline">
-            Open payslips
+          <Link href="/employee/payslip" className="text-[9px] sm:text-xs font-medium inline-flex items-center mt-0.5" style={{ color: primaryColor }}>
+            Open <ChevronRight className="h-2.5 w-2.5 ml-0.5" />
           </Link>
         </Card>
 
-        <Card className="p-5">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-sm text-muted-foreground">Upcoming Meetings</p>
-              <p className="mt-1 text-2xl font-semibold">{meetingsCount}</p>
+        <Card className="shadow-sm p-2.5 sm:p-5">
+          <div className="flex items-center justify-between gap-1.5">
+            <div className="min-w-0">
+              <p className="text-[9px] sm:text-xs text-muted-foreground truncate">Meetings</p>
+              <p className="text-base sm:text-2xl font-semibold">{meetingsCount}</p>
             </div>
-            <div className="rounded-lg bg-violet-500/10 p-2 text-violet-600">
-              <Clock className="h-5 w-5" />
+            <div className="rounded-lg shrink-0 p-1 sm:p-2" style={{ backgroundColor: hexToRgba("#8b5cf6", 0.1) }}>
+              <Clock className="h-3.5 w-3.5 sm:h-5 sm:w-5 text-violet-600" />
             </div>
           </div>
-          <Link href="/employee/meetings" className="mt-3 inline-flex text-xs font-medium text-primary hover:underline">
-            Review schedule
+          <Link href="/employee/meetings" className="text-[9px] sm:text-xs font-medium inline-flex items-center mt-0.5" style={{ color: primaryColor }}>
+            View <ChevronRight className="h-2.5 w-2.5 ml-0.5" />
           </Link>
         </Card>
 
-        <Card className="p-5">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-sm text-muted-foreground">Notifications</p>
-              <p className="mt-1 text-2xl font-semibold">{alertsCount}</p>
+        <Card className="shadow-sm p-2.5 sm:p-5">
+          <div className="flex items-center justify-between gap-1.5">
+            <div className="min-w-0">
+              <p className="text-[9px] sm:text-xs text-muted-foreground truncate">Alerts</p>
+              <p className="text-base sm:text-2xl font-semibold">{alertsCount}</p>
             </div>
-            <div className="rounded-lg bg-rose-500/10 p-2 text-rose-600">
-              <Bell className="h-5 w-5" />
+            <div className="rounded-lg shrink-0 p-1 sm:p-2" style={{ backgroundColor: hexToRgba("#ef4444", 0.1) }}>
+              <Bell className="h-3.5 w-3.5 sm:h-5 sm:w-5 text-rose-600" />
             </div>
           </div>
-          <Link href="/employee/notifications" className="mt-3 inline-flex text-xs font-medium text-primary hover:underline">
-            Open notification center
+          <Link href="/employee/notifications" className="text-[9px] sm:text-xs font-medium inline-flex items-center mt-0.5" style={{ color: primaryColor }}>
+            View <ChevronRight className="h-2.5 w-2.5 ml-0.5" />
           </Link>
         </Card>
       </div>
 
-      <div className="grid gap-8 lg:grid-cols-2">
-        <Card className="p-6">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h2 className="text-xl font-bold">Task Completion Mix</h2>
-              <p className="text-sm text-muted-foreground">Your duties are reflected in real time.</p>
+      {/* Charts - Stack vertically on mobile */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card className="shadow-sm">
+          <CardHeader className="pb-2 sm:pb-3">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5">
+              <div>
+                <CardTitle className="text-sm sm:text-base">Task Completion</CardTitle>
+                <p className="text-[10px] sm:text-xs text-muted-foreground">Your duties in real time.</p>
+              </div>
+              <Badge variant="outline" className="text-[10px] self-start sm:self-center">{derived.dutyCompletionRate}% done</Badge>
             </div>
-            <Badge variant="outline">{derived.dutyCompletionRate}% overall</Badge>
-          </div>
-          <ResponsiveContainer width="100%" height={300}>
-            <PieChart>
-              <Pie data={derived.taskStatusData} cx="50%" cy="50%" outerRadius={100} dataKey="value" label>
-                {derived.taskStatusData.map((entry, index) => (
-                  <Cell key={entry.name} fill={COLORS[index % COLORS.length]} />
-                ))}
-              </Pie>
-              <Tooltip />
-            </PieChart>
-          </ResponsiveContainer>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[200px] sm:h-[300px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={derived.taskStatusData} cx="50%" cy="50%" outerRadius={70} dataKey="value" label={({ name, percent }) => `${percent > 0 ? (percent * 100).toFixed(0) : 0}%`}>
+                    {derived.taskStatusData.map((entry, index) => (
+                      <Cell key={entry.name} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
         </Card>
 
-        <Card className="p-6">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h2 className="text-xl font-bold">Priority Load</h2>
-              <p className="text-sm text-muted-foreground">Duties by urgency level.</p>
+        <Card className="shadow-sm">
+          <CardHeader className="pb-2 sm:pb-3">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5">
+              <div>
+                <CardTitle className="text-sm sm:text-base">Priority Load</CardTitle>
+                <p className="text-[10px] sm:text-xs text-muted-foreground">By urgency level.</p>
+              </div>
+              <Badge variant="outline" className="text-[10px] self-start sm:self-center">{derived.overdueTasks} overdue</Badge>
             </div>
-            <Badge variant="outline">{derived.overdueTasks} overdue</Badge>
-          </div>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={derived.priorityData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-              <XAxis dataKey="name" stroke="var(--muted-foreground)" />
-              <YAxis allowDecimals={false} stroke="var(--muted-foreground)" />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: "var(--card)",
-                  border: `1px solid var(--border)`,
-                  borderRadius: "8px",
-                }}
-              />
-              <Bar dataKey="value" fill="var(--primary)" />
-            </BarChart>
-          </ResponsiveContainer>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[200px] sm:h-[300px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={derived.priorityData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                  <XAxis dataKey="name" stroke="var(--muted-foreground)" fontSize={10} />
+                  <YAxis allowDecimals={false} stroke="var(--muted-foreground)" fontSize={10} />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: "var(--card)",
+                      border: `1px solid var(--border)`,
+                      borderRadius: "8px",
+                      fontSize: "11px",
+                    }}
+                  />
+                  <Bar dataKey="value" fill={primaryColor} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
         </Card>
       </div>
 
-      <div className="grid gap-8 lg:grid-cols-3">
-        <Card className="p-6 lg:col-span-2">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h2 className="text-xl font-bold">Recent Duties</h2>
-              <p className="text-sm text-muted-foreground">Latest assigned tasks, including packaging work.</p>
+      {/* Recent Tasks and Performance */}
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Card className="shadow-sm lg:col-span-2">
+          <CardHeader className="pb-2 sm:pb-3">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5">
+              <div>
+                <CardTitle className="text-sm sm:text-base">Recent Duties</CardTitle>
+                <p className="text-[10px] sm:text-xs text-muted-foreground">Latest assigned tasks.</p>
+              </div>
+              <Link href="/employee/tasks">
+                <Button variant="outline" size="sm" className="w-full sm:w-auto text-xs h-7 sm:h-9">View All</Button>
+              </Link>
             </div>
-            <Link href="/employee/tasks">
-              <Button variant="outline">Open Tasks</Button>
-            </Link>
-          </div>
-          <div className="space-y-3">
-            {derived.recentTasks.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No duties assigned yet.</p>
-            ) : (
-              derived.recentTasks.map((task) => {
-                const isPackaging =
-                  task.is_packaging_duty ||
-                  task.related_entity_type === "invoice" ||
-                  String(task.source_label || "").toLowerCase().includes("packaging") ||
-                  String(task.title || "").toLowerCase().includes("packaging")
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {derived.recentTasks.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-3">No duties assigned yet.</p>
+              ) : (
+                derived.recentTasks.slice(0, 4).map((task) => {
+                  const isPackaging =
+                    task.is_packaging_duty ||
+                    task.related_entity_type === "invoice" ||
+                    String(task.source_label || "").toLowerCase().includes("packaging") ||
+                    String(task.title || "").toLowerCase().includes("packaging")
 
-                return (
-                  <div key={task._id} className="rounded-lg border p-4">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <h3 className="font-semibold">{task.title}</h3>
-                          {isPackaging && <Badge variant="secondary">Packaging</Badge>}
-                          <Badge variant="outline" className="capitalize">
-                            {task.status.replace("_", " ")}
-                          </Badge>
+                  return (
+                    <div key={task._id} className="rounded-lg border p-2.5 sm:p-4">
+                      <div className="flex flex-wrap items-start justify-between gap-1.5">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <h3 className="font-semibold text-xs sm:text-sm truncate">{task.title}</h3>
+                            {isPackaging && <Badge variant="secondary" className="text-[8px] sm:text-[10px]">📦</Badge>}
+                            <Badge variant="outline" className="capitalize text-[8px] sm:text-[10px]">
+                              {task.status.replace("_", " ")}
+                            </Badge>
+                          </div>
+                          <p className="text-[10px] sm:text-sm text-muted-foreground line-clamp-1">{task.description}</p>
+                          <div className="flex flex-wrap gap-1.5 text-[8px] sm:text-xs text-muted-foreground mt-0.5">
+                            {task.due_date && <span>Due: {new Date(task.due_date).toLocaleDateString()}</span>}
+                          </div>
                         </div>
-                        <p className="text-sm text-muted-foreground">{task.description}</p>
-                        <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-                          {task.due_date && <span>Due: {new Date(task.due_date).toLocaleDateString()}</span>}
-                          {task.completed_at && <span>Completed: {new Date(task.completed_at).toLocaleDateString()}</span>}
-                          {task.related_entity_type === "invoice" && task.related_entity_id && (
-                            <span>Invoice duty linked</span>
-                          )}
-                        </div>
+                        <Badge className="capitalize text-[8px] sm:text-[10px] shrink-0">{task.priority}</Badge>
                       </div>
-                      <Badge className="capitalize">{task.priority}</Badge>
                     </div>
-                  </div>
-                )
-              })
-            )}
-          </div>
+                  )
+                })
+              )}
+            </div>
+          </CardContent>
         </Card>
 
-        <Card className="p-6">
-          <h2 className="text-xl font-bold mb-4">Performance Snapshot</h2>
-          <div className="space-y-4 text-sm">
-            <div className="rounded-lg border p-4">
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Performance Score</span>
-                <span className="font-semibold">{derived.performanceScore}/100</span>
+        <Card className="shadow-sm">
+          <CardHeader className="pb-2 sm:pb-3">
+            <CardTitle className="text-sm sm:text-base">Performance</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              <div className="rounded-lg border p-2 sm:p-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] sm:text-sm text-muted-foreground">Overall</span>
+                  <span className="font-semibold text-sm sm:text-base">{derived.performanceScore}/100</span>
+                </div>
+              </div>
+              <div className="rounded-lg border p-2 sm:p-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] sm:text-sm text-muted-foreground">Attendance</span>
+                  <span className="font-semibold text-sm sm:text-base">{derived.attendanceScore}/100</span>
+                </div>
+              </div>
+              <div className="rounded-lg border p-2 sm:p-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] sm:text-sm text-muted-foreground">Feedback</span>
+                  <span className="font-semibold text-sm sm:text-base">{derived.feedbackScore}/100</span>
+                </div>
+              </div>
+              <div className="rounded-lg border p-2 sm:p-4" style={{ backgroundColor: hexToRgba(primaryColor, 0.05) }}>
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] sm:text-sm text-muted-foreground">Period</span>
+                  <span className="font-semibold text-xs sm:text-sm">{performance?.period || getCurrentPeriod()}</span>
+                </div>
               </div>
             </div>
-            <div className="rounded-lg border p-4">
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Attendance Score</span>
-                <span className="font-semibold">{derived.attendanceScore}/100</span>
-              </div>
-            </div>
-            <div className="rounded-lg border p-4">
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Feedback Score</span>
-                <span className="font-semibold">{derived.feedbackScore}/100</span>
-              </div>
-            </div>
-            <div className="rounded-lg border p-4 bg-muted/30">
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Current Period</span>
-                <span className="font-semibold">{performance?.period || getCurrentPeriod()}</span>
-              </div>
-            </div>
-            <div className="rounded-lg border p-4 bg-primary/5">
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Unique KPI Formula</span>
-                <span className="font-semibold">Task + Packaging + Performance</span>
-              </div>
-              <p className="mt-2 text-xs text-muted-foreground">
-                Dashboard score varies by employee based on allocated duties, packaging work, and live performance.
-              </p>
-            </div>
-          </div>
+          </CardContent>
         </Card>
       </div>
 
-      <Card className="p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold">Quick Links</h2>
-          <ClipboardList className="h-5 w-5 text-muted-foreground" />
-        </div>
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <Link href="/employee/tasks"><Button className="w-full" variant="outline">My Tasks</Button></Link>
-          <Link href="/employee/dispatch"><Button className="w-full" variant="outline">My Dispatch</Button></Link>
-          <Link href="/employee/reports"><Button className="w-full" variant="outline">Reports</Button></Link>
-          <Link href="/employee/messages"><Button className="w-full" variant="outline">Messages</Button></Link>
-        </div>
+      {/* Quick Links - Compact icon grid for mobile */}
+      <Card className="shadow-sm">
+        <CardHeader className="pb-1.5 sm:pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm sm:text-base">Quick Links</CardTitle>
+            <LayoutDashboard className="h-3.5 w-3.5 sm:h-5 sm:w-5 text-muted-foreground" />
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-4 gap-1.5 sm:gap-2">
+            {quickLinks.map((link) => (
+              <Link key={link.href} href={link.href}>
+                <Button 
+                  variant="outline" 
+                  className="w-full flex flex-col items-center gap-0.5 h-auto py-2 sm:py-3 px-1 sm:px-3"
+                >
+                  <link.icon className={`h-4 w-4 sm:h-5 sm:w-5 ${link.color}`} />
+                  <span className="text-[8px] sm:text-xs font-medium truncate">{link.label}</span>
+                </Button>
+              </Link>
+            ))}
+          </div>
+        </CardContent>
       </Card>
     </div>
   )

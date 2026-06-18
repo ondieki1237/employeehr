@@ -6,12 +6,10 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Calendar as CalendarIcon, Clock, CheckCircle2, XCircle, AlertCircle } from "lucide-react"
+import { Calendar as CalendarIcon, Clock, CheckCircle2, XCircle, AlertCircle, ChevronRight } from "lucide-react"
 import API_URL from "@/lib/apiBase"
 import { getToken } from "@/lib/auth"
 import { HolidayList } from "@/components/attendance/holiday-list"
-
-// API base URL handled by lib/apiBase
 
 interface AttendanceRecord {
   _id: string
@@ -23,6 +21,21 @@ interface AttendanceRecord {
   notes?: string
 }
 
+function hexToRgb(hex: string) {
+  const normalized = hex.replace("#", "")
+  if (normalized.length !== 6) return { r: 15, g: 118, b: 110 }
+  return {
+    r: Number.parseInt(normalized.slice(0, 2), 16),
+    g: Number.parseInt(normalized.slice(2, 4), 16),
+    b: Number.parseInt(normalized.slice(4, 6), 16),
+  }
+}
+
+function hexToRgba(hex: string, alpha: number) {
+  const { r, g, b } = hexToRgb(hex)
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`
+}
+
 export default function AttendancePage() {
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([])
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date())
@@ -30,6 +43,7 @@ export default function AttendancePage() {
   const [actionLoading, setActionLoading] = useState<"check-in" | "check-out" | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [branding, setBranding] = useState<{ primaryColor?: string; secondaryColor?: string }>({})
   const [stats, setStats] = useState({
     present: 0,
     absent: 0,
@@ -37,9 +51,32 @@ export default function AttendancePage() {
     totalHours: 0,
   })
 
+  const primaryColor = branding.primaryColor || "#0f766e"
+  const secondaryColor = branding.secondaryColor || "#0ea5e9"
+  const primarySoftColor = hexToRgba(primaryColor, 0.08)
+  const secondarySoftColor = hexToRgba(secondaryColor, 0.08)
+  const primaryBorderColor = hexToRgba(primaryColor, 0.18)
+
   useEffect(() => {
+    fetchBranding()
     fetchAttendance()
   }, [])
+
+  const fetchBranding = async () => {
+    try {
+      const token = getToken()
+      if (!token) return
+      const res = await fetch(`${API_URL}/api/company/branding`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      const data = await res.json()
+      if (data.success) {
+        setBranding(data.data || {})
+      }
+    } catch {
+      // Silently fail
+    }
+  }
 
   const fetchAttendance = async () => {
     try {
@@ -115,7 +152,7 @@ export default function AttendancePage() {
         return
       }
 
-      setSuccessMessage("Check-in successful")
+      setSuccessMessage("✅ Check-in successful")
       fetchAttendance()
     } catch (error) {
       console.error("Failed to check in:", error)
@@ -152,7 +189,7 @@ export default function AttendancePage() {
         return
       }
 
-      setSuccessMessage("Check-out successful")
+      setSuccessMessage("✅ Check-out successful")
       fetchAttendance()
     } catch (error) {
       console.error("Failed to check out:", error)
@@ -165,30 +202,34 @@ export default function AttendancePage() {
   const getStatusIcon = (status: string) => {
     switch (status) {
       case "present":
-        return <CheckCircle2 className="h-4 w-4 text-green-500" />
+        return <CheckCircle2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-green-500" />
       case "absent":
-        return <XCircle className="h-4 w-4 text-red-500" />
+        return <XCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-red-500" />
       case "late":
-        return <AlertCircle className="h-4 w-4 text-yellow-500" />
+        return <AlertCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-yellow-500" />
       default:
-        return <Clock className="h-4 w-4 text-gray-500" />
+        return <Clock className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-gray-500" />
     }
   }
 
   const getStatusBadge = (status: string) => {
-    const variants: Record<string, "default" | "destructive" | "secondary" | "outline"> = {
-      present: "default",
-      absent: "destructive",
-      late: "secondary",
-      "half-day": "outline",
+    const variants: Record<string, string> = {
+      present: "border-emerald-200 bg-emerald-50 text-emerald-700",
+      absent: "border-rose-200 bg-rose-50 text-rose-700",
+      late: "border-amber-200 bg-amber-50 text-amber-700",
+      "half-day": "border-sky-200 bg-sky-50 text-sky-700",
     }
-    return <Badge variant={variants[status] || "outline"}>{status}</Badge>
+    return (
+      <Badge variant="outline" className={`rounded-full px-2 py-0.5 text-[10px] sm:text-xs font-medium capitalize ${variants[status] || "border-gray-200 bg-gray-50 text-gray-700"}`}>
+        {status.replace("-", " ")}
+      </Badge>
+    )
   }
 
   if (loading) {
     return (
       <div className="flex h-screen items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-t-transparent" style={{ borderColor: primaryColor }}></div>
       </div>
     )
   }
@@ -198,172 +239,213 @@ export default function AttendancePage() {
   )
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">My Attendance</h1>
-          <p className="text-muted-foreground">Track your attendance and working hours</p>
-        </div>
-        <div className="flex gap-2">
-          {!todayRecord?.checkIn && (
-            <Button onClick={handleCheckIn} disabled={actionLoading === "check-in" || actionLoading === "check-out"}>
-              <Clock className="mr-2 h-4 w-4" />
-              {actionLoading === "check-in" ? "Checking In..." : "Check In"}
+    <div className="space-y-5 pb-6">
+      {/* Header Section */}
+      <div className="rounded-2xl border px-4 py-3 shadow-sm" style={{ borderColor: primaryBorderColor, background: `linear-gradient(to right, ${primarySoftColor}, ${secondarySoftColor})` }}>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+          <div className="space-y-0.5">
+            <p className="text-sm font-medium tracking-wide" style={{ color: primaryColor }}>Attendance</p>
+            <h1 className="text-xl font-semibold tracking-tight text-foreground">My Attendance</h1>
+            <p className="text-sm text-muted-foreground">Track your attendance and working hours</p>
+          </div>
+          <div className="flex flex-wrap gap-2 self-start">
+            {!todayRecord?.checkIn && (
+              <Button 
+                onClick={handleCheckIn} 
+                disabled={actionLoading === "check-in" || actionLoading === "check-out"}
+                className="text-xs sm:text-sm h-8 sm:h-10"
+              >
+                <Clock className="mr-1.5 h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                {actionLoading === "check-in" ? "Checking In..." : "Check In"}
+              </Button>
+            )}
+            {todayRecord?.checkIn && !todayRecord?.checkOut && (
+              <Button 
+                onClick={handleCheckOut} 
+                variant="outline" 
+                disabled={actionLoading === "check-in" || actionLoading === "check-out"}
+                className="text-xs sm:text-sm h-8 sm:h-10"
+              >
+                <Clock className="mr-1.5 h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                {actionLoading === "check-out" ? "Checking Out..." : "Check Out"}
+              </Button>
+            )}
+            <Button variant="outline" size="sm" onClick={fetchAttendance} className="h-8 sm:h-10">
+              Refresh
             </Button>
-          )}
-          {todayRecord?.checkIn && !todayRecord?.checkOut && (
-            <Button onClick={handleCheckOut} variant="outline" disabled={actionLoading === "check-in" || actionLoading === "check-out"}>
-              <Clock className="mr-2 h-4 w-4" />
-              {actionLoading === "check-out" ? "Checking Out..." : "Check Out"}
-            </Button>
-          )}
+          </div>
         </div>
       </div>
 
+      {/* Error/Success Messages */}
       {errorMessage && (
-        <Card className="border-destructive/30 bg-destructive/5">
-          <CardContent className="pt-6 text-sm text-destructive">{errorMessage}</CardContent>
+        <Card className="border-rose-200 bg-rose-50 dark:border-rose-800 dark:bg-rose-950/30">
+          <CardContent className="pt-4 sm:pt-6 text-xs sm:text-sm text-rose-700 dark:text-rose-300">
+            {errorMessage}
+          </CardContent>
         </Card>
       )}
 
       {successMessage && (
         <Card className="border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/30">
-          <CardContent className="pt-6 text-sm text-emerald-700 dark:text-emerald-300">{successMessage}</CardContent>
+          <CardContent className="pt-4 sm:pt-6 text-xs sm:text-sm text-emerald-700 dark:text-emerald-300">
+            {successMessage}
+          </CardContent>
         </Card>
       )}
 
-      {/* Statistics */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Present Days</CardTitle>
-            <CheckCircle2 className="h-4 w-4 text-green-500" />
+      {/* Statistics - Mobile optimized 2x2 grid */}
+      <div className="grid gap-3 grid-cols-2 sm:grid-cols-2 xl:grid-cols-4">
+        <Card className="shadow-sm">
+          <CardHeader className="p-3 sm:p-6 pb-1.5 sm:pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-[10px] sm:text-sm font-medium text-muted-foreground">Present</CardTitle>
+              <CheckCircle2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-green-500" />
+            </div>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.present}</div>
-            <p className="text-xs text-muted-foreground">Total present days</p>
+          <CardContent className="p-3 sm:p-6 pt-0">
+            <div className="text-lg sm:text-2xl font-bold">{stats.present}</div>
+            <p className="text-[8px] sm:text-xs text-muted-foreground">Total days</p>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Absent Days</CardTitle>
-            <XCircle className="h-4 w-4 text-red-500" />
+        <Card className="shadow-sm">
+          <CardHeader className="p-3 sm:p-6 pb-1.5 sm:pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-[10px] sm:text-sm font-medium text-muted-foreground">Absent</CardTitle>
+              <XCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-rose-500" />
+            </div>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.absent}</div>
-            <p className="text-xs text-muted-foreground">Total absent days</p>
+          <CardContent className="p-3 sm:p-6 pt-0">
+            <div className="text-lg sm:text-2xl font-bold">{stats.absent}</div>
+            <p className="text-[8px] sm:text-xs text-muted-foreground">Total days</p>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Late Arrivals</CardTitle>
-            <AlertCircle className="h-4 w-4 text-yellow-500" />
+        <Card className="shadow-sm">
+          <CardHeader className="p-3 sm:p-6 pb-1.5 sm:pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-[10px] sm:text-sm font-medium text-muted-foreground">Late</CardTitle>
+              <AlertCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-amber-500" />
+            </div>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.late}</div>
-            <p className="text-xs text-muted-foreground">Times late</p>
+          <CardContent className="p-3 sm:p-6 pt-0">
+            <div className="text-lg sm:text-2xl font-bold">{stats.late}</div>
+            <p className="text-[8px] sm:text-xs text-muted-foreground">Total times</p>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Hours</CardTitle>
-            <Clock className="h-4 w-4 text-blue-500" />
+        <Card className="shadow-sm">
+          <CardHeader className="p-3 sm:p-6 pb-1.5 sm:pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-[10px] sm:text-sm font-medium text-muted-foreground">Hours</CardTitle>
+              <Clock className="h-3.5 w-3.5 sm:h-4 sm:w-4" style={{ color: secondaryColor }} />
+            </div>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.totalHours.toFixed(1)}</div>
-            <p className="text-xs text-muted-foreground">Hours worked</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid gap-6 md:grid-cols-3">
-        {/* Calendar */}
-        <Card className="md:col-span-1">
-          <CardHeader>
-            <CardTitle>Calendar</CardTitle>
-            <CardDescription>Select a date to view details</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Calendar mode="single" selected={selectedDate} onSelect={setSelectedDate} className="rounded-md border" />
-          </CardContent>
-        </Card>
-
-        {/* Attendance Records */}
-        <Card className="md:col-span-2">
-          <CardHeader>
-            <CardTitle>Recent Attendance</CardTitle>
-            <CardDescription>Your attendance history</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Check In</TableHead>
-                  <TableHead>Check Out</TableHead>
-                  <TableHead>Hours</TableHead>
-                  <TableHead>Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {attendanceRecords.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={5} className="text-center text-muted-foreground">
-                      No attendance records found
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  attendanceRecords.slice(0, 10).map((record) => (
-                    <TableRow key={record._id}>
-                      <TableCell>{new Date(record.date).toLocaleDateString()}</TableCell>
-                      <TableCell>{record.checkIn || "N/A"}</TableCell>
-                      <TableCell>{record.checkOut || "N/A"}</TableCell>
-                      <TableCell>{record.hours ? `${record.hours.toFixed(1)}h` : "N/A"}</TableCell>
-                      <TableCell>{getStatusBadge(record.status)}</TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
+          <CardContent className="p-3 sm:p-6 pt-0">
+            <div className="text-lg sm:text-2xl font-bold">{stats.totalHours.toFixed(1)}</div>
+            <p className="text-[8px] sm:text-xs text-muted-foreground">Total worked</p>
           </CardContent>
         </Card>
       </div>
 
+      {/* Today's Status - Compact mobile */}
       {todayRecord && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Today&apos;s Status</CardTitle>
+        <Card className="shadow-sm">
+          <CardHeader className="p-3 sm:p-6 pb-1.5 sm:pb-2">
+            <CardTitle className="text-sm sm:text-base">Today's Status</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-6">
+          <CardContent className="p-3 sm:p-6 pt-0">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-6">
               <div>
-                <p className="text-sm text-muted-foreground">Check In</p>
-                <p className="text-lg font-semibold">{todayRecord.checkIn || "Not checked in"}</p>
+                <p className="text-[9px] sm:text-sm text-muted-foreground">Check In</p>
+                <p className="text-sm sm:text-lg font-semibold">{todayRecord.checkIn || "—"}</p>
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Check Out</p>
-                <p className="text-lg font-semibold">{todayRecord.checkOut || "Not checked out"}</p>
+                <p className="text-[9px] sm:text-sm text-muted-foreground">Check Out</p>
+                <p className="text-sm sm:text-lg font-semibold">{todayRecord.checkOut || "—"}</p>
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Hours Worked</p>
-                <p className="text-lg font-semibold">{todayRecord.hours ? `${todayRecord.hours.toFixed(1)}h` : "0h"}</p>
+                <p className="text-[9px] sm:text-sm text-muted-foreground">Hours</p>
+                <p className="text-sm sm:text-lg font-semibold">{todayRecord.hours ? `${todayRecord.hours.toFixed(1)}h` : "—"}</p>
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Status</p>
-                <div className="mt-1">{getStatusBadge(todayRecord.status)}</div>
+                <p className="text-[9px] sm:text-sm text-muted-foreground">Status</p>
+                <div className="mt-0.5">{getStatusBadge(todayRecord.status)}</div>
               </div>
             </div>
           </CardContent>
         </Card>
       )}
 
-      {/* Holidays Section */}
-      <div className="mt-6">
-        <HolidayList />
+      {/* Calendar and Records - Stack on mobile */}
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Card className="shadow-sm lg:col-span-1">
+          <CardHeader className="p-3 sm:p-6 pb-1.5 sm:pb-2">
+            <CardTitle className="text-sm sm:text-base">Calendar</CardTitle>
+            <CardDescription className="text-[10px] sm:text-sm">Select a date to view</CardDescription>
+          </CardHeader>
+          <CardContent className="p-3 sm:p-6 pt-0">
+            <Calendar 
+              mode="single" 
+              selected={selectedDate} 
+              onSelect={setSelectedDate} 
+              className="rounded-md border w-full"
+            />
+          </CardContent>
+        </Card>
+
+        <Card className="shadow-sm lg:col-span-2">
+          <CardHeader className="p-3 sm:p-6 pb-1.5 sm:pb-2">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5">
+              <div>
+                <CardTitle className="text-sm sm:text-base">Recent Attendance</CardTitle>
+                <CardDescription className="text-[10px] sm:text-sm">Your attendance history</CardDescription>
+              </div>
+              <p className="text-[8px] sm:text-xs text-muted-foreground">Last 10 records</p>
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="text-[10px] sm:text-xs">Date</TableHead>
+                    <TableHead className="text-[10px] sm:text-xs">Check In</TableHead>
+                    <TableHead className="text-[10px] sm:text-xs hidden sm:table-cell">Check Out</TableHead>
+                    <TableHead className="text-[10px] sm:text-xs">Hours</TableHead>
+                    <TableHead className="text-[10px] sm:text-xs">Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {attendanceRecords.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center text-xs text-muted-foreground py-6">
+                        No attendance records found
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    attendanceRecords.slice(0, 10).map((record) => (
+                      <TableRow key={record._id}>
+                        <TableCell className="text-[10px] sm:text-sm py-2">
+                          {new Date(record.date).toLocaleDateString()}
+                        </TableCell>
+                        <TableCell className="text-[10px] sm:text-sm py-2">{record.checkIn || "—"}</TableCell>
+                        <TableCell className="text-[10px] sm:text-sm py-2 hidden sm:table-cell">{record.checkOut || "—"}</TableCell>
+                        <TableCell className="text-[10px] sm:text-sm py-2">{record.hours ? `${record.hours.toFixed(1)}h` : "—"}</TableCell>
+                        <TableCell className="py-2">{getStatusBadge(record.status)}</TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
       </div>
+
+      {/* Holidays Section */}
+      <HolidayList />
     </div>
   )
 }
