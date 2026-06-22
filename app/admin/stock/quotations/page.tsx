@@ -34,6 +34,8 @@ interface Product {
   currentQuantity: number
   isOutsourced?: boolean
   categoryDetails?: { _id: string; name: string }
+  imageUrl?: string
+  description?: string
 }
 
 interface User {
@@ -70,6 +72,8 @@ interface QuotationItem {
   totalAfterTax?: number
   isOutsourced?: boolean
   description?: string
+  imageUrl?: string
+  showImageOnQuote?: boolean
 }
 
 interface Quotation {
@@ -99,6 +103,8 @@ interface DraftItem {
   taxRate?: number
   isOutsourced?: boolean
   description?: string
+  imageUrl?: string
+  showImageOnQuote?: boolean
 }
 
 interface StampOption {
@@ -478,7 +484,9 @@ export default function QuotationsPage() {
         productUnitPrice: Number(product.sellingPrice || 0),
         soldUnitPrice: unitPrice,
         unitPrice,
-        description: itemDescription,
+        description: itemDescription || product.description || "",
+        imageUrl: product.imageUrl,
+        showImageOnQuote: true,
       },
     ])
 
@@ -601,6 +609,8 @@ export default function QuotationsPage() {
         unitPrice: item.unitPrice,
         isOutsourced: Boolean(item.isOutsourced),
         description: item.description,
+        imageUrl: item.imageUrl,
+        showImageOnQuote: item.showImageOnQuote ?? true,
       })),
     )
   }
@@ -1119,13 +1129,29 @@ export default function QuotationsPage() {
                       return (
                         <tr key={`${item.productId}-${index}`} className="border-b">
                           <td className="py-2 px-2">
-                             <div className="font-medium">{name}</div>
+                             <div className="flex items-center gap-2">
+                               {item.imageUrl && (
+                                 <img src={`${API_URL}${item.imageUrl}`} alt={name} className="h-10 w-10 rounded border object-cover" />
+                               )}
+                               <div className="font-medium">{name}</div>
+                             </div>
                              <Textarea
                                value={item.description || ""}
                                onChange={(e) => updateDraftItemDescription(index, e.target.value)}
                                placeholder="Add description/notes..."
                                className="mt-1 h-16 w-full text-xs"
                              />
+                             {item.imageUrl && (
+                               <label className="mt-1 flex items-center gap-2 text-[10px] text-muted-foreground cursor-pointer">
+                                 <Checkbox 
+                                   checked={item.showImageOnQuote} 
+                                   onCheckedChange={(val) => {
+                                     setItems(prev => prev.map((it, idx) => idx === index ? { ...it, showImageOnQuote: !!val } : it))
+                                   }}
+                                 />
+                                 <span>Show image on quotation PDF</span>
+                               </label>
+                             )}
                           </td>
                           <td className="py-2 px-2">{item.quantity}</td>
                           <td className="py-2 px-2">{referencePrice}</td>

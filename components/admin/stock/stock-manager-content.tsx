@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
 import { useToast } from "@/hooks/use-toast"
@@ -200,6 +201,7 @@ export function StockManagerContent({ view }: { view: StockView }) {
     isRecurring: false,
     intervalDays: "",
     manufacturer: "none",
+    description: "",
   })
   const [stockForm, setStockForm] = useState({
     productId: "",
@@ -1139,6 +1141,7 @@ export function StockManagerContent({ view }: { view: StockView }) {
     formData.append("intervalDays", String(productForm.intervalDays || 0))
     formData.append("manufacturer", productForm.manufacturer || "")
     formData.append("branchId", productBranchId || "")
+    formData.append("description", productForm.description || "")
     
     if (productForm.assignedUsers?.length > 0) {
       productForm.assignedUsers.forEach(userId => formData.append("assignedUsers[]", userId))
@@ -1174,6 +1177,7 @@ export function StockManagerContent({ view }: { view: StockView }) {
       isRecurring: false,
       intervalDays: "",
       manufacturer: "none",
+      description: "",
     })
     setSelectedImage(null)
     setProductBranchId("")
@@ -1912,6 +1916,16 @@ export function StockManagerContent({ view }: { view: StockView }) {
                 <div>
                   <Label>Initial Stock</Label>
                   <Input type="number" min="0" value={productForm.currentQuantity} onChange={(event) => setProductForm((prev) => ({ ...prev, currentQuantity: event.target.value }))} />
+                </div>
+                <div className="md:col-span-2 lg:col-span-3">
+                  <Label>Product Description / Scope of Work (Optional)</Label>
+                  <Textarea 
+                    placeholder="Enter detailed description or bullet points for this product/service..."
+                    value={productForm.description || ""}
+                    onChange={(event) => setProductForm((prev) => ({ ...prev, description: event.target.value }))}
+                    rows={3}
+                    className="mt-1"
+                  />
                 </div>
                 <div>
                   <Label>Product Image (Optional)</Label>

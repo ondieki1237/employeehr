@@ -475,7 +475,8 @@ async function buildQuotationItems(
   const products = await StockProduct.find({ _id: { $in: productIds }, org_id: orgId }).lean()
   const productMap = new Map(products.map((product) => [String(product._id), product]))
 
-  return items.map((item) => {
+  const result = []
+  for (const item of items) {
     const quantity = Number(item.quantity)
     if (!Number.isFinite(quantity) || quantity <= 0) {
       throw new Error("Invalid quantity")
@@ -495,7 +496,7 @@ async function buildQuotationItems(
 
       const fallbackId = `outsourced:${manualName.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "")}`
 
-      return {
+      result.push({
         productId: String(item.productId || fallbackId),
         productName: manualName,
         quantity,
@@ -505,7 +506,8 @@ async function buildQuotationItems(
         lineTotal: Number((quantity * unitPrice).toFixed(2)),
         description: item.description,
         isOutsourced: true,
-      }
+      })
+      continue
     }
 
     const product = productMap.get(String(item.productId))
@@ -531,7 +533,12 @@ async function buildQuotationItems(
       throw new Error(`Sold price for ${product.name} cannot be below minimum selling price (${minimumSellingPrice})`)
     }
 
-    return {
+    // Persist description to product if provided and different
+    if (item.description && item.description.trim() !== "" && item.description !== product.description) {
+      await StockProduct.updateOne({ _id: product._id, org_id: orgId }, { $set: { description: item.description.trim() } })
+    }
+
+    result.push({
       productId: String(product._id),
       productName: product.name,
       quantity,
@@ -545,8 +552,9 @@ async function buildQuotationItems(
       isOutsourced: false,
       imageUrl: (product as any).imageUrl,
       showImageOnQuote: (item as any).showImageOnQuote || false,
-    }
-  })
+    })
+  }
+  return result
 }
 
 async function sendLowStockAlert(product: any, orgId: string) {
@@ -3807,6 +3815,7 @@ export class StockController {
       const isRecurring = getVal(req.body.isRecurring);
       const intervalDays = getVal(req.body.intervalDays) || 0;
       const manufacturer = getVal(req.body.manufacturer);
+      const description = getVal(req.body.description);
 
       const resolvedBuyingPrice = buyingPrice !== undefined ? buyingPrice : startingPrice
 
@@ -3863,6 +3872,7 @@ export class StockController {
         isRecurring: isRecurring === "true" || isRecurring === true,
         intervalDays: Number(intervalDays),
         manufacturer: manufacturer ? String(manufacturer).trim() : undefined,
+        description: description ? String(description).trim() : undefined,
         imageUrl,
       })
 
@@ -3947,6 +3957,7 @@ export class StockController {
         expiryEnabled,
         expiryDate,
         expiryReminderDays,
+        description,
       } = req.body
 
       const getVal = (v: any) => Array.isArray(v) ? v[0] : v;
@@ -3979,6 +3990,9 @@ export class StockController {
       if (req.body.manufacturer !== undefined) {
         const val = getVal(req.body.manufacturer)
         payload.manufacturer = val ? String(val).trim() : null
+      }
+      if (description !== undefined) {
+        payload.description = description ? String(description).trim() : null
       }
       
       if (req.file) {
@@ -4105,23 +4119,28 @@ export class StockController {
       for (let index = 0; index < rows.length; index += 1) {
         try {
           const row = rows[index]
-          const name = String(row.name || row["Product Name"] || "").trim()
-          const categoryName = String(row.category || row["Category"] || "").trim()
+          const name = String(row.name || row["Product Name"] || row.product_name || "").trim()
+          let categoryName = String(row.category || row["Category"] || row.category_name || "").trim()
           const startingPrice = parseBuyingPrice(row)
           const sellingPrice = parseAmount(row.sellingPrice || row["Selling Price"] || "0")
           const minAlertQuantity = Number(row.minAlertQuantity || row["Min Alert Quantity"] || "0")
           const currentQuantity = Number(row.currentQuantity || row["Current Quantity"] || "0")
           const branchId = resolveBranchId(row)
+          const description = String(row.description || row["Description"] || row.notes || "").trim()
 
-          if (!name || !categoryName) {
-            errors.push(`Row ${index + 1}: Missing required fields (name, category)`)
+          if (!name) {
+            errors.push(`Row ${index + 1}: Missing product name`)
             continue
           }
 
-          const categoryId = categoryMap.get(categoryName.toLowerCase())
-          if (!categoryId) {
-            errors.push(`Row ${index + 1}: Category "${categoryName}" not found`)
-            continue
+          let categoryId = ""
+          if (categoryName) {
+            categoryId = categoryMap.get(categoryName.toLowerCase()) || ""
+            if (!categoryId) {
+              const newCat = await StockCategory.create({ org_id, name: categoryName })
+              categoryId = String(newCat._id)
+              categoryMap.set(categoryName.toLowerCase(), categoryId)
+            }
           }
 
           const branchLookup = String(
@@ -4152,11 +4171,12 @@ export class StockController {
               { org_id, name },
               {
                 $set: {
-                  category: categoryId,
-                  startingPrice,
-                  sellingPrice,
+                  category: categoryId || existingProduct.category,
+                  startingPrice: startingPrice || existingProduct.startingPrice,
+                  sellingPrice: sellingPrice || existingProduct.sellingPrice,
                   minAlertQuantity,
-                  currentQuantity,
+                  currentQuantity: existingProduct.currentQuantity + currentQuantity,
+                  description: description || existingProduct.description,
                 },
               },
             )
@@ -4165,11 +4185,12 @@ export class StockController {
             const created = await StockProduct.create({
               org_id,
               name,
-              category: categoryId,
+              category: categoryId || undefined,
               startingPrice,
               sellingPrice,
               minAlertQuantity,
               currentQuantity,
+              description,
               createdBy: actorId,
             })
             productId = String(created._id)
