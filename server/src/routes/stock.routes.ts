@@ -2,7 +2,7 @@ import { Router } from "express"
 import { StockController } from "../controllers/stockController"
 import { authMiddleware, orgMiddleware } from "../middleware/auth"
 import { tenantIsolation } from "../middleware/tenantIsolation.middleware"
-import { uploadApplicationFiles } from "../middleware/upload.middleware"
+import { uploadApplicationFiles, uploadProductImage } from "../middleware/upload.middleware"
 
 const router = Router()
 
@@ -68,9 +68,9 @@ router.get("/analytics/financial-breakdown", StockController.getFinancialBreakdo
 router.get("/couriers", StockController.getCouriers)
 router.post("/couriers", StockController.createCourier)
 
-router.post("/products", StockController.createProduct)
+router.post("/products", uploadProductImage.single("image"), StockController.createProduct)
 router.get("/products", StockController.getProducts)
-router.put("/products/:id", StockController.updateProduct)
+router.put("/products/:id", uploadProductImage.single("image"), StockController.updateProduct)
 router.delete("/products/:id", StockController.deleteProduct)
 router.post("/products/bulk", uploadApplicationFiles.single("file"), StockController.bulkUploadProducts)
 

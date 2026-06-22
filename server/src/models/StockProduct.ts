@@ -22,6 +22,7 @@ export interface IStockProduct {
   intervalDays?: number
   description?: string
   manufacturer?: string
+  imageUrl?: string
   createdAt?: Date
   updatedAt?: Date
 }
@@ -48,6 +49,7 @@ const stockProductSchema = new Schema<IStockProduct>(
     intervalDays: { type: Number, default: 0 },
     description: { type: String, trim: true },
     manufacturer: { type: String, required: false },
+    imageUrl: { type: String, required: false },
   },
   { timestamps: true },
 )

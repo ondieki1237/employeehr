@@ -196,7 +196,7 @@ const adminMenuItems = [
     label: "IMPORTANTION",
     icon: Package,
     href: "/admin/stock/importation",
-    section: "INVENTORY MANAGER"
+    section: "IMPORTATION"
   },
   {
     label: "Inventory History",

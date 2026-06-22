@@ -6,8 +6,10 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { BarChart3, Clock3, RefreshCw, Users } from "lucide-react"
+import { BarChart3, Clock3, RefreshCw, Users, ChevronLeft, ChevronRight } from "lucide-react"
 import { api } from "@/lib/api"
+import API_URL from "@/lib/apiBase"
+import { getToken } from "@/lib/auth"
 
 type AttendanceRecord = {
   _id: string
@@ -28,6 +30,32 @@ type UserRecord = {
   lastName?: string
   email?: string
   role?: string
+}
+
+interface TenantBranding {
+  primaryColor?: string
+  secondaryColor?: string
+  companyName?: string
+  logo?: string
+  favicon?: string
+  email?: string
+  phone?: string
+  address?: string
+}
+
+function hexToRgb(hex: string) {
+  const normalized = hex.replace("#", "")
+  if (normalized.length !== 6) return { r: 15, g: 118, b: 110 }
+  return {
+    r: Number.parseInt(normalized.slice(0, 2), 16),
+    g: Number.parseInt(normalized.slice(2, 4), 16),
+    b: Number.parseInt(normalized.slice(4, 6), 16),
+  }
+}
+
+function hexToRgba(hex: string, alpha: number) {
+  const { r, g, b } = hexToRgb(hex)
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`
 }
 
 const normalizeUserId = (value: any): string => {
@@ -70,6 +98,8 @@ const statusVariant = {
   "half-day": "outline",
 } as const
 
+const RECORDS_PER_PAGE = 20
+
 export default function AdminAttendancePage() {
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -78,6 +108,23 @@ export default function AdminAttendancePage() {
   const [users, setUsers] = useState<UserRecord[]>([])
   const [employeeSearch, setEmployeeSearch] = useState("")
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null)
+  const [branding, setBranding] = useState<TenantBranding>({})
+  const [recordsPage, setRecordsPage] = useState(1)
+
+  const headers = useMemo(
+    () => ({
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${getToken()}`,
+    }),
+    [],
+  )
+
+  const primaryColor = branding.primaryColor || "#0f766e"
+  const secondaryColor = branding.secondaryColor || "#0ea5e9"
+  const primarySoftColor = hexToRgba(primaryColor, 0.08)
+  const secondarySoftColor = hexToRgba(secondaryColor, 0.08)
+  const primaryBorderColor = hexToRgba(primaryColor, 0.18)
+  const primaryLightColor = hexToRgba(primaryColor, 0.05)
 
   const loadAttendance = async (isRefresh = false) => {
     try {
@@ -85,9 +132,25 @@ export default function AdminAttendancePage() {
       else setLoading(true)
       setError(null)
 
-      const [attendanceRes, usersRes] = await Promise.all([api.attendance.getAll(), api.users.getAll()])
+      const [attendanceRes, usersRes, brandingRes] = await Promise.all([
+        api.attendance.getAll(),
+        api.users.getAll(),
+        fetch(`${API_URL}/api/company/branding`, { headers }),
+      ])
+
       setRecords(((attendanceRes?.data || []) as any[]).map(normalizeRecord))
       setUsers(usersRes?.data || [])
+
+      if (brandingRes.ok) {
+        try {
+          const brandingData = await brandingRes.json()
+          setBranding(brandingData.data || {})
+        } catch {
+          setBranding({})
+        }
+      } else {
+        setBranding({})
+      }
     } catch (err: any) {
       setError(err?.message || "Failed to load attendance tracker")
     } finally {
@@ -99,6 +162,11 @@ export default function AdminAttendancePage() {
   useEffect(() => {
     loadAttendance()
   }, [])
+
+  // Reset page when employee changes
+  useEffect(() => {
+    setRecordsPage(1)
+  }, [selectedEmployeeId])
 
   const usersMap = useMemo(() => {
     const map = new Map<string, UserRecord>()
@@ -159,6 +227,17 @@ export default function AdminAttendancePage() {
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
   }, [records, selectedEmployeeId])
 
+  // Paginated records
+  const paginatedRecords = useMemo(() => {
+    const start = (recordsPage - 1) * RECORDS_PER_PAGE
+    const end = start + RECORDS_PER_PAGE
+    return selectedEmployeeRecords.slice(start, end)
+  }, [selectedEmployeeRecords, recordsPage])
+
+  const totalRecordPages = useMemo(() => {
+    return Math.max(1, Math.ceil(selectedEmployeeRecords.length / RECORDS_PER_PAGE))
+  }, [selectedEmployeeRecords.length])
+
   const getStats = (source: AttendanceRecord[]) => {
     const totalRecords = source.length
     const present = source.filter((record) => record.status === "present").length
@@ -202,22 +281,36 @@ export default function AdminAttendancePage() {
   if (loading) {
     return (
       <div className="flex h-[60vh] items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-t-transparent" style={{ borderColor: primaryColor, borderTopColor: 'transparent' }} />
       </div>
     )
   }
 
   return (
     <div className="space-y-6 p-6">
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Attendance Tracker</h1>
-          <p className="text-muted-foreground">Monitor employee check-ins, check-outs and working hours.</p>
+      <div 
+        className="rounded-2xl border px-4 py-3 shadow-sm" 
+        style={{ 
+          borderColor: primaryBorderColor, 
+          background: `linear-gradient(to right, ${primarySoftColor}, ${secondarySoftColor})` 
+        }}
+      >
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div className="space-y-0.5">
+            <p className="text-sm font-medium tracking-wide" style={{ color: primaryColor }}>HR Management</p>
+            <h1 className="text-xl font-semibold tracking-tight text-foreground">Attendance Tracker</h1>
+            <p className="text-sm text-muted-foreground">Monitor employee check-ins, check-outs and working hours.</p>
+          </div>
+          <Button 
+            onClick={() => loadAttendance(true)} 
+            disabled={refreshing} 
+            variant="outline"
+            style={{ borderColor: primaryBorderColor }}
+          >
+            <RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+            {refreshing ? "Refreshing..." : "Refresh"}
+          </Button>
         </div>
-        <Button onClick={() => loadAttendance(true)} disabled={refreshing} variant="outline">
-          <RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
-          {refreshing ? "Refreshing..." : "Refresh"}
-        </Button>
       </div>
 
       {error && (
@@ -227,9 +320,12 @@ export default function AdminAttendancePage() {
       )}
 
       <div className="grid gap-6 lg:grid-cols-12">
-        <Card className="lg:col-span-4">
+        <Card 
+          className="lg:col-span-4 shadow-sm"
+          style={{ borderColor: primaryBorderColor }}
+        >
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+            <CardTitle className="flex items-center gap-2" style={{ color: primaryColor }}>
               <Users className="h-4 w-4" />
               Employees
             </CardTitle>
@@ -239,6 +335,8 @@ export default function AdminAttendancePage() {
               value={employeeSearch}
               onChange={(event) => setEmployeeSearch(event.target.value)}
               placeholder="Search employee by name or email"
+              style={{ borderColor: primaryBorderColor }}
+              className="focus-visible:ring-primary"
             />
 
             <div className="max-h-[520px] space-y-2 overflow-y-auto pr-1">
@@ -256,9 +354,16 @@ export default function AdminAttendancePage() {
                       key={key}
                       type="button"
                       onClick={() => setSelectedEmployeeId(key)}
-                      className={`w-full rounded-lg border p-3 text-left transition ${active ? "border-primary bg-primary/5" : "hover:bg-muted/40"}`}
+                      className={`w-full rounded-lg border p-3 text-left transition ${
+                        active 
+                          ? "border-primary bg-primary/5" 
+                          : "hover:bg-muted/40"
+                      }`}
+                      style={active ? { borderColor: primaryColor } : {}}
                     >
-                      <div className="font-medium">{fullName}</div>
+                      <div className="font-medium" style={active ? { color: primaryColor } : {}}>
+                        {fullName}
+                      </div>
                       <div className="text-xs text-muted-foreground">{employee.email || "No email"}</div>
                       <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
                         <span>{stats.records} records</span>
@@ -274,9 +379,12 @@ export default function AdminAttendancePage() {
         </Card>
 
         <div className="space-y-6 lg:col-span-8">
-          <Card>
+          <Card 
+            className="shadow-sm"
+            style={{ borderColor: primaryBorderColor }}
+          >
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
+              <CardTitle className="flex items-center gap-2" style={{ color: primaryColor }}>
                 <BarChart3 className="h-4 w-4" />
                 {selectedEmployee
                   ? `${getUserDisplayName(selectedEmployee)} Performance`
@@ -290,51 +398,103 @@ export default function AdminAttendancePage() {
                 <>
                   <div className="mb-4 text-sm text-muted-foreground">{selectedEmployee.email || "No email"}</div>
                   <div className="grid gap-4 md:grid-cols-3">
-                    <Card>
+                    <Card 
+                      className="shadow-sm"
+                      style={{ 
+                        borderColor: primaryBorderColor,
+                        background: primaryLightColor 
+                      }}
+                    >
                       <CardHeader className="pb-2">
-                        <CardTitle className="text-sm">Weekly Avg Hours</CardTitle>
+                        <CardTitle className="text-sm" style={{ color: primaryColor }}>Weekly Avg Hours</CardTitle>
                       </CardHeader>
                       <CardContent>
-                        <div className="text-2xl font-bold">{weeklyStats.avgHours.toFixed(1)}h</div>
+                        <div className="text-2xl font-bold" style={{ color: primaryColor }}>
+                          {weeklyStats.avgHours.toFixed(1)}h
+                        </div>
                         <p className="text-xs text-muted-foreground">Attendance: {weeklyStats.attendanceRate.toFixed(0)}%</p>
                       </CardContent>
                     </Card>
-                    <Card>
+                    <Card 
+                      className="shadow-sm"
+                      style={{ 
+                        borderColor: primaryBorderColor,
+                        background: primaryLightColor 
+                      }}
+                    >
                       <CardHeader className="pb-2">
-                        <CardTitle className="text-sm">Monthly Avg Hours</CardTitle>
+                        <CardTitle className="text-sm" style={{ color: primaryColor }}>Monthly Avg Hours</CardTitle>
                       </CardHeader>
                       <CardContent>
-                        <div className="text-2xl font-bold">{monthlyStats.avgHours.toFixed(1)}h</div>
+                        <div className="text-2xl font-bold" style={{ color: primaryColor }}>
+                          {monthlyStats.avgHours.toFixed(1)}h
+                        </div>
                         <p className="text-xs text-muted-foreground">Attendance: {monthlyStats.attendanceRate.toFixed(0)}%</p>
                       </CardContent>
                     </Card>
-                    <Card>
+                    <Card 
+                      className="shadow-sm"
+                      style={{ 
+                        borderColor: primaryBorderColor,
+                        background: primaryLightColor 
+                      }}
+                    >
                       <CardHeader className="pb-2">
-                        <CardTitle className="text-sm">All-Time Avg Hours</CardTitle>
+                        <CardTitle className="text-sm" style={{ color: primaryColor }}>All-Time Avg Hours</CardTitle>
                       </CardHeader>
                       <CardContent>
-                        <div className="text-2xl font-bold">{allTimeStats.avgHours.toFixed(1)}h</div>
+                        <div className="text-2xl font-bold" style={{ color: primaryColor }}>
+                          {allTimeStats.avgHours.toFixed(1)}h
+                        </div>
                         <p className="text-xs text-muted-foreground">Attendance: {allTimeStats.attendanceRate.toFixed(0)}%</p>
                       </CardContent>
                     </Card>
                   </div>
 
                   <div className="mt-4 grid gap-4 md:grid-cols-4">
-                    <Card>
-                      <CardHeader className="pb-2"><CardTitle className="text-sm">Present</CardTitle></CardHeader>
-                      <CardContent><div className="text-xl font-semibold">{allTimeStats.present}</div></CardContent>
+                    <Card 
+                      className="shadow-sm"
+                      style={{ borderColor: primaryBorderColor }}
+                    >
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm" style={{ color: primaryColor }}>Present</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-xl font-semibold">{allTimeStats.present}</div>
+                      </CardContent>
                     </Card>
-                    <Card>
-                      <CardHeader className="pb-2"><CardTitle className="text-sm">Late</CardTitle></CardHeader>
-                      <CardContent><div className="text-xl font-semibold">{allTimeStats.late}</div></CardContent>
+                    <Card 
+                      className="shadow-sm"
+                      style={{ borderColor: primaryBorderColor }}
+                    >
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm" style={{ color: primaryColor }}>Late</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-xl font-semibold">{allTimeStats.late}</div>
+                      </CardContent>
                     </Card>
-                    <Card>
-                      <CardHeader className="pb-2"><CardTitle className="text-sm">Absent</CardTitle></CardHeader>
-                      <CardContent><div className="text-xl font-semibold">{allTimeStats.absent}</div></CardContent>
+                    <Card 
+                      className="shadow-sm"
+                      style={{ borderColor: primaryBorderColor }}
+                    >
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm" style={{ color: primaryColor }}>Absent</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-xl font-semibold">{allTimeStats.absent}</div>
+                      </CardContent>
                     </Card>
-                    <Card>
-                      <CardHeader className="pb-2"><CardTitle className="text-sm">Total Hours</CardTitle></CardHeader>
-                      <CardContent><div className="text-xl font-semibold">{allTimeStats.totalHours.toFixed(1)}h</div></CardContent>
+                    <Card 
+                      className="shadow-sm"
+                      style={{ borderColor: primaryBorderColor }}
+                    >
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm" style={{ color: primaryColor }}>Total Hours</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-xl font-semibold">{allTimeStats.totalHours.toFixed(1)}h</div>
+                      </CardContent>
                     </Card>
                   </div>
                 </>
@@ -342,40 +502,48 @@ export default function AdminAttendancePage() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card 
+            className="shadow-sm"
+            style={{ borderColor: primaryBorderColor }}
+          >
             <CardHeader>
-              <CardTitle>Selected Employee Attendance Records</CardTitle>
+              <CardTitle style={{ color: primaryColor }}>Selected Employee Attendance Records</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
-                    <TableRow>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Check In</TableHead>
-                      <TableHead>Check Out</TableHead>
-                      <TableHead>Hours</TableHead>
-                      <TableHead>Status</TableHead>
+                    <TableRow style={{ borderColor: primaryBorderColor }}>
+                      <TableHead style={{ color: primaryColor }}>Date</TableHead>
+                      <TableHead style={{ color: primaryColor }}>Check In</TableHead>
+                      <TableHead style={{ color: primaryColor }}>Check Out</TableHead>
+                      <TableHead style={{ color: primaryColor }}>Hours</TableHead>
+                      <TableHead style={{ color: primaryColor }}>Status</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {selectedEmployeeRecords.length === 0 ? (
+                    {paginatedRecords.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={5} className="text-center text-muted-foreground">
                           No attendance records for this employee
                         </TableCell>
                       </TableRow>
                     ) : (
-                      selectedEmployeeRecords.slice(0, 180).map((record) => {
+                      paginatedRecords.map((record) => {
                         const badgeVariant = statusVariant[record.status as keyof typeof statusVariant] || "outline"
                         return (
-                          <TableRow key={record._id}>
+                          <TableRow key={record._id} style={{ borderColor: primaryBorderColor }}>
                             <TableCell>{new Date(record.date).toLocaleDateString()}</TableCell>
                             <TableCell>{record.checkIn || "N/A"}</TableCell>
                             <TableCell>{record.checkOut || "N/A"}</TableCell>
                             <TableCell>{record.hours ? `${Number(record.hours).toFixed(1)}h` : "0h"}</TableCell>
                             <TableCell>
-                              <Badge variant={badgeVariant}>{record.status || "unknown"}</Badge>
+                              <Badge 
+                                variant={badgeVariant}
+                                className={record.status === "present" ? "bg-emerald-50 text-emerald-700 border-emerald-200" : ""}
+                              >
+                                {record.status || "unknown"}
+                              </Badge>
                             </TableCell>
                           </TableRow>
                         )
@@ -385,9 +553,86 @@ export default function AdminAttendancePage() {
                 </Table>
               </div>
 
+              {/* Pagination Controls */}
+              {selectedEmployeeRecords.length > RECORDS_PER_PAGE && (
+                <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="text-sm text-muted-foreground">
+                    Showing {((recordsPage - 1) * RECORDS_PER_PAGE) + 1}–
+                    {Math.min(recordsPage * RECORDS_PER_PAGE, selectedEmployeeRecords.length)} of {selectedEmployeeRecords.length} records
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setRecordsPage((prev) => Math.max(1, prev - 1))}
+                      disabled={recordsPage === 1}
+                      style={{ borderColor: primaryBorderColor }}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                      Previous
+                    </Button>
+                    
+                    {/* Page numbers */}
+                    <div className="flex gap-1">
+                      {Array.from({ length: Math.min(5, totalRecordPages) }, (_, i) => {
+                        let pageNum
+                        if (totalRecordPages <= 5) {
+                          pageNum = i + 1
+                        } else if (recordsPage <= 3) {
+                          pageNum = i + 1
+                        } else if (recordsPage >= totalRecordPages - 2) {
+                          pageNum = totalRecordPages - 4 + i
+                        } else {
+                          pageNum = recordsPage - 2 + i
+                        }
+                        
+                        return (
+                          <Button
+                            key={pageNum}
+                            variant={recordsPage === pageNum ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => setRecordsPage(pageNum)}
+                            className="min-w-9"
+                            style={recordsPage === pageNum ? { backgroundColor: primaryColor } : { borderColor: primaryBorderColor }}
+                          >
+                            {pageNum}
+                          </Button>
+                        )
+                      })}
+                      
+                      {totalRecordPages > 5 && recordsPage < totalRecordPages - 2 && (
+                        <>
+                          <span className="px-1 text-sm text-muted-foreground">…</span>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setRecordsPage(totalRecordPages)}
+                            className="min-w-9"
+                            style={{ borderColor: primaryBorderColor }}
+                          >
+                            {totalRecordPages}
+                          </Button>
+                        </>
+                      )}
+                    </div>
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setRecordsPage((prev) => Math.min(totalRecordPages, prev + 1))}
+                      disabled={recordsPage === totalRecordPages}
+                      style={{ borderColor: primaryBorderColor }}
+                    >
+                      Next
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+
               <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
-                <Clock3 className="h-3.5 w-3.5" />
-                Showing latest 180 records for the selected employee.
+                <Clock3 className="h-3.5 w-3.5" style={{ color: primaryColor }} />
+                Showing {RECORDS_PER_PAGE} records per page • Total: {selectedEmployeeRecords.length} records
               </div>
             </CardContent>
           </Card>

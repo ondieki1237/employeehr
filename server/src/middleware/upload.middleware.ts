@@ -111,3 +111,17 @@ export const uploadSignature = multer({
   fileFilter,
   limits: { fileSize: 5 * 1024 * 1024 },
 })
+
+// Create product images directory
+const productImagesDir = path.join(__dirname, "../../uploads/products")
+if (!fs.existsSync(productImagesDir)) {
+  fs.mkdirSync(productImagesDir, { recursive: true })
+}
+
+const productImageStorage = multer.memoryStorage() // Store in memory for processing with sharp
+
+export const uploadProductImage = multer({
+  storage: productImageStorage,
+  fileFilter,
+  limits: { fileSize: 5 * 1024 * 1024 },
+})

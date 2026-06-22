@@ -64,6 +64,7 @@ interface Product {
   productType?: "physical" | "service"
   isRecurring?: boolean
   intervalDays?: number
+  imageUrl?: string
 }
 
 interface Employee {
@@ -111,6 +112,8 @@ interface QuotationItem {
   unitPrice: number
   lineTotal: number
   isOutsourced?: boolean
+  imageUrl?: string
+  showImageOnQuote?: boolean
 }
 
 interface Quotation {
@@ -175,7 +178,9 @@ export function StockManagerContent({ view }: { view: StockView }) {
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [clients, setClients] = useState<ClientSuggestion[]>([])
   const [branches, setBranches] = useState<any[]>([])
+  const [manufacturers, setManufacturers] = useState<any[]>([])
 
+  const [selectedImage, setSelectedImage] = useState<File | null>(null)
   const [categoryForm, setCategoryForm] = useState({ name: "", description: "" })
   const [categoryMode, setCategoryMode] = useState<"main" | "sub">("main")
   const [categoryParentId, setCategoryParentId] = useState("none")
@@ -194,6 +199,7 @@ export function StockManagerContent({ view }: { view: StockView }) {
     productType: "physical" as "physical" | "service",
     isRecurring: false,
     intervalDays: "",
+    manufacturer: "none",
   })
   const [stockForm, setStockForm] = useState({
     productId: "",
@@ -287,7 +293,19 @@ export function StockManagerContent({ view }: { view: StockView }) {
   const fetchAll = async () => {
     try {
       setLoading(true)
-      const [categoriesRes, productsRes, usersRes, salesRes, entriesRes, quotationsRes, invoicesRes, branchesRes, clientsRes, brandingRes] = await Promise.all([
+      const [
+        categoriesRes,
+        productsRes,
+        usersRes,
+        salesRes,
+        entriesRes,
+        quotationsRes,
+        invoicesRes,
+        branchesRes,
+        clientsRes,
+        brandingRes,
+        manufacturersRes
+      ] = await Promise.all([
         fetchJson(`${API_URL}/api/stock/categories`, { headers }),
         fetchJson(`${API_URL}/api/stock/products`, { headers }),
         fetchJson(`${API_URL}/api/users`, { headers }),
@@ -298,10 +316,11 @@ export function StockManagerContent({ view }: { view: StockView }) {
         fetchJson(`${API_URL}/api/branches`, { headers }),
         fetchJson(`${API_URL}/api/stock/clients`, { headers }),
         fetchJson(`${API_URL}/api/company/branding`, { headers }),
+        fetchJson(`${API_URL}/api/stock/manufacturers`, { headers }),
       ])
 
-      if (categoriesRes.errorMessage || productsRes.errorMessage || usersRes.errorMessage || salesRes.errorMessage || entriesRes.errorMessage || quotationsRes.errorMessage || invoicesRes.errorMessage || branchesRes.errorMessage || clientsRes.errorMessage || brandingRes.errorMessage) {
-        const firstError = [categoriesRes, productsRes, usersRes, salesRes, entriesRes, quotationsRes, invoicesRes, branchesRes, clientsRes, brandingRes].find(r => r.errorMessage)
+      if (categoriesRes.errorMessage || productsRes.errorMessage || usersRes.errorMessage || salesRes.errorMessage || entriesRes.errorMessage || quotationsRes.errorMessage || invoicesRes.errorMessage || branchesRes.errorMessage || clientsRes.errorMessage || brandingRes.errorMessage || manufacturersRes.errorMessage) {
+        const firstError = [categoriesRes, productsRes, usersRes, salesRes, entriesRes, quotationsRes, invoicesRes, branchesRes, clientsRes, brandingRes, manufacturersRes].find(r => r.errorMessage)
         throw new Error(firstError?.errorMessage || 'Failed to load inventory data')
       }
 
@@ -315,6 +334,7 @@ export function StockManagerContent({ view }: { view: StockView }) {
       setClients((clientsRes.data?.data || []).filter((client: ClientSuggestion) => client.name && client.number && client.location))
       setBranches((branchesRes.data?.data || []).filter((branch: any) => branch.isActive))
       setBranding(brandingRes.data?.data || {})
+      setManufacturers(manufacturersRes.data?.data || [])
     } catch {
       toast({ title: "Error", description: "Failed to load inventory data", variant: "destructive" })
     } finally {
@@ -1101,20 +1121,37 @@ export function StockManagerContent({ view }: { view: StockView }) {
       return
     }
 
+    const formData = new FormData()
+    
+    // Explicitly add fields to avoid double-appending from productForm
+    formData.append("name", productForm.name)
+    formData.append("category", productForm.category)
+    formData.append("buyingPrice", String(productForm.startingPrice))
+    formData.append("sellingPrice", String(productForm.sellingPrice))
+    formData.append("minAlertQuantity", String(productForm.minAlertQuantity))
+    formData.append("currentQuantity", String(productForm.currentQuantity || 0))
+    formData.append("isOutsourced", String(productForm.isOutsourced))
+    formData.append("expiryEnabled", String(productForm.expiryEnabled))
+    formData.append("expiryDate", productForm.expiryDate || "")
+    formData.append("expiryReminderDays", String(productForm.expiryReminderDays || 0))
+    formData.append("productType", productForm.productType)
+    formData.append("isRecurring", String(productForm.isRecurring))
+    formData.append("intervalDays", String(productForm.intervalDays || 0))
+    formData.append("manufacturer", productForm.manufacturer || "")
+    formData.append("branchId", productBranchId || "")
+    
+    if (productForm.assignedUsers?.length > 0) {
+      productForm.assignedUsers.forEach(userId => formData.append("assignedUsers[]", userId))
+    }
+    
+    if (selectedImage) {
+      formData.append("image", selectedImage)
+    }
+
     const response = await fetch(`${API_URL}/api/stock/products`, {
       method: "POST",
-      headers,
-      body: JSON.stringify({
-        ...productForm,
-        buyingPrice: Number(productForm.startingPrice),
-        sellingPrice: Number(productForm.sellingPrice),
-        minAlertQuantity: Number(productForm.minAlertQuantity),
-        currentQuantity: Number(productForm.currentQuantity || 0),
-        isOutsourced: Boolean(productForm.isOutsourced),
-        expiryDate: productForm.expiryEnabled ? productForm.expiryDate : undefined,
-        expiryReminderDays: Number(productForm.expiryReminderDays || 0),
-        branchId: productBranchId || undefined,
-      }),
+      headers: { Authorization: `Bearer ${getToken()}` },
+      body: formData,
     })
     const result = await parseResponse<{ success: boolean; message?: string }>(response)
     if (!result.response.ok) {
@@ -1136,7 +1173,9 @@ export function StockManagerContent({ view }: { view: StockView }) {
       productType: "physical",
       isRecurring: false,
       intervalDays: "",
+      manufacturer: "none",
     })
+    setSelectedImage(null)
     setProductBranchId("")
     toast({ title: "Success", description: "Product created" })
     fetchAll()
@@ -1197,12 +1236,15 @@ export function StockManagerContent({ view }: { view: StockView }) {
       toast({ title: "Item Error", description: "Enter a valid price", variant: "destructive" })
       return
     }
+    const product = products.find(p => p._id === saleForm.productId)
     const item: QuotationItem = {
       productId: saleForm.productId,
       productName: productNameById.get(saleForm.productId) || "",
       quantity: qty,
       unitPrice: price,
       lineTotal: qty * price,
+      imageUrl: product?.imageUrl,
+      showImageOnQuote: false,
     }
     setSaleItems((prev) => [...prev, item])
     setSaleForm((prev) => ({ ...prev, productId: "", quantitySold: "", soldPrice: "" }))
@@ -1250,7 +1292,6 @@ export function StockManagerContent({ view }: { view: StockView }) {
     }
 
     try {
-      // Build invoice items directly and let backend create StockSale records to avoid duplicates
       const invoiceItems = itemsToRecord.map((item) => ({
         productId: item.productId,
         productName: productNameById.get(item.productId) || "",
@@ -1319,7 +1360,6 @@ export function StockManagerContent({ view }: { view: StockView }) {
     }
 
     try {
-      // Load branding and invoice settings if not already loaded
       const brandingRes = await fetch(`${API_URL}/api/company/branding`, { headers })
       if (brandingRes.ok) {
         const brandingData = await brandingRes.json()
@@ -1433,7 +1473,6 @@ export function StockManagerContent({ view }: { view: StockView }) {
     const { preparedBy, preparedBySignature, stampPref } = await resolvePreparedBy()
     const stampSelection = stampPref ? await promptStampSelection() : null
 
-    // Ensure branding and settings are loaded
     if (!branding.primaryColor) {
       const brandingRes = await fetch(`${API_URL}/api/company/branding`, { headers })
       if (brandingRes.ok) {
@@ -1493,7 +1532,6 @@ export function StockManagerContent({ view }: { view: StockView }) {
 
   const downloadSaleInvoice = async (sale: Sale) => {
     try {
-      // If invoiceId is stored with the sale, use it directly
       if (sale.invoiceId) {
         const invoiceRes = await fetch(`${API_URL}/api/stock/invoices/${sale.invoiceId}`, { headers })
         if (invoiceRes.ok) {
@@ -1506,7 +1544,6 @@ export function StockManagerContent({ view }: { view: StockView }) {
         }
       }
 
-      // Otherwise, search for invoices matching the sale details
       const invoicesRes = await fetch(`${API_URL}/api/stock/invoices`, { headers })
       if (!invoicesRes.ok) {
         toast({ title: "Error", description: "Failed to fetch invoices", variant: "destructive" })
@@ -1516,13 +1553,11 @@ export function StockManagerContent({ view }: { view: StockView }) {
       const invoicesData = await invoicesRes.json()
       const allInvoices: Invoice[] = invoicesData.data || []
 
-      // Find invoice matching this sale
       const clientName = sale.isWalkInClient ? "Walk-in Client" : sale.buyerName || "Walk-in Client"
       const clientNumber = sale.isWalkInClient ? "" : sale.buyerNumber || ""
       const clientLocation = sale.isWalkInClient ? "" : sale.buyerLocation || ""
 
       const matchingInvoice = allInvoices.find((invoice) => {
-        // Match by client name, number, location and approximate date
         if (!invoice.client) return false
         
         const nameMatch = invoice.client.name === clientName
@@ -1878,6 +1913,10 @@ export function StockManagerContent({ view }: { view: StockView }) {
                   <Label>Initial Stock</Label>
                   <Input type="number" min="0" value={productForm.currentQuantity} onChange={(event) => setProductForm((prev) => ({ ...prev, currentQuantity: event.target.value }))} />
                 </div>
+                <div>
+                  <Label>Product Image (Optional)</Label>
+                  <Input type="file" accept="image/*" onChange={(e) => setSelectedImage(e.target.files?.[0] || null)} />
+                </div>
                 {branches.length > 0 && Number(productForm.currentQuantity || 0) > 0 ? (
                   <div>
                     <Label>Branch for initial stock</Label>
@@ -1892,6 +1931,18 @@ export function StockManagerContent({ view }: { view: StockView }) {
                     </Select>
                   </div>
                 ) : null}
+                <div>
+                  <Label>Manufacturer / Source</Label>
+                  <Select value={productForm.manufacturer || ""} onValueChange={(val) => setProductForm(prev => ({ ...prev, manufacturer: val }))}>
+                    <SelectTrigger><SelectValue placeholder="Select source" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None</SelectItem>
+                      {manufacturers.map(m => (
+                        <SelectItem key={m._id} value={m._id}>{m.companyName} ({m.type})</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
                 {productForm.productType === "service" && (
                   <div className="md:col-span-2 lg:col-span-3 bg-muted/30 p-3 rounded-md border flex items-center gap-6">
                     <label className="flex items-center gap-2 cursor-pointer">
@@ -1968,30 +2019,6 @@ export function StockManagerContent({ view }: { view: StockView }) {
                 )}
               </div>
 
-              <div>
-                <Label className="mb-2 block">Assign Users</Label>
-                <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
-                  {employees.map((employee) => {
-                    const checked = productForm.assignedUsers.includes(employee._id)
-                    return (
-                      <label key={employee._id} className="flex items-center gap-2 text-sm border rounded p-2">
-                        <Checkbox
-                          checked={checked}
-                          onCheckedChange={(value) => {
-                            setProductForm((prev) => ({
-                              ...prev,
-                              assignedUsers: value
-                                ? [...prev.assignedUsers, employee._id]
-                                : prev.assignedUsers.filter((userId) => userId !== employee._id),
-                            }))
-                          }}
-                        />
-                        <span>{employee.firstName} {employee.lastName}</span>
-                      </label>
-                    )
-                  })}
-                </div>
-              </div>
 
               <Button onClick={createProduct}>Create Product</Button>
             </CardContent>
@@ -2001,7 +2028,6 @@ export function StockManagerContent({ view }: { view: StockView }) {
 
       {view === "sales" && (
         <div className="space-y-5">
-          {/* Premium Header Section */}
           <div className="rounded-2xl border px-4 py-3 shadow-sm" style={{ borderColor: primaryBorderColor, background: `linear-gradient(to right, ${primarySoftColor}, ${secondarySoftColor})` }}>
             <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
               <div className="space-y-0.5">
@@ -2046,7 +2072,6 @@ export function StockManagerContent({ view }: { view: StockView }) {
               </div>
             </div>
 
-            {/* KPI Metrics */}
             <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
               <Card className="shadow-sm">
                 <CardContent className="p-3">
@@ -2083,7 +2108,6 @@ export function StockManagerContent({ view }: { view: StockView }) {
               </Card>
             </div>
 
-            {/* Search and Filter */}
             <div className="mt-3 rounded-xl border bg-white/90 p-3 shadow-sm backdrop-blur-sm">
               <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto]">
                 <div className="space-y-2">
@@ -2098,7 +2122,6 @@ export function StockManagerContent({ view }: { view: StockView }) {
             </div>
           </div>
 
-          {/* Record Sale Card */}
           {saleFormOpen && (
             <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-[1px]">
               <div className="mx-auto mt-6 w-[96vw] max-w-6xl px-2 pb-6 sm:mt-8 sm:px-4">
@@ -2240,6 +2263,16 @@ export function StockManagerContent({ view }: { view: StockView }) {
                               />
                               <div className="text-muted-foreground">KES {Number(it.lineTotal).toFixed(2)}</div>
                             </div>
+                            {it.imageUrl && (
+                              <div className="flex items-center gap-2 mt-2">
+                                <Checkbox
+                                  id={`show-img-${idx}`}
+                                  checked={it.showImageOnQuote}
+                                  onCheckedChange={(val) => updateSaleItem(idx, { showImageOnQuote: !!val })}
+                                />
+                                <Label htmlFor={`show-img-${idx}`} className="text-xs text-muted-foreground cursor-pointer">Show image on quote</Label>
+                              </div>
+                            )}
                           </div>
                           <div className="flex-shrink-0">
                             <Button variant="ghost" size="sm" onClick={() => removeSaleItem(idx)}>Remove</Button>

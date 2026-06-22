@@ -27,6 +27,8 @@ interface Product {
   quantity?: number
   reorderLevel?: number
   supplier?: string
+  manufacturer?: string
+  imageUrl?: string
 }
 
 interface ProductEditDialogProps {
@@ -49,7 +51,10 @@ export function ProductEditDialog({ open, product, categories, onOpenChange, onS
     quantity: "",
     reorderLevel: "",
     supplier: "",
+    manufacturer: "",
   })
+  const [selectedImage, setSelectedImage] = useState<File | null>(null)
+  const [manufacturers, setManufacturers] = useState<any[]>([])
 
   useEffect(() => {
     if (product) {
@@ -62,9 +67,22 @@ export function ProductEditDialog({ open, product, categories, onOpenChange, onS
         quantity: product.quantity ?? product.quantity === 0 ? String(product.quantity) : "",
         reorderLevel: product.reorderLevel ?? product.reorderLevel === 0 ? String(product.reorderLevel) : "10",
         supplier: product.supplier || "",
+        manufacturer: product.manufacturer || "",
       })
+      setSelectedImage(null)
+      fetchManufacturers()
     }
   }, [product, open])
+
+  const fetchManufacturers = async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/stock/manufacturers`, {
+        headers: { Authorization: `Bearer ${getToken()}` },
+      })
+      const data = await response.json()
+      if (data.success) setManufacturers(data.data)
+    } catch (e) {}
+  }
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
@@ -112,22 +130,24 @@ export function ProductEditDialog({ open, product, categories, onOpenChange, onS
 
     setLoading(true)
     try {
+      const submitData = new FormData()
+      submitData.append("name", formData.name.trim())
+      submitData.append("categoryId", formData.categoryId)
+      submitData.append("description", formData.description.trim() || "")
+      submitData.append("sku", formData.sku.trim() || "")
+      submitData.append("unitPrice", String(unitPrice))
+      submitData.append("quantity", String(quantity))
+      submitData.append("reorderLevel", String(reorderLevel))
+      submitData.append("supplier", formData.supplier.trim() || "")
+      submitData.append("manufacturer", formData.manufacturer || "")
+      if (selectedImage) submitData.append("image", selectedImage)
+
       const response = await fetch(`${API_URL}/api/stock/products/${product?.id}`, {
         method: "PUT",
         headers: {
-          "Content-Type": "application/json",
           Authorization: `Bearer ${getToken()}`,
         },
-        body: JSON.stringify({
-          name: formData.name.trim(),
-          categoryId: formData.categoryId,
-          description: formData.description.trim() || null,
-          sku: formData.sku.trim() || null,
-          unitPrice,
-          quantity,
-          reorderLevel,
-          supplier: formData.supplier.trim() || null,
-        }),
+        body: submitData,
       })
 
       const data = await response.json()
@@ -249,7 +269,6 @@ export function ProductEditDialog({ open, product, categories, onOpenChange, onS
               />
             </div>
           </div>
-
           <div className="space-y-2">
             <Label htmlFor="reorderLevel">Reorder Level</Label>
             <Input
@@ -261,6 +280,32 @@ export function ProductEditDialog({ open, product, categories, onOpenChange, onS
               placeholder="10"
               disabled={loading}
             />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Manufacturer / Source</Label>
+            <Select value={formData.manufacturer} onValueChange={(value) => handleSelectChange("manufacturer", value)} disabled={loading}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select a manufacturer" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">None</SelectItem>
+                {manufacturers.map((m) => (
+                  <SelectItem key={m._id} value={m._id}>{m.companyName} ({m.type})</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Product Image (Optional)</Label>
+            <Input type="file" accept="image/*" onChange={(e) => setSelectedImage(e.target.files?.[0] || null)} disabled={loading} />
+            {product?.imageUrl && !selectedImage && (
+              <div className="mt-2 text-xs text-muted-foreground flex items-center gap-2">
+                <span>Current:</span>
+                <img src={`${API_URL}${product.imageUrl}`} alt="Product" className="w-8 h-8 rounded object-cover" />
+              </div>
+            )}
           </div>
         </div>
 

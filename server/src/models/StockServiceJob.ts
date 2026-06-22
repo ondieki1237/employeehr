@@ -9,7 +9,7 @@ export interface IStockServiceJob extends Document {
   invoiceId?: mongoose.Types.ObjectId | string
   scheduledDate: Date
   completedDate?: Date
-  status: "pending" | "done" | "overdue" | "cancelled"
+  status: "pending" | "in-progress" | "done" | "overdue" | "cancelled"
   notes?: string
   isRecurring: boolean
   intervalDays: number
@@ -28,7 +28,7 @@ const stockServiceJobSchema = new Schema<IStockServiceJob>(
     invoiceId: { type: Schema.Types.ObjectId, ref: "StockInvoice" },
     scheduledDate: { type: Date, required: true, index: true },
     completedDate: { type: Date },
-    status: { type: String, enum: ["pending", "done", "overdue", "cancelled"], default: "pending", index: true },
+    status: { type: String, enum: ["pending", "in-progress", "done", "overdue", "cancelled"], default: "pending", index: true },
     notes: { type: String },
     isRecurring: { type: Boolean, default: false },
     intervalDays: { type: Number, default: 0 },

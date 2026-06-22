@@ -2,6 +2,7 @@ import type { Response } from "express"
 import type { AuthenticatedRequest } from "../middleware/auth"
 import { promises as fs } from "fs"
 import path from "path"
+import sharp from "sharp"
 import { StockCategory } from "../models/StockCategory"
 import { StockProduct } from "../models/StockProduct"
 import { StockEntry } from "../models/StockEntry"
@@ -542,6 +543,8 @@ async function buildQuotationItems(
       productDescription: (product as any).description,
       productType: product.productType,
       isOutsourced: false,
+      imageUrl: (product as any).imageUrl,
+      showImageOnQuote: (item as any).showImageOnQuote || false,
     }
   })
 }
@@ -3785,24 +3788,25 @@ export class StockController {
         return res.status(403).json({ success: false, message: "Only admin/HR can create products" })
       }
 
-      const {
-        name,
-        category,
-        startingPrice,
-        buyingPrice,
-        sellingPrice,
-        minAlertQuantity,
-        currentQuantity = 0,
-        assignedUsers = [],
-        isOutsourced = false,
-        expiryEnabled = false,
-        expiryDate,
-        expiryReminderDays = 7,
-        branchId,
-        productType = "physical",
-        isRecurring = false,
-        intervalDays = 0,
-      } = req.body
+      const getVal = (v: any) => Array.isArray(v) ? v[0] : v;
+
+      const name = getVal(req.body.name);
+      const category = getVal(req.body.category);
+      const startingPrice = getVal(req.body.startingPrice);
+      const buyingPrice = getVal(req.body.buyingPrice);
+      const sellingPrice = getVal(req.body.sellingPrice);
+      const minAlertQuantity = getVal(req.body.minAlertQuantity);
+      const currentQuantity = getVal(req.body.currentQuantity) || 0;
+      const assignedUsers = req.body.assignedUsers || [];
+      const isOutsourced = getVal(req.body.isOutsourced);
+      const expiryEnabled = getVal(req.body.expiryEnabled);
+      const expiryDate = getVal(req.body.expiryDate);
+      const expiryReminderDays = getVal(req.body.expiryReminderDays) || 7;
+      const branchId = getVal(req.body.branchId);
+      const productType = getVal(req.body.productType) || "physical";
+      const isRecurring = getVal(req.body.isRecurring);
+      const intervalDays = getVal(req.body.intervalDays) || 0;
+      const manufacturer = getVal(req.body.manufacturer);
 
       const resolvedBuyingPrice = buyingPrice !== undefined ? buyingPrice : startingPrice
 
@@ -3818,7 +3822,7 @@ export class StockController {
         return res.status(400).json({ success: false, message: "Price and quantity values must be positive" })
       }
 
-      if (expiryEnabled && !expiryDate) {
+      if ((expiryEnabled === "true" || expiryEnabled === true) && !expiryDate) {
         return res.status(400).json({ success: false, message: "Expiry date is required when expiry checker is enabled" })
       }
 
@@ -3835,6 +3839,11 @@ export class StockController {
         }
       }
 
+      let imageUrl = undefined
+      if (req.file) {
+        imageUrl = await StockController.processProductImage(req.file)
+      }
+
       const product = await StockProduct.create({
         org_id,
         name: String(name).trim(),
@@ -3844,15 +3853,17 @@ export class StockController {
         minAlertQuantity: Number(minAlertQuantity),
         currentQuantity: Number(currentQuantity),
         assignedUsers: Array.isArray(assignedUsers) ? assignedUsers : [],
-        isOutsourced: Boolean(isOutsourced),
-        expiryEnabled: Boolean(expiryEnabled),
-        expiryDate: expiryEnabled && expiryDate ? new Date(expiryDate) : null,
+        isOutsourced: isOutsourced === "true" || isOutsourced === true,
+        expiryEnabled: expiryEnabled === "true" || expiryEnabled === true,
+        expiryDate: (expiryEnabled === "true" || expiryEnabled === true) && expiryDate ? new Date(expiryDate) : null,
         expiryReminderDays: Number(expiryReminderDays),
         expiryLastReminderOn: null,
         createdBy,
         productType,
-        isRecurring: Boolean(isRecurring),
+        isRecurring: isRecurring === "true" || isRecurring === true,
         intervalDays: Number(intervalDays),
+        manufacturer: manufacturer ? String(manufacturer).trim() : undefined,
+        imageUrl,
       })
 
       if (Number(currentQuantity) > 0 && trimmedBranchId) {
@@ -3938,23 +3949,43 @@ export class StockController {
         expiryReminderDays,
       } = req.body
 
-      const payload: any = {}
-      if (name !== undefined) payload.name = String(name).trim()
-      if (category !== undefined) payload.category = category
-      if (buyingPrice !== undefined) payload.startingPrice = Number(buyingPrice)
-      else if (startingPrice !== undefined) payload.startingPrice = Number(startingPrice)
-      if (sellingPrice !== undefined) payload.sellingPrice = Number(sellingPrice)
-      if (minAlertQuantity !== undefined) payload.minAlertQuantity = Number(minAlertQuantity)
-      if (currentQuantity !== undefined) payload.currentQuantity = Number(currentQuantity)
-      if (assignedUsers !== undefined) payload.assignedUsers = Array.isArray(assignedUsers) ? assignedUsers : []
-      if (isOutsourced !== undefined) payload.isOutsourced = Boolean(isOutsourced)
-      if (isActive !== undefined) payload.isActive = Boolean(isActive)
-      if (expiryEnabled !== undefined) payload.expiryEnabled = Boolean(expiryEnabled)
-      if (expiryDate !== undefined) payload.expiryDate = expiryDate ? new Date(expiryDate) : null
-      if (expiryReminderDays !== undefined) payload.expiryReminderDays = Number(expiryReminderDays)
-      if (req.body.manufacturer !== undefined) payload.manufacturer = req.body.manufacturer
+      const getVal = (v: any) => Array.isArray(v) ? v[0] : v;
 
-      if (payload.expiryEnabled === true && !payload.expiryDate) {
+      const payload: any = {}
+      if (name !== undefined) payload.name = String(getVal(name)).trim()
+      if (category !== undefined) payload.category = getVal(category)
+      
+      const resolvedBuyingPrice = buyingPrice !== undefined ? getVal(buyingPrice) : getVal(startingPrice)
+      if (resolvedBuyingPrice !== undefined) payload.startingPrice = Number(resolvedBuyingPrice)
+      
+      if (sellingPrice !== undefined) payload.sellingPrice = Number(getVal(sellingPrice))
+      if (minAlertQuantity !== undefined) payload.minAlertQuantity = Number(getVal(minAlertQuantity))
+      if (currentQuantity !== undefined) payload.currentQuantity = Number(getVal(currentQuantity))
+      if (assignedUsers !== undefined) payload.assignedUsers = Array.isArray(assignedUsers) ? assignedUsers : []
+      if (isOutsourced !== undefined) {
+        const val = getVal(isOutsourced)
+        payload.isOutsourced = val === "true" || val === true
+      }
+      if (isActive !== undefined) {
+        const val = getVal(isActive)
+        payload.isActive = val === "true" || val === true
+      }
+      if (expiryEnabled !== undefined) {
+        const val = getVal(expiryEnabled)
+        payload.expiryEnabled = val === "true" || val === true
+      }
+      if (expiryDate !== undefined) payload.expiryDate = getVal(expiryDate) ? new Date(getVal(expiryDate)) : null
+      if (expiryReminderDays !== undefined) payload.expiryReminderDays = Number(getVal(expiryReminderDays))
+      if (req.body.manufacturer !== undefined) {
+        const val = getVal(req.body.manufacturer)
+        payload.manufacturer = val ? String(val).trim() : null
+      }
+      
+      if (req.file) {
+        payload.imageUrl = await StockController.processProductImage(req.file)
+      }
+
+      if ((payload.expiryEnabled === "true" || payload.expiryEnabled === true) && !payload.expiryDate) {
         return res.status(400).json({ success: false, message: "Expiry date is required when expiry checker is enabled" })
       }
 
@@ -4855,6 +4886,18 @@ export class StockController {
     } catch (error: any) {
       return res.status(500).json({ success: false, message: error.message })
     }
+  }
+
+  // Helper to process product image to webp
+  private static async processProductImage(file: Express.Multer.File): Promise<string> {
+    const filename = `product-${Date.now()}-${Math.round(Math.random() * 1e9)}.webp`
+    const uploadPath = path.join(process.cwd(), "uploads/products", filename)
+    
+    await sharp(file.buffer)
+      .webp({ quality: 80 })
+      .toFile(uploadPath)
+      
+    return `/uploads/products/${filename}`
   }
 
   // Manufacturers (Importation)

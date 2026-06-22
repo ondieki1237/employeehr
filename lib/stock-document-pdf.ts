@@ -1,4 +1,5 @@
 import { jsPDF } from "jspdf";
+import API_URL from "./apiBase";
 
 export interface TenantBranding {
   name?: string;
@@ -58,6 +59,8 @@ export interface DocumentItem {
   taxRate?: number;
   totalAfterTax?: number;
   description?: string;
+  imageUrl?: string;
+  showImageOnQuote?: boolean;
 }
 
 interface HeaderArgs {
@@ -374,10 +377,16 @@ function drawItemsTable(
   doc.setFontSize(9);
 
   const getRowHeight = (index: number) => {
+    const item = items[index];
     const lines = itemDescLines[index];
-    if (!lines || lines.length === 0) return baseRowHeight;
-    // product name takes ~7.5mm, then each desc line is descLineH, plus padding
-    return Math.max(baseRowHeight, 10 + lines.length * descLineH + 2);
+    let h = baseRowHeight;
+    if (lines && lines.length > 0) {
+      h = Math.max(h, 10 + lines.length * descLineH + 2);
+    }
+    if (item.showImageOnQuote && item.imageUrl) {
+      h = Math.max(h, 22); // minimum height if image is shown
+    }
+    return h;
   };
 
   const drawTableHeader = (headerY: number) => {
@@ -455,11 +464,22 @@ function drawItemsTable(
       ? item.productName.slice(0, maxNameLength - 3) + "..."
       : item.productName;
 
-    doc.setFont("helvetica", "normal");
     doc.setFontSize(9);
     doc.setTextColor(30, 30, 30);
     doc.text(String(i + 1).padStart(2, "0"), columnStartX[0] + 2, y + 7);
-    doc.text(name, columnStartX[1] + 3, y + 7);
+
+    let textX = columnStartX[1] + 3;
+    if (item.showImageOnQuote && item.imageUrl) {
+      try {
+        const fullUrl = item.imageUrl.startsWith("http") ? item.imageUrl : `${API_URL}${item.imageUrl}`;
+        doc.addImage(fullUrl, "WEBP", textX, y + 2, 12, 12);
+        textX += 15;
+      } catch (e) {
+        console.warn("Failed to add image to PDF", e);
+      }
+    }
+
+    doc.text(name, textX, y + 7);
 
     // Render description lines below the product name
     const descLines = itemDescLines[i];
@@ -469,8 +489,9 @@ function drawItemsTable(
       setColorFromHex(doc, DEFAULT_GRAY, "text");
 
       let descY = y + 11;
+      // if image was shown, shift description down if needed or keep same X
       descLines.forEach((line: string) => {
-        doc.text(`• ${line}`, columnStartX[1] + 5, descY);
+        doc.text(`• ${line}`, textX + 2, descY);
         descY += descLineH;
       });
 

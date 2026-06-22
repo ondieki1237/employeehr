@@ -12,6 +12,8 @@ interface IQuotationItem {
   productDescription?: string
   productType?: string
   isOutsourced?: boolean
+  imageUrl?: string
+  showImageOnQuote?: boolean
 }
 
 interface IQuotationClient {
@@ -52,6 +54,8 @@ const quotationItemSchema = new Schema<IQuotationItem>(
     productDescription: { type: String },
     productType: { type: String },
     isOutsourced: { type: Boolean, default: false },
+    imageUrl: { type: String },
+    showImageOnQuote: { type: Boolean, default: false },
   },
   { _id: false },
 )
