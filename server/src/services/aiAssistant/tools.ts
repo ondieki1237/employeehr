@@ -6,9 +6,16 @@ import { StockInvoice } from "../../models/StockInvoice"
 import { StockQuotation } from "../../models/StockQuotation"
 import { User } from "../../models/User"
 import { LeaveRequest } from "../../models/LeaveRequest"
+import { LeaveBalance } from "../../models/LeaveBalance"
 import { Payroll } from "../../models/Payroll"
 import { Attendance } from "../../models/Attendance"
 import { Task } from "../../models/Task"
+import { Meeting } from "../../models/Meeting"
+import { Performance } from "../../models/Performance"
+import { PDP } from "../../models/PDP"
+import { KPI } from "../../models/KPI"
+import { Feedback } from "../../models/Feedback"
+import Alert from "../../models/Alert"
 import type { AssistantOrgContext } from "./orgContext"
 import {
   endOfMonth,
@@ -20,7 +27,18 @@ import {
   endOfYear,
   startOfLastYear,
   endOfLastYear,
+  startOfQuarter,
+  endOfQuarter,
+  startOfLastQuarter,
+  endOfLastQuarter,
+  startOfWeek,
+  endOfWeek,
+  startOfLastWeek,
+  endOfLastWeek,
   formatMonthLabel,
+  formatQuarterLabel,
+  formatWeekLabel,
+  getQuarter,
 } from "./orgContext"
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────
@@ -38,13 +56,17 @@ const dateRangeSchema = z.object({
       "last_7_days",
       "last_30_days",
       "last_90_days",
+      "this_week",
+      "last_week",
+      "this_quarter",
+      "last_quarter",
       "this_year",
       "last_year",
       "custom",
     ])
     .optional()
     .describe(
-      "Shortcut period. Prefer 'last_month' for 'last month', 'this_month' for 'this month', 'this_year' for year-to-date questions.",
+      "Shortcut period. Use 'last_month' / 'this_month' for monthly, 'this_quarter' / 'last_quarter' for quarterly, 'this_year' for year-to-date.",
     ),
 })
 
@@ -70,6 +92,26 @@ function resolveRange(input: z.infer<typeof dateRangeSchema>) {
       start.setUTCDate(start.getUTCDate() - 90)
       return { start, end: now, label: "last 90 days" }
     }
+    case "this_week": {
+      const start = startOfWeek(now)
+      const end = endOfWeek(now)
+      return { start, end, label: formatWeekLabel(start, end) }
+    }
+    case "last_week": {
+      const start = startOfLastWeek(now)
+      const end = endOfLastWeek(now)
+      return { start, end, label: formatWeekLabel(start, end) }
+    }
+    case "this_quarter": {
+      const start = startOfQuarter(now)
+      const end = endOfQuarter(now)
+      return { start, end, label: `${formatQuarterLabel(now)} (quarter-to-date)` }
+    }
+    case "last_quarter": {
+      const start = startOfLastQuarter(now)
+      const end = endOfLastQuarter(now)
+      return { start, end, label: `Q${getQuarter(start)} ${start.getUTCFullYear()} (full quarter)` }
+    }
     case "this_year":
       return { start: startOfYear(now), end: endOfYear(now), label: `${now.getUTCFullYear()} (year-to-date)` }
     case "last_year":
@@ -94,10 +136,6 @@ function assertOrgId(orgId: string) {
   }
 }
 
-function canViewHr(ctx: AssistantOrgContext) {
-  return true
-}
-
 // ─── Tool factory ─────────────────────────────────────────────────────────────
 
 export function createAssistantTools(ctx: AssistantOrgContext) {
@@ -106,7 +144,9 @@ export function createAssistantTools(ctx: AssistantOrgContext) {
   // Hard-typed org filter used in EVERY query — never interpolated or overridable
   const orgFilter = { org_id: ctx.orgId } as const
 
-  // ── Sales ──────────────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────────────────────────────────────────
+  // SALES TOOLS
+  // ─────────────────────────────────────────────────────────────────────────────
 
   const getSalesSummary = tool(
     async (input) => {
@@ -131,12 +171,13 @@ export function createAssistantTools(ctx: AssistantOrgContext) {
         saleTransactions: sales.length,
         totalUnitsSold: totalUnits,
         totalRevenue: Number(totalRevenue.toFixed(2)),
+        avgTransactionValue: sales.length > 0 ? Number((totalRevenue / sales.length).toFixed(2)) : 0,
       })
     },
     {
       name: "get_sales_summary",
       description:
-        "Sales totals for this company: transaction count, units sold, and revenue in a date range. Use for 'how much did we sell?' or 'what is our sales revenue?' questions.",
+        "Sales totals: transaction count, units sold, revenue, and average transaction value. Use for 'how much did we sell?', 'what is our revenue?', or 'how many transactions this month?'.",
       schema: dateRangeSchema,
     },
   )
@@ -165,16 +206,20 @@ export function createAssistantTools(ctx: AssistantOrgContext) {
 
       const productIds = Array.from(byProduct.keys())
       const products = await StockProduct.find({ _id: { $in: productIds }, ...orgFilter })
-        .select("name")
+        .select("name category")
         .lean()
-      const nameById = new Map(products.map((p) => [String(p._id), p.name]))
+      const infoById = new Map(products.map((p) => [String(p._id), { name: p.name, category: p.category }]))
 
       const ranked = Array.from(byProduct.entries())
-        .map(([productId, stats]) => ({
-          productName: nameById.get(productId) || "Unknown Product",
-          unitsSold: stats.units,
-          revenue: Number(stats.revenue.toFixed(2)),
-        }))
+        .map(([productId, stats]) => {
+          const info = infoById.get(productId)
+          return {
+            productName: info?.name || "Unknown Product",
+            category: info?.category || "Uncategorized",
+            unitsSold: stats.units,
+            revenue: Number(stats.revenue.toFixed(2)),
+          }
+        })
         .sort((a, b) => b.revenue - a.revenue)
         .slice(0, limit)
 
@@ -182,7 +227,7 @@ export function createAssistantTools(ctx: AssistantOrgContext) {
     },
     {
       name: "get_top_products",
-      description: "Best-selling products by revenue for a date range. Shows product names, units, and revenue.",
+      description: "Best-selling products by revenue. Shows product names, categories, units sold, and revenue. Use for 'best sellers' or 'top products'.",
       schema: dateRangeSchema.extend({
         limit: z.number().int().min(1).max(20).optional().describe("How many top products to return (default 5)"),
       }),
@@ -193,36 +238,67 @@ export function createAssistantTools(ctx: AssistantOrgContext) {
     async () => {
       assertOrgId(ctx.orgId)
       const products = await StockProduct.find({ ...orgFilter, isActive: { $ne: false } })
-        .select("name currentQuantity minAlertQuantity sellingPrice category")
+        .select("name currentQuantity minAlertQuantity sellingPrice startingPrice category expiryEnabled expiryDate")
         .lean()
 
+      const now = new Date()
       const lowStock = products
         .filter((p) => Number(p.currentQuantity || 0) <= Number(p.minAlertQuantity || 0))
         .map((p) => ({
           name: p.name,
           currentQuantity: p.currentQuantity,
           minAlertQuantity: p.minAlertQuantity,
+          category: p.category || "Uncategorized",
         }))
         .slice(0, 15)
+
+      const expiringSoon = products
+        .filter((p) => p.expiryEnabled && p.expiryDate && new Date(p.expiryDate) > now)
+        .filter((p) => {
+          const daysLeft = (new Date(p.expiryDate!).getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
+          return daysLeft <= 30
+        })
+        .map((p) => ({
+          name: p.name,
+          expiryDate: p.expiryDate instanceof Date ? p.expiryDate.toISOString().split("T")[0] : p.expiryDate,
+        }))
+        .slice(0, 10)
 
       const totalUnits = products.reduce((sum, p) => sum + Number(p.currentQuantity || 0), 0)
       const stockValue = products.reduce(
         (sum, p) => sum + Number(p.currentQuantity || 0) * Number(p.sellingPrice || 0),
         0,
       )
+      const costValue = products.reduce(
+        (sum, p) => sum + Number(p.currentQuantity || 0) * Number(p.startingPrice || 0),
+        0,
+      )
+
+      const byCategory: Record<string, { count: number; units: number }> = {}
+      for (const p of products) {
+        const cat = String(p.category || "Uncategorized")
+        if (!byCategory[cat]) byCategory[cat] = { count: 0, units: 0 }
+        byCategory[cat].count += 1
+        byCategory[cat].units += Number(p.currentQuantity || 0)
+      }
 
       return JSON.stringify({
         activeProducts: products.length,
         totalUnitsOnHand: totalUnits,
         estimatedRetailStockValue: Number(stockValue.toFixed(2)),
+        estimatedCostValue: Number(costValue.toFixed(2)),
+        potentialGrossMargin: Number((stockValue - costValue).toFixed(2)),
         lowStockCount: lowStock.length,
         lowStockItems: lowStock,
+        expiringSoonCount: expiringSoon.length,
+        expiringSoonItems: expiringSoon,
+        byCategory,
       })
     },
     {
       name: "get_inventory_summary",
       description:
-        "Current inventory status: total products, units on hand, estimated stock value, and low-stock alerts. Use for 'which products are low on stock?' or 'what is our inventory value?'.",
+        "Current inventory: total products, stock value, low-stock alerts, expiring items, and category breakdown. Use for 'what products are low on stock?', 'inventory value?', or 'what's expiring soon?'.",
       schema: z.object({}),
     },
   )
@@ -236,14 +312,17 @@ export function createAssistantTools(ctx: AssistantOrgContext) {
         status: { $ne: "cancelled" },
         createdAt: { $gte: start, $lte: end },
       })
-        .select("subTotal status invoiceNumber")
+        .select("subTotal status invoiceNumber dispatch")
         .lean()
 
       const totalInvoiced = invoices.reduce((sum, inv) => sum + Number(inv.subTotal || 0), 0)
       const byStatus: Record<string, number> = {}
+      const byDispatchStatus: Record<string, number> = {}
       for (const inv of invoices) {
         const status = String(inv.status || "unknown")
         byStatus[status] = (byStatus[status] || 0) + 1
+        const dispatchStatus = String((inv as any).dispatch?.status || "not_assigned")
+        byDispatchStatus[dispatchStatus] = (byDispatchStatus[dispatchStatus] || 0) + 1
       }
 
       return JSON.stringify({
@@ -251,13 +330,14 @@ export function createAssistantTools(ctx: AssistantOrgContext) {
         dateRange: { from: start.toISOString().split("T")[0], to: end.toISOString().split("T")[0] },
         invoiceCount: invoices.length,
         totalInvoicedValue: Number(totalInvoiced.toFixed(2)),
-        byStatus,
+        byPaymentStatus: byStatus,
+        byDispatchStatus,
       })
     },
     {
       name: "get_invoice_summary",
       description:
-        "Invoice counts and subtotal values for a date range (excludes cancelled). Broken down by status (paid, unpaid, overdue, etc.).",
+        "Invoice counts and values for a period, broken down by payment status (paid/issued) and dispatch status. Use for 'unpaid invoices', 'pending deliveries', or 'how much is owed?'.",
       schema: dateRangeSchema,
     },
   )
@@ -280,270 +360,25 @@ export function createAssistantTools(ctx: AssistantOrgContext) {
         byStatus[status] = (byStatus[status] || 0) + 1
       }
 
+      const conversionRate =
+        quotations.length > 0
+          ? Number((((byStatus["converted"] || 0) / quotations.length) * 100).toFixed(1))
+          : null
+
       return JSON.stringify({
         period: label,
         quotationCount: quotations.length,
         totalQuotedValue: Number(totalQuoted.toFixed(2)),
+        conversionRatePercent: conversionRate,
         byStatus,
       })
     },
     {
       name: "get_quotation_summary",
-      description: "Quotation counts and values for a date range. Shows how many are pending, approved, or converted.",
+      description: "Quotation counts, values, and conversion rate for a period. Shows pending, approved, or converted quotations.",
       schema: dateRangeSchema,
     },
   )
-
-  // ── HR ────────────────────────────────────────────────────────────────────
-
-  const getEmployeeSummary = tool(
-    async () => {
-      assertOrgId(ctx.orgId)
-      if (!canViewHr(ctx)) {
-        return JSON.stringify({ error: "You do not have permission to view HR workforce summaries." })
-      }
-
-      const users = await User.find({ ...orgFilter }).select("status role department position").lean()
-      const active = users.filter((u) => String(u.status) === "active").length
-      const byRole: Record<string, number> = {}
-      const byDept: Record<string, number> = {}
-      for (const user of users) {
-        const role = String(user.role || "unknown")
-        byRole[role] = (byRole[role] || 0) + 1
-        const dept = String(user.department || "Unassigned")
-        byDept[dept] = (byDept[dept] || 0) + 1
-      }
-
-      return JSON.stringify({
-        totalEmployees: users.length,
-        activeEmployees: active,
-        inactiveEmployees: users.length - active,
-        byRole,
-        byDepartment: byDept,
-      })
-    },
-    {
-      name: "get_employee_summary",
-      description:
-        "Workforce overview: total employees, active/inactive counts, breakdown by role and department.",
-      schema: z.object({}),
-    },
-  )
-
-  const searchEmployees = tool(
-    async (input) => {
-      assertOrgId(ctx.orgId)
-      if (!canViewHr(ctx)) {
-        return JSON.stringify({ error: "You do not have permission to search employees." })
-      }
-
-      const query = String(input.query || "").trim()
-      if (!query || query.length < 2) {
-        return JSON.stringify({ error: "Search query must be at least 2 characters." })
-      }
-
-      const limit = Math.min(Math.max(input.limit ?? 10, 1), 50)
-
-      const employees = await User.find(
-        {
-          ...orgFilter,
-          $or: [
-            { firstName: { $regex: query, $options: "i" } },
-            { lastName: { $regex: query, $options: "i" } },
-            { email: { $regex: query, $options: "i" } },
-            { position: { $regex: query, $options: "i" } },
-          ],
-        },
-        "firstName lastName email role status department position",
-      )
-        .limit(limit)
-        .lean()
-
-      return JSON.stringify({
-        query,
-        resultCount: employees.length,
-        employees: employees.map((e) => ({
-          name: `${e.firstName || ""} ${e.lastName || ""}`.trim(),
-          email: e.email,
-          role: e.role,
-          position: e.position || "Not set",
-          status: e.status,
-          department: e.department || "Not set",
-        })),
-      })
-    },
-    {
-      name: "search_employees",
-      description:
-        "Search for employees by name, email, or job title. Returns role, department, and status.",
-      schema: z.object({
-        query: z.string().min(2).describe("Employee name, email, or position to search for"),
-        limit: z.number().int().min(1).max(50).optional().describe("Max results (default 10)"),
-      }),
-    },
-  )
-
-  const getLeaveSummary = tool(
-    async (input) => {
-      assertOrgId(ctx.orgId)
-      if (!canViewHr(ctx)) {
-        return JSON.stringify({ error: "You do not have permission to view leave summaries." })
-      }
-
-      const { start, end, label } = resolveRange(input)
-      const requests = await LeaveRequest.find({
-        org_id: ctx.orgId, // explicit — not spread to avoid accidental override
-        createdAt: { $gte: start, $lte: end },
-      })
-        .select("status type userId")
-        .lean()
-
-      const byStatus: Record<string, number> = {}
-      const byType: Record<string, number> = {}
-      for (const req of requests) {
-        const status = String(req.status || "unknown")
-        byStatus[status] = (byStatus[status] || 0) + 1
-        const type = String((req as any).type || "unknown")
-        byType[type] = (byType[type] || 0) + 1
-      }
-
-      return JSON.stringify({
-        period: label,
-        totalRequests: requests.length,
-        byStatus,
-        byType,
-      })
-    },
-    {
-      name: "get_leave_summary",
-      description:
-        "Leave request counts by status and type for a date range. Use for 'how many employees are on leave?' or leave approval stats.",
-      schema: dateRangeSchema,
-    },
-  )
-
-  // ── Payroll ───────────────────────────────────────────────────────────────
-
-  const getPayrollSummary = tool(
-    async (input) => {
-      assertOrgId(ctx.orgId)
-      if (!canViewHr(ctx)) {
-        return JSON.stringify({ error: "You do not have permission to view payroll data." })
-      }
-
-      // month filter: "YYYY-MM" format from period or explicit month
-      const now = new Date()
-      let monthFilter: string | undefined = (input as any).month
-
-      if (!monthFilter) {
-        const period: string | undefined = (input as any).period
-        if (period === "last_month") {
-          const last = startOfLastMonth(now)
-          monthFilter = `${last.getUTCFullYear()}-${String(last.getUTCMonth() + 1).padStart(2, "0")}`
-        } else {
-          // default: current month
-          monthFilter = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`
-        }
-      }
-
-      const payrolls = await Payroll.find({
-        org_id: ctx.orgId,
-        month: monthFilter,
-      })
-        .select("net_pay base_salary bonus total_deductions status user_id")
-        .lean()
-
-      if (!payrolls.length) {
-        return JSON.stringify({
-          month: monthFilter,
-          message: `No payroll records found for ${monthFilter}. Payroll may not have been generated yet.`,
-        })
-      }
-
-      const totalNetPay = payrolls.reduce((sum, p) => sum + Number(p.net_pay || 0), 0)
-      const totalBaseSalary = payrolls.reduce((sum, p) => sum + Number(p.base_salary || 0), 0)
-      const totalBonuses = payrolls.reduce((sum, p) => sum + Number(p.bonus || 0), 0)
-      const totalDeductions = payrolls.reduce((sum, p) => sum + Number(p.total_deductions || 0), 0)
-      const byStatus: Record<string, number> = {}
-      for (const p of payrolls) {
-        const status = String(p.status || "unknown")
-        byStatus[status] = (byStatus[status] || 0) + 1
-      }
-
-      return JSON.stringify({
-        month: monthFilter,
-        employeesPaid: payrolls.length,
-        totalNetPay: Number(totalNetPay.toFixed(2)),
-        totalBaseSalary: Number(totalBaseSalary.toFixed(2)),
-        totalBonuses: Number(totalBonuses.toFixed(2)),
-        totalDeductions: Number(totalDeductions.toFixed(2)),
-        byStatus,
-        avgNetPay: Number((totalNetPay / payrolls.length).toFixed(2)),
-      })
-    },
-    {
-      name: "get_payroll_summary",
-      description:
-        "Payroll summary for a specific month: total net pay, base salaries, bonuses, deductions, and employee count.",
-      schema: z.object({
-        month: z
-          .string()
-          .optional()
-          .describe("Month in YYYY-MM format (e.g. 2026-05). Leave blank for current month."),
-        period: z.enum(["last_month", "this_month"]).optional().describe("Period shortcut instead of month"),
-      }),
-    },
-  )
-
-  // ── Attendance ────────────────────────────────────────────────────────────
-
-  const getAttendanceSummary = tool(
-    async (input) => {
-      assertOrgId(ctx.orgId)
-      if (!canViewHr(ctx)) {
-        return JSON.stringify({ error: "You do not have permission to view attendance data." })
-      }
-
-      const { start, end, label } = resolveRange(input)
-      const records = await Attendance.find({
-        org_id: ctx.orgId,
-        date: { $gte: start, $lte: end },
-      })
-        .select("status hoursWorked")
-        .lean()
-
-      const byStatus: Record<string, number> = {}
-      let totalHours = 0
-      for (const rec of records) {
-        const status = String(rec.status || "unknown")
-        byStatus[status] = (byStatus[status] || 0) + 1
-        totalHours += Number(rec.hoursWorked || 0)
-      }
-
-      const presentCount = (byStatus["present"] || 0) + (byStatus["late"] || 0) + (byStatus["half_day"] || 0)
-      const absenceCount = byStatus["absent"] || 0
-      const attendanceRate =
-        records.length > 0 ? Number(((presentCount / records.length) * 100).toFixed(1)) : null
-
-      return JSON.stringify({
-        period: label,
-        totalAttendanceRecords: records.length,
-        presentOrPartial: presentCount,
-        absent: absenceCount,
-        attendanceRatePercent: attendanceRate,
-        totalHoursLogged: Number(totalHours.toFixed(1)),
-        breakdown: byStatus,
-      })
-    },
-    {
-      name: "get_attendance_summary",
-      description:
-        "Attendance overview for a period: present, absent, late, half-day counts, total hours logged, and attendance rate.",
-      schema: dateRangeSchema,
-    },
-  )
-
-  // ── Comprehensive analytics ───────────────────────────────────────────────
 
   const getSalesByCustomer = tool(
     async (input) => {
@@ -585,7 +420,7 @@ export function createAssistantTools(ctx: AssistantOrgContext) {
     {
       name: "get_sales_by_customer",
       description:
-        "Top customers by revenue for a date range. Shows transaction count, units bought, and average order value.",
+        "Top customers by revenue: transaction count, units bought, and average order value. Use for 'who are our top clients?' or 'best customers'.",
       schema: dateRangeSchema.extend({
         limit: z.number().int().min(1).max(50).optional().describe("Max customers to return (default 10)"),
       }),
@@ -639,7 +474,7 @@ export function createAssistantTools(ctx: AssistantOrgContext) {
     {
       name: "get_sales_performance_trend",
       description:
-        "Daily sales trend showing revenue, units, and transactions per day. Best for identifying peak days and revenue patterns.",
+        "Daily sales trend: revenue, units, and transactions per day. Best for identifying peak days and revenue patterns over time.",
       schema: dateRangeSchema,
     },
   )
@@ -673,6 +508,8 @@ export function createAssistantTools(ctx: AssistantOrgContext) {
         byCategory.set(category, row)
       }
 
+      const total = Array.from(byCategory.values()).reduce((sum, v) => sum + v.revenue, 0)
+
       const categories = Array.from(byCategory.entries())
         .map(([name, stats]) => ({
           category: name,
@@ -680,6 +517,7 @@ export function createAssistantTools(ctx: AssistantOrgContext) {
           unitsSold: stats.units,
           revenue: Number(stats.revenue.toFixed(2)),
           avgPricePerUnit: stats.units > 0 ? Number((stats.revenue / stats.units).toFixed(2)) : 0,
+          revenueSharePercent: total > 0 ? Number(((stats.revenue / total) * 100).toFixed(1)) : 0,
         }))
         .sort((a, b) => b.revenue - a.revenue)
 
@@ -687,10 +525,390 @@ export function createAssistantTools(ctx: AssistantOrgContext) {
     },
     {
       name: "get_product_category_performance",
-      description: "Sales by product category. Shows which categories drive the most revenue and units sold.",
+      description: "Sales by product category with revenue share percentages. Shows which categories drive the most revenue.",
       schema: dateRangeSchema,
     },
   )
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // HR TOOLS
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  const getEmployeeSummary = tool(
+    async () => {
+      assertOrgId(ctx.orgId)
+
+      const users = await User.find({ ...orgFilter })
+        .select("status role department position dateOfJoining")
+        .lean()
+
+      const active = users.filter((u) => String(u.status) === "active").length
+      const byRole: Record<string, number> = {}
+      const byDept: Record<string, number> = {}
+      for (const user of users) {
+        const role = String(user.role || "unknown")
+        byRole[role] = (byRole[role] || 0) + 1
+        const dept = String(user.department || "Unassigned")
+        byDept[dept] = (byDept[dept] || 0) + 1
+      }
+
+      // New hires in last 30 days
+      const thirtyDaysAgo = new Date()
+      thirtyDaysAgo.setUTCDate(thirtyDaysAgo.getUTCDate() - 30)
+      const newHires = users.filter(
+        (u) => u.dateOfJoining && new Date(u.dateOfJoining) >= thirtyDaysAgo,
+      ).length
+
+      return JSON.stringify({
+        totalEmployees: users.length,
+        activeEmployees: active,
+        inactiveEmployees: users.length - active,
+        newHiresLast30Days: newHires,
+        byRole,
+        byDepartment: byDept,
+      })
+    },
+    {
+      name: "get_employee_summary",
+      description:
+        "Workforce overview: total employees, active/inactive counts, new hires last 30 days, breakdown by role and department. Use for 'how many employees do we have?' or 'staff headcount'.",
+      schema: z.object({}),
+    },
+  )
+
+  const searchEmployees = tool(
+    async (input) => {
+      assertOrgId(ctx.orgId)
+
+      const query = String(input.query || "").trim()
+      if (!query || query.length < 2) {
+        return JSON.stringify({ error: "Search query must be at least 2 characters." })
+      }
+
+      const limit = Math.min(Math.max(input.limit ?? 10, 1), 50)
+
+      const employees = await User.find(
+        {
+          ...orgFilter,
+          $or: [
+            { firstName: { $regex: query, $options: "i" } },
+            { lastName: { $regex: query, $options: "i" } },
+            { email: { $regex: query, $options: "i" } },
+            { position: { $regex: query, $options: "i" } },
+            { department: { $regex: query, $options: "i" } },
+            { employee_id: { $regex: query, $options: "i" } },
+          ],
+        },
+        "firstName lastName email role status department position employee_id dateOfJoining",
+      )
+        .limit(limit)
+        .lean()
+
+      return JSON.stringify({
+        query,
+        resultCount: employees.length,
+        employees: employees.map((e) => ({
+          name: `${e.firstName || ""} ${e.lastName || ""}`.trim(),
+          employeeId: e.employee_id || "N/A",
+          email: e.email,
+          role: e.role,
+          position: e.position || "Not set",
+          status: e.status,
+          department: e.department || "Not set",
+          dateOfJoining: e.dateOfJoining
+            ? new Date(e.dateOfJoining).toISOString().split("T")[0]
+            : null,
+        })),
+      })
+    },
+    {
+      name: "search_employees",
+      description:
+        "Search for employees by name, email, job title, department, or employee ID. Returns role, department, status, and join date.",
+      schema: z.object({
+        query: z.string().min(2).describe("Employee name, email, position, department, or employee ID to search for"),
+        limit: z.number().int().min(1).max(50).optional().describe("Max results (default 10)"),
+      }),
+    },
+  )
+
+  const getLeaveSummary = tool(
+    async (input) => {
+      assertOrgId(ctx.orgId)
+
+      const { start, end, label } = resolveRange(input)
+      const requests = await LeaveRequest.find({
+        org_id: ctx.orgId,
+        createdAt: { $gte: start, $lte: end },
+      })
+        .select("status type userId startDate endDate")
+        .lean()
+
+      const byStatus: Record<string, number> = {}
+      const byType: Record<string, number> = {}
+      for (const req of requests) {
+        const status = String(req.status || "unknown")
+        byStatus[status] = (byStatus[status] || 0) + 1
+        const type = String((req as any).type || "unknown")
+        byType[type] = (byType[type] || 0) + 1
+      }
+
+      const pending = requests.filter((r) => r.status === "pending")
+      const pendingList = pending.slice(0, 5).map((r) => ({
+        type: (r as any).type || "N/A",
+        startDate: r.startDate ? new Date(r.startDate).toISOString().split("T")[0] : null,
+        endDate: r.endDate ? new Date(r.endDate).toISOString().split("T")[0] : null,
+      }))
+
+      return JSON.stringify({
+        period: label,
+        totalRequests: requests.length,
+        byStatus,
+        byType,
+        pendingApprovalCount: pending.length,
+        samplePendingRequests: pendingList,
+      })
+    },
+    {
+      name: "get_leave_summary",
+      description:
+        "Leave requests by status and type for a period, including pending approvals. Use for 'how many pending leave requests?', 'who is on leave?', or leave statistics.",
+      schema: dateRangeSchema,
+    },
+  )
+
+  const getLeaveBalance = tool(
+    async (input) => {
+      assertOrgId(ctx.orgId)
+
+      const filter: any = { org_id: ctx.orgId }
+      if (input.year) filter.year = input.year
+      if (input.userId) filter.user_id = input.userId
+
+      const balances = await LeaveBalance.find(filter)
+        .select("user_id year annual_total annual_used sick_total sick_used maternity_total maternity_used paternity_total paternity_used unpaid_used")
+        .limit(20)
+        .lean()
+
+      if (!balances.length) {
+        return JSON.stringify({ message: "No leave balance records found for the specified criteria." })
+      }
+
+      // Enrich with user names if querying multiple users
+      const userIds = balances.map((b) => b.user_id).filter(Boolean)
+      const users = await User.find({ _id: { $in: userIds }, ...orgFilter })
+        .select("firstName lastName")
+        .lean()
+      const nameById = new Map(users.map((u) => [String(u._id), `${u.firstName || ""} ${u.lastName || ""}`.trim()]))
+
+      const enriched = balances.map((b) => ({
+        employeeName: nameById.get(String(b.user_id)) || "Unknown",
+        year: b.year,
+        annual: { total: b.annual_total, used: b.annual_used, remaining: Number(b.annual_total || 0) - Number(b.annual_used || 0) },
+        sick: { total: b.sick_total, used: b.sick_used, remaining: Number(b.sick_total || 0) - Number(b.sick_used || 0) },
+        maternity: { total: b.maternity_total, used: b.maternity_used },
+        paternity: { total: b.paternity_total, used: b.paternity_used },
+        unpaidUsed: b.unpaid_used,
+      }))
+
+      return JSON.stringify({ count: enriched.length, leaveBalances: enriched })
+    },
+    {
+      name: "get_leave_balance",
+      description:
+        "Leave balance details showing total, used, and remaining days by type (annual, sick, maternity, paternity). Use for 'how many leave days does X have left?' or 'check leave balance'.",
+      schema: z.object({
+        userId: z.string().optional().describe("Filter to a specific user ID. Leave blank for all employees."),
+        year: z.number().int().optional().describe("Year (e.g. 2026). Defaults to current year records."),
+      }),
+    },
+  )
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // PAYROLL TOOLS
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  const getPayrollSummary = tool(
+    async (input) => {
+      assertOrgId(ctx.orgId)
+
+      const now = new Date()
+      let monthFilter: string | undefined = (input as any).month
+
+      if (!monthFilter) {
+        const period: string | undefined = (input as any).period
+        if (period === "last_month") {
+          const last = startOfLastMonth(now)
+          monthFilter = `${last.getUTCFullYear()}-${String(last.getUTCMonth() + 1).padStart(2, "0")}`
+        } else {
+          monthFilter = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`
+        }
+      }
+
+      const payrolls = await Payroll.find({
+        org_id: ctx.orgId,
+        month: monthFilter,
+      })
+        .select("net_pay base_salary bonus total_deductions status user_id")
+        .lean()
+
+      if (!payrolls.length) {
+        return JSON.stringify({
+          month: monthFilter,
+          message: `No payroll records found for ${monthFilter}. Payroll may not have been generated yet.`,
+        })
+      }
+
+      const totalNetPay = payrolls.reduce((sum, p) => sum + Number(p.net_pay || 0), 0)
+      const totalBaseSalary = payrolls.reduce((sum, p) => sum + Number(p.base_salary || 0), 0)
+      const totalBonuses = payrolls.reduce((sum, p) => sum + Number(p.bonus || 0), 0)
+      const totalDeductions = payrolls.reduce((sum, p) => sum + Number(p.total_deductions || 0), 0)
+      const byStatus: Record<string, number> = {}
+      for (const p of payrolls) {
+        const status = String(p.status || "unknown")
+        byStatus[status] = (byStatus[status] || 0) + 1
+      }
+
+      return JSON.stringify({
+        month: monthFilter,
+        employeesPaid: payrolls.length,
+        totalNetPay: Number(totalNetPay.toFixed(2)),
+        totalBaseSalary: Number(totalBaseSalary.toFixed(2)),
+        totalBonuses: Number(totalBonuses.toFixed(2)),
+        totalDeductions: Number(totalDeductions.toFixed(2)),
+        avgNetPay: Number((totalNetPay / payrolls.length).toFixed(2)),
+        byStatus,
+      })
+    },
+    {
+      name: "get_payroll_summary",
+      description:
+        "Payroll totals for a specific month: net pay, base salaries, bonuses, deductions, and employee count. Use for 'payroll cost this month', 'salary expenses', or 'how much did we pay staff?'.",
+      schema: z.object({
+        month: z
+          .string()
+          .optional()
+          .describe("Month in YYYY-MM format (e.g. 2026-05). Leave blank for current month."),
+        period: z.enum(["last_month", "this_month"]).optional().describe("Period shortcut instead of explicit month"),
+      }),
+    },
+  )
+
+  const getPayrollTrend = tool(
+    async (input) => {
+      assertOrgId(ctx.orgId)
+
+      // Fetch last N months of payroll
+      const months = Math.min(Math.max(input.months ?? 6, 2), 12)
+      const now = new Date()
+      const monthKeys: string[] = []
+      for (let i = months - 1; i >= 0; i--) {
+        const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1))
+        monthKeys.push(`${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`)
+      }
+
+      const payrolls = await Payroll.find({
+        org_id: ctx.orgId,
+        month: { $in: monthKeys },
+      })
+        .select("month net_pay base_salary bonus total_deductions")
+        .lean()
+
+      const byMonth: Record<string, { netPay: number; baseSalary: number; bonuses: number; deductions: number; count: number }> = {}
+      for (const m of monthKeys) byMonth[m] = { netPay: 0, baseSalary: 0, bonuses: 0, deductions: 0, count: 0 }
+      for (const p of payrolls) {
+        const key = String(p.month || "")
+        if (byMonth[key]) {
+          byMonth[key].netPay += Number(p.net_pay || 0)
+          byMonth[key].baseSalary += Number(p.base_salary || 0)
+          byMonth[key].bonuses += Number(p.bonus || 0)
+          byMonth[key].deductions += Number(p.total_deductions || 0)
+          byMonth[key].count += 1
+        }
+      }
+
+      const trend = Object.entries(byMonth).map(([month, stats]) => ({
+        month,
+        totalNetPay: Number(stats.netPay.toFixed(2)),
+        totalBonuses: Number(stats.bonuses.toFixed(2)),
+        totalDeductions: Number(stats.deductions.toFixed(2)),
+        employeeCount: stats.count,
+      }))
+
+      return JSON.stringify({ monthsAnalyzed: months, trend })
+    },
+    {
+      name: "get_payroll_trend",
+      description:
+        "Month-over-month payroll cost trend showing net pay, bonuses, and deductions over multiple months. Use for 'how has our payroll changed?' or 'salary cost trend'.",
+      schema: z.object({
+        months: z.number().int().min(2).max(12).optional().describe("How many months to look back (default 6, max 12)"),
+      }),
+    },
+  )
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // ATTENDANCE TOOLS
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  const getAttendanceSummary = tool(
+    async (input) => {
+      assertOrgId(ctx.orgId)
+
+      const { start, end, label } = resolveRange(input)
+      const records = await Attendance.find({
+        org_id: ctx.orgId,
+        date: { $gte: start, $lte: end },
+      })
+        .select("status hoursWorked userId")
+        .lean()
+
+      const byStatus: Record<string, number> = {}
+      let totalHours = 0
+      for (const rec of records) {
+        const status = String(rec.status || "unknown")
+        byStatus[status] = (byStatus[status] || 0) + 1
+        totalHours += Number(rec.hoursWorked || 0)
+      }
+
+      const presentCount = (byStatus["present"] || 0) + (byStatus["late"] || 0) + (byStatus["half_day"] || 0)
+      const absenceCount = byStatus["absent"] || 0
+      const attendanceRate =
+        records.length > 0 ? Number(((presentCount / records.length) * 100).toFixed(1)) : null
+
+      // Find chronic absentees (absent more than 2x in period)
+      const absenceByUser: Record<string, number> = {}
+      for (const rec of records) {
+        if (rec.status === "absent") {
+          const uid = String(rec.userId || "unknown")
+          absenceByUser[uid] = (absenceByUser[uid] || 0) + 1
+        }
+      }
+      const highAbsenceCount = Object.values(absenceByUser).filter((count) => count > 2).length
+
+      return JSON.stringify({
+        period: label,
+        totalAttendanceRecords: records.length,
+        presentOrPartial: presentCount,
+        absent: absenceCount,
+        attendanceRatePercent: attendanceRate,
+        totalHoursLogged: Number(totalHours.toFixed(1)),
+        avgHoursPerRecord: records.length > 0 ? Number((totalHours / records.length).toFixed(1)) : 0,
+        employeesWithHighAbsences: highAbsenceCount,
+        breakdown: byStatus,
+      })
+    },
+    {
+      name: "get_attendance_summary",
+      description:
+        "Attendance overview: present, absent, late, half-day counts, total hours logged, attendance rate, and employees with high absences. Use for 'attendance this week/month' or 'absenteeism rate'.",
+      schema: dateRangeSchema,
+    },
+  )
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // TASK TOOLS
+  // ─────────────────────────────────────────────────────────────────────────────
 
   const getMyTaskSummary = tool(
     async (input) => {
@@ -702,7 +920,7 @@ export function createAssistantTools(ctx: AssistantOrgContext) {
         assigned_to: ctx.userId,
         createdAt: { $gte: start, $lte: end },
       })
-        .select("status priority due_date completed_at title")
+        .select("status priority due_date completed_at title is_ai_generated")
         .lean()
 
       const totalTasks = tasks.length
@@ -716,6 +934,7 @@ export function createAssistantTools(ctx: AssistantOrgContext) {
           task.due_date &&
           new Date(task.due_date).getTime() < Date.now(),
       ).length
+      const aiGeneratedTasks = tasks.filter((task) => task.is_ai_generated).length
 
       const byPriority: Record<string, number> = { low: 0, medium: 0, high: 0, urgent: 0 }
       tasks.forEach((task) => {
@@ -727,7 +946,12 @@ export function createAssistantTools(ctx: AssistantOrgContext) {
         .filter((task) => task.due_date && new Date(task.due_date).getTime() >= Date.now())
         .sort((a, b) => Number(new Date(a.due_date || 0)) - Number(new Date(b.due_date || 0)))
         .slice(0, 5)
-        .map((task) => ({ title: task.title, status: task.status, due_date: task.due_date?.toISOString().split("T")[0] || null }))
+        .map((task) => ({
+          title: task.title,
+          status: task.status,
+          priority: task.priority,
+          due_date: task.due_date?.toISOString().split("T")[0] || null,
+        }))
 
       return JSON.stringify({
         period: label,
@@ -737,14 +961,15 @@ export function createAssistantTools(ctx: AssistantOrgContext) {
         pendingTasks,
         cancelledTasks,
         overdueTasks,
+        aiGeneratedTasks,
         priorityBreakdown: byPriority,
-        dueSoon: dueSoon,
+        dueSoon,
       })
     },
     {
       name: "get_my_task_summary",
       description:
-        "Summarize tasks assigned to the current user: completed, pending, in-progress, cancelled, overdue, and near-due tasks.",
+        "Tasks assigned to the current logged-in user: completed, pending, in-progress, overdue, and upcoming tasks. Use for 'my tasks', 'what do I have to do?', or 'my pending work'.",
       schema: dateRangeSchema,
     },
   )
@@ -759,22 +984,11 @@ export function createAssistantTools(ctx: AssistantOrgContext) {
       }
       if (input.userId) filter.assigned_to = String(input.userId)
       if (input.status) filter.status = String(input.status)
+      if (input.priority) filter.priority = String(input.priority)
 
       const tasks = await Task.find(filter)
-        .select("assigned_to status priority due_date completed_at title")
+        .select("assigned_to status priority due_date completed_at title is_ai_generated")
         .lean()
-
-      const totalTasks = tasks.length
-      const completedTasks = tasks.filter((task) => task.status === "completed").length
-      const inProgressTasks = tasks.filter((task) => task.status === "in_progress").length
-      const pendingTasks = tasks.filter((task) => task.status === "pending").length
-      const cancelledTasks = tasks.filter((task) => task.status === "cancelled").length
-      const overdueTasks = tasks.filter(
-        (task) =>
-          task.status !== "completed" &&
-          task.due_date &&
-          new Date(task.due_date).getTime() < Date.now(),
-      ).length
 
       const byPriority: Record<string, number> = { low: 0, medium: 0, high: 0, urgent: 0 }
       tasks.forEach((task) => {
@@ -782,20 +996,33 @@ export function createAssistantTools(ctx: AssistantOrgContext) {
         byPriority[priority] = (byPriority[priority] || 0) + 1
       })
 
+      const overdueTasks = tasks.filter(
+        (task) =>
+          task.status !== "completed" &&
+          task.due_date &&
+          new Date(task.due_date).getTime() < Date.now(),
+      )
+
       const topPending = tasks
         .filter((task) => task.status !== "completed" && task.status !== "cancelled")
         .sort((a, b) => Number(new Date(a.due_date || 0)) - Number(new Date(b.due_date || 0)))
         .slice(0, 5)
-        .map((task) => ({ title: task.title, status: task.status, due_date: task.due_date?.toISOString().split("T")[0] || null }))
+        .map((task) => ({
+          title: task.title,
+          status: task.status,
+          priority: task.priority,
+          due_date: task.due_date?.toISOString().split("T")[0] || null,
+        }))
 
       return JSON.stringify({
         period: label,
-        totalTasks,
-        completedTasks,
-        inProgressTasks,
-        pendingTasks,
-        cancelledTasks,
-        overdueTasks,
+        totalTasks: tasks.length,
+        completedTasks: tasks.filter((t) => t.status === "completed").length,
+        inProgressTasks: tasks.filter((t) => t.status === "in_progress").length,
+        pendingTasks: tasks.filter((t) => t.status === "pending").length,
+        cancelledTasks: tasks.filter((t) => t.status === "cancelled").length,
+        overdueTasks: overdueTasks.length,
+        aiGeneratedTasks: tasks.filter((t) => t.is_ai_generated).length,
         priorityBreakdown: byPriority,
         topPendingTasks: topPending,
       })
@@ -803,14 +1030,373 @@ export function createAssistantTools(ctx: AssistantOrgContext) {
     {
       name: "get_task_summary",
       description:
-        "Summarize tasks for the organization or a specific assigned user: counts by status, overdue items, and priority distribution.",
+        "Task overview for the organization or a specific user: counts by status, priority, and overdue items. Use for 'org-wide task progress', 'overdue tasks', or team task stats.",
       schema: dateRangeSchema.extend({
-        userId: z.string().optional().describe("Optional user ID to filter tasks assigned to a specific user."),
+        userId: z.string().optional().describe("Optional user ID to filter tasks assigned to a specific person."),
         status: z
           .enum(["pending", "in_progress", "completed", "cancelled"])
           .optional()
-          .describe("Optional task status filter."),
+          .describe("Filter by task status."),
+        priority: z
+          .enum(["low", "medium", "high", "urgent"])
+          .optional()
+          .describe("Filter by task priority."),
       }),
+    },
+  )
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // PERFORMANCE & KPI TOOLS
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  const getPerformanceSummary = tool(
+    async (input) => {
+      assertOrgId(ctx.orgId)
+
+      const filter: any = { ...orgFilter }
+      if (input.period) filter.period = input.period
+      if (input.userId) filter.user_id = input.userId
+
+      const performances = await Performance.find(filter)
+        .select("user_id period overall_score attendance_score feedback_score status")
+        .limit(100)
+        .lean()
+
+      if (!performances.length) {
+        return JSON.stringify({
+          message: `No performance records found${input.period ? ` for period ${input.period}` : ""}.`,
+        })
+      }
+
+      const avgScore =
+        performances.reduce((sum, p) => sum + Number(p.overall_score || 0), 0) / performances.length
+
+      const byStatus: Record<string, number> = {}
+      for (const p of performances) {
+        const s = String(p.status || "unknown")
+        byStatus[s] = (byStatus[s] || 0) + 1
+      }
+
+      const topPerformers = [...performances]
+        .sort((a, b) => Number(b.overall_score || 0) - Number(a.overall_score || 0))
+        .slice(0, 5)
+
+      const userIds = topPerformers.map((p) => p.user_id).filter(Boolean)
+      const users = await User.find({ _id: { $in: userIds }, ...orgFilter })
+        .select("firstName lastName")
+        .lean()
+      const nameById = new Map(users.map((u) => [String(u._id), `${u.firstName || ""} ${u.lastName || ""}`.trim()]))
+
+      return JSON.stringify({
+        period: input.period || "all",
+        totalRecords: performances.length,
+        avgOverallScore: Number(avgScore.toFixed(1)),
+        byStatus,
+        topPerformers: topPerformers.map((p) => ({
+          name: nameById.get(String(p.user_id)) || "Unknown",
+          overallScore: p.overall_score,
+          period: p.period,
+        })),
+      })
+    },
+    {
+      name: "get_performance_summary",
+      description:
+        "Employee performance scores for a given period: average score, top performers, and status breakdown. Use for 'performance results', 'who are the top performers?', or 'average KPI scores'.",
+      schema: z.object({
+        period: z.string().optional().describe("Performance period e.g. '2026-Q1' or '2026-01'. Leave blank for all."),
+        userId: z.string().optional().describe("Filter to a specific employee."),
+      }),
+    },
+  )
+
+  const getKpiList = tool(
+    async () => {
+      assertOrgId(ctx.orgId)
+
+      const kpis = await KPI.find({ ...orgFilter })
+        .select("name category weight target unit description")
+        .lean()
+
+      return JSON.stringify({
+        totalKpis: kpis.length,
+        kpis: kpis.map((k) => ({
+          name: k.name,
+          category: k.category || "General",
+          weight: k.weight,
+          target: k.target,
+          unit: k.unit,
+          description: k.description || "",
+        })),
+      })
+    },
+    {
+      name: "get_kpi_list",
+      description:
+        "List all configured KPIs for this company including name, category, weight, target, and unit. Use for 'what KPIs do we track?' or 'show me our performance metrics'.",
+      schema: z.object({}),
+    },
+  )
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // MEETINGS TOOLS
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  const getMeetingSummary = tool(
+    async (input) => {
+      assertOrgId(ctx.orgId)
+      const { start, end, label } = resolveRange(input)
+
+      const meetings = await Meeting.find({
+        ...orgFilter,
+        created_at: { $gte: start, $lte: end },
+      })
+        .select("title status meeting_type scheduled_at ai_processed ai_summary actual_start_time actual_end_time organizer_id")
+        .lean()
+
+      const byStatus: Record<string, number> = {}
+      const byType: Record<string, number> = {}
+      for (const m of meetings) {
+        const status = String(m.status || "unknown")
+        byStatus[status] = (byStatus[status] || 0) + 1
+        const type = String(m.meeting_type || "unknown")
+        byType[type] = (byType[type] || 0) + 1
+      }
+
+      const aiProcessed = meetings.filter((m) => m.ai_processed).length
+      const upcoming = meetings
+        .filter((m) => m.status === "scheduled" && m.scheduled_at && new Date(m.scheduled_at) >= new Date())
+        .sort((a, b) => new Date(a.scheduled_at || 0).getTime() - new Date(b.scheduled_at || 0).getTime())
+        .slice(0, 5)
+        .map((m) => ({
+          title: m.title,
+          scheduledAt: m.scheduled_at ? new Date(m.scheduled_at).toISOString() : null,
+          type: m.meeting_type,
+        }))
+
+      return JSON.stringify({
+        period: label,
+        totalMeetings: meetings.length,
+        byStatus,
+        byType,
+        aiProcessedCount: aiProcessed,
+        upcomingMeetings: upcoming,
+      })
+    },
+    {
+      name: "get_meeting_summary",
+      description:
+        "Meeting statistics: total meetings, status breakdown (scheduled/completed/cancelled), types, AI-processed count, and upcoming meetings. Use for 'how many meetings this month?', 'upcoming meetings', or 'meeting activity'.",
+      schema: dateRangeSchema,
+    },
+  )
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // PDP TOOLS
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  const getPdpSummary = tool(
+    async (input) => {
+      assertOrgId(ctx.orgId)
+
+      const filter: any = { ...orgFilter }
+      if (input.period) filter.period = input.period
+      if (input.status) filter.status = input.status
+
+      const pdps = await PDP.find(filter)
+        .select("user_id status overallProgress period")
+        .limit(200)
+        .lean()
+
+      if (!pdps.length) {
+        return JSON.stringify({ message: "No PDPs found for the specified criteria." })
+      }
+
+      const byStatus: Record<string, number> = {}
+      for (const p of pdps) {
+        const s = String(p.status || "unknown")
+        byStatus[s] = (byStatus[s] || 0) + 1
+      }
+
+      const avgProgress =
+        pdps.reduce((sum, p) => sum + Number(p.overallProgress || 0), 0) / pdps.length
+
+      return JSON.stringify({
+        period: input.period || "all",
+        totalPdps: pdps.length,
+        avgProgressPercent: Number(avgProgress.toFixed(1)),
+        byStatus,
+        approvedCount: byStatus["approved"] || 0,
+        pendingReviewCount: byStatus["submitted"] || 0,
+        draftCount: byStatus["draft"] || 0,
+      })
+    },
+    {
+      name: "get_pdp_summary",
+      description:
+        "Personal Development Plan (PDP) overview: total PDPs, average progress, and breakdown by status (draft/submitted/approved/completed). Use for 'PDP progress', 'how many PDPs are pending review?', or 'development plan status'.",
+      schema: z.object({
+        period: z.string().optional().describe("Filter by PDP period e.g. '2026-Q1'. Leave blank for all."),
+        status: z
+          .enum(["draft", "submitted", "approved", "rejected", "completed"])
+          .optional()
+          .describe("Filter by PDP status."),
+      }),
+    },
+  )
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // FEEDBACK TOOLS
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  const getFeedbackSummary = tool(
+    async (input) => {
+      assertOrgId(ctx.orgId)
+      const { start, end, label } = resolveRange(input)
+
+      const feedbacks = await Feedback.find({
+        ...orgFilter,
+        createdAt: { $gte: start, $lte: end },
+      })
+        .select("feedback_type rating status anonymous")
+        .lean()
+
+      const byType: Record<string, number> = {}
+      const byStatus: Record<string, number> = {}
+      let totalRating = 0
+      let ratedCount = 0
+
+      for (const f of feedbacks) {
+        const type = String(f.feedback_type || "unknown")
+        byType[type] = (byType[type] || 0) + 1
+        const status = String(f.status || "unknown")
+        byStatus[status] = (byStatus[status] || 0) + 1
+        if (f.rating) {
+          totalRating += Number(f.rating)
+          ratedCount++
+        }
+      }
+
+      return JSON.stringify({
+        period: label,
+        totalFeedbackSubmissions: feedbacks.length,
+        avgRating: ratedCount > 0 ? Number((totalRating / ratedCount).toFixed(2)) : null,
+        anonymousCount: feedbacks.filter((f) => f.anonymous).length,
+        byType,
+        byStatus,
+      })
+    },
+    {
+      name: "get_feedback_summary",
+      description:
+        "Feedback statistics: total submissions, average rating, feedback types (360/upward/peer/downward), and anonymous count. Use for 'how much feedback has been given?', 'average feedback score', or 'feedback activity'.",
+      schema: dateRangeSchema,
+    },
+  )
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // ALERTS TOOL
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  const getActiveAlerts = tool(
+    async () => {
+      assertOrgId(ctx.orgId)
+
+      const alerts = await Alert.find({
+        ...orgFilter,
+        resolved: { $ne: true },
+      })
+        .select("type severity message createdAt metadata")
+        .sort({ createdAt: -1 })
+        .limit(20)
+        .lean()
+
+      const bySeverity: Record<string, number> = {}
+      const byType: Record<string, number> = {}
+      for (const a of alerts) {
+        const sev = String(a.severity || "low")
+        bySeverity[sev] = (bySeverity[sev] || 0) + 1
+        const type = String(a.type || "unknown")
+        byType[type] = (byType[type] || 0) + 1
+      }
+
+      return JSON.stringify({
+        totalActiveAlerts: alerts.length,
+        bySeverity,
+        byType,
+        recentAlerts: alerts.slice(0, 10).map((a) => ({
+          type: a.type,
+          severity: a.severity,
+          message: a.message,
+          createdAt: a.createdAt ? new Date(a.createdAt).toISOString().split("T")[0] : null,
+        })),
+      })
+    },
+    {
+      name: "get_active_alerts",
+      description:
+        "Current unresolved system alerts by severity and type (contract expiry, low performance, attendance anomalies, incomplete PDPs, etc.). Use for 'what alerts are active?', 'urgent issues', or 'what needs attention?'.",
+      schema: z.object({}),
+    },
+  )
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // BUSINESS SNAPSHOT (multi-domain summary)
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  const getBusinessSnapshot = tool(
+    async (input) => {
+      assertOrgId(ctx.orgId)
+      const { start, end, label } = resolveRange(input)
+      const now = new Date()
+
+      // Run core queries in parallel for speed
+      const [sales, invoices, employees, leaveRequests, tasks, attendance, alerts] = await Promise.all([
+        StockSale.find({ ...orgFilter, createdAt: { $gte: start, $lte: end } })
+          .select("quantitySold soldPrice")
+          .lean(),
+        StockInvoice.find({ ...orgFilter, status: "issued", createdAt: { $gte: start, $lte: end } })
+          .select("subTotal")
+          .lean(),
+        User.countDocuments({ ...orgFilter, status: "active" }),
+        LeaveRequest.countDocuments({ org_id: ctx.orgId, status: "pending" }),
+        Task.countDocuments({ org_id: ctx.orgId, status: { $in: ["pending", "in_progress"] }, due_date: { $lt: now } }),
+        Attendance.find({ org_id: ctx.orgId, date: { $gte: start, $lte: end } }).select("status").lean(),
+        Alert.countDocuments({ ...orgFilter, resolved: { $ne: true }, severity: { $in: ["high", "critical"] } }),
+      ])
+
+      const totalRevenue = sales.reduce(
+        (sum, s) => sum + Number(s.quantitySold || 0) * Number(s.soldPrice || 0), 0,
+      )
+      const unpaidInvoiceValue = invoices.reduce((sum, i) => sum + Number(i.subTotal || 0), 0)
+      const presentCount = attendance.filter((a) => ["present", "late", "half_day"].includes(String(a.status))).length
+      const attendanceRate = attendance.length > 0 ? Number(((presentCount / attendance.length) * 100).toFixed(1)) : null
+
+      return JSON.stringify({
+        period: label,
+        sales: {
+          transactions: sales.length,
+          totalRevenue: Number(totalRevenue.toFixed(2)),
+        },
+        finance: {
+          unpaidInvoicesValue: Number(unpaidInvoiceValue.toFixed(2)),
+        },
+        workforce: {
+          activeEmployees: employees,
+          pendingLeaveRequests: leaveRequests,
+          overdueTaskCount: tasks,
+          attendanceRatePercent: attendanceRate,
+        },
+        alerts: {
+          highOrCriticalCount: alerts,
+        },
+      })
+    },
+    {
+      name: "get_business_snapshot",
+      description:
+        "A quick cross-department overview combining sales revenue, unpaid invoices, active employees, pending leave, overdue tasks, attendance rate, and critical alerts. Use for 'give me a business summary', 'company overview', 'how are we doing?', or 'dashboard summary'.",
+      schema: dateRangeSchema,
     },
   )
 
@@ -828,12 +1414,27 @@ export function createAssistantTools(ctx: AssistantOrgContext) {
     getEmployeeSummary,
     searchEmployees,
     getLeaveSummary,
+    getLeaveBalance,
     // Payroll
     getPayrollSummary,
+    getPayrollTrend,
     // Attendance
     getAttendanceSummary,
     // Tasks
     getMyTaskSummary,
     getTaskSummary,
+    // Performance & KPIs
+    getPerformanceSummary,
+    getKpiList,
+    // Meetings
+    getMeetingSummary,
+    // PDPs
+    getPdpSummary,
+    // Feedback
+    getFeedbackSummary,
+    // Alerts
+    getActiveAlerts,
+    // Cross-domain
+    getBusinessSnapshot,
   ]
 }

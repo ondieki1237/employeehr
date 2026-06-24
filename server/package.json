@@ -24,6 +24,7 @@
     "@langchain/openai": "^1.5.1",
     "@prisma/client": "^6.16.2",
     "@types/multer": "^2.0.0",
+    "alarm": "^2.0.0",
     "axios": "^1.13.2",
     "bcryptjs": "^2.4.3",
     "bullmq": "^4.12.0",
