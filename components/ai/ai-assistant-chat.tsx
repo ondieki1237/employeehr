@@ -226,9 +226,9 @@ export function AiAssistantChat() {
                 </div>
                 <div>
                   <p className="text-sm font-semibold leading-tight">Elevate AI</p>
-                  {modelLabel && (
+                  {/* {modelLabel && (
                     <p className="text-[10px] opacity-75 leading-tight">{modelLabel}</p>
-                  )}
+                  )} */}
                 </div>
               </div>
               <div className="flex items-center gap-1">
