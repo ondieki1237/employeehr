@@ -328,7 +328,6 @@ export function AiAssistantChat() {
                   )}
                 </div>
               ))}
-
               {/* Typing indicator */}
               {loading && <TypingIndicator />}
 

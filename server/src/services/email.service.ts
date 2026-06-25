@@ -1,24 +1,24 @@
-import nodemailer from "nodemailer"
-import { Company } from "../models/Company"
-import { emailTransportResolver } from "./emailTransportResolver"
-import type { ICompany } from "../types/interfaces"
+import nodemailer from "nodemailer";
+import { Company } from "../models/Company";
+import { emailTransportResolver } from "./emailTransportResolver";
+import type { ICompany } from "../types/interfaces";
 
 interface EmailOptions {
-  to: string
-  subject: string
-  html: string
-  text?: string
-  companyId?: string // Optional: specify which company is sending
+  to: string;
+  subject: string;
+  html: string;
+  text?: string;
+  companyId?: string; // Optional: specify which company is sending
 }
 
 class EmailService {
-  private transporter: nodemailer.Transporter
+  private transporter: nodemailer.Transporter;
 
   constructor() {
-    console.log("Initializing EmailService...")
-    console.log("EMAIL_USER:", process.env.SMTP_USER)
-    console.log("EMAIL_PASSWORD length:", process.env.SMTP_PASS?.length)
-    console.log("EMAIL_HOST:", process.env.SMTP_HOST)
+    console.log("Initializing EmailService...");
+    console.log("EMAIL_USER:", process.env.SMTP_USER);
+    console.log("EMAIL_PASSWORD length:", process.env.SMTP_PASS?.length);
+    console.log("EMAIL_HOST:", process.env.SMTP_HOST);
 
     // Configure system default email
     this.transporter = nodemailer.createTransport({
@@ -29,7 +29,7 @@ class EmailService {
         user: process.env.SMTP_USER,
         pass: process.env.SMTP_PASS,
       },
-    })
+    });
   }
 
   /**
@@ -38,15 +38,16 @@ class EmailService {
    */
   async sendEmail(options: EmailOptions): Promise<boolean> {
     try {
-      let company: ICompany | null = null
+      let company: ICompany | null = null;
 
       // Fetch company if companyId provided
       if (options.companyId) {
-        company = await Company.findById(options.companyId)
+        company = await Company.findById(options.companyId);
       }
 
       // Resolve appropriate transporter
-      const { transporter, fromAddress, fromName } = emailTransportResolver.resolveTransporter(company)
+      const { transporter, fromAddress, fromName } =
+        emailTransportResolver.resolveTransporter(company);
 
       const info = await transporter.sendMail({
         from: `"${fromName}" <${fromAddress}>`,
@@ -54,18 +55,19 @@ class EmailService {
         subject: options.subject,
         html: options.html,
         text: options.text || "",
-      })
+      });
 
-      console.log("Email sent successfully:", info.messageId)
-      return true
+      console.log("Email sent successfully:", info.messageId);
+      return true;
     } catch (error) {
-      console.error("Email send error:", error)
+      console.error("Email send error:", error);
 
       // If tenant email failed, retry with system email as fallback
       if (options.companyId) {
         try {
-          console.log("Retrying with system email...")
-          const { transporter, fromAddress, fromName } = emailTransportResolver.resolveTransporter(null)
+          console.log("Retrying with system email...");
+          const { transporter, fromAddress, fromName } =
+            emailTransportResolver.resolveTransporter(null);
 
           await transporter.sendMail({
             from: `"${fromName}" <${fromAddress}>`,
@@ -73,17 +75,40 @@ class EmailService {
             subject: options.subject,
             html: options.html,
             text: options.text || "",
-          })
+          });
 
-          console.log("Email sent successfully with system fallback")
-          return true
+          console.log("Email sent successfully with system fallback");
+          return true;
         } catch (fallbackError) {
-          console.error("System email fallback also failed:", fallbackError)
+          console.error("System email fallback also failed:", fallbackError);
         }
       }
 
-      return false
+      return false;
     }
+  }
+
+  // Helper to resolve branding for templates
+  private async resolveBranding(companyId?: string) {
+    let company: ICompany | null = null;
+    if (companyId) {
+      company = await Company.findById(companyId);
+    }
+
+    const primaryColor = (company as any)?.primaryColor || "#0f766e";
+    const secondaryColor = (company as any)?.secondaryColor || "#14b8a6";
+    let logo = (company as any)?.logo || "";
+
+    // If logo is relative (stored like /logo.png), turn into absolute using FRONTEND_URL
+    if (logo && !/^https?:\/\//i.test(logo)) {
+      const base = String(
+        process.env.FRONTEND_URL || "https://hr.codewithseth.co.ke",
+      ).replace(/\/$/, "");
+      if (!logo.startsWith("/")) logo = `/${logo}`;
+      logo = `${base}${logo}`;
+    }
+
+    return { company, primaryColor, secondaryColor, logo };
   }
 
   async sendApplicationReceivedEmail(
@@ -91,47 +116,60 @@ class EmailService {
     applicantName: string,
     jobTitle: string,
     companyName: string,
-    companyId?: string
+    companyId?: string,
   ): Promise<boolean> {
+    const { primaryColor, logo } = await this.resolveBranding(companyId);
+
     const html = `
-      <!DOCTYPE html>
+      <!doctype html>
       <html>
       <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width,initial-scale=1" />
         <style>
-          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { background: #4F46E5; color: white; padding: 20px; text-align: center; }
-          .content { background: #f9f9f9; padding: 30px; }
-          .footer { text-align: center; padding: 20px; color: #666; font-size: 12px; }
-          .button { display: inline-block; padding: 12px 24px; background: #4F46E5; color: white; text-decoration: none; border-radius: 5px; }
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; color: #1f2937; margin:0; padding:0; }
+          .wrapper { width:100%; background:#f8fafc; padding:24px 0; }
+          .card { max-width:680px; margin:0 auto; background:#ffffff; border-radius:10px; overflow:hidden; box-shadow: 0 6px 18px rgba(16,24,40,0.06); }
+          .header { display:flex; align-items:center; gap:12px; padding:20px 24px; background: ${primaryColor}; color:#fff }
+          .logo { height:42px; }
+          .title { font-size:18px; font-weight:600; margin:0 }
+          .content { padding:28px 24px; line-height:1.6 }
+          .btn { display:inline-block; padding:12px 20px; border-radius:8px; background:${primaryColor}; color:#fff; text-decoration:none; font-weight:600 }
+          .muted { color:#6b7280; font-size:13px }
+          .footer { padding:18px 24px; font-size:12px; color:#9ca3af; text-align:center }
+          @media (max-width: 480px) { .card { margin: 0 12px } }
         </style>
       </head>
       <body>
-        <div class="container">
-          <div class="header">
-            <h1>Application Received</h1>
-          </div>
-          <div class="content">
-            <h2>Hi ${applicantName},</h2>
-            <p>Thank you for applying for the <strong>${jobTitle}</strong> position at <strong>${companyName}</strong>.</p>
-            <p>We have received your application and our team will review it shortly. If your qualifications match our requirements, we will contact you for the next steps.</p>
-            <p>We appreciate your interest in joining our team!</p>
-            <p>Best regards,<br>${companyName} Hiring Team</p>
-          </div>
-          <div class="footer">
-            <p>This is an automated email. Please do not reply to this message.</p>
+        <div class="wrapper">
+          <div class="card">
+            <div class="header">
+              <img src="${logo || `${process.env.FRONTEND_URL || "https://hr.codewithseth.co.ke"}/icon.svg`}" alt="logo" class="logo" />
+              <div>
+                <div class="title">Application received</div>
+                <div style="font-size:12px; opacity:0.95">${companyName}</div>
+              </div>
+            </div>
+            <div class="content">
+              <p style="margin:0 0 12px">Hi ${applicantName},</p>
+              <p style="margin:0 0 12px">Thanks for applying for the <strong>${jobTitle}</strong> role at <strong>${companyName}</strong>. We've received your application and our team will review it.</p>
+              <p style="margin:0 0 12px">If your profile matches what we're looking for, we'll be in touch to arrange the next steps.</p>
+              <p style="margin:0 0 18px">Best regards,<br /><strong>${companyName} Hiring Team</strong></p>
+              <p class="muted" style="margin:0">This is an automated message — please do not reply to this email.</p>
+            </div>
+            <div class="footer">${companyName} · ${new Date().getFullYear()}</div>
           </div>
         </div>
       </body>
       </html>
-    `
+    `;
 
     return this.sendEmail({
       to: applicantEmail,
       subject: `Application Received - ${jobTitle} at ${companyName}`,
       html,
       companyId,
-    })
+    });
   }
 
   async sendApplicationNotificationToHR(
@@ -139,7 +177,7 @@ class EmailService {
     applicantName: string,
     jobTitle: string,
     applicationLink: string,
-    companyId?: string
+    companyId?: string,
   ): Promise<boolean> {
     const html = `
       <!DOCTYPE html>
@@ -167,13 +205,13 @@ class EmailService {
         </div>
       </body>
       </html>
-    `
+    `;
 
     return this.sendEmail({
       to: hrEmail,
       subject: `New Application: ${jobTitle} - ${applicantName}`,
       html,
-    })
+    });
   }
 
   async sendStatusUpdateEmail(
@@ -181,14 +219,16 @@ class EmailService {
     applicantName: string,
     jobTitle: string,
     status: string,
-    message?: string
+    message?: string,
   ): Promise<boolean> {
     const statusMessages: Record<string, string> = {
       reviewing: "Your application is currently under review.",
-      shortlisted: "Congratulations! You have been shortlisted for the next stage.",
-      rejected: "Thank you for your interest. Unfortunately, we have decided to move forward with other candidates.",
+      shortlisted:
+        "Congratulations! You have been shortlisted for the next stage.",
+      rejected:
+        "Thank you for your interest. Unfortunately, we have decided to move forward with other candidates.",
       hired: "Congratulations! We are pleased to offer you the position.",
-    }
+    };
 
     const html = `
       <!DOCTYPE html>
@@ -216,13 +256,13 @@ class EmailService {
         </div>
       </body>
       </html>
-    `
+    `;
 
     return this.sendEmail({
       to: applicantEmail,
       subject: `Application Update: ${jobTitle}`,
       html,
-    })
+    });
   }
 
   async sendBulkInterviewInviteEmail(
@@ -230,7 +270,7 @@ class EmailService {
     applicantName: string,
     subject: string,
     body: string,
-    companyId?: string
+    companyId?: string,
   ): Promise<boolean> {
     const html = `
       <!DOCTYPE html>
@@ -256,14 +296,14 @@ class EmailService {
         </div>
       </body>
       </html>
-    `
+    `;
 
     return this.sendEmail({
       to: applicantEmail,
       subject: subject,
       html,
       companyId,
-    })
+    });
   }
 
   async sendInvitationEmail(
@@ -271,50 +311,63 @@ class EmailService {
     companyName: string,
     inviteLink: string,
     invitedByName: string,
-    companyId?: string
+    companyId?: string,
   ): Promise<boolean> {
+    const { primaryColor, logo } = await this.resolveBranding(companyId);
+
     const html = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <style>
-          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { background: #4F46E5; color: white; padding: 20px; text-align: center; }
-          .content { background: #f9f9f9; padding: 30px; }
-          .button { display: inline-block; background: #4F46E5; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; margin: 20px 0; }
-          .footer { font-size: 12px; color: #999; margin-top: 20px; text-align: center; }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <div class="header">
-            <h1>You're Invited to Join ${companyName}</h1>
-          </div>
-          <div class="content">
-            <p>Hello,</p>
-            <p><strong>${invitedByName}</strong> has invited you to join <strong>${companyName}</strong> on Elevate - our performance management platform.</p>
-            <p>Click the button below to accept your invitation and set up your account:</p>
-            <p><a href="${inviteLink}" class="button">Accept Invitation</a></p>
-            <p>Or copy and paste this link in your browser:<br><code>${inviteLink}</code></p>
-            <p>This invitation will expire in 7 days.</p>
-            <p>Best regards,<br>Elevate Team</p>
-            <div class="footer">
-              <p>If you did not expect this invitation, you can safely ignore this email.</p>
+        <!doctype html>
+        <html>
+        <head>
+          <meta charset="utf-8" />
+          <meta name="viewport" content="width=device-width,initial-scale=1" />
+          <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; color: #1f2937; margin:0; padding:0 }
+            .wrapper { width:100%; background:#f8fafc; padding:24px 0 }
+            .card { max-width:680px; margin:0 auto; background:#fff; border-radius:10px; overflow:hidden; box-shadow:0 6px 18px rgba(16,24,40,0.06) }
+            .header { display:flex; align-items:center; gap:12px; padding:20px 24px; background: ${primaryColor}; color:#fff }
+            .logo { height:42px }
+            .title { font-size:18px; font-weight:600; margin:0 }
+            .content { padding:28px 24px; line-height:1.6 }
+            .cta { display:inline-block; padding:12px 20px; border-radius:8px; background:${primaryColor}; color:#fff; text-decoration:none; font-weight:600 }
+            .muted { color:#6b7280; font-size:13px }
+            .footer { padding:18px 24px; font-size:12px; color:#9ca3af; text-align:center }
+            @media (max-width:480px){ .card { margin:0 12px } }
+          </style>
+        </head>
+        <body>
+          <div class="wrapper">
+            <div class="card">
+              <div class="header">
+                <img src="${logo || `${process.env.FRONTEND_URL || "https://hr.codewithseth.co.ke"}/icon.svg`}" alt="logo" class="logo" />
+                <div>
+                  <div class="title">You're invited to join ${companyName}</div>
+                  <div style="font-size:12px; opacity:0.95">Invitation from ${invitedByName}</div>
+                </div>
+              </div>
+              <div class="content">
+                <p style="margin:0 0 12px">Hello,</p>
+                <p style="margin:0 0 12px"><strong>${invitedByName}</strong> has invited you to join <strong>${companyName}</strong> on our HR platform.</p>
+                <p style="margin:0 0 18px">To accept the invitation and set up your account, click the button below. The link will expire in 7 days.</p>
+                <p style="margin:0 0 18px"><a href="${inviteLink}" class="cta">Accept Invitation</a></p>
+                <p class="muted" style="margin:0 0 12px">If the button doesn't work, copy and paste this link into your browser:</p>
+                <p class="muted" style="word-break:break-all; font-size:13px;">${inviteLink}</p>
+                <p style="margin:18px 0 0">Best regards,<br /><strong>${companyName} Team</strong></p>
+              </div>
+              <div class="footer">If you did not expect this invitation, you can ignore this message.</div>
             </div>
           </div>
-        </div>
-      </body>
-      </html>
-    `
+        </body>
+        </html>
+      `;
 
     return this.sendEmail({
       to: inviteeEmail,
       subject: `${invitedByName} invited you to join ${companyName} on Elevate`,
       html,
       companyId,
-    })
+    });
   }
 }
 
-export default new EmailService()
+export default new EmailService();
