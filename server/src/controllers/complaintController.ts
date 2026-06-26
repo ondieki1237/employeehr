@@ -136,7 +136,7 @@ export class ComplaintController {
       // Fetch submitting user details
       const submittingUser = await User.findById(req.user.userId).select("firstName lastName")
 
-      const complaintId = await this.generateComplaintId(req.org_id)
+      const complaintId = await ComplaintController.generateComplaintId(req.org_id)
 
       const complaint = await ClientComplaint.create({
         org_id: req.org_id,

@@ -17,7 +17,7 @@ import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
 import { API_URL } from "@/lib/apiBase"
 import { getToken } from "@/lib/auth"
-import { ArrowLeft, Send, AlertTriangle, Clock, CheckCircle2 } from "lucide-react"
+import { ArrowLeft, Send, MessageSquare, AlertTriangle, Clock, CheckCircle2, ChevronDown } from "lucide-react"
 
 interface IComplaint {
   _id: string
@@ -25,6 +25,7 @@ interface IComplaint {
   clientId: string
   clientName: string
   clientNumber: string
+  clientLocation?: string
   clientEmail?: string
   clientPhone?: string
   title: string
@@ -64,6 +65,25 @@ interface User {
   email: string
 }
 
+const statusOptions = [
+  { value: "new", label: "New" },
+  { value: "under_review", label: "Under review" },
+  { value: "assigned", label: "Assigned" },
+  { value: "in_progress", label: "In progress" },
+  { value: "pending_client_feedback", label: "Pending client feedback" },
+  { value: "escalated", label: "Escalated" },
+  { value: "resolved", label: "Resolved" },
+  { value: "closed", label: "Closed" },
+]
+
+function normalizeClientValue(value: string) {
+  return String(value || "").trim().toLowerCase().replace(/\s+/g, " ")
+}
+
+function buildBulkSmsKey(phone: string, name: string, location: string) {
+  return [normalizeClientValue(phone), normalizeClientValue(name), normalizeClientValue(location)].join("|")
+}
+
 export default function ComplaintDetailPage({ params }: { params: { complaintId: string } }) {
   const router = useRouter()
   const [complaint, setComplaint] = useState<IComplaint | null>(null)
@@ -73,6 +93,8 @@ export default function ComplaintDetailPage({ params }: { params: { complaintId:
   const [newMessage, setNewMessage] = useState("")
   const [newNote, setNewNote] = useState("")
   const [assignTo, setAssignTo] = useState("")
+  const [statusSelection, setStatusSelection] = useState("")
+  const [statusOpen, setStatusOpen] = useState(true)
   const [resolutionNotes, setResolutionNotes] = useState("")
   const [satisfactionRating, setSatisfactionRating] = useState("")
   const { toast } = useToast()
@@ -97,6 +119,7 @@ export default function ComplaintDetailPage({ params }: { params: { complaintId:
       if (!response.ok) throw new Error("Failed to fetch complaint")
       const result = await response.json()
       setComplaint(result.data)
+      setStatusSelection(result.data?.status || "")
     } catch (error) {
       toast({
         title: "Error",
@@ -176,6 +199,35 @@ export default function ComplaintDetailPage({ params }: { params: { complaintId:
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "Failed to add note",
+        variant: "destructive",
+      })
+    } finally {
+      setUpdating(false)
+    }
+  }
+
+  const handleUpdateStatus = async () => {
+    if (!complaint || !statusSelection) return
+
+    try {
+      setUpdating(true)
+      const response = await fetch(`${API_URL}/api/complaints/${complaint._id}`, {
+        method: "PUT",
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ status: statusSelection }),
+      })
+
+      if (!response.ok) throw new Error("Failed to update status")
+      const result = await response.json()
+      setComplaint(result.data)
+      toast({
+        title: "Success",
+        description: "Complaint status updated",
+      })
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to update status",
         variant: "destructive",
       })
     } finally {
@@ -453,6 +505,51 @@ export default function ComplaintDetailPage({ params }: { params: { complaintId:
 
         {/* Sidebar */}
         <div className="space-y-6">
+          {/* Status Control */}
+          <Card>
+            <CardHeader className="flex items-center justify-between gap-3">
+              <div>
+                <CardTitle>Update Status</CardTitle>
+                <p className="text-xs text-muted-foreground">Tap to reveal or hide status controls.</p>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setStatusOpen((open) => !open)}
+                className="flex items-center gap-2"
+              >
+                {statusOpen ? "Hide" : "Show"}
+                <ChevronDown className={`h-4 w-4 transition-transform ${statusOpen ? "rotate-180" : "rotate-0"}`} />
+              </Button>
+            </CardHeader>
+            {statusOpen && (
+              <CardContent className="space-y-3">
+                <div className="space-y-2">
+                  {statusOptions.map((option) => (
+                    <label key={option.value} className="flex items-center gap-3 rounded-lg border p-3 hover:border-primary/70">
+                      <input
+                        type="radio"
+                        name="complaintStatus"
+                        value={option.value}
+                        checked={statusSelection === option.value}
+                        onChange={() => setStatusSelection(option.value)}
+                        className="h-4 w-4"
+                      />
+                      <span className="text-sm">{option.label}</span>
+                    </label>
+                  ))}
+                </div>
+                <Button
+                  onClick={handleUpdateStatus}
+                  disabled={!statusSelection || statusSelection === complaint.status || updating}
+                  className="w-full"
+                >
+                  Update Status
+                </Button>
+              </CardContent>
+            )}
+          </Card>
+
           {/* Assignment */}
           <Card>
             <CardHeader>

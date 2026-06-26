@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import { useSearchParams } from "next/navigation"
 import API_URL from "@/lib/apiBase"
 import { getToken } from "@/lib/auth"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -83,10 +84,46 @@ export default function BulkSmsPage() {
     message: "",
   })
 
+  const searchParams = useSearchParams()
+
   const headers = useMemo(() => ({
     "Content-Type": "application/json",
     Authorization: `Bearer ${getToken()}`,
   }), [])
+
+  useEffect(() => {
+    if (!searchParams) return
+
+    const selectedKeys = searchParams.getAll("selectedKey")
+    const extraSelected = searchParams.get("selectedKeys")
+    const keys = new Set<string>()
+
+    selectedKeys.forEach((value) => {
+      const decoded = decodeURIComponent(value || "").trim()
+      if (decoded) keys.add(decoded)
+    })
+
+    if (extraSelected) {
+      extraSelected.split(",").forEach((value) => {
+        const decoded = decodeURIComponent(value || "").trim()
+        if (decoded) keys.add(decoded)
+      })
+    }
+
+    if (keys.size > 0) {
+      setSelectedKeys(keys)
+    }
+
+    const message = searchParams.get("message")
+    if (message) {
+      setCampaign((prev) => ({ ...prev, message }))
+    }
+
+    const name = searchParams.get("name")
+    if (name) {
+      setCampaign((prev) => ({ ...prev, name }))
+    }
+  }, [searchParams])
 
   const queryString = useMemo(() => {
     const params = new URLSearchParams()

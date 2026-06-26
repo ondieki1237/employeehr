@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
 import {
   Select,
@@ -16,13 +17,14 @@ import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
 import { API_URL } from "@/lib/apiBase"
 import { getToken } from "@/lib/auth"
-import { AlertCircle, CheckCircle2, Clock, AlertTriangle, Plus } from "lucide-react"
+import { AlertCircle, CheckCircle2, Clock, AlertTriangle, Plus, MessageSquare } from "lucide-react"
 
 interface Complaint {
   _id: string
   complaintId: string
   clientName: string
   clientNumber: string
+  clientLocation?: string
   title: string
   description: string
   status: string
@@ -44,6 +46,10 @@ export default function ComplaintsPage() {
   const [statusFilter, setStatusFilter] = useState("")
   const [priorityFilter, setPriorityFilter] = useState("")
   const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(null)
+  const [smsOpen, setSmsOpen] = useState(false)
+  const [smsMessage, setSmsMessage] = useState("")
+  const [smsSending, setSmsSending] = useState(false)
+  const [smsResult, setSmsResult] = useState<string | null>(null)
   const [stats, setStats] = useState({
     total: 0,
     open: 0,
@@ -127,6 +133,50 @@ export default function ComplaintsPage() {
         return <Clock className="h-4 w-4 text-yellow-500" />
       default:
         return <CheckCircle2 className="h-4 w-4 text-green-500" />
+    }
+  }
+
+  const buildBulkSmsKey = (phone: string, name: string, location?: string) => {
+    const normalize = (value: string) => String(value || "").trim().toLowerCase().replace(/\s+/g, " ")
+    return [normalize(phone), normalize(name), normalize(location || "")].join("|")
+  }
+
+  const handleToggleSms = () => {
+    setSmsOpen((open) => !open)
+    setSmsResult(null)
+  }
+
+  const handleSendSms = async () => {
+    if (!selectedComplaint) return
+    if (!smsMessage.trim()) {
+      setSmsResult("Message is required")
+      return
+    }
+
+    try {
+      setSmsSending(true)
+      setSmsResult(null)
+      const response = await fetch(`${API_URL}/api/stock/bulk-sms/campaigns`, {
+        method: "POST",
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          name: selectedComplaint.complaintId,
+          message: smsMessage.trim(),
+          filters: {},
+          selectedRecipientKeys: [
+            buildBulkSmsKey(selectedComplaint.clientNumber, selectedComplaint.clientName, selectedComplaint.clientLocation || ""),
+          ],
+        }),
+      })
+      const json = await response.json()
+      if (!response.ok) throw new Error(json.message || "Failed to send SMS")
+
+      setSmsResult(`SMS sent successfully to ${selectedComplaint.clientNumber}`)
+      setSmsMessage("")
+    } catch (error: any) {
+      setSmsResult(error?.message || "Failed to send SMS")
+    } finally {
+      setSmsSending(false)
     }
   }
 
@@ -385,6 +435,39 @@ export default function ComplaintsPage() {
                     </div>
                   </div>
                 )}
+
+                {/* SMS Composer */}
+                <div className="rounded border p-4">
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <h3 className="font-semibold">Send SMS to client</h3>
+                      <p className="text-xs text-muted-foreground">Use the existing bulk SMS route inline.</p>
+                    </div>
+                    <Button size="sm" variant="outline" onClick={handleToggleSms}>
+                      {smsOpen ? "Hide" : "Show"}
+                    </Button>
+                  </div>
+
+                  {smsOpen && (
+                    <div className="mt-4 space-y-3">
+                      <Textarea
+                        value={smsMessage}
+                        onChange={(e) => setSmsMessage(e.target.value)}
+                        rows={4}
+                        placeholder={`Hi ${selectedComplaint.clientName}, `}
+                      />
+                      {smsResult && (
+                        <p className={`text-sm ${smsResult.includes("success") ? "text-green-600" : "text-red-600"}`}>
+                          {smsResult}
+                        </p>
+                      )}
+                      <Button onClick={handleSendSms} disabled={smsSending} className="w-full">
+                        <MessageSquare className="h-4 w-4 mr-2" />
+                        {smsSending ? "Sending SMS..." : "Send SMS"}
+                      </Button>
+                    </div>
+                  )}
+                </div>
 
                 {/* Action Button */}
                 <Button
