@@ -127,6 +127,12 @@ const adminMenuItems = [
     section: "INVENTORY MANAGER"
   },
   {
+    label: "Warehouse Management",
+    icon: Package,
+    href: "/admin/stock/wms",
+    section: "INVENTORY MANAGER"
+  },
+  {
     label: "Sales",
     icon: Package,
     href: "/admin/stock/sales",

@@ -1,62 +1,73 @@
-import type { Response } from "express"
-import type { AuthenticatedRequest } from "../middleware/auth"
-import { promises as fs } from "fs"
-import path from "path"
-import sharp from "sharp"
-import { StockCategory } from "../models/StockCategory"
-import { StockProduct } from "../models/StockProduct"
-import { StockEntry } from "../models/StockEntry"
-import { StockSale } from "../models/StockSale"
-import { StockQuotation } from "../models/StockQuotation"
-import { QuotationFollowUp } from "../models/QuotationFollowUp"
-import { StockInvoice } from "../models/StockInvoice"
-import { StockCourier } from "../models/StockCourier"
-import { StockClient } from "../models/StockClient"
-import { StockExpense } from "../models/StockExpense"
-import { StockRepeatBill } from "../models/StockRepeatBill"
-import { StockInvoicePayment } from "../models/StockInvoicePayment"
-import { CreditNote } from "../models/CreditNote"
-import { DispatchNotification } from "../models/DispatchNotification"
-import { BulkSmsCampaign } from "../models/BulkSmsCampaign"
-import { Task } from "../models/Task"
-import { Company } from "../models/Company"
-import { Branch } from "../models/Branch"
-import { User } from "../models/User"
-import emailService from "../services/email.service"
-import { smsService } from "../services/sms.service"
-import { mpesaService } from "../services/mpesa.service"
-import { StockServiceJob } from "../models/StockServiceJob"
-import { StockManufacturer } from "../models/StockManufacturer"
+import type { Response } from "express";
+import type { AuthenticatedRequest } from "../middleware/auth";
+import { promises as fs } from "fs";
+import path from "path";
+import sharp from "sharp";
+import { StockCategory } from "../models/StockCategory";
+import { StockProduct } from "../models/StockProduct";
+import { StockEntry } from "../models/StockEntry";
+import { StockSale } from "../models/StockSale";
+import { StockQuotation } from "../models/StockQuotation";
+import { QuotationFollowUp } from "../models/QuotationFollowUp";
+import { StockInvoice } from "../models/StockInvoice";
+import { StockCourier } from "../models/StockCourier";
+import { StockClient } from "../models/StockClient";
+import { StockExpense } from "../models/StockExpense";
+import { StockRepeatBill } from "../models/StockRepeatBill";
+import { StockInvoicePayment } from "../models/StockInvoicePayment";
+import { CreditNote } from "../models/CreditNote";
+import { DispatchNotification } from "../models/DispatchNotification";
+import { BulkSmsCampaign } from "../models/BulkSmsCampaign";
+import { Task } from "../models/Task";
+import { Company } from "../models/Company";
+import { Branch } from "../models/Branch";
+import { User } from "../models/User";
+import emailService from "../services/email.service";
+import { smsService } from "../services/sms.service";
+import { mpesaService } from "../services/mpesa.service";
+import { StockServiceJob } from "../models/StockServiceJob";
+import { StockManufacturer } from "../models/StockManufacturer";
+import { StockLocation } from "../models/StockLocation";
+import { StockProductLocation } from "../models/StockProductLocation";
 
-const ADMIN_ROLES = ["company_admin", "hr", "admin", "super_admin"]
+const ADMIN_ROLES = ["company_admin", "hr", "admin", "super_admin"];
 
 function isAdminRole(role?: string) {
-  return !!role && ADMIN_ROLES.includes(role)
+  return !!role && ADMIN_ROLES.includes(role);
 }
 
 function generateDocumentNumber(prefix: string) {
-  const ts = Date.now().toString().slice(-8)
-  const rand = Math.floor(Math.random() * 9000 + 1000)
-  return `${prefix}-${ts}-${rand}`
+  const ts = Date.now().toString().slice(-8);
+  const rand = Math.floor(Math.random() * 9000 + 1000);
+  return `${prefix}-${ts}-${rand}`;
 }
 
 function normalizeClientValue(value: string) {
-  return String(value || "").trim().toLowerCase().replace(/\s+/g, " ")
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
 }
 
 function buildClientSourceKey(client: {
-  name?: string
-  number?: string
-  location?: string
-  sourceName?: string
-  sourceNumber?: string
-  sourceLocation?: string
+  name?: string;
+  number?: string;
+  location?: string;
+  sourceName?: string;
+  sourceNumber?: string;
+  sourceLocation?: string;
 }) {
   return {
-    sourceName: normalizeClientValue(String(client?.sourceName || client?.name || "")),
-    sourceNumber: normalizeClientValue(String(client?.sourceNumber || client?.number || "")),
-    sourceLocation: normalizeClientValue(String(client?.sourceLocation || client?.location || "")),
-  }
+    sourceName: normalizeClientValue(
+      String(client?.sourceName || client?.name || ""),
+    ),
+    sourceNumber: normalizeClientValue(
+      String(client?.sourceNumber || client?.number || ""),
+    ),
+    sourceLocation: normalizeClientValue(
+      String(client?.sourceLocation || client?.location || ""),
+    ),
+  };
 }
 
 function parseBuyingPrice(row: Record<string, string>) {
@@ -66,7 +77,7 @@ function parseBuyingPrice(row: Record<string, string>) {
       row.startingPrice ||
       row["Starting Price"] ||
       "0",
-  )
+  );
 }
 
 function buildBulkSmsClientKey(phone: string, name: string, location: string) {
@@ -74,47 +85,57 @@ function buildBulkSmsClientKey(phone: string, name: string, location: string) {
     normalizeClientValue(phone),
     normalizeClientValue(name),
     normalizeClientValue(location),
-  ].join("|")
+  ].join("|");
 }
 
 function uniqueStrings(values: string[]) {
-  return Array.from(new Set(values.map((value) => String(value || "").trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b))
+  return Array.from(
+    new Set(values.map((value) => String(value || "").trim()).filter(Boolean)),
+  ).sort((a, b) => a.localeCompare(b));
 }
 
 type BulkSmsAudienceClient = {
-  key: string
-  name: string
-  phone: string
-  location: string
-  contactPerson?: string
-  branchId?: string
-  quotationsCount: number
-  pendingQuotationsCount: number
-  quotationNumbers: string[]
-  quotedProductIds: string[]
-  invoicesCount: number
-  purchasesValue: number
-  lastPurchaseAt?: Date
-  sources: string[]
-}
+  key: string;
+  name: string;
+  phone: string;
+  location: string;
+  contactPerson?: string;
+  branchId?: string;
+  quotationsCount: number;
+  pendingQuotationsCount: number;
+  quotationNumbers: string[];
+  quotedProductIds: string[];
+  invoicesCount: number;
+  purchasesValue: number;
+  lastPurchaseAt?: Date;
+  sources: string[];
+};
 
 function upsertBulkSmsClient(
   map: Map<string, BulkSmsAudienceClient>,
-  client: { name?: string; number?: string; location?: string; contactPerson?: string; branchId?: string },
+  client: {
+    name?: string;
+    number?: string;
+    location?: string;
+    contactPerson?: string;
+    branchId?: string;
+  },
   source: string,
 ) {
-  const phone = String(client?.number || "").trim()
-  const name = String(client?.name || "").trim()
-  const location = String(client?.location || "").trim()
-  if (!phone || !name) return null
+  const phone = String(client?.number || "").trim();
+  const name = String(client?.name || "").trim();
+  const location = String(client?.location || "").trim();
+  if (!phone || !name) return null;
 
-  const key = buildBulkSmsClientKey(phone, name, location)
-  const existing = map.get(key)
+  const key = buildBulkSmsClientKey(phone, name, location);
+  const existing = map.get(key);
   if (existing) {
-    if (client?.contactPerson && !existing.contactPerson) existing.contactPerson = String(client.contactPerson).trim()
-    if (client?.branchId && !existing.branchId) existing.branchId = String(client.branchId).trim()
-    if (!existing.sources.includes(source)) existing.sources.push(source)
-    return existing
+    if (client?.contactPerson && !existing.contactPerson)
+      existing.contactPerson = String(client.contactPerson).trim();
+    if (client?.branchId && !existing.branchId)
+      existing.branchId = String(client.branchId).trim();
+    if (!existing.sources.includes(source)) existing.sources.push(source);
+    return existing;
   }
 
   const row: BulkSmsAudienceClient = {
@@ -122,7 +143,9 @@ function upsertBulkSmsClient(
     name,
     phone,
     location,
-    contactPerson: client?.contactPerson ? String(client.contactPerson).trim() : undefined,
+    contactPerson: client?.contactPerson
+      ? String(client.contactPerson).trim()
+      : undefined,
     branchId: client?.branchId ? String(client.branchId).trim() : undefined,
     quotationsCount: 0,
     pendingQuotationsCount: 0,
@@ -131,20 +154,33 @@ function upsertBulkSmsClient(
     invoicesCount: 0,
     purchasesValue: 0,
     sources: [source],
-  }
-  map.set(key, row)
-  return row
+  };
+  map.set(key, row);
+  return row;
 }
 
-async function buildBulkSmsAudience(orgId: string, filters: Record<string, any> = {}) {
+async function buildBulkSmsAudience(
+  orgId: string,
+  filters: Record<string, any> = {},
+) {
   const [savedClients, quotations, invoices, sales] = await Promise.all([
     StockClient.find({ org_id: orgId }).lean(),
-    StockQuotation.find({ org_id: orgId }).select("client quotationNumber status subTotal createdAt items.productId").lean(),
-    StockInvoice.find({ org_id: orgId, status: { $ne: "cancelled" } }).select("client invoiceNumber quotationNumber subTotal createdAt").lean(),
-    StockSale.find({ org_id: orgId, isWalkInClient: { $ne: true } }).select("buyerName buyerNumber buyerLocation quantitySold soldPrice createdAt").lean(),
-  ])
+    StockQuotation.find({ org_id: orgId })
+      .select(
+        "client quotationNumber status subTotal createdAt items.productId",
+      )
+      .lean(),
+    StockInvoice.find({ org_id: orgId, status: { $ne: "cancelled" } })
+      .select("client invoiceNumber quotationNumber subTotal createdAt")
+      .lean(),
+    StockSale.find({ org_id: orgId, isWalkInClient: { $ne: true } })
+      .select(
+        "buyerName buyerNumber buyerLocation quantitySold soldPrice createdAt",
+      )
+      .lean(),
+  ]);
 
-  const map = new Map<string, BulkSmsAudienceClient>()
+  const map = new Map<string, BulkSmsAudienceClient>();
 
   savedClients.forEach((client: any) => {
     upsertBulkSmsClient(
@@ -156,39 +192,50 @@ async function buildBulkSmsAudience(orgId: string, filters: Record<string, any> 
         branchId: String(client.branchId || ""),
       },
       "saved_client",
-    )
-  })
+    );
+  });
 
   quotations.forEach((quotation: any) => {
-    const row = upsertBulkSmsClient(map, quotation.client, "quotation")
-    if (!row) return
-    row.quotationsCount += 1
-    if (quotation.status === "draft" || quotation.status === "pending_approval") row.pendingQuotationsCount += 1
-    if (quotation.quotationNumber && !row.quotationNumbers.includes(quotation.quotationNumber)) {
-      row.quotationNumbers.push(quotation.quotationNumber)
+    const row = upsertBulkSmsClient(map, quotation.client, "quotation");
+    if (!row) return;
+    row.quotationsCount += 1;
+    if (quotation.status === "draft" || quotation.status === "pending_approval")
+      row.pendingQuotationsCount += 1;
+    if (
+      quotation.quotationNumber &&
+      !row.quotationNumbers.includes(quotation.quotationNumber)
+    ) {
+      row.quotationNumbers.push(quotation.quotationNumber);
     }
     if (quotation.items && Array.isArray(quotation.items)) {
       quotation.items.forEach((item: any) => {
-        if (item.productId && !row.quotedProductIds.includes(String(item.productId))) {
-          row.quotedProductIds.push(String(item.productId))
+        if (
+          item.productId &&
+          !row.quotedProductIds.includes(String(item.productId))
+        ) {
+          row.quotedProductIds.push(String(item.productId));
         }
-      })
+      });
     }
-  })
+  });
 
   invoices.forEach((invoice: any) => {
-    const row = upsertBulkSmsClient(map, invoice.client, "invoice")
-    if (!row) return
-    row.invoicesCount += 1
-    row.purchasesValue += Number(invoice.subTotal || 0)
-    const createdAt = invoice.createdAt ? new Date(invoice.createdAt) : null
+    const row = upsertBulkSmsClient(map, invoice.client, "invoice");
+    if (!row) return;
+    row.invoicesCount += 1;
+    row.purchasesValue += Number(invoice.subTotal || 0);
+    const createdAt = invoice.createdAt ? new Date(invoice.createdAt) : null;
     if (createdAt && !Number.isNaN(createdAt.getTime())) {
-      if (!row.lastPurchaseAt || createdAt > row.lastPurchaseAt) row.lastPurchaseAt = createdAt
+      if (!row.lastPurchaseAt || createdAt > row.lastPurchaseAt)
+        row.lastPurchaseAt = createdAt;
     }
-    if (invoice.quotationNumber && !row.quotationNumbers.includes(invoice.quotationNumber)) {
-      row.quotationNumbers.push(invoice.quotationNumber)
+    if (
+      invoice.quotationNumber &&
+      !row.quotationNumbers.includes(invoice.quotationNumber)
+    ) {
+      row.quotationNumbers.push(invoice.quotationNumber);
     }
-  })
+  });
 
   sales.forEach((sale: any) => {
     const row = upsertBulkSmsClient(
@@ -199,43 +246,56 @@ async function buildBulkSmsAudience(orgId: string, filters: Record<string, any> 
         location: sale.buyerLocation,
       },
       "sale",
-    )
-    if (!row) return
-    row.invoicesCount += 1
-    row.purchasesValue += Number(sale.soldPrice || 0) * Number(sale.quantitySold || 0)
-    const createdAt = sale.createdAt ? new Date(sale.createdAt) : null
+    );
+    if (!row) return;
+    row.invoicesCount += 1;
+    row.purchasesValue +=
+      Number(sale.soldPrice || 0) * Number(sale.quantitySold || 0);
+    const createdAt = sale.createdAt ? new Date(sale.createdAt) : null;
     if (createdAt && !Number.isNaN(createdAt.getTime())) {
-      if (!row.lastPurchaseAt || createdAt > row.lastPurchaseAt) row.lastPurchaseAt = createdAt
+      if (!row.lastPurchaseAt || createdAt > row.lastPurchaseAt)
+        row.lastPurchaseAt = createdAt;
     }
-  })
+  });
 
-  const search = String(filters.search || "").trim().toLowerCase()
-  const audienceType = String(filters.audienceType || "all")
-  const region = String(filters.region || "").trim().toLowerCase()
-  const quotationProductId = String(filters.quotationProductId || "").trim()
-  const branchId = String(filters.branchId || "").trim()
-  const inactiveDays = Math.max(1, Number(filters.inactiveDays || 90))
-  const inactiveCutoff = new Date()
-  inactiveCutoff.setDate(inactiveCutoff.getDate() - inactiveDays)
+  const search = String(filters.search || "")
+    .trim()
+    .toLowerCase();
+  const audienceType = String(filters.audienceType || "all");
+  const region = String(filters.region || "")
+    .trim()
+    .toLowerCase();
+  const quotationProductId = String(filters.quotationProductId || "").trim();
+  const branchId = String(filters.branchId || "").trim();
+  const inactiveDays = Math.max(1, Number(filters.inactiveDays || 90));
+  const inactiveCutoff = new Date();
+  inactiveCutoff.setDate(inactiveCutoff.getDate() - inactiveDays);
 
-  let clients = Array.from(map.values())
+  let clients = Array.from(map.values());
 
   if (region) {
-    clients = clients.filter((client) => client.location.toLowerCase().includes(region))
+    clients = clients.filter((client) =>
+      client.location.toLowerCase().includes(region),
+    );
   }
 
   if (audienceType === "pending_quotations") {
-    clients = clients.filter((client) => client.pendingQuotationsCount > 0)
+    clients = clients.filter((client) => client.pendingQuotationsCount > 0);
   } else if (audienceType === "quotation_product") {
     clients = quotationProductId
-      ? clients.filter((client) => client.quotedProductIds.includes(quotationProductId))
-      : []
+      ? clients.filter((client) =>
+          client.quotedProductIds.includes(quotationProductId),
+        )
+      : [];
   } else if (audienceType === "branch") {
     clients = branchId
       ? clients.filter((client) => client.branchId === branchId)
-      : []
+      : [];
   } else if (audienceType === "inactive") {
-    clients = clients.filter((client) => !client.lastPurchaseAt || client.lastPurchaseAt < inactiveCutoff)
+    clients = clients.filter(
+      (client) =>
+        !client.lastPurchaseAt || client.lastPurchaseAt < inactiveCutoff,
+    );
   }
 
   if (search) {
@@ -246,11 +306,14 @@ async function buildBulkSmsAudience(orgId: string, filters: Record<string, any> 
         client.location,
         client.contactPerson || "",
         client.quotationNumbers.join(" "),
-      ].join(" ").toLowerCase().includes(search),
-    )
+      ]
+        .join(" ")
+        .toLowerCase()
+        .includes(search),
+    );
   }
 
-  clients = clients.sort((a, b) => a.name.localeCompare(b.name))
+  clients = clients.sort((a, b) => a.name.localeCompare(b.name));
 
   return {
     clients: clients.map((client) => ({
@@ -260,10 +323,14 @@ async function buildBulkSmsAudience(orgId: string, filters: Record<string, any> 
     })),
     meta: {
       total: clients.length,
-      regions: uniqueStrings(Array.from(map.values()).map((client) => client.location)),
-      quotationNumbers: uniqueStrings(Array.from(map.values()).flatMap((client) => client.quotationNumbers)),
+      regions: uniqueStrings(
+        Array.from(map.values()).map((client) => client.location),
+      ),
+      quotationNumbers: uniqueStrings(
+        Array.from(map.values()).flatMap((client) => client.quotationNumbers),
+      ),
     },
-  }
+  };
 }
 
 function splitPhoneList(raw: string) {
@@ -274,107 +341,114 @@ function splitPhoneList(raw: string) {
         .map((value) => value.trim())
         .filter(Boolean),
     ),
-  )
+  );
 }
 
 function parseCsvLine(line: string): string[] {
-  const cells: string[] = []
-  let current = ""
-  let inQuotes = false
+  const cells: string[] = [];
+  let current = "";
+  let inQuotes = false;
 
   for (let index = 0; index < line.length; index += 1) {
-    const char = line[index]
+    const char = line[index];
 
     if (char === '"') {
       if (inQuotes && line[index + 1] === '"') {
-        current += '"'
-        index += 1
+        current += '"';
+        index += 1;
       } else {
-        inQuotes = !inQuotes
+        inQuotes = !inQuotes;
       }
-      continue
+      continue;
     }
 
     if (char === "," && !inQuotes) {
-      cells.push(current.trim())
-      current = ""
-      continue
+      cells.push(current.trim());
+      current = "";
+      continue;
     }
 
-    current += char
+    current += char;
   }
 
-  cells.push(current.trim())
-  return cells
+  cells.push(current.trim());
+  return cells;
 }
 
 function parseCsv(content: string): Array<Record<string, string>> {
   const lines = content
     .split(/\r?\n/)
     .map((line) => line.trimEnd())
-    .filter((line) => line.length > 0)
+    .filter((line) => line.length > 0);
 
-  if (lines.length < 1) return []
+  if (lines.length < 1) return [];
 
-  const headers = parseCsvLine(lines[0]).map((header) => header.trim())
+  const headers = parseCsvLine(lines[0]).map((header) => header.trim());
 
   return lines.slice(1).map((line) => {
-    const values = parseCsvLine(line)
-    const row: Record<string, string> = {}
+    const values = parseCsvLine(line);
+    const row: Record<string, string> = {};
     headers.forEach((header, headerIndex) => {
-      row[header] = values[headerIndex] ?? ""
-    })
-    return row
-  })
+      row[header] = values[headerIndex] ?? "";
+    });
+    return row;
+  });
 }
 
 function parseAmount(value: string): number {
   const normalized = String(value || "")
     .replace(/,/g, "")
     .replace(/\s/g, "")
-    .replace(/[^0-9.-]/g, "")
-  const numeric = Number(normalized)
-  return Number.isFinite(numeric) ? numeric : 0
+    .replace(/[^0-9.-]/g, "");
+  const numeric = Number(normalized);
+  return Number.isFinite(numeric) ? numeric : 0;
 }
 
 function parseDate(value: string): Date {
-  const input = String(value || "").trim()
-  if (!input) return new Date()
+  const input = String(value || "").trim();
+  if (!input) return new Date();
 
   if (/^\d{2}\/\d{2}\/\d{4}$/.test(input)) {
-    const [day, month, year] = input.split("/").map((n) => Number(n))
-    return new Date(Date.UTC(year, month - 1, day, 0, 0, 0))
+    const [day, month, year] = input.split("/").map((n) => Number(n));
+    return new Date(Date.UTC(year, month - 1, day, 0, 0, 0));
   }
 
-  const date = new Date(input)
-  if (Number.isNaN(date.getTime())) return new Date()
-  return date
+  const date = new Date(input);
+  if (Number.isNaN(date.getTime())) return new Date();
+  return date;
 }
 
 function buildPackagingTaskContext(invoice: any) {
-  const invoiceNumber = String(invoice?.invoiceNumber || "").trim()
-  const clientName = String(invoice?.client?.name || "Client").trim() || "Client"
-  const itemCount = Array.isArray(invoice?.items) ? invoice.items.length : 0
+  const invoiceNumber = String(invoice?.invoiceNumber || "").trim();
+  const clientName =
+    String(invoice?.client?.name || "Client").trim() || "Client";
+  const itemCount = Array.isArray(invoice?.items) ? invoice.items.length : 0;
   const packedCount = Array.isArray(invoice?.dispatch?.packingItems)
-    ? invoice.dispatch.packingItems.filter((item: any) => Number(item.packedQuantity || 0) >= Number(item.requiredQuantity || 0)).length
-    : 0
+    ? invoice.dispatch.packingItems.filter(
+        (item: any) =>
+          Number(item.packedQuantity || 0) >=
+          Number(item.requiredQuantity || 0),
+      ).length
+    : 0;
 
   return {
     title: `Packaging duty: ${invoiceNumber}`,
     description: `Pack items for ${clientName}. Invoice ${invoiceNumber} has ${itemCount} item line(s). Packed lines: ${packedCount}/${itemCount}.`,
-  }
+  };
 }
 
 async function upsertPackagingDutyTask(params: {
-  orgId: string
-  invoice: any
-  assignedToUserId: string
-  assignedByUserId: string
-  status: "pending" | "in_progress" | "completed"
+  orgId: string;
+  invoice: any;
+  assignedToUserId: string;
+  assignedByUserId: string;
+  status: "pending" | "in_progress" | "completed";
 }) {
-  const { orgId, invoice, assignedToUserId, assignedByUserId, status } = params
-  const context = buildPackagingTaskContext(invoice)
-  const dueDate = invoice?.dispatch?.assignedAt ? new Date(invoice.dispatch.assignedAt) : new Date()
+  const { orgId, invoice, assignedToUserId, assignedByUserId, status } = params;
+  const context = buildPackagingTaskContext(invoice);
+  const dueDate = invoice?.dispatch?.assignedAt
+    ? new Date(invoice.dispatch.assignedAt)
+    : new Date();
 
   const task = await Task.findOneAndUpdate(
     {
@@ -397,7 +471,10 @@ async function upsertPackagingDutyTask(params: {
         source_label: "Packaging",
         source_status: String(invoice?.dispatch?.status || "assigned"),
         is_packaging_duty: true,
-        notes: status === "completed" ? "Packing completed from dispatch workflow" : undefined,
+        notes:
+          status === "completed"
+            ? "Packing completed from dispatch workflow"
+            : undefined,
         completed_at: status === "completed" ? new Date() : undefined,
       },
       $setOnInsert: {
@@ -405,27 +482,37 @@ async function upsertPackagingDutyTask(params: {
       },
     },
     { upsert: true, new: true },
-  )
+  );
 
-  return task
+  return task;
 }
 
 function buildInvoicePaymentSummary(invoice: any, invoicePayments: any[]) {
   const sortedPayments = [...invoicePayments].sort(
-    (a, b) => new Date(b.paidAt || b.createdAt || 0).getTime() - new Date(a.paidAt || a.createdAt || 0).getTime(),
-  )
-  const paidAmount = sortedPayments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0)
-  const subTotal = Number(invoice?.subTotal || 0)
-  const balanceRemaining = Math.max(0, Number((subTotal - paidAmount).toFixed(2)))
-  const lastPayment = sortedPayments[0] || null
+    (a, b) =>
+      new Date(b.paidAt || b.createdAt || 0).getTime() -
+      new Date(a.paidAt || a.createdAt || 0).getTime(),
+  );
+  const paidAmount = sortedPayments.reduce(
+    (sum, payment) => sum + Number(payment.amount || 0),
+    0,
+  );
+  const subTotal = Number(invoice?.subTotal || 0);
+  const balanceRemaining = Math.max(
+    0,
+    Number((subTotal - paidAmount).toFixed(2)),
+  );
+  const lastPayment = sortedPayments[0] || null;
 
   // Compute a suggested next payment / debt-claiming date when there is still a balance.
   // Default policy: schedule next claim 30 days after the latest payment (or invoice creation if no payments).
-  let nextPaymentDate: string | undefined = undefined
+  let nextPaymentDate: string | undefined = undefined;
   if (balanceRemaining > 0) {
-    const base = lastPayment ? new Date(lastPayment.paidAt || lastPayment.createdAt || Date.now()) : new Date(invoice.createdAt || Date.now())
-    const next = new Date(base.getTime() + 30 * 24 * 60 * 60 * 1000) // 30 days after base
-    nextPaymentDate = next.toISOString()
+    const base = lastPayment
+      ? new Date(lastPayment.paidAt || lastPayment.createdAt || Date.now())
+      : new Date(invoice.createdAt || Date.now());
+    const next = new Date(base.getTime() + 30 * 24 * 60 * 60 * 1000); // 30 days after base
+    nextPaymentDate = next.toISOString();
   }
 
   return {
@@ -436,65 +523,88 @@ function buildInvoicePaymentSummary(invoice: any, invoicePayments: any[]) {
     lastPayment,
     payments: sortedPayments,
     nextPaymentDate,
-  }
+  };
 }
 
 function canManageDispatchForInvoice(req: AuthenticatedRequest, invoice: any) {
-  const userId = String(req.user?.userId || "")
-  if (!userId) return false
-  if (isAdminRole(req.user?.role)) return true
-  return String(invoice?.dispatch?.assignedToUserId || "") === userId
+  const userId = String(req.user?.userId || "");
+  if (!userId) return false;
+  if (isAdminRole(req.user?.role)) return true;
+  return String(invoice?.dispatch?.assignedToUserId || "") === userId;
 }
 
 function computePackingCompletion(
   packingItems: Array<{ requiredQuantity: number; packedQuantity: number }>,
 ) {
-  if (!packingItems.length) return false
-  return packingItems.every((item) => Number(item.packedQuantity || 0) >= Number(item.requiredQuantity || 0))
+  if (!packingItems.length) return false;
+  return packingItems.every(
+    (item) =>
+      Number(item.packedQuantity || 0) >= Number(item.requiredQuantity || 0),
+  );
 }
 
 function withOptionalDispatchObjects(baseDispatch: any, sourceDispatch: any) {
-  const nextDispatch: any = { ...baseDispatch }
-  if (sourceDispatch?.courier) nextDispatch.courier = sourceDispatch.courier
-  if (sourceDispatch?.delivery) nextDispatch.delivery = sourceDispatch.delivery
-  if (sourceDispatch?.transportMeans) nextDispatch.transportMeans = sourceDispatch.transportMeans
-  if (sourceDispatch?.dispatchedAt) nextDispatch.dispatchedAt = sourceDispatch.dispatchedAt
-  if (sourceDispatch?.dispatchedByUserId) nextDispatch.dispatchedByUserId = sourceDispatch.dispatchedByUserId
-  return nextDispatch
+  const nextDispatch: any = { ...baseDispatch };
+  if (sourceDispatch?.courier) nextDispatch.courier = sourceDispatch.courier;
+  if (sourceDispatch?.delivery) nextDispatch.delivery = sourceDispatch.delivery;
+  if (sourceDispatch?.transportMeans)
+    nextDispatch.transportMeans = sourceDispatch.transportMeans;
+  if (sourceDispatch?.dispatchedAt)
+    nextDispatch.dispatchedAt = sourceDispatch.dispatchedAt;
+  if (sourceDispatch?.dispatchedByUserId)
+    nextDispatch.dispatchedByUserId = sourceDispatch.dispatchedByUserId;
+  return nextDispatch;
 }
 
 async function buildQuotationItems(
   orgId: string,
-  items: Array<{ productId?: string; productName?: string; quantity: number; unitPrice?: number; isOutsourced?: boolean; description?: string }>,
+  items: Array<{
+    productId?: string;
+    productName?: string;
+    quantity: number;
+    unitPrice?: number;
+    isOutsourced?: boolean;
+    description?: string;
+  }>,
 ) {
   if (!Array.isArray(items) || items.length === 0) {
-    throw new Error("At least one item is required")
+    throw new Error("At least one item is required");
   }
 
-  const productIds = [...new Set(items.map((item) => item.productId).filter(Boolean))]
-  const products = await StockProduct.find({ _id: { $in: productIds }, org_id: orgId }).lean()
-  const productMap = new Map(products.map((product) => [String(product._id), product]))
+  const productIds = [
+    ...new Set(items.map((item) => item.productId).filter(Boolean)),
+  ];
+  const products = await StockProduct.find({
+    _id: { $in: productIds },
+    org_id: orgId,
+  }).lean();
+  const productMap = new Map(
+    products.map((product) => [String(product._id), product]),
+  );
 
-  const result = []
+  const result = [];
   for (const item of items) {
-    const quantity = Number(item.quantity)
+    const quantity = Number(item.quantity);
     if (!Number.isFinite(quantity) || quantity <= 0) {
-      throw new Error("Invalid quantity")
+      throw new Error("Invalid quantity");
     }
 
-    const isOutsourced = Boolean(item.isOutsourced)
+    const isOutsourced = Boolean(item.isOutsourced);
     if (isOutsourced) {
-      const manualName = String(item.productName || "").trim()
+      const manualName = String(item.productName || "").trim();
       if (!manualName) {
-        throw new Error("Outsourced items require a product name")
+        throw new Error("Outsourced items require a product name");
       }
 
-      const unitPrice = Number(item.unitPrice)
+      const unitPrice = Number(item.unitPrice);
       if (!Number.isFinite(unitPrice) || unitPrice < 0) {
-        throw new Error(`Invalid unit price for ${manualName}`)
+        throw new Error(`Invalid unit price for ${manualName}`);
       }
 
-      const fallbackId = `outsourced:${manualName.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "")}`
+      const fallbackId = `outsourced:${manualName
+        .toLowerCase()
+        .replace(/\s+/g, "-")
+        .replace(/[^a-z0-9-]/g, "")}`;
 
       result.push({
         productId: String(item.productId || fallbackId),
@@ -506,36 +616,46 @@ async function buildQuotationItems(
         lineTotal: Number((quantity * unitPrice).toFixed(2)),
         description: item.description,
         isOutsourced: true,
-      })
-      continue
+      });
+      continue;
     }
 
-    const product = productMap.get(String(item.productId))
+    const product = productMap.get(String(item.productId));
     if (!product) {
-      throw new Error(`Product not found: ${item.productId}`)
+      throw new Error(`Product not found: ${item.productId}`);
     }
 
     if (!String(product._id)) {
-      throw new Error(`Invalid product selection for ${product.name}`)
+      throw new Error(`Invalid product selection for ${product.name}`);
     }
 
-    const unitPrice = item.unitPrice !== undefined && item.unitPrice !== null
-      ? Number(item.unitPrice)
-      : Number(product.sellingPrice)
+    const unitPrice =
+      item.unitPrice !== undefined && item.unitPrice !== null
+        ? Number(item.unitPrice)
+        : Number(product.sellingPrice);
 
-    const minimumSellingPrice = Number(product.sellingPrice)
+    const minimumSellingPrice = Number(product.sellingPrice);
 
     if (!Number.isFinite(unitPrice) || unitPrice < 0) {
-      throw new Error(`Invalid unit price for ${product.name}`)
+      throw new Error(`Invalid unit price for ${product.name}`);
     }
 
     if (unitPrice < minimumSellingPrice) {
-      throw new Error(`Sold price for ${product.name} cannot be below minimum selling price (${minimumSellingPrice})`)
+      throw new Error(
+        `Sold price for ${product.name} cannot be below minimum selling price (${minimumSellingPrice})`,
+      );
     }
 
     // Persist description to product if provided and different
-    if (item.description && item.description.trim() !== "" && item.description !== product.description) {
-      await StockProduct.updateOne({ _id: product._id, org_id: orgId }, { $set: { description: item.description.trim() } })
+    if (
+      item.description &&
+      item.description.trim() !== "" &&
+      item.description !== product.description
+    ) {
+      await StockProduct.updateOne(
+        { _id: product._id, org_id: orgId },
+        { $set: { description: item.description.trim() } },
+      );
     }
 
     result.push({
@@ -552,13 +672,13 @@ async function buildQuotationItems(
       isOutsourced: false,
       imageUrl: (product as any).imageUrl,
       showImageOnQuote: (item as any).showImageOnQuote || false,
-    })
+    });
   }
-  return result
+  return result;
 }
 
 async function sendLowStockAlert(product: any, orgId: string) {
-  if (product.currentQuantity > product.minAlertQuantity) return
+  if (product.currentQuantity > product.minAlertQuantity) return;
 
   const recipients = await User.find({
     org_id: orgId,
@@ -566,18 +686,18 @@ async function sendLowStockAlert(product: any, orgId: string) {
     status: "active",
   })
     .select("email firstName")
-    .lean()
+    .lean();
 
-  if (!recipients.length) return
+  if (!recipients.length) return;
 
-  const subject = `Low Stock Alert: ${product.name}`
+  const subject = `Low Stock Alert: ${product.name}`;
   const html = `
     <h2>Low Stock Alert</h2>
     <p>The product <strong>${product.name}</strong> has reached the alert threshold.</p>
     <p><strong>Remaining Quantity:</strong> ${product.currentQuantity}</p>
     <p><strong>Alert Threshold:</strong> ${product.minAlertQuantity}</p>
     <p>Advice: Please restock this product soon.</p>
-  `
+  `;
 
   await Promise.all(
     recipients.map((recipient) =>
@@ -588,11 +708,11 @@ async function sendLowStockAlert(product: any, orgId: string) {
         companyId: orgId,
       }),
     ),
-  )
+  );
 }
 
 function toDateKey(date: Date) {
-  return date.toISOString().slice(0, 10)
+  return date.toISOString().slice(0, 10);
 }
 
 const DEFAULT_DISPATCH_SMS_TEMPLATE = [
@@ -600,26 +720,26 @@ const DEFAULT_DISPATCH_SMS_TEMPLATE = [
   "Courier: {{courierName}} ({{courierContactNumber}}).",
   "For inquiries, call office: {{officeContactNumber}}.",
   "Thank you.",
-].join(" ")
+].join(" ");
 
 const DEFAULT_DELIVERY_SMS_TEMPLATE = [
   "Hello {{clientName}}, thank you for confirming delivery of invoice {{invoiceNumber}} (DN {{deliveryNoteNumber}}).",
   "We appreciate your business and hope everything arrived in good condition.",
   "For any support, call {{officeContactNumber}}.",
-].join(" ")
+].join(" ");
 
 function renderDispatchMessageTemplate(
   template: string,
   data: {
-    clientName: string
-    invoiceNumber: string
-    deliveryNoteNumber: string
-    courierName: string
-    courierContactNumber: string
-    officeContactNumber: string
-    arrivalTime?: string
-    deliveryCondition?: string
-    deliveryNote?: string
+    clientName: string;
+    invoiceNumber: string;
+    deliveryNoteNumber: string;
+    courierName: string;
+    courierContactNumber: string;
+    officeContactNumber: string;
+    arrivalTime?: string;
+    deliveryCondition?: string;
+    deliveryNote?: string;
   },
 ) {
   return template
@@ -631,17 +751,17 @@ function renderDispatchMessageTemplate(
     .replace(/\{\{\s*officeContactNumber\s*\}\}/g, data.officeContactNumber)
     .replace(/\{\{\s*arrivalTime\s*\}\}/g, data.arrivalTime || "")
     .replace(/\{\{\s*deliveryCondition\s*\}\}/g, data.deliveryCondition || "")
-    .replace(/\{\{\s*deliveryNote\s*\}\}/g, data.deliveryNote || "")
+    .replace(/\{\{\s*deliveryNote\s*\}\}/g, data.deliveryNote || "");
 }
 
 function buildDispatchClientMessage(params: {
-  clientName?: string
-  invoiceNumber: string
-  deliveryNoteNumber: string
-  courierName: string
-  courierContactNumber: string
-  officeContactNumber: string
-  messageTemplate?: string
+  clientName?: string;
+  invoiceNumber: string;
+  deliveryNoteNumber: string;
+  courierName: string;
+  courierContactNumber: string;
+  officeContactNumber: string;
+  messageTemplate?: string;
 }) {
   const data = {
     clientName: String(params.clientName || "Client").trim() || "Client",
@@ -650,28 +770,33 @@ function buildDispatchClientMessage(params: {
     courierName: String(params.courierName || "").trim(),
     courierContactNumber: String(params.courierContactNumber || "").trim(),
     officeContactNumber: String(params.officeContactNumber || "").trim(),
-  }
+  };
 
-  const template = String(params.messageTemplate || DEFAULT_DISPATCH_SMS_TEMPLATE).trim() || DEFAULT_DISPATCH_SMS_TEMPLATE
-  return renderDispatchMessageTemplate(template, data).replace(/\s+/g, " ").trim()
+  const template =
+    String(params.messageTemplate || DEFAULT_DISPATCH_SMS_TEMPLATE).trim() ||
+    DEFAULT_DISPATCH_SMS_TEMPLATE;
+  return renderDispatchMessageTemplate(template, data)
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function buildDeliveryClientMessage(params: {
-  clientName?: string
-  invoiceNumber: string
-  deliveryNoteNumber: string
-  courierName: string
-  courierContactNumber: string
-  officeContactNumber: string
-  arrivalTime?: Date | string
-  deliveryCondition?: string
-  deliveryNote?: string
-  messageTemplate?: string
+  clientName?: string;
+  invoiceNumber: string;
+  deliveryNoteNumber: string;
+  courierName: string;
+  courierContactNumber: string;
+  officeContactNumber: string;
+  arrivalTime?: Date | string;
+  deliveryCondition?: string;
+  deliveryNote?: string;
+  messageTemplate?: string;
 }) {
-  const arrivalDate = params.arrivalTime ? new Date(params.arrivalTime) : null
-  const arrivalTime = arrivalDate && !Number.isNaN(arrivalDate.getTime())
-    ? arrivalDate.toLocaleString("en-KE", { timeZone: "Africa/Nairobi" })
-    : ""
+  const arrivalDate = params.arrivalTime ? new Date(params.arrivalTime) : null;
+  const arrivalTime =
+    arrivalDate && !Number.isNaN(arrivalDate.getTime())
+      ? arrivalDate.toLocaleString("en-KE", { timeZone: "Africa/Nairobi" })
+      : "";
 
   const data = {
     clientName: String(params.clientName || "Client").trim() || "Client",
@@ -681,49 +806,71 @@ function buildDeliveryClientMessage(params: {
     courierContactNumber: String(params.courierContactNumber || "").trim(),
     officeContactNumber: String(params.officeContactNumber || "").trim(),
     arrivalTime,
-    deliveryCondition: String(params.deliveryCondition || "").replace("_", " ").trim(),
+    deliveryCondition: String(params.deliveryCondition || "")
+      .replace("_", " ")
+      .trim(),
     deliveryNote: String(params.deliveryNote || "").trim(),
-  }
+  };
 
-  const template = String(params.messageTemplate || DEFAULT_DELIVERY_SMS_TEMPLATE).trim() || DEFAULT_DELIVERY_SMS_TEMPLATE
-  return renderDispatchMessageTemplate(template, data).replace(/\s+/g, " ").trim()
+  const template =
+    String(params.messageTemplate || DEFAULT_DELIVERY_SMS_TEMPLATE).trim() ||
+    DEFAULT_DELIVERY_SMS_TEMPLATE;
+  return renderDispatchMessageTemplate(template, data)
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 async function sendDispatchNotificationForInvoice(params: {
-  orgId: string
-  userId: string
-  invoice: any
+  orgId: string;
+  userId: string;
+  invoice: any;
 }) {
-  const { orgId, userId, invoice } = params
+  const { orgId, userId, invoice } = params;
 
   if (!invoice?.dispatch?.courier) {
     return {
       attempted: false,
       success: false,
       message: "Courier details are missing on dispatch",
-    }
+    };
   }
 
-  const company = await Company.findById(orgId).select("name phone dispatchSmsSettings").lean()
-  const officeNumber = String(company?.dispatchSmsSettings?.officePhone || company?.phone || process.env.DISPATCH_OFFICE_NUMBER || "").trim()
-  const smsSenderName = String(company?.dispatchSmsSettings?.smsSenderName || company?.name || process.env.WEBSMS_DEFAULT_SENDER_NAME || "YourCompany").trim()
-  const dispatchTemplate = String(company?.dispatchSmsSettings?.messageTemplate || DEFAULT_DISPATCH_SMS_TEMPLATE).trim()
-  const clientNumber = String(invoice?.client?.number || "").trim()
+  const company = await Company.findById(orgId)
+    .select("name phone dispatchSmsSettings")
+    .lean();
+  const officeNumber = String(
+    company?.dispatchSmsSettings?.officePhone ||
+      company?.phone ||
+      process.env.DISPATCH_OFFICE_NUMBER ||
+      "",
+  ).trim();
+  const smsSenderName = String(
+    company?.dispatchSmsSettings?.smsSenderName ||
+      company?.name ||
+      process.env.WEBSMS_DEFAULT_SENDER_NAME ||
+      "YourCompany",
+  ).trim();
+  const dispatchTemplate = String(
+    company?.dispatchSmsSettings?.messageTemplate ||
+      DEFAULT_DISPATCH_SMS_TEMPLATE,
+  ).trim();
+  const clientNumber = String(invoice?.client?.number || "").trim();
 
   if (!clientNumber) {
     return {
       attempted: false,
       success: false,
       message: "Client phone number is missing on invoice",
-    }
+    };
   }
 
   if (!officeNumber) {
     return {
       attempted: false,
       success: false,
-      message: "Office phone number is missing (company.phone or DISPATCH_OFFICE_NUMBER)",
-    }
+      message:
+        "Office phone number is missing (company.phone or DISPATCH_OFFICE_NUMBER)",
+    };
   }
 
   const message = buildDispatchClientMessage({
@@ -734,7 +881,7 @@ async function sendDispatchNotificationForInvoice(params: {
     courierContactNumber: invoice.dispatch.courier.contactNumber,
     officeContactNumber: officeNumber,
     messageTemplate: dispatchTemplate,
-  })
+  });
 
   const notification = await DispatchNotification.create({
     org_id: orgId,
@@ -751,15 +898,15 @@ async function sendDispatchNotificationForInvoice(params: {
     status: "queued",
     attempts: 0,
     createdBy: String(userId),
-  })
+  });
 
   const smsResult = await smsService.sendDispatchSms({
     to: clientNumber,
     message,
     senderName: smsSenderName,
-  })
+  });
 
-  const now = new Date()
+  const now = new Date();
   if (smsResult.success) {
     await DispatchNotification.updateOne(
       { _id: notification._id },
@@ -774,13 +921,13 @@ async function sendDispatchNotificationForInvoice(params: {
         $inc: { attempts: 1 },
         $unset: { errorMessage: 1 },
       },
-    )
+    );
     return {
       attempted: true,
       success: true,
       message: "Dispatch SMS sent to client",
       notificationId: String(notification._id),
-    }
+    };
   }
 
   await DispatchNotification.updateOne(
@@ -794,7 +941,7 @@ async function sendDispatchNotificationForInvoice(params: {
       },
       $inc: { attempts: 1 },
     },
-  )
+  );
 
   console.error("Dispatch SMS failed", {
     orgId,
@@ -803,54 +950,70 @@ async function sendDispatchNotificationForInvoice(params: {
     clientNumber,
     error: smsResult.error,
     providerRawResponse: smsResult.providerRawResponse,
-  })
+  });
 
   return {
     attempted: true,
     success: false,
     message: smsResult.error || "Failed to send dispatch SMS",
     notificationId: String(notification._id),
-  }
+  };
 }
 
 async function sendDeliveryNotificationForInvoice(params: {
-  orgId: string
-  userId: string
-  invoice: any
+  orgId: string;
+  userId: string;
+  invoice: any;
 }) {
-  const { orgId, userId, invoice } = params
+  const { orgId, userId, invoice } = params;
 
   if (!invoice?.dispatch?.courier) {
     return {
       attempted: false,
       success: false,
       message: "Courier details are missing on dispatch",
-    }
+    };
   }
 
-  const company = await Company.findById(orgId).select("name phone dispatchSmsSettings").lean()
-  const officeNumber = String(company?.dispatchSmsSettings?.officePhone || company?.phone || process.env.DISPATCH_OFFICE_NUMBER || "").trim()
-  const smsSenderName = String(company?.dispatchSmsSettings?.smsSenderName || company?.name || process.env.WEBSMS_DEFAULT_SENDER_NAME || "YourCompany").trim()
-  const deliveryTemplate = String(company?.dispatchSmsSettings?.deliveryMessageTemplate || DEFAULT_DELIVERY_SMS_TEMPLATE).trim()
-  const clientNumber = String(invoice?.client?.number || "").trim()
+  const company = await Company.findById(orgId)
+    .select("name phone dispatchSmsSettings")
+    .lean();
+  const officeNumber = String(
+    company?.dispatchSmsSettings?.officePhone ||
+      company?.phone ||
+      process.env.DISPATCH_OFFICE_NUMBER ||
+      "",
+  ).trim();
+  const smsSenderName = String(
+    company?.dispatchSmsSettings?.smsSenderName ||
+      company?.name ||
+      process.env.WEBSMS_DEFAULT_SENDER_NAME ||
+      "YourCompany",
+  ).trim();
+  const deliveryTemplate = String(
+    company?.dispatchSmsSettings?.deliveryMessageTemplate ||
+      DEFAULT_DELIVERY_SMS_TEMPLATE,
+  ).trim();
+  const clientNumber = String(invoice?.client?.number || "").trim();
 
   if (!clientNumber) {
     return {
       attempted: false,
       success: false,
       message: "Client phone number is missing on invoice",
-    }
+    };
   }
 
   if (!officeNumber) {
     return {
       attempted: false,
       success: false,
-      message: "Office phone number is missing (company.phone or DISPATCH_OFFICE_NUMBER)",
-    }
+      message:
+        "Office phone number is missing (company.phone or DISPATCH_OFFICE_NUMBER)",
+    };
   }
 
-  const delivery = invoice.dispatch?.delivery || {}
+  const delivery = invoice.dispatch?.delivery || {};
   const message = buildDeliveryClientMessage({
     clientName: invoice.client?.name,
     invoiceNumber: invoice.invoiceNumber,
@@ -862,7 +1025,7 @@ async function sendDeliveryNotificationForInvoice(params: {
     deliveryCondition: delivery.condition,
     deliveryNote: delivery.note,
     messageTemplate: deliveryTemplate,
-  })
+  });
 
   const notification = await DispatchNotification.create({
     org_id: orgId,
@@ -879,15 +1042,15 @@ async function sendDeliveryNotificationForInvoice(params: {
     status: "queued",
     attempts: 0,
     createdBy: String(userId),
-  })
+  });
 
   const smsResult = await smsService.sendDispatchSms({
     to: clientNumber,
     message,
     senderName: smsSenderName,
-  })
+  });
 
-  const now = new Date()
+  const now = new Date();
   if (smsResult.success) {
     await DispatchNotification.updateOne(
       { _id: notification._id },
@@ -902,13 +1065,13 @@ async function sendDeliveryNotificationForInvoice(params: {
         $inc: { attempts: 1 },
         $unset: { errorMessage: 1 },
       },
-    )
+    );
     return {
       attempted: true,
       success: true,
       message: "Delivery thank-you SMS sent to client",
       notificationId: String(notification._id),
-    }
+    };
   }
 
   await DispatchNotification.updateOne(
@@ -922,7 +1085,7 @@ async function sendDeliveryNotificationForInvoice(params: {
       },
       $inc: { attempts: 1 },
     },
-  )
+  );
 
   console.error("Delivery SMS failed", {
     orgId,
@@ -931,33 +1094,33 @@ async function sendDeliveryNotificationForInvoice(params: {
     clientNumber,
     error: smsResult.error,
     providerRawResponse: smsResult.providerRawResponse,
-  })
+  });
 
   return {
     attempted: true,
     success: false,
     message: smsResult.error || "Failed to send delivery SMS",
     notificationId: String(notification._id),
-  }
+  };
 }
 
 async function sendExpiryReminderEmail(product: any, orgId: string) {
-  if (!product.expiryEnabled || !product.expiryDate) return false
-  if (Number(product.currentQuantity) <= 0) return false
+  if (!product.expiryEnabled || !product.expiryDate) return false;
+  if (Number(product.currentQuantity) <= 0) return false;
 
   const reminderDays = Number.isFinite(Number(product.expiryReminderDays))
     ? Number(product.expiryReminderDays)
-    : 7
+    : 7;
 
-  const today = new Date()
-  const todayKey = toDateKey(today)
-  const expiryDate = new Date(product.expiryDate)
+  const today = new Date();
+  const todayKey = toDateKey(today);
+  const expiryDate = new Date(product.expiryDate);
 
-  const reminderDate = new Date(expiryDate)
-  reminderDate.setDate(reminderDate.getDate() - Math.max(0, reminderDays))
+  const reminderDate = new Date(expiryDate);
+  reminderDate.setDate(reminderDate.getDate() - Math.max(0, reminderDays));
 
-  if (today < reminderDate) return false
-  if (product.expiryLastReminderOn === todayKey) return false
+  if (today < reminderDate) return false;
+  if (product.expiryLastReminderOn === todayKey) return false;
 
   const recipients = await User.find({
     org_id: orgId,
@@ -965,15 +1128,17 @@ async function sendExpiryReminderEmail(product: any, orgId: string) {
     status: "active",
   })
     .select("email firstName")
-    .lean()
+    .lean();
 
-  if (!recipients.length) return false
+  if (!recipients.length) return false;
 
-  const isExpired = today > expiryDate
-  const daysLeft = Math.ceil((expiryDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+  const isExpired = today > expiryDate;
+  const daysLeft = Math.ceil(
+    (expiryDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
+  );
   const subject = isExpired
     ? `Expired Stock Alert: ${product.name}`
-    : `Expiry Reminder: ${product.name} (${Math.max(daysLeft, 0)} day(s) left)`
+    : `Expiry Reminder: ${product.name} (${Math.max(daysLeft, 0)} day(s) left)`;
 
   const html = `
     <h2>${isExpired ? "Expired Product In Stock" : "Product Expiry Reminder"}</h2>
@@ -982,7 +1147,7 @@ async function sendExpiryReminderEmail(product: any, orgId: string) {
     <p><strong>Expiry Date:</strong> ${expiryDate.toDateString()}</p>
     <p><strong>Reminder Window:</strong> ${reminderDays} day(s) before expiry</p>
     <p>${isExpired ? "This product is expired and still available in stock." : "This product is nearing expiry and still in stock."}</p>
-  `
+  `;
 
   await Promise.all(
     recipients.map((recipient) =>
@@ -993,11 +1158,11 @@ async function sendExpiryReminderEmail(product: any, orgId: string) {
         companyId: orgId,
       }),
     ),
-  )
+  );
 
-  product.expiryLastReminderOn = todayKey
-  await product.save()
-  return true
+  product.expiryLastReminderOn = todayKey;
+  await product.save();
+  return true;
 }
 
 export class StockController {
@@ -1007,25 +1172,33 @@ export class StockController {
       expiryDate: { $ne: null },
       currentQuantity: { $gt: 0 },
       isActive: true,
-    })
+    });
 
-    let remindersSent = 0
+    let remindersSent = 0;
     for (const product of products) {
-      const sent = await sendExpiryReminderEmail(product, product.org_id)
-      if (sent) remindersSent += 1
+      const sent = await sendExpiryReminderEmail(product, product.org_id);
+      if (sent) remindersSent += 1;
     }
 
-    return { checked: products.length, remindersSent }
+    return { checked: products.length, remindersSent };
   }
 
   static async checkExpiringProducts(req: AuthenticatedRequest, res: Response) {
     try {
       if (!isAdminRole(req.user?.role)) {
-        return res.status(403).json({ success: false, message: "Only admin/HR can run expiry checks" })
+        return res
+          .status(403)
+          .json({
+            success: false,
+            message: "Only admin/HR can run expiry checks",
+          });
       }
 
-      const org_id = req.user?.org_id
-      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+      const org_id = req.user?.org_id;
+      if (!org_id)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
 
       const products = await StockProduct.find({
         org_id,
@@ -1033,54 +1206,97 @@ export class StockController {
         expiryDate: { $ne: null },
         currentQuantity: { $gt: 0 },
         isActive: true,
-      })
+      });
 
-      let remindersSent = 0
+      let remindersSent = 0;
       for (const product of products) {
-        const sent = await sendExpiryReminderEmail(product, org_id)
-        if (sent) remindersSent += 1
+        const sent = await sendExpiryReminderEmail(product, org_id);
+        if (sent) remindersSent += 1;
       }
 
       return res.status(200).json({
         success: true,
         message: "Expiry check completed",
         data: { checked: products.length, remindersSent },
-      })
+      });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message || "Failed to run expiry checks" })
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error.message || "Failed to run expiry checks",
+        });
     }
   }
 
   static async createQuotation(req: AuthenticatedRequest, res: Response) {
     try {
-      const org_id = req.user?.org_id
-      const createdBy = req.user?.userId
-      if (!org_id || !createdBy) return res.status(401).json({ success: false, message: "Unauthorized" })
+      const org_id = req.user?.org_id;
+      const createdBy = req.user?.userId;
+      if (!org_id || !createdBy)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
 
-      const { clientName, clientNumber, clientLocation, clientContactPerson, items, ownerUserId, branchId } = req.body
+      const {
+        clientName,
+        clientNumber,
+        clientLocation,
+        clientContactPerson,
+        items,
+        ownerUserId,
+        branchId,
+      } = req.body;
       if (!clientName || !clientNumber) {
-        return res.status(400).json({ success: false, message: "Client name and phone number are required" })
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message: "Client name and phone number are required",
+          });
       }
 
       if (ownerUserId) {
-        const owner = await User.findOne({ _id: String(ownerUserId).trim(), org_id }).select("_id firstName lastName role").lean()
+        const owner = await User.findOne({
+          _id: String(ownerUserId).trim(),
+          org_id,
+        })
+          .select("_id firstName lastName role")
+          .lean();
         if (!owner) {
-          return res.status(404).json({ success: false, message: "Selected quotation owner not found" })
+          return res
+            .status(404)
+            .json({
+              success: false,
+              message: "Selected quotation owner not found",
+            });
         }
       }
 
       if (branchId) {
-        const branch = await Branch.findOne({ _id: String(branchId).trim(), org_id }).select("_id name code").lean()
+        const branch = await Branch.findOne({
+          _id: String(branchId).trim(),
+          org_id,
+        })
+          .select("_id name code")
+          .lean();
         if (!branch) {
-          return res.status(404).json({ success: false, message: "Selected branch not found" })
+          return res
+            .status(404)
+            .json({ success: false, message: "Selected branch not found" });
         }
       }
 
-      const normalizedLocation = String(clientLocation || "N/A").trim() || "N/A"
-      const normalizedContactPerson = String(clientContactPerson || "").trim()
+      const normalizedLocation =
+        String(clientLocation || "N/A").trim() || "N/A";
+      const normalizedContactPerson = String(clientContactPerson || "").trim();
 
-      const normalizedItems = await buildQuotationItems(org_id, items || [])
-      const subTotal = Number(normalizedItems.reduce((sum, item) => sum + item.lineTotal, 0).toFixed(2))
+      const normalizedItems = await buildQuotationItems(org_id, items || []);
+      const subTotal = Number(
+        normalizedItems
+          .reduce((sum, item) => sum + item.lineTotal, 0)
+          .toFixed(2),
+      );
 
       const quotation = await StockQuotation.create({
         org_id,
@@ -1097,173 +1313,333 @@ export class StockController {
         createdBy,
         ownerUserId: ownerUserId ? String(ownerUserId).trim() : undefined,
         branchId: branchId ? String(branchId).trim() : undefined,
-      })
+      });
 
-      return res.status(201).json({ success: true, data: quotation })
+      return res.status(201).json({ success: true, data: quotation });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message || "Failed to create quotation" })
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error.message || "Failed to create quotation",
+        });
     }
   }
 
   static async getQuotations(req: AuthenticatedRequest, res: Response) {
     try {
-      const org_id = req.user?.org_id
-      const userId = req.user?.userId
-      const role = req.user?.role
-      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+      const org_id = req.user?.org_id;
+      const userId = req.user?.userId;
+      const role = req.user?.role;
+      if (!org_id)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
 
-      const query: any = { org_id }
+      const query: any = { org_id };
       if (role === "employee") {
-        if (!userId) return res.status(401).json({ success: false, message: "Unauthorized" })
-        query.createdBy = String(userId)
+        if (!userId)
+          return res
+            .status(401)
+            .json({ success: false, message: "Unauthorized" });
+        query.createdBy = String(userId);
       }
 
-      const quotations = await StockQuotation.find(query).sort({ createdAt: -1 }).lean()
+      const quotations = await StockQuotation.find(query)
+        .sort({ createdAt: -1 })
+        .lean();
 
-      const creatorIds = [...new Set(quotations.map((quotation: any) => String(quotation.createdBy || "")).filter(Boolean))]
-      const ownerIds = [...new Set(quotations.map((quotation: any) => String(quotation.ownerUserId || "")).filter(Boolean))]
-      const branchIds = [...new Set(quotations.map((quotation: any) => String(quotation.branchId || "")).filter(Boolean))]
+      const creatorIds = [
+        ...new Set(
+          quotations
+            .map((quotation: any) => String(quotation.createdBy || ""))
+            .filter(Boolean),
+        ),
+      ];
+      const ownerIds = [
+        ...new Set(
+          quotations
+            .map((quotation: any) => String(quotation.ownerUserId || ""))
+            .filter(Boolean),
+        ),
+      ];
+      const branchIds = [
+        ...new Set(
+          quotations
+            .map((quotation: any) => String(quotation.branchId || ""))
+            .filter(Boolean),
+        ),
+      ];
       const [creators, owners, branches] = await Promise.all([
-        creatorIds.length ? User.find({ _id: { $in: creatorIds } }).select("firstName lastName").lean() : Promise.resolve([]),
-        ownerIds.length ? User.find({ _id: { $in: ownerIds } }).select("firstName lastName").lean() : Promise.resolve([]),
-        branchIds.length ? Branch.find({ _id: { $in: branchIds } }).select("name code").lean() : Promise.resolve([]),
-      ])
-      const creatorMap = new Map(creators.map((user: any) => [String(user._id), `${user.firstName || ""} ${user.lastName || ""}`.trim()]))
-      const ownerMap = new Map(owners.map((user: any) => [String(user._id), `${user.firstName || ""} ${user.lastName || ""}`.trim()]))
-      const branchMap = new Map(branches.map((branch: any) => [String(branch._id), `${branch.name || ""} (${branch.code || ""})`.trim()]))
+        creatorIds.length
+          ? User.find({ _id: { $in: creatorIds } })
+              .select("firstName lastName")
+              .lean()
+          : Promise.resolve([]),
+        ownerIds.length
+          ? User.find({ _id: { $in: ownerIds } })
+              .select("firstName lastName")
+              .lean()
+          : Promise.resolve([]),
+        branchIds.length
+          ? Branch.find({ _id: { $in: branchIds } })
+              .select("name code")
+              .lean()
+          : Promise.resolve([]),
+      ]);
+      const creatorMap = new Map(
+        creators.map((user: any) => [
+          String(user._id),
+          `${user.firstName || ""} ${user.lastName || ""}`.trim(),
+        ]),
+      );
+      const ownerMap = new Map(
+        owners.map((user: any) => [
+          String(user._id),
+          `${user.firstName || ""} ${user.lastName || ""}`.trim(),
+        ]),
+      );
+      const branchMap = new Map(
+        branches.map((branch: any) => [
+          String(branch._id),
+          `${branch.name || ""} (${branch.code || ""})`.trim(),
+        ]),
+      );
 
       const enriched = quotations.map((quotation: any) => ({
         ...quotation,
-        createdByName: creatorMap.get(String(quotation.createdBy || "")) || undefined,
-        ownerUserName: ownerMap.get(String(quotation.ownerUserId || "")) || undefined,
-        branchName: branchMap.get(String(quotation.branchId || "")) || undefined,
-      }))
+        createdByName:
+          creatorMap.get(String(quotation.createdBy || "")) || undefined,
+        ownerUserName:
+          ownerMap.get(String(quotation.ownerUserId || "")) || undefined,
+        branchName:
+          branchMap.get(String(quotation.branchId || "")) || undefined,
+      }));
 
-      return res.status(200).json({ success: true, data: enriched })
+      return res.status(200).json({ success: true, data: enriched });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message || "Failed to fetch quotations" })
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error.message || "Failed to fetch quotations",
+        });
     }
   }
 
   static async updateQuotation(req: AuthenticatedRequest, res: Response) {
     try {
-      const org_id = req.user?.org_id
-      const userId = req.user?.userId
-      const role = req.user?.role
-      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+      const org_id = req.user?.org_id;
+      const userId = req.user?.userId;
+      const role = req.user?.role;
+      if (!org_id)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
 
-      const { quotationId } = req.params
-      const quotation = await StockQuotation.findOne({ _id: quotationId, org_id })
+      const { quotationId } = req.params;
+      const quotation = await StockQuotation.findOne({
+        _id: quotationId,
+        org_id,
+      });
       if (!quotation) {
-        return res.status(404).json({ success: false, message: "Quotation not found" })
+        return res
+          .status(404)
+          .json({ success: false, message: "Quotation not found" });
       }
 
       if (!isAdminRole(role)) {
-        return res.status(403).json({ success: false, message: "Only admin/HR can edit quotations" })
+        return res
+          .status(403)
+          .json({
+            success: false,
+            message: "Only admin/HR can edit quotations",
+          });
       }
 
-      if (quotation.status !== "draft" && quotation.status !== "pending_approval") {
-        return res.status(400).json({ success: false, message: "Only draft or pending quotations can be edited" })
+      if (
+        quotation.status !== "draft" &&
+        quotation.status !== "pending_approval"
+      ) {
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message: "Only draft or pending quotations can be edited",
+          });
       }
 
-      const { clientName, clientNumber, clientLocation, clientContactPerson, items } = req.body
+      const {
+        clientName,
+        clientNumber,
+        clientLocation,
+        clientContactPerson,
+        items,
+      } = req.body;
       if (!clientName || !clientNumber) {
-        return res.status(400).json({ success: false, message: "Client name and phone number are required" })
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message: "Client name and phone number are required",
+          });
       }
 
-      const normalizedLocation = String(clientLocation || "N/A").trim() || "N/A"
-      const normalizedContactPerson = String(clientContactPerson || "").trim()
+      const normalizedLocation =
+        String(clientLocation || "N/A").trim() || "N/A";
+      const normalizedContactPerson = String(clientContactPerson || "").trim();
 
-      const normalizedItems = await buildQuotationItems(org_id, items || [])
-      const subTotal = Number(normalizedItems.reduce((sum, item) => sum + item.lineTotal, 0).toFixed(2))
+      const normalizedItems = await buildQuotationItems(org_id, items || []);
+      const subTotal = Number(
+        normalizedItems
+          .reduce((sum, item) => sum + item.lineTotal, 0)
+          .toFixed(2),
+      );
 
       quotation.client = {
         name: String(clientName).trim(),
         number: String(clientNumber).trim(),
         location: normalizedLocation,
         contactPerson: normalizedContactPerson || undefined,
-      }
-      quotation.items = normalizedItems as any
-      quotation.subTotal = subTotal
+      };
+      quotation.items = normalizedItems as any;
+      quotation.subTotal = subTotal;
 
-      await quotation.save()
+      await quotation.save();
 
-      return res.status(200).json({ success: true, data: quotation })
+      return res.status(200).json({ success: true, data: quotation });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message || "Failed to update quotation" })
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error.message || "Failed to update quotation",
+        });
     }
   }
 
   static async approveQuotation(req: AuthenticatedRequest, res: Response) {
     try {
-      const org_id = req.user?.org_id
-      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+      const org_id = req.user?.org_id;
+      if (!org_id)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
 
       if (!isAdminRole(req.user?.role)) {
-        return res.status(403).json({ success: false, message: "Only admin/HR can approve quotations" })
+        return res
+          .status(403)
+          .json({
+            success: false,
+            message: "Only admin/HR can approve quotations",
+          });
       }
 
-      const { quotationId } = req.params
-      const quotation = await StockQuotation.findOne({ _id: quotationId, org_id })
+      const { quotationId } = req.params;
+      const quotation = await StockQuotation.findOne({
+        _id: quotationId,
+        org_id,
+      });
       if (!quotation) {
-        return res.status(404).json({ success: false, message: "Quotation not found" })
+        return res
+          .status(404)
+          .json({ success: false, message: "Quotation not found" });
       }
 
-      if (quotation.status === "converted" || quotation.status === "cancelled") {
-        return res.status(400).json({ success: false, message: `Cannot approve ${quotation.status} quotation` })
+      if (
+        quotation.status === "converted" ||
+        quotation.status === "cancelled"
+      ) {
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message: `Cannot approve ${quotation.status} quotation`,
+          });
       }
 
-      quotation.status = "draft"
-      quotation.approvedBy = String(req.user?.userId || "")
-      quotation.approvedAt = new Date()
-      await quotation.save()
+      quotation.status = "draft";
+      quotation.approvedBy = String(req.user?.userId || "");
+      quotation.approvedAt = new Date();
+      await quotation.save();
 
       return res.status(200).json({
         success: true,
         message: "Quotation approved",
         data: quotation,
-      })
+      });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message || "Failed to approve quotation" })
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error.message || "Failed to approve quotation",
+        });
     }
   }
 
   static async rejectQuotation(req: AuthenticatedRequest, res: Response) {
     try {
-      const org_id = req.user?.org_id
-      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+      const org_id = req.user?.org_id;
+      if (!org_id)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
 
       if (!isAdminRole(req.user?.role)) {
-        return res.status(403).json({ success: false, message: "Only admin/HR can reject quotations" })
+        return res
+          .status(403)
+          .json({
+            success: false,
+            message: "Only admin/HR can reject quotations",
+          });
       }
 
-      const { quotationId } = req.params
-      const quotation = await StockQuotation.findOne({ _id: quotationId, org_id })
+      const { quotationId } = req.params;
+      const quotation = await StockQuotation.findOne({
+        _id: quotationId,
+        org_id,
+      });
       if (!quotation) {
-        return res.status(404).json({ success: false, message: "Quotation not found" })
+        return res
+          .status(404)
+          .json({ success: false, message: "Quotation not found" });
       }
 
       if (quotation.status === "converted") {
-        return res.status(400).json({ success: false, message: "Cannot reject converted quotation" })
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message: "Cannot reject converted quotation",
+          });
       }
 
-      quotation.status = "cancelled"
-      await quotation.save()
+      quotation.status = "cancelled";
+      await quotation.save();
 
       return res.status(200).json({
         success: true,
         message: "Quotation rejected",
         data: quotation,
-      })
+      });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message || "Failed to reject quotation" })
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error.message || "Failed to reject quotation",
+        });
     }
   }
 
   static async getClients(req: AuthenticatedRequest, res: Response) {
     try {
-      const org_id = req.user?.org_id
-      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+      const org_id = req.user?.org_id;
+      if (!org_id)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
 
       const [quotations, invoices, sales] = await Promise.all([
         StockQuotation.find({ org_id }).select("client").lean(),
@@ -1271,145 +1647,229 @@ export class StockController {
         StockSale.find({ org_id, isWalkInClient: { $ne: true } })
           .select("buyerName buyerNumber buyerLocation")
           .lean(),
-      ])
+      ]);
 
-      const clientMap = new Map<string, { name: string; number: string; location: string; contactPerson?: string }>()
+      const clientMap = new Map<
+        string,
+        {
+          name: string;
+          number: string;
+          location: string;
+          contactPerson?: string;
+        }
+      >();
 
       for (const quotation of quotations) {
-        const client = (quotation as any).client
-        if (!client?.name || !client?.number || !client?.location) continue
-        const key = `${client.name}|${client.number}|${client.location}`.toLowerCase()
+        const client = (quotation as any).client;
+        if (!client?.name || !client?.number || !client?.location) continue;
+        const key =
+          `${client.name}|${client.number}|${client.location}`.toLowerCase();
         if (!clientMap.has(key)) {
           clientMap.set(key, {
             name: client.name,
             number: client.number,
             location: client.location,
             contactPerson: client.contactPerson,
-          })
+          });
         }
       }
 
       for (const invoice of invoices) {
-        const client = (invoice as any).client
-        if (!client?.name || !client?.number || !client?.location) continue
-        const key = `${client.name}|${client.number}|${client.location}`.toLowerCase()
+        const client = (invoice as any).client;
+        if (!client?.name || !client?.number || !client?.location) continue;
+        const key =
+          `${client.name}|${client.number}|${client.location}`.toLowerCase();
         if (!clientMap.has(key)) {
           clientMap.set(key, {
             name: client.name,
             number: client.number,
             location: client.location,
             contactPerson: client.contactPerson,
-          })
+          });
         }
       }
 
       for (const sale of sales) {
-        const name = (sale as any).buyerName
-        const number = (sale as any).buyerNumber
-        const location = (sale as any).buyerLocation
-        if (!name || !number || !location) continue
-        const key = `${name}|${number}|${location}`.toLowerCase()
+        const name = (sale as any).buyerName;
+        const number = (sale as any).buyerNumber;
+        const location = (sale as any).buyerLocation;
+        if (!name || !number || !location) continue;
+        const key = `${name}|${number}|${location}`.toLowerCase();
         if (!clientMap.has(key)) {
-          clientMap.set(key, { name, number, location, contactPerson: undefined })
+          clientMap.set(key, {
+            name,
+            number,
+            location,
+            contactPerson: undefined,
+          });
         }
       }
 
-      return res.status(200).json({ success: true, data: Array.from(clientMap.values()) })
+      return res
+        .status(200)
+        .json({ success: true, data: Array.from(clientMap.values()) });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message || "Failed to fetch clients" })
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error.message || "Failed to fetch clients",
+        });
     }
   }
 
   static async getSavedClients(req: AuthenticatedRequest, res: Response) {
     try {
-      const org_id = req.user?.org_id
-      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+      const org_id = req.user?.org_id;
+      if (!org_id)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
 
       const profiles = await StockClient.find({ org_id })
-        .select("sourceName sourceNumber sourceLocation legalName contactPerson")
+        .select(
+          "sourceName sourceNumber sourceLocation legalName contactPerson",
+        )
         .sort({ updatedAt: -1, createdAt: -1 })
-        .lean()
+        .lean();
 
       const clients = profiles.map((profile: any) => ({
-        key: `${String(profile.sourceName || "").trim().toLowerCase()}|${String(profile.sourceNumber || "").trim().toLowerCase()}|${String(profile.sourceLocation || "").trim().toLowerCase()}`,
+        key: `${String(profile.sourceName || "")
+          .trim()
+          .toLowerCase()}|${String(profile.sourceNumber || "")
+          .trim()
+          .toLowerCase()}|${String(profile.sourceLocation || "")
+          .trim()
+          .toLowerCase()}`,
         name: String(profile.sourceName || profile.legalName || "").trim(),
         number: String(profile.sourceNumber || "").trim(),
         location: String(profile.sourceLocation || "").trim(),
         contactPerson: profile.contactPerson,
-      }))
+      }));
 
-      return res.status(200).json({ success: true, data: clients })
+      return res.status(200).json({ success: true, data: clients });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message || "Failed to fetch saved clients" })
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error.message || "Failed to fetch saved clients",
+        });
     }
   }
 
   static async getAccountsPosts(req: AuthenticatedRequest, res: Response) {
     try {
-      const org_id = req.user?.org_id
-      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+      const org_id = req.user?.org_id;
+      if (!org_id)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
 
-      const invoices = await StockInvoice.find({ org_id }).sort({ createdAt: -1 }).lean()
+      const invoices = await StockInvoice.find({ org_id })
+        .sort({ createdAt: -1 })
+        .lean();
 
-      const clientKeys = invoices.map((invoice: any) => buildClientSourceKey(invoice.client))
-      const uniqueName = [...new Set(clientKeys.map((key) => key.sourceName).filter(Boolean))]
-      const uniqueNumber = [...new Set(clientKeys.map((key) => key.sourceNumber).filter(Boolean))]
-      const uniqueLocation = [...new Set(clientKeys.map((key) => key.sourceLocation).filter(Boolean))]
+      const clientKeys = invoices.map((invoice: any) =>
+        buildClientSourceKey(invoice.client),
+      );
+      const uniqueName = [
+        ...new Set(clientKeys.map((key) => key.sourceName).filter(Boolean)),
+      ];
+      const uniqueNumber = [
+        ...new Set(clientKeys.map((key) => key.sourceNumber).filter(Boolean)),
+      ];
+      const uniqueLocation = [
+        ...new Set(clientKeys.map((key) => key.sourceLocation).filter(Boolean)),
+      ];
 
       const profiles = await StockClient.find({
         org_id,
         sourceName: { $in: uniqueName },
         sourceNumber: { $in: uniqueNumber },
         sourceLocation: { $in: uniqueLocation },
-      }).lean()
+      }).lean();
 
-      const profileMap = new Map<string, any>()
+      const profileMap = new Map<string, any>();
       for (const profile of profiles) {
-        const key = `${profile.sourceName}|${profile.sourceNumber}|${profile.sourceLocation}`
-        profileMap.set(key, profile)
+        const key = `${profile.sourceName}|${profile.sourceNumber}|${profile.sourceLocation}`;
+        profileMap.set(key, profile);
       }
 
       const data = invoices.map((invoice: any) => {
-        const source = buildClientSourceKey(invoice.client)
-        const key = `${source.sourceName}|${source.sourceNumber}|${source.sourceLocation}`
-        const clientProfile = profileMap.get(key) || null
+        const source = buildClientSourceKey(invoice.client);
+        const key = `${source.sourceName}|${source.sourceNumber}|${source.sourceLocation}`;
+        const clientProfile = profileMap.get(key) || null;
 
         return {
           ...invoice,
           clientProfile,
           hasKraSaved: Boolean(clientProfile?.hasKraDetails),
           etimsStatus: String(invoice?.etims?.status || "not_posted"),
-        }
-      })
+        };
+      });
 
-      return res.status(200).json({ success: true, data })
+      return res.status(200).json({ success: true, data });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message || "Failed to fetch posts" })
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error.message || "Failed to fetch posts",
+        });
     }
   }
 
-  static async upsertInvoiceClientProfile(req: AuthenticatedRequest, res: Response) {
+  static async upsertInvoiceClientProfile(
+    req: AuthenticatedRequest,
+    res: Response,
+  ) {
     try {
-      const org_id = req.user?.org_id
-      const actorId = req.user?.userId
-      if (!org_id || !actorId) return res.status(401).json({ success: false, message: "Unauthorized" })
+      const org_id = req.user?.org_id;
+      const actorId = req.user?.userId;
+      if (!org_id || !actorId)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
 
-      const { invoiceId } = req.params
-      const { legalName, kraPin, email, branchId } = req.body || {}
+      const { invoiceId } = req.params;
+      const { legalName, kraPin, email, branchId } = req.body || {};
 
       if (!legalName || !kraPin) {
-        return res.status(400).json({ success: false, message: "legalName and kraPin are required" })
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message: "legalName and kraPin are required",
+          });
       }
 
-      const invoice = await StockInvoice.findOne({ _id: invoiceId, org_id }).lean()
-      if (!invoice) return res.status(404).json({ success: false, message: "Invoice not found" })
+      const invoice = await StockInvoice.findOne({
+        _id: invoiceId,
+        org_id,
+      }).lean();
+      if (!invoice)
+        return res
+          .status(404)
+          .json({ success: false, message: "Invoice not found" });
 
-      const source = buildClientSourceKey(invoice.client)
-      if (!source.sourceName || !source.sourceNumber || !source.sourceLocation) {
-        return res.status(400).json({ success: false, message: "Invoice client details are incomplete" })
+      const source = buildClientSourceKey(invoice.client);
+      if (
+        !source.sourceName ||
+        !source.sourceNumber ||
+        !source.sourceLocation
+      ) {
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message: "Invoice client details are incomplete",
+          });
       }
 
-      const hasKraDetails = Boolean(String(legalName).trim() && String(kraPin).trim())
+      const hasKraDetails = Boolean(
+        String(legalName).trim() && String(kraPin).trim(),
+      );
 
       const profile = await StockClient.findOneAndUpdate(
         {
@@ -1436,32 +1896,54 @@ export class StockController {
           },
         },
         { upsert: true, new: true },
-      )
+      );
 
       await StockInvoice.updateOne(
         { _id: invoiceId, org_id },
         { $set: { clientProfileId: String(profile._id) } },
-      )
+      );
 
-      return res.status(200).json({ success: true, data: profile })
+      return res.status(200).json({ success: true, data: profile });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message || "Failed to save client KRA details" })
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error.message || "Failed to save client KRA details",
+        });
     }
   }
 
   static async createOrUpdateClient(req: AuthenticatedRequest, res: Response) {
     try {
-      const org_id = req.user?.org_id
-      const actorId = req.user?.userId
-      if (!org_id || !actorId) return res.status(401).json({ success: false, message: 'Unauthorized' })
+      const org_id = req.user?.org_id;
+      const actorId = req.user?.userId;
+      if (!org_id || !actorId)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
 
-      const { sourceName, sourceNumber, sourceLocation, legalName, contactPerson, kraPin, email, branchId } = req.body || {}
+      const {
+        sourceName,
+        sourceNumber,
+        sourceLocation,
+        legalName,
+        contactPerson,
+        kraPin,
+        email,
+        branchId,
+      } = req.body || {};
 
       if (!sourceName || !sourceNumber || !sourceLocation) {
-        return res.status(400).json({ success: false, message: 'sourceName, sourceNumber and sourceLocation are required' })
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message: "sourceName, sourceNumber and sourceLocation are required",
+          });
       }
 
-      const resolvedLegalName = String(legalName || sourceName).trim()
+      const resolvedLegalName = String(legalName || sourceName).trim();
 
       const profile = await StockClient.findOneAndUpdate(
         {
@@ -1473,7 +1955,9 @@ export class StockController {
         {
           $set: {
             legalName: resolvedLegalName,
-            contactPerson: contactPerson ? String(contactPerson).trim() : undefined,
+            contactPerson: contactPerson
+              ? String(contactPerson).trim()
+              : undefined,
             kraPin: kraPin ? String(kraPin).trim().toUpperCase() : undefined,
             email: email ? String(email).trim() : undefined,
             branchId: branchId ? String(branchId).trim() : undefined,
@@ -1489,50 +1973,67 @@ export class StockController {
           },
         },
         { upsert: true, new: true },
-      )
+      );
 
-      return res.status(200).json({ success: true, data: profile })
+      return res.status(200).json({ success: true, data: profile });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message || 'Failed to create/update client' })
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error.message || "Failed to create/update client",
+        });
     }
   }
 
   static async bulkUploadClients(req: AuthenticatedRequest, res: Response) {
     try {
-      const org_id = req.user?.org_id
-      const actorId = req.user?.userId
-      if (!org_id || !actorId) return res.status(401).json({ success: false, message: "Unauthorized" })
+      const org_id = req.user?.org_id;
+      const actorId = req.user?.userId;
+      if (!org_id || !actorId)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
 
       if (!isAdminRole(req.user?.role)) {
-        return res.status(403).json({ success: false, message: "Only admin/HR can bulk upload clients" })
+        return res
+          .status(403)
+          .json({
+            success: false,
+            message: "Only admin/HR can bulk upload clients",
+          });
       }
 
-      const file = req.file as any
+      const file = req.file as any;
       if (!file) {
-        return res.status(400).json({ success: false, message: "CSV file is required" })
+        return res
+          .status(400)
+          .json({ success: false, message: "CSV file is required" });
       }
 
-      const fileContent = await fs.readFile(file.path, "utf-8")
-      const rows = parseCsv(fileContent)
+      const fileContent = await fs.readFile(file.path, "utf-8");
+      const rows = parseCsv(fileContent);
 
       if (rows.length === 0) {
-        return res.status(400).json({ success: false, message: "CSV file is empty" })
+        return res
+          .status(400)
+          .json({ success: false, message: "CSV file is empty" });
       }
 
-      let createdCount = 0
-      let updatedCount = 0
-      const errors: string[] = []
+      let createdCount = 0;
+      let updatedCount = 0;
+      const errors: string[] = [];
 
       for (let index = 0; index < rows.length; index += 1) {
         try {
-          const row = rows[index]
+          const row = rows[index];
           const sourceName = String(
             row.client_name ||
               row["Client Name"] ||
               row.sourceName ||
               row["Source Name"] ||
               "",
-          ).trim()
+          ).trim();
           const sourceNumber = String(
             row.client_number ||
               row["Client Number"] ||
@@ -1541,7 +2042,7 @@ export class StockController {
               row.client_phone ||
               row["Client Phone"] ||
               "",
-          ).trim()
+          ).trim();
           const sourceLocation = String(
             row.client_location ||
               row["Client Location"] ||
@@ -1550,21 +2051,37 @@ export class StockController {
               row.client_address_1 ||
               row["Client Address"] ||
               "",
-          ).trim()
+          ).trim();
           const contactPerson = String(
             row.contact_person ||
               row["Contact Person"] ||
               row.contactPerson ||
               "",
-          ).trim()
-          const legalName = String(row.legalName || row["Legal Name"] || sourceName).trim()
-          const kraPin = String(row.kraPin || row["KRA PIN"] || row.pin_no || row["PIN No"] || "").trim().toUpperCase()
-          const email = String(row.email || row["Email"] || row.client_email || row["Client Email"] || "").trim()
-          const branchId = String(row.branchId || row["Branch ID"] || "").trim()
+          ).trim();
+          const legalName = String(
+            row.legalName || row["Legal Name"] || sourceName,
+          ).trim();
+          const kraPin = String(
+            row.kraPin || row["KRA PIN"] || row.pin_no || row["PIN No"] || "",
+          )
+            .trim()
+            .toUpperCase();
+          const email = String(
+            row.email ||
+              row["Email"] ||
+              row.client_email ||
+              row["Client Email"] ||
+              "",
+          ).trim();
+          const branchId = String(
+            row.branchId || row["Branch ID"] || "",
+          ).trim();
 
           if (!sourceName || !sourceNumber || !sourceLocation) {
-            errors.push(`Row ${index + 1}: Missing required fields (Client Name, Client Number, Client Location)`)
-            continue
+            errors.push(
+              `Row ${index + 1}: Missing required fields (Client Name, Client Number, Client Location)`,
+            );
+            continue;
           }
 
           const profile = await StockClient.findOneAndUpdate(
@@ -1593,21 +2110,23 @@ export class StockController {
               },
             },
             { upsert: true, new: true },
-          )
+          );
 
           if (profile.isNew || !profile.updatedAt) {
-            createdCount += 1
+            createdCount += 1;
           } else {
-            updatedCount += 1
+            updatedCount += 1;
           }
         } catch (rowError: any) {
-          errors.push(`Row ${index + 1}: ${rowError?.message || "Unknown error"}`)
+          errors.push(
+            `Row ${index + 1}: ${rowError?.message || "Unknown error"}`,
+          );
         }
       }
 
       // Clean up uploaded file
       try {
-        await fs.unlink(file.path)
+        await fs.unlink(file.path);
       } catch {
         // Ignore cleanup errors
       }
@@ -1622,32 +2141,51 @@ export class StockController {
           errorCount: errors.length,
           errors: errors.slice(0, 10),
         },
-      })
+      });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message || "Failed to bulk upload clients" })
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error.message || "Failed to bulk upload clients",
+        });
     }
   }
 
   static async postInvoiceToEtims(req: AuthenticatedRequest, res: Response) {
     try {
-      const org_id = req.user?.org_id
-      const actorId = req.user?.userId
-      if (!org_id || !actorId) return res.status(401).json({ success: false, message: "Unauthorized" })
+      const org_id = req.user?.org_id;
+      const actorId = req.user?.userId;
+      if (!org_id || !actorId)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
 
-      const { invoiceId } = req.params
-      const invoice = await StockInvoice.findOne({ _id: invoiceId, org_id }).lean()
-      if (!invoice) return res.status(404).json({ success: false, message: "Invoice not found" })
+      const { invoiceId } = req.params;
+      const invoice = await StockInvoice.findOne({
+        _id: invoiceId,
+        org_id,
+      }).lean();
+      if (!invoice)
+        return res
+          .status(404)
+          .json({ success: false, message: "Invoice not found" });
 
-      const source = buildClientSourceKey(invoice.client)
+      const source = buildClientSourceKey(invoice.client);
       const clientProfile = await StockClient.findOne({
         org_id,
         sourceName: source.sourceName,
         sourceNumber: source.sourceNumber,
         sourceLocation: source.sourceLocation,
-      }).lean()
+      }).lean();
 
       if (!clientProfile || !clientProfile.hasKraDetails) {
-        return res.status(400).json({ success: false, message: "Save client legal name and KRA PIN first" })
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message: "Save client legal name and KRA PIN first",
+          });
       }
 
       const etimsPayload = {
@@ -1663,10 +2201,10 @@ export class StockController {
           subTotal: invoice.subTotal,
         },
         items: invoice.items,
-      }
+      };
 
-      const kraInvoiceId = `KRA-${String(invoice.invoiceNumber || "").replace(/[^A-Za-z0-9-]/g, "")}`
-      const responseMessage = "Posted to eTIMS (VSCU manual post)"
+      const kraInvoiceId = `KRA-${String(invoice.invoiceNumber || "").replace(/[^A-Za-z0-9-]/g, "")}`;
+      const responseMessage = "Posted to eTIMS (VSCU manual post)";
 
       const updated = await StockInvoice.findOneAndUpdate(
         { _id: invoiceId, org_id },
@@ -1683,7 +2221,7 @@ export class StockController {
           },
         },
         { new: true },
-      ).lean()
+      ).lean();
 
       return res.status(200).json({
         success: true,
@@ -1693,63 +2231,96 @@ export class StockController {
           kraInvoiceId,
           payload: etimsPayload,
         },
-      })
+      });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message || "Failed to post sale to eTIMS" })
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error.message || "Failed to post sale to eTIMS",
+        });
     }
   }
 
   static async getExpenses(req: AuthenticatedRequest, res: Response) {
     try {
-      const org_id = req.user?.org_id
-      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+      const org_id = req.user?.org_id;
+      if (!org_id)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
 
-      const expenses = await StockExpense.find({ org_id }).sort({ createdAt: -1 }).lean()
-      return res.status(200).json({ success: true, data: expenses })
+      const expenses = await StockExpense.find({ org_id })
+        .sort({ createdAt: -1 })
+        .lean();
+      return res.status(200).json({ success: true, data: expenses });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message || "Failed to fetch expenses" })
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error.message || "Failed to fetch expenses",
+        });
     }
   }
 
   static async getAccountsPayments(req: AuthenticatedRequest, res: Response) {
     try {
-      const org_id = req.user?.org_id
-      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+      const org_id = req.user?.org_id;
+      if (!org_id)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
 
-      const invoices = await StockInvoice.find({ org_id, status: { $ne: "cancelled" } }).sort({ createdAt: -1 }).lean()
-      const invoiceIds = invoices.map((invoice: any) => String(invoice._id))
+      const invoices = await StockInvoice.find({
+        org_id,
+        status: { $ne: "cancelled" },
+      })
+        .sort({ createdAt: -1 })
+        .lean();
+      const invoiceIds = invoices.map((invoice: any) => String(invoice._id));
 
       const payments = await StockInvoicePayment.find({
         org_id,
         invoiceId: { $in: invoiceIds },
       })
         .sort({ paidAt: -1, createdAt: -1 })
-        .lean()
+        .lean();
 
-      const paymentsByInvoice = new Map<string, any[]>()
+      const paymentsByInvoice = new Map<string, any[]>();
       for (const payment of payments) {
-        const key = String(payment.invoiceId)
-        const existing = paymentsByInvoice.get(key) || []
-        existing.push(payment)
-        paymentsByInvoice.set(key, existing)
+        const key = String(payment.invoiceId);
+        const existing = paymentsByInvoice.get(key) || [];
+        existing.push(payment);
+        paymentsByInvoice.set(key, existing);
       }
 
-      const data = invoices.map((invoice: any) => {
-        const invoicePayments = paymentsByInvoice.get(String(invoice._id)) || []
-        return buildInvoicePaymentSummary(invoice, invoicePayments)
-      })
-        .filter((invoice: any) => Number(invoice.balanceRemaining || 0) > 0)
+      const data = invoices
+        .map((invoice: any) => {
+          const invoicePayments =
+            paymentsByInvoice.get(String(invoice._id)) || [];
+          return buildInvoicePaymentSummary(invoice, invoicePayments);
+        })
+        .filter((invoice: any) => Number(invoice.balanceRemaining || 0) > 0);
 
-      return res.status(200).json({ success: true, data })
+      return res.status(200).json({ success: true, data });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message || "Failed to fetch payment management data" })
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error.message || "Failed to fetch payment management data",
+        });
     }
   }
 
   static async getAccountsClients(req: AuthenticatedRequest, res: Response) {
     try {
-      const org_id = req.user?.org_id
-      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+      const org_id = req.user?.org_id;
+      if (!org_id)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
 
       const [quotations, invoices, sales] = await Promise.all([
         StockQuotation.find({ org_id })
@@ -1761,32 +2332,48 @@ export class StockController {
           .sort({ createdAt: -1 })
           .lean(),
         StockSale.find({ org_id, isWalkInClient: { $ne: true } })
-          .select("buyerName buyerNumber buyerLocation quantitySold soldPrice receiptNumber createdAt")
+          .select(
+            "buyerName buyerNumber buyerLocation quantitySold soldPrice receiptNumber createdAt",
+          )
           .sort({ createdAt: -1 })
           .lean(),
-      ])
+      ]);
 
-      const invoiceIds = invoices.map((invoice: any) => String(invoice._id))
-      const payments = await StockInvoicePayment.find({ org_id, invoiceId: { $in: invoiceIds } })
-        .select("invoiceId invoiceNumber amount paymentMethod reference paidAt createdAt")
+      const invoiceIds = invoices.map((invoice: any) => String(invoice._id));
+      const payments = await StockInvoicePayment.find({
+        org_id,
+        invoiceId: { $in: invoiceIds },
+      })
+        .select(
+          "invoiceId invoiceNumber amount paymentMethod reference paidAt createdAt",
+        )
         .sort({ paidAt: -1, createdAt: -1 })
-        .lean()
+        .lean();
 
-      const paymentsByInvoice = new Map<string, any[]>()
+      const paymentsByInvoice = new Map<string, any[]>();
       for (const payment of payments) {
-        const key = String(payment.invoiceId)
-        const existing = paymentsByInvoice.get(key) || []
-        existing.push(payment)
-        paymentsByInvoice.set(key, existing)
+        const key = String(payment.invoiceId);
+        const existing = paymentsByInvoice.get(key) || [];
+        existing.push(payment);
+        paymentsByInvoice.set(key, existing);
       }
 
-      const clientsMap = new Map<string, any>()
+      const clientsMap = new Map<string, any>();
 
-      const ensureClient = (client: { name?: string; number?: string; location?: string }) => {
-        const normalized = buildClientSourceKey(client)
-        if (!normalized.sourceName || !normalized.sourceNumber || !normalized.sourceLocation) return null
+      const ensureClient = (client: {
+        name?: string;
+        number?: string;
+        location?: string;
+      }) => {
+        const normalized = buildClientSourceKey(client);
+        if (
+          !normalized.sourceName ||
+          !normalized.sourceNumber ||
+          !normalized.sourceLocation
+        )
+          return null;
 
-        const key = `${normalized.sourceName}|${normalized.sourceNumber}|${normalized.sourceLocation}`
+        const key = `${normalized.sourceName}|${normalized.sourceNumber}|${normalized.sourceLocation}`;
         if (!clientsMap.has(key)) {
           clientsMap.set(key, {
             key,
@@ -1805,48 +2392,58 @@ export class StockController {
             salesValue: 0,
             lastActivityAt: null,
             activities: [],
-          })
+          });
         }
 
-        return clientsMap.get(key)
-      }
+        return clientsMap.get(key);
+      };
 
       for (const quotation of quotations) {
-        const clientRecord = ensureClient((quotation as any).client)
-        if (!clientRecord) continue
+        const clientRecord = ensureClient((quotation as any).client);
+        if (!clientRecord) continue;
 
-        const subTotal = Number((quotation as any).subTotal || 0)
-        const createdAt = (quotation as any).createdAt
+        const subTotal = Number((quotation as any).subTotal || 0);
+        const createdAt = (quotation as any).createdAt;
 
-        clientRecord.quotationsCount += 1
-        clientRecord.quotationsValue += subTotal
+        clientRecord.quotationsCount += 1;
+        clientRecord.quotationsValue += subTotal;
         clientRecord.activities.push({
           type: "quotation",
           reference: (quotation as any).quotationNumber,
           amount: subTotal,
           status: (quotation as any).status,
           date: createdAt,
-        })
+        });
 
-        if (!clientRecord.lastActivityAt || new Date(createdAt) > new Date(clientRecord.lastActivityAt)) {
-          clientRecord.lastActivityAt = createdAt
+        if (
+          !clientRecord.lastActivityAt ||
+          new Date(createdAt) > new Date(clientRecord.lastActivityAt)
+        ) {
+          clientRecord.lastActivityAt = createdAt;
         }
       }
 
       for (const invoice of invoices) {
-        const clientRecord = ensureClient((invoice as any).client)
-        if (!clientRecord) continue
+        const clientRecord = ensureClient((invoice as any).client);
+        if (!clientRecord) continue;
 
-        const subTotal = Number((invoice as any).subTotal || 0)
-        const createdAt = (invoice as any).createdAt
-        const invoicePayments = paymentsByInvoice.get(String((invoice as any)._id)) || []
-        const paidAmount = invoicePayments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0)
-        const debtAmount = Math.max(0, Number((subTotal - paidAmount).toFixed(2)))
+        const subTotal = Number((invoice as any).subTotal || 0);
+        const createdAt = (invoice as any).createdAt;
+        const invoicePayments =
+          paymentsByInvoice.get(String((invoice as any)._id)) || [];
+        const paidAmount = invoicePayments.reduce(
+          (sum, payment) => sum + Number(payment.amount || 0),
+          0,
+        );
+        const debtAmount = Math.max(
+          0,
+          Number((subTotal - paidAmount).toFixed(2)),
+        );
 
-        clientRecord.invoicesCount += 1
-        clientRecord.purchasesValue += subTotal
-        clientRecord.paidAmount += paidAmount
-        clientRecord.debtAmount += debtAmount
+        clientRecord.invoicesCount += 1;
+        clientRecord.purchasesValue += subTotal;
+        clientRecord.paidAmount += paidAmount;
+        clientRecord.debtAmount += debtAmount;
 
         clientRecord.activities.push({
           type: "invoice",
@@ -1856,10 +2453,10 @@ export class StockController {
           debtAmount,
           status: (invoice as any).status,
           date: createdAt,
-        })
+        });
 
         for (const payment of invoicePayments) {
-          const paymentDate = payment.paidAt || payment.createdAt
+          const paymentDate = payment.paidAt || payment.createdAt;
           clientRecord.activities.push({
             type: "payment",
             reference: payment.invoiceNumber || (invoice as any).invoiceNumber,
@@ -1867,15 +2464,21 @@ export class StockController {
             paymentMethod: payment.paymentMethod,
             externalReference: payment.reference,
             date: paymentDate,
-          })
+          });
 
-          if (!clientRecord.lastActivityAt || new Date(paymentDate) > new Date(clientRecord.lastActivityAt)) {
-            clientRecord.lastActivityAt = paymentDate
+          if (
+            !clientRecord.lastActivityAt ||
+            new Date(paymentDate) > new Date(clientRecord.lastActivityAt)
+          ) {
+            clientRecord.lastActivityAt = paymentDate;
           }
         }
 
-        if (!clientRecord.lastActivityAt || new Date(createdAt) > new Date(clientRecord.lastActivityAt)) {
-          clientRecord.lastActivityAt = createdAt
+        if (
+          !clientRecord.lastActivityAt ||
+          new Date(createdAt) > new Date(clientRecord.lastActivityAt)
+        ) {
+          clientRecord.lastActivityAt = createdAt;
         }
       }
 
@@ -1884,23 +2487,28 @@ export class StockController {
           name: String((sale as any).buyerName || "").trim(),
           number: String((sale as any).buyerNumber || "").trim(),
           location: String((sale as any).buyerLocation || "").trim(),
-        })
-        if (!clientRecord) continue
+        });
+        if (!clientRecord) continue;
 
-        const saleAmount = Number((sale as any).soldPrice || 0) * Number((sale as any).quantitySold || 0)
-        const createdAt = (sale as any).createdAt
+        const saleAmount =
+          Number((sale as any).soldPrice || 0) *
+          Number((sale as any).quantitySold || 0);
+        const createdAt = (sale as any).createdAt;
 
-        clientRecord.salesCount += 1
-        clientRecord.salesValue += saleAmount
+        clientRecord.salesCount += 1;
+        clientRecord.salesValue += saleAmount;
         clientRecord.activities.push({
           type: "sale",
           reference: (sale as any).receiptNumber,
           amount: Number(saleAmount.toFixed(2)),
           date: createdAt,
-        })
+        });
 
-        if (!clientRecord.lastActivityAt || new Date(createdAt) > new Date(clientRecord.lastActivityAt)) {
-          clientRecord.lastActivityAt = createdAt
+        if (
+          !clientRecord.lastActivityAt ||
+          new Date(createdAt) > new Date(clientRecord.lastActivityAt)
+        ) {
+          clientRecord.lastActivityAt = createdAt;
         }
       }
 
@@ -1913,91 +2521,173 @@ export class StockController {
           debtAmount: Number(row.debtAmount.toFixed(2)),
           salesValue: Number(row.salesValue.toFixed(2)),
           activities: (row.activities || [])
-            .sort((a: any, b: any) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime())
+            .sort(
+              (a: any, b: any) =>
+                new Date(b.date || 0).getTime() -
+                new Date(a.date || 0).getTime(),
+            )
             .slice(0, 50),
         }))
-        .sort((a: any, b: any) => new Date(b.lastActivityAt || 0).getTime() - new Date(a.lastActivityAt || 0).getTime())
+        .sort(
+          (a: any, b: any) =>
+            new Date(b.lastActivityAt || 0).getTime() -
+            new Date(a.lastActivityAt || 0).getTime(),
+        );
 
-      return res.status(200).json({ success: true, data })
+      return res.status(200).json({ success: true, data });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message || "Failed to fetch accounts clients" })
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error.message || "Failed to fetch accounts clients",
+        });
     }
   }
 
   static async getBulkSmsAudience(req: AuthenticatedRequest, res: Response) {
     try {
-      const org_id = req.user?.org_id
-      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+      const org_id = req.user?.org_id;
+      if (!org_id)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
       if (!isAdminRole(req.user?.role)) {
-        return res.status(403).json({ success: false, message: "Only admin/HR can use bulk SMS" })
+        return res
+          .status(403)
+          .json({ success: false, message: "Only admin/HR can use bulk SMS" });
       }
 
-      const audience = await buildBulkSmsAudience(org_id, req.query || {})
-      return res.status(200).json({ success: true, data: audience.clients, meta: audience.meta })
+      const audience = await buildBulkSmsAudience(org_id, req.query || {});
+      return res
+        .status(200)
+        .json({ success: true, data: audience.clients, meta: audience.meta });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message || "Failed to build SMS audience" })
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error.message || "Failed to build SMS audience",
+        });
     }
   }
 
   static async getBulkSmsCampaigns(req: AuthenticatedRequest, res: Response) {
     try {
-      const org_id = req.user?.org_id
-      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+      const org_id = req.user?.org_id;
+      if (!org_id)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
       if (!isAdminRole(req.user?.role)) {
-        return res.status(403).json({ success: false, message: "Only admin/HR can view bulk SMS campaigns" })
+        return res
+          .status(403)
+          .json({
+            success: false,
+            message: "Only admin/HR can view bulk SMS campaigns",
+          });
       }
 
-      const campaigns = await BulkSmsCampaign.find({ org_id }).sort({ createdAt: -1 }).limit(30).lean()
-      return res.status(200).json({ success: true, data: campaigns })
+      const campaigns = await BulkSmsCampaign.find({ org_id })
+        .sort({ createdAt: -1 })
+        .limit(30)
+        .lean();
+      return res.status(200).json({ success: true, data: campaigns });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message || "Failed to fetch SMS campaigns" })
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error.message || "Failed to fetch SMS campaigns",
+        });
     }
   }
 
   static async sendBulkSmsCampaign(req: AuthenticatedRequest, res: Response) {
     try {
-      const org_id = req.user?.org_id
-      const userId = req.user?.userId
-      if (!org_id || !userId) return res.status(401).json({ success: false, message: "Unauthorized" })
+      const org_id = req.user?.org_id;
+      const userId = req.user?.userId;
+      if (!org_id || !userId)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
       if (!isAdminRole(req.user?.role)) {
-        return res.status(403).json({ success: false, message: "Only admin/HR can send bulk SMS campaigns" })
+        return res
+          .status(403)
+          .json({
+            success: false,
+            message: "Only admin/HR can send bulk SMS campaigns",
+          });
       }
 
-      const name = String(req.body?.name || "").trim()
-      const message = String(req.body?.message || "").trim()
-      const filters = req.body?.filters || {}
-      const selectedRecipientKeys = Array.isArray(req.body?.selectedRecipientKeys)
+      const name = String(req.body?.name || "").trim();
+      const message = String(req.body?.message || "").trim();
+      const filters = req.body?.filters || {};
+      const selectedRecipientKeys = Array.isArray(
+        req.body?.selectedRecipientKeys,
+      )
         ? req.body.selectedRecipientKeys.map((key: any) => String(key))
-        : []
+        : [];
 
-      if (!name) return res.status(400).json({ success: false, message: "Campaign name is required" })
-      if (!message) return res.status(400).json({ success: false, message: "Message is required" })
-      if (name.length > 120) return res.status(400).json({ success: false, message: "Campaign name is too long (max 120 characters)" })
-      if (message.length > 800) return res.status(400).json({ success: false, message: "Message is too long (max 800 characters)" })
+      if (!name)
+        return res
+          .status(400)
+          .json({ success: false, message: "Campaign name is required" });
+      if (!message)
+        return res
+          .status(400)
+          .json({ success: false, message: "Message is required" });
+      if (name.length > 120)
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message: "Campaign name is too long (max 120 characters)",
+          });
+      if (message.length > 800)
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message: "Message is too long (max 800 characters)",
+          });
 
-      const audience = await buildBulkSmsAudience(org_id, filters)
-      let recipients = audience.clients
+      const audience = await buildBulkSmsAudience(org_id, filters);
+      let recipients = audience.clients;
 
       if (selectedRecipientKeys.length > 0) {
-        const selected = new Set(selectedRecipientKeys)
-        recipients = recipients.filter((recipient) => selected.has(recipient.key))
+        const selected = new Set(selectedRecipientKeys);
+        recipients = recipients.filter((recipient) =>
+          selected.has(recipient.key),
+        );
       }
 
       if (recipients.length === 0) {
-        return res.status(400).json({ success: false, message: "No recipients selected for this campaign" })
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message: "No recipients selected for this campaign",
+          });
       }
 
-      const company = await Company.findById(org_id).select("name dispatchSmsSettings").lean()
-      const smsSenderName = String(company?.dispatchSmsSettings?.smsSenderName || company?.name || "ELEVATE").trim()
+      const company = await Company.findById(org_id)
+        .select("name dispatchSmsSettings")
+        .lean();
+      const smsSenderName = String(
+        company?.dispatchSmsSettings?.smsSenderName ||
+          company?.name ||
+          "ELEVATE",
+      ).trim();
 
-      const recipientResults = []
+      const recipientResults = [];
       for (const recipient of recipients) {
         try {
           const smsResult = await smsService.sendDispatchSms({
             to: recipient.phone,
             message,
             senderName: smsSenderName,
-          })
+          });
 
           recipientResults.push({
             key: recipient.key,
@@ -2010,7 +2700,7 @@ export class StockController {
             providerRawResponse: smsResult.providerRawResponse,
             errorMessage: smsResult.success ? undefined : smsResult.error,
             sentAt: smsResult.success ? new Date() : undefined,
-          })
+          });
         } catch (sendError: any) {
           recipientResults.push({
             key: recipient.key,
@@ -2019,13 +2709,19 @@ export class StockController {
             location: recipient.location,
             status: "failed",
             errorMessage: sendError?.message || "Failed to send SMS",
-          })
+          });
         }
       }
 
-      const sentCount = recipientResults.filter((recipient) => recipient.status === "sent").length
-      const failedCount = recipientResults.filter((recipient) => recipient.status === "failed").length
-      const skippedCount = recipientResults.filter((recipient) => recipient.status === "skipped").length
+      const sentCount = recipientResults.filter(
+        (recipient) => recipient.status === "sent",
+      ).length;
+      const failedCount = recipientResults.filter(
+        (recipient) => recipient.status === "failed",
+      ).length;
+      const skippedCount = recipientResults.filter(
+        (recipient) => recipient.status === "skipped",
+      ).length;
 
       const campaign = await BulkSmsCampaign.create({
         org_id,
@@ -2036,56 +2732,93 @@ export class StockController {
         sentCount,
         failedCount,
         skippedCount,
-        status: failedCount > 0 ? (sentCount > 0 ? "completed_with_errors" : "failed") : "completed",
+        status:
+          failedCount > 0
+            ? sentCount > 0
+              ? "completed_with_errors"
+              : "failed"
+            : "completed",
         recipients: recipientResults,
         createdBy: String(userId),
-      })
+      });
 
       return res.status(201).json({
         success: true,
         message: `Campaign sent to ${sentCount}/${recipients.length} clients`,
         data: campaign,
-      })
+      });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message || "Failed to send bulk SMS campaign" })
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error.message || "Failed to send bulk SMS campaign",
+        });
     }
   }
 
   static async addInvoicePayment(req: AuthenticatedRequest, res: Response) {
     try {
-      const org_id = req.user?.org_id
-      const actorId = req.user?.userId
-      if (!org_id || !actorId) return res.status(401).json({ success: false, message: "Unauthorized" })
+      const org_id = req.user?.org_id;
+      const actorId = req.user?.userId;
+      if (!org_id || !actorId)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
 
-      const { invoiceId } = req.params
-      const { amount, paymentMethod, reference, note, paidAt } = req.body || {}
+      const { invoiceId } = req.params;
+      const { amount, paymentMethod, reference, note, paidAt } = req.body || {};
 
-      const numericAmount = Number(amount)
+      const numericAmount = Number(amount);
       if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
-        return res.status(400).json({ success: false, message: "Valid payment amount is required" })
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message: "Valid payment amount is required",
+          });
       }
 
-      const invoice = await StockInvoice.findOne({ _id: invoiceId, org_id })
-      if (!invoice) return res.status(404).json({ success: false, message: "Invoice not found" })
+      const invoice = await StockInvoice.findOne({ _id: invoiceId, org_id });
+      if (!invoice)
+        return res
+          .status(404)
+          .json({ success: false, message: "Invoice not found" });
       if (invoice.status === "cancelled") {
-        return res.status(400).json({ success: false, message: "Cannot add payment to cancelled invoice" })
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message: "Cannot add payment to cancelled invoice",
+          });
       }
 
-      const existingPayments = await StockInvoicePayment.find({ org_id, invoiceId: String(invoice._id) }).lean()
-      const alreadyPaid = existingPayments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0)
-      const subTotal = Number(invoice.subTotal || 0)
-      const balanceRemaining = Math.max(0, Number((subTotal - alreadyPaid).toFixed(2)))
+      const existingPayments = await StockInvoicePayment.find({
+        org_id,
+        invoiceId: String(invoice._id),
+      }).lean();
+      const alreadyPaid = existingPayments.reduce(
+        (sum, payment) => sum + Number(payment.amount || 0),
+        0,
+      );
+      const subTotal = Number(invoice.subTotal || 0);
+      const balanceRemaining = Math.max(
+        0,
+        Number((subTotal - alreadyPaid).toFixed(2)),
+      );
 
       if (numericAmount > balanceRemaining) {
         return res.status(400).json({
           success: false,
           message: `Payment exceeds remaining balance (${balanceRemaining.toFixed(2)})`,
-        })
+        });
       }
 
-      const normalizedPaidAt = paidAt ? new Date(paidAt) : new Date()
+      const normalizedPaidAt = paidAt ? new Date(paidAt) : new Date();
       if (Number.isNaN(normalizedPaidAt.getTime())) {
-        return res.status(400).json({ success: false, message: "Invalid paidAt date" })
+        return res
+          .status(400)
+          .json({ success: false, message: "Invalid paidAt date" });
       }
 
       const payment = await StockInvoicePayment.create({
@@ -2098,74 +2831,109 @@ export class StockController {
         note: String(note || "").trim() || undefined,
         paidAt: normalizedPaidAt,
         receivedBy: String(actorId),
-      })
+      });
 
-      const newPaidAmount = alreadyPaid + Number(payment.amount || 0)
-      const isFullyPaid = newPaidAmount >= subTotal
+      const newPaidAmount = alreadyPaid + Number(payment.amount || 0);
+      const isFullyPaid = newPaidAmount >= subTotal;
       await StockInvoice.updateOne(
         { _id: invoiceId, org_id },
         { $set: { status: isFullyPaid ? "paid" : "issued" } },
-      )
+      );
 
       return res.status(201).json({
         success: true,
-        message: isFullyPaid ? "Payment saved. Invoice is now fully settled" : "Payment saved",
+        message: isFullyPaid
+          ? "Payment saved. Invoice is now fully settled"
+          : "Payment saved",
         data: payment,
-      })
+      });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message || "Failed to add payment" })
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error.message || "Failed to add payment",
+        });
     }
   }
 
   static async getDebtManagement(req: AuthenticatedRequest, res: Response) {
     try {
-      const org_id = req.user?.org_id
-      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+      const org_id = req.user?.org_id;
+      if (!org_id)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
 
-      const invoices = await StockInvoice.find({ org_id, status: { $ne: "cancelled" } }).sort({ createdAt: -1 }).lean()
-      const invoiceIds = invoices.map((invoice: any) => String(invoice._id))
+      const invoices = await StockInvoice.find({
+        org_id,
+        status: { $ne: "cancelled" },
+      })
+        .sort({ createdAt: -1 })
+        .lean();
+      const invoiceIds = invoices.map((invoice: any) => String(invoice._id));
 
       const payments = await StockInvoicePayment.find({
         org_id,
         invoiceId: { $in: invoiceIds },
       })
         .sort({ paidAt: -1, createdAt: -1 })
-        .lean()
+        .lean();
 
-      const paymentsByInvoice = new Map<string, any[]>()
+      const paymentsByInvoice = new Map<string, any[]>();
       for (const payment of payments) {
-        const key = String(payment.invoiceId)
-        const existing = paymentsByInvoice.get(key) || []
-        existing.push(payment)
-        paymentsByInvoice.set(key, existing)
+        const key = String(payment.invoiceId);
+        const existing = paymentsByInvoice.get(key) || [];
+        existing.push(payment);
+        paymentsByInvoice.set(key, existing);
       }
 
       const data = invoices
         .map((invoice: any) => {
-          const invoicePayments = paymentsByInvoice.get(String(invoice._id)) || []
-          return buildInvoicePaymentSummary(invoice, invoicePayments)
+          const invoicePayments =
+            paymentsByInvoice.get(String(invoice._id)) || [];
+          return buildInvoicePaymentSummary(invoice, invoicePayments);
         })
-        .filter((invoice: any) => Number(invoice.balanceRemaining || 0) > 0)
+        .filter((invoice: any) => Number(invoice.balanceRemaining || 0) > 0);
 
-      return res.status(200).json({ success: true, data })
+      return res.status(200).json({ success: true, data });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message || "Failed to fetch debt management data" })
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error.message || "Failed to fetch debt management data",
+        });
     }
   }
 
   static async getAgingDebtReport(req: AuthenticatedRequest, res: Response) {
     try {
-      const org_id = req.user?.org_id
-      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+      const org_id = req.user?.org_id;
+      if (!org_id)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
 
-      const invoices = await StockInvoice.find({ org_id, status: { $ne: "cancelled" } }).sort({ createdAt: -1 }).lean()
-      const invoiceIds = invoices.map((invoice: any) => String(invoice._id))
-      const payments = await StockInvoicePayment.find({ org_id, invoiceId: { $in: invoiceIds } }).lean()
+      const invoices = await StockInvoice.find({
+        org_id,
+        status: { $ne: "cancelled" },
+      })
+        .sort({ createdAt: -1 })
+        .lean();
+      const invoiceIds = invoices.map((invoice: any) => String(invoice._id));
+      const payments = await StockInvoicePayment.find({
+        org_id,
+        invoiceId: { $in: invoiceIds },
+      }).lean();
 
-      const paymentsByInvoice = new Map<string, any[]>()
+      const paymentsByInvoice = new Map<string, any[]>();
       for (const payment of payments) {
-        const key = String(payment.invoiceId)
-        paymentsByInvoice.set(key, [...(paymentsByInvoice.get(key) || []), payment])
+        const key = String(payment.invoiceId);
+        paymentsByInvoice.set(key, [
+          ...(paymentsByInvoice.get(key) || []),
+          payment,
+        ]);
       }
 
       const buckets = {
@@ -2173,16 +2941,39 @@ export class StockController {
         days31To60: { label: "31-60 days", count: 0, amount: 0 },
         days61To90: { label: "61-90 days", count: 0, amount: 0 },
         over90: { label: "90+ days", count: 0, amount: 0 },
-      }
+      };
 
       const rows = invoices
-        .map((invoice: any) => buildInvoicePaymentSummary(invoice, paymentsByInvoice.get(String(invoice._id)) || []))
+        .map((invoice: any) =>
+          buildInvoicePaymentSummary(
+            invoice,
+            paymentsByInvoice.get(String(invoice._id)) || [],
+          ),
+        )
         .filter((invoice: any) => Number(invoice.balanceRemaining || 0) > 0)
         .map((invoice: any) => {
-          const ageDays = Math.max(0, Math.floor((Date.now() - new Date(invoice.createdAt || Date.now()).getTime()) / (24 * 60 * 60 * 1000)))
-          const bucketKey = ageDays <= 30 ? "current" : ageDays <= 60 ? "days31To60" : ageDays <= 90 ? "days61To90" : "over90"
-          buckets[bucketKey].count += 1
-          buckets[bucketKey].amount = Number((buckets[bucketKey].amount + Number(invoice.balanceRemaining || 0)).toFixed(2))
+          const ageDays = Math.max(
+            0,
+            Math.floor(
+              (Date.now() -
+                new Date(invoice.createdAt || Date.now()).getTime()) /
+                (24 * 60 * 60 * 1000),
+            ),
+          );
+          const bucketKey =
+            ageDays <= 30
+              ? "current"
+              : ageDays <= 60
+                ? "days31To60"
+                : ageDays <= 90
+                  ? "days61To90"
+                  : "over90";
+          buckets[bucketKey].count += 1;
+          buckets[bucketKey].amount = Number(
+            (
+              buckets[bucketKey].amount + Number(invoice.balanceRemaining || 0)
+            ).toFixed(2),
+          );
 
           return {
             invoiceId: String(invoice._id),
@@ -2195,10 +2986,13 @@ export class StockController {
             paidAmount: invoice.paidAmount,
             balanceRemaining: invoice.balanceRemaining,
             nextPaymentDate: invoice.nextPaymentDate,
-          }
-        })
+          };
+        });
 
-      const totalOutstanding = rows.reduce((sum, row) => sum + Number(row.balanceRemaining || 0), 0)
+      const totalOutstanding = rows.reduce(
+        (sum, row) => sum + Number(row.balanceRemaining || 0),
+        0,
+      );
 
       return res.status(200).json({
         success: true,
@@ -2207,27 +3001,44 @@ export class StockController {
           buckets,
           rows,
         },
-      })
+      });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message || "Failed to fetch aging debt report" })
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error.message || "Failed to fetch aging debt report",
+        });
     }
   }
 
-  static async getProfitMarginAnalytics(req: AuthenticatedRequest, res: Response) {
+  static async getProfitMarginAnalytics(
+    req: AuthenticatedRequest,
+    res: Response,
+  ) {
     try {
-      const org_id = req.user?.org_id
-      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+      const org_id = req.user?.org_id;
+      if (!org_id)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
 
       const [products, sales, invoices] = await Promise.all([
         StockProduct.find({ org_id, isActive: { $ne: false } }).lean(),
         StockSale.find({ org_id }).lean(),
         StockInvoice.find({ org_id, status: { $ne: "cancelled" } }).lean(),
-      ])
+      ]);
 
-      const productMap = new Map(products.map((product: any) => [String(product._id), product]))
-      const marginByProduct = new Map<string, any>()
+      const productMap = new Map(
+        products.map((product: any) => [String(product._id), product]),
+      );
+      const marginByProduct = new Map<string, any>();
 
-      const ensureRow = (productId: string, productName: string, startingPrice = 0) => {
+      const ensureRow = (
+        productId: string,
+        productName: string,
+        startingPrice = 0,
+      ) => {
         if (!marginByProduct.has(productId)) {
           marginByProduct.set(productId, {
             productId,
@@ -2237,48 +3048,61 @@ export class StockController {
             estimatedCost: 0,
             grossProfit: 0,
             grossMarginPercent: 0,
-          })
+          });
         }
-        const row = marginByProduct.get(productId)
-        row.productName = row.productName || productName
-        row.startingPrice = startingPrice
-        return row
-      }
+        const row = marginByProduct.get(productId);
+        row.productName = row.productName || productName;
+        row.startingPrice = startingPrice;
+        return row;
+      };
 
       for (const sale of sales as any[]) {
-        const product = productMap.get(String(sale.productId))
-        const quantity = Number(sale.quantitySold || 0)
-        const revenue = Number(sale.soldPrice || 0) * quantity
-        const unitCost = Number(product?.startingPrice || 0)
-        const row = ensureRow(String(sale.productId), product?.name || "Unknown product", unitCost)
-        row.quantity += quantity
-        row.revenue += revenue
-        row.estimatedCost += unitCost * quantity
+        const product = productMap.get(String(sale.productId));
+        const quantity = Number(sale.quantitySold || 0);
+        const revenue = Number(sale.soldPrice || 0) * quantity;
+        const unitCost = Number(product?.startingPrice || 0);
+        const row = ensureRow(
+          String(sale.productId),
+          product?.name || "Unknown product",
+          unitCost,
+        );
+        row.quantity += quantity;
+        row.revenue += revenue;
+        row.estimatedCost += unitCost * quantity;
       }
 
       for (const invoice of invoices as any[]) {
         for (const item of invoice.items || []) {
-          const product = productMap.get(String(item.productId))
-          const quantity = Number(item.quantity || 0)
-          const revenue = Number(item.lineTotal || Number(item.unitPrice || 0) * quantity)
-          const unitCost = Number(product?.startingPrice || 0)
-          const row = ensureRow(String(item.productId), item.productName || product?.name || "Unknown product", unitCost)
-          row.quantity += quantity
-          row.revenue += revenue
-          row.estimatedCost += unitCost * quantity
+          const product = productMap.get(String(item.productId));
+          const quantity = Number(item.quantity || 0);
+          const revenue = Number(
+            item.lineTotal || Number(item.unitPrice || 0) * quantity,
+          );
+          const unitCost = Number(product?.startingPrice || 0);
+          const row = ensureRow(
+            String(item.productId),
+            item.productName || product?.name || "Unknown product",
+            unitCost,
+          );
+          row.quantity += quantity;
+          row.revenue += revenue;
+          row.estimatedCost += unitCost * quantity;
         }
       }
 
       const results = Array.from(marginByProduct.values()).map((row) => {
-        const grossProfit = row.revenue - row.estimatedCost
+        const grossProfit = row.revenue - row.estimatedCost;
         return {
           ...row,
           grossProfit: Number(grossProfit.toFixed(2)),
           revenue: Number(row.revenue.toFixed(2)),
           estimatedCost: Number(row.estimatedCost.toFixed(2)),
-          grossMarginPercent: row.revenue > 0 ? Number(((grossProfit / row.revenue) * 100).toFixed(1)) : 0,
-        }
-      })
+          grossMarginPercent:
+            row.revenue > 0
+              ? Number(((grossProfit / row.revenue) * 100).toFixed(1))
+              : 0,
+        };
+      });
 
       const totals = results.reduce(
         (acc, row) => ({
@@ -2287,7 +3111,7 @@ export class StockController {
           grossProfit: acc.grossProfit + row.grossProfit,
         }),
         { revenue: 0, estimatedCost: 0, grossProfit: 0 },
-      )
+      );
 
       return res.status(200).json({
         success: true,
@@ -2296,55 +3120,99 @@ export class StockController {
             revenue: Number(totals.revenue.toFixed(2)),
             estimatedCost: Number(totals.estimatedCost.toFixed(2)),
             grossProfit: Number(totals.grossProfit.toFixed(2)),
-            grossMarginPercent: totals.revenue > 0 ? Number(((totals.grossProfit / totals.revenue) * 100).toFixed(1)) : 0,
+            grossMarginPercent:
+              totals.revenue > 0
+                ? Number(
+                    ((totals.grossProfit / totals.revenue) * 100).toFixed(1),
+                  )
+                : 0,
           },
           rows: results.sort((a, b) => b.revenue - a.revenue),
         },
-      })
+      });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message || "Failed to fetch profit margin analytics" })
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error.message || "Failed to fetch profit margin analytics",
+        });
     }
   }
 
   static async getFinancialBreakdown(req: AuthenticatedRequest, res: Response) {
     try {
-      const org_id = req.user?.org_id
-      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+      const org_id = req.user?.org_id;
+      if (!org_id)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
 
-      const { startDate, endDate, branchId, userId } = req.query as any
+      const { startDate, endDate, branchId, userId } = req.query as any;
 
       // Sanitize inputs to prevent "undefined" string artifacts
-      const cleanStartDate = startDate && startDate !== "undefined" ? startDate : null
-      const cleanEndDate = endDate && endDate !== "undefined" ? endDate : null
-      const cleanBranchId = branchId && branchId !== "undefined" && branchId !== "all" ? branchId : null
-      const cleanUserId = userId && userId !== "undefined" && userId !== "all" ? userId : null
+      const cleanStartDate =
+        startDate && startDate !== "undefined" ? startDate : null;
+      const cleanEndDate = endDate && endDate !== "undefined" ? endDate : null;
+      const cleanBranchId =
+        branchId && branchId !== "undefined" && branchId !== "all"
+          ? branchId
+          : null;
+      const cleanUserId =
+        userId && userId !== "undefined" && userId !== "all" ? userId : null;
 
-      const query: any = { org_id }
-      const dateQuery: any = {}
-      if (cleanStartDate) dateQuery.$gte = new Date(cleanStartDate)
-      if (cleanEndDate) dateQuery.$lte = new Date(cleanEndDate)
-      if (Object.keys(dateQuery).length > 0) query.createdAt = dateQuery
-      
-      const branchQuery = cleanBranchId ? { branchId: cleanBranchId } : {}
+      const query: any = { org_id };
+      const dateQuery: any = {};
+      if (cleanStartDate) dateQuery.$gte = new Date(cleanStartDate);
+      if (cleanEndDate) dateQuery.$lte = new Date(cleanEndDate);
+      if (Object.keys(dateQuery).length > 0) query.createdAt = dateQuery;
+
+      const branchQuery = cleanBranchId ? { branchId: cleanBranchId } : {};
 
       const fetchPeriodData = async (filterQuery: any) => {
-        const [payments, expenses, sales, invoices, products, categoriesRaw] = await Promise.all([
-          StockInvoicePayment.find({ ...filterQuery, ...(cleanUserId ? { addedBy: cleanUserId } : {}) }).lean(),
-          StockExpense.find({ ...filterQuery, status: "completed", ...(cleanUserId ? { addedBy: cleanUserId } : {}) }).lean(),
-          StockSale.find({ ...filterQuery, ...(cleanUserId ? { soldBy: cleanUserId } : {}) }).lean(),
-          StockInvoice.find({ ...filterQuery, status: { $ne: "cancelled" }, ...(cleanUserId ? { createdBy: cleanUserId } : {}) }).lean(),
-          StockProduct.find({ org_id, isActive: { $ne: false } }).lean(),
-          StockCategory.find({ org_id }).lean(),
-        ])
+        const [payments, expenses, sales, invoices, products, categoriesRaw] =
+          await Promise.all([
+            StockInvoicePayment.find({
+              ...filterQuery,
+              ...(cleanUserId ? { addedBy: cleanUserId } : {}),
+            }).lean(),
+            StockExpense.find({
+              ...filterQuery,
+              status: "completed",
+              ...(cleanUserId ? { addedBy: cleanUserId } : {}),
+            }).lean(),
+            StockSale.find({
+              ...filterQuery,
+              ...(cleanUserId ? { soldBy: cleanUserId } : {}),
+            }).lean(),
+            StockInvoice.find({
+              ...filterQuery,
+              status: { $ne: "cancelled" },
+              ...(cleanUserId ? { createdBy: cleanUserId } : {}),
+            }).lean(),
+            StockProduct.find({ org_id, isActive: { $ne: false } }).lean(),
+            StockCategory.find({ org_id }).lean(),
+          ]);
 
-        const totalInflow = payments.reduce((sum, p) => sum + Number(p.amount || 0), 0)
-        const totalOutflow = expenses.reduce((sum, e) => sum + Number(e.amount || 0), 0)
+        const totalInflow = payments.reduce(
+          (sum, p) => sum + Number(p.amount || 0),
+          0,
+        );
+        const totalOutflow = expenses.reduce(
+          (sum, e) => sum + Number(e.amount || 0),
+          0,
+        );
 
-        const categoryMap = new Map(categoriesRaw.map((c: any) => [String(c._id), c.name]))
-        const productStats = new Map<string, any>()
+        const categoryMap = new Map(
+          categoriesRaw.map((c: any) => [String(c._id), c.name]),
+        );
+        const productStats = new Map<string, any>();
 
         for (const prod of products as any[]) {
-          const catName = categoryMap.get(String(prod.category)) || prod.category || "Uncategorized"
+          const catName =
+            categoryMap.get(String(prod.category)) ||
+            prod.category ||
+            "Uncategorized";
           productStats.set(String(prod._id), {
             productId: String(prod._id),
             productName: prod.name,
@@ -2355,55 +3223,66 @@ export class StockController {
             quantitySold: 0,
             revenue: 0,
             cogs: 0,
-            stockValue: Number(prod.currentQuantity || 0) * Number(prod.startingPrice || 0)
-          })
+            stockValue:
+              Number(prod.currentQuantity || 0) *
+              Number(prod.startingPrice || 0),
+          });
         }
 
         for (const sale of sales as any[]) {
-          const row = productStats.get(String(sale.productId))
+          const row = productStats.get(String(sale.productId));
           if (row) {
-            const qty = Number(sale.quantitySold || 0)
-            const rev = Number(sale.soldPrice || 0) * qty
-            row.quantitySold += qty
-            row.revenue += rev
-            row.cogs += row.unitCost * qty
+            const qty = Number(sale.quantitySold || 0);
+            const rev = Number(sale.soldPrice || 0) * qty;
+            row.quantitySold += qty;
+            row.revenue += rev;
+            row.cogs += row.unitCost * qty;
           }
         }
 
         for (const invoice of invoices as any[]) {
           for (const item of invoice.items || []) {
-            const row = productStats.get(String(item.productId))
+            const row = productStats.get(String(item.productId));
             if (row) {
-              const qty = Number(item.quantity || 0)
-              const rev = Number(item.lineTotal || Number(item.unitPrice || 0) * qty)
-              row.quantitySold += qty
-              row.revenue += rev
-              row.cogs += row.unitCost * qty
+              const qty = Number(item.quantity || 0);
+              const rev = Number(
+                item.lineTotal || Number(item.unitPrice || 0) * qty,
+              );
+              row.quantitySold += qty;
+              row.revenue += rev;
+              row.cogs += row.unitCost * qty;
             }
           }
         }
 
-        const breakdown = Array.from(productStats.values()).map(row => {
-          const profit = row.revenue - row.cogs
-          const margin = row.revenue > 0 ? (profit / row.revenue) * 100 : 0
-          return { ...row, profit, margin }
-        })
+        const breakdown = Array.from(productStats.values()).map((row) => {
+          const profit = row.revenue - row.cogs;
+          const margin = row.revenue > 0 ? (profit / row.revenue) * 100 : 0;
+          return { ...row, profit, margin };
+        });
 
-        const categoryStatsMap = new Map<string, any>()
-        breakdown.forEach(item => {
+        const categoryStatsMap = new Map<string, any>();
+        breakdown.forEach((item) => {
           if (!categoryStatsMap.has(item.category)) {
-            categoryStatsMap.set(item.category, { category: item.category, revenue: 0, profit: 0, items: 0 })
+            categoryStatsMap.set(item.category, {
+              category: item.category,
+              revenue: 0,
+              profit: 0,
+              items: 0,
+            });
           }
-          const cat = categoryStatsMap.get(item.category)
-          cat.revenue += item.revenue
-          cat.profit += item.profit
-          cat.items += 1
-        })
+          const cat = categoryStatsMap.get(item.category);
+          cat.revenue += item.revenue;
+          cat.profit += item.profit;
+          cat.items += 1;
+        });
 
-        const categories = Array.from(categoryStatsMap.values()).map(c => ({
-          ...c,
-          margin: c.revenue > 0 ? (c.profit / c.revenue) * 100 : 0
-        })).sort((a, b) => b.revenue - a.revenue)
+        const categories = Array.from(categoryStatsMap.values())
+          .map((c) => ({
+            ...c,
+            margin: c.revenue > 0 ? (c.profit / c.revenue) * 100 : 0,
+          }))
+          .sort((a, b) => b.revenue - a.revenue);
 
         return {
           summary: {
@@ -2412,117 +3291,169 @@ export class StockController {
             netCashFlow: totalInflow - totalOutflow,
             totalRevenue: breakdown.reduce((sum, r) => sum + r.revenue, 0),
             totalProfit: breakdown.reduce((sum, r) => sum + r.profit, 0),
-            totalInventoryValue: breakdown.reduce((sum, r) => sum + r.stockValue, 0),
+            totalInventoryValue: breakdown.reduce(
+              (sum, r) => sum + r.stockValue,
+              0,
+            ),
           },
           breakdown: breakdown.sort((a, b) => b.revenue - a.revenue),
-          categories
-        }
-      }
+          categories,
+        };
+      };
 
-      const currentData = await fetchPeriodData({ ...query, ...branchQuery })
+      const currentData = await fetchPeriodData({ ...query, ...branchQuery });
 
       // Calculate Comparison if date range is provided
-      let comparison: any = null
+      let comparison: any = null;
       if (startDate && endDate) {
-        const start = new Date(startDate)
-        const end = new Date(endDate)
-        const diff = end.getTime() - start.getTime()
-        const prevStart = new Date(start.getTime() - diff)
-        const prevEnd = new Date(end.getTime() - diff)
-        
-        const prevQuery = { 
-          org_id, 
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        const diff = end.getTime() - start.getTime();
+        const prevStart = new Date(start.getTime() - diff);
+        const prevEnd = new Date(end.getTime() - diff);
+
+        const prevQuery = {
+          org_id,
           createdAt: { $gte: prevStart, $lte: prevEnd },
-          ...branchQuery
-        }
-        const prevData = await fetchPeriodData(prevQuery)
-        
+          ...branchQuery,
+        };
+        const prevData = await fetchPeriodData(prevQuery);
+
         const calcChange = (curr: number, prev: number) => {
-          if (prev === 0) return curr > 0 ? 100 : 0
-          return ((curr - prev) / prev) * 100
-        }
+          if (prev === 0) return curr > 0 ? 100 : 0;
+          return ((curr - prev) / prev) * 100;
+        };
 
         comparison = {
-          revenueChange: calcChange(currentData.summary.totalRevenue, prevData.summary.totalRevenue),
-          profitChange: calcChange(currentData.summary.totalProfit, prevData.summary.totalProfit),
-          inflowChange: calcChange(currentData.summary.totalInflow, prevData.summary.totalInflow),
-          outflowChange: calcChange(currentData.summary.totalOutflow, prevData.summary.totalOutflow),
-        }
+          revenueChange: calcChange(
+            currentData.summary.totalRevenue,
+            prevData.summary.totalRevenue,
+          ),
+          profitChange: calcChange(
+            currentData.summary.totalProfit,
+            prevData.summary.totalProfit,
+          ),
+          inflowChange: calcChange(
+            currentData.summary.totalInflow,
+            prevData.summary.totalInflow,
+          ),
+          outflowChange: calcChange(
+            currentData.summary.totalOutflow,
+            prevData.summary.totalOutflow,
+          ),
+        };
       }
 
       return res.status(200).json({
         success: true,
         data: {
           ...currentData,
-          comparison
-        }
-      })
+          comparison,
+        },
+      });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message || "Failed to fetch financial breakdown" })
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error.message || "Failed to fetch financial breakdown",
+        });
     }
   }
 
-  static async getProductMovementForecast(req: AuthenticatedRequest, res: Response) {
+  static async getProductMovementForecast(
+    req: AuthenticatedRequest,
+    res: Response,
+  ) {
     try {
-      const org_id = req.user?.org_id
-      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+      const org_id = req.user?.org_id;
+      if (!org_id)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
 
-      const since = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
+      const since = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
       const [products, sales] = await Promise.all([
         StockProduct.find({ org_id, isActive: { $ne: false } }).lean(),
         StockSale.find({ org_id, createdAt: { $gte: since } }).lean(),
-      ])
+      ]);
 
-      const soldByProduct = new Map<string, number>()
+      const soldByProduct = new Map<string, number>();
       for (const sale of sales as any[]) {
-        const key = String(sale.productId)
-        soldByProduct.set(key, (soldByProduct.get(key) || 0) + Number(sale.quantitySold || 0))
+        const key = String(sale.productId);
+        soldByProduct.set(
+          key,
+          (soldByProduct.get(key) || 0) + Number(sale.quantitySold || 0),
+        );
       }
 
-      const rows = products.map((product: any) => {
-        const quantitySold90Days = soldByProduct.get(String(product._id)) || 0
-        const averageDailyMovement = quantitySold90Days / 90
-        const daysOfStockRemaining = averageDailyMovement > 0
-          ? Math.floor(Number(product.currentQuantity || 0) / averageDailyMovement)
-          : null
+      const rows = products
+        .map((product: any) => {
+          const quantitySold90Days =
+            soldByProduct.get(String(product._id)) || 0;
+          const averageDailyMovement = quantitySold90Days / 90;
+          const daysOfStockRemaining =
+            averageDailyMovement > 0
+              ? Math.floor(
+                  Number(product.currentQuantity || 0) / averageDailyMovement,
+                )
+              : null;
 
-        return {
-          productId: String(product._id),
-          productName: product.name,
-          currentQuantity: Number(product.currentQuantity || 0),
-          minAlertQuantity: Number(product.minAlertQuantity || 0),
-          quantitySold90Days,
-          averageDailyMovement: Number(averageDailyMovement.toFixed(2)),
-          daysOfStockRemaining,
-          riskLevel:
-            Number(product.currentQuantity || 0) <= Number(product.minAlertQuantity || 0)
-              ? "low_stock"
-              : daysOfStockRemaining !== null && daysOfStockRemaining <= 14
-                ? "reorder_soon"
-                : "healthy",
-        }
-      }).sort((a, b) => {
-        const aDays = a.daysOfStockRemaining ?? Number.MAX_SAFE_INTEGER
-        const bDays = b.daysOfStockRemaining ?? Number.MAX_SAFE_INTEGER
-        return aDays - bDays
-      })
+          return {
+            productId: String(product._id),
+            productName: product.name,
+            currentQuantity: Number(product.currentQuantity || 0),
+            minAlertQuantity: Number(product.minAlertQuantity || 0),
+            quantitySold90Days,
+            averageDailyMovement: Number(averageDailyMovement.toFixed(2)),
+            daysOfStockRemaining,
+            riskLevel:
+              Number(product.currentQuantity || 0) <=
+              Number(product.minAlertQuantity || 0)
+                ? "low_stock"
+                : daysOfStockRemaining !== null && daysOfStockRemaining <= 14
+                  ? "reorder_soon"
+                  : "healthy",
+          };
+        })
+        .sort((a, b) => {
+          const aDays = a.daysOfStockRemaining ?? Number.MAX_SAFE_INTEGER;
+          const bDays = b.daysOfStockRemaining ?? Number.MAX_SAFE_INTEGER;
+          return aDays - bDays;
+        });
 
-      return res.status(200).json({ success: true, data: rows })
+      return res.status(200).json({ success: true, data: rows });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message || "Failed to fetch product movement forecast" })
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error.message || "Failed to fetch product movement forecast",
+        });
     }
   }
 
-  static async getInventoryValuationReport(req: AuthenticatedRequest, res: Response) {
+  static async getInventoryValuationReport(
+    req: AuthenticatedRequest,
+    res: Response,
+  ) {
     try {
-      const org_id = req.user?.org_id
-      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+      const org_id = req.user?.org_id;
+      if (!org_id)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
 
-      const products = await StockProduct.find({ org_id, isActive: { $ne: false } }).sort({ name: 1 }).lean()
+      const products = await StockProduct.find({
+        org_id,
+        isActive: { $ne: false },
+      })
+        .sort({ name: 1 })
+        .lean();
       const rows = products.map((product: any) => {
-        const quantity = Number(product.currentQuantity || 0)
-        const costValue = quantity * Number(product.startingPrice || 0)
-        const retailValue = quantity * Number(product.sellingPrice || 0)
+        const quantity = Number(product.currentQuantity || 0);
+        const costValue = quantity * Number(product.startingPrice || 0);
+        const retailValue = quantity * Number(product.sellingPrice || 0);
         return {
           productId: String(product._id),
           productName: product.name,
@@ -2533,8 +3464,8 @@ export class StockController {
           costValue: Number(costValue.toFixed(2)),
           retailValue: Number(retailValue.toFixed(2)),
           unrealizedMargin: Number((retailValue - costValue).toFixed(2)),
-        }
-      })
+        };
+      });
 
       const totals = rows.reduce(
         (acc, row) => ({
@@ -2544,7 +3475,7 @@ export class StockController {
           unrealizedMargin: acc.unrealizedMargin + row.unrealizedMargin,
         }),
         { quantity: 0, costValue: 0, retailValue: 0, unrealizedMargin: 0 },
-      )
+      );
 
       return res.status(200).json({
         success: true,
@@ -2557,39 +3488,51 @@ export class StockController {
           },
           rows,
         },
-      })
+      });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message || "Failed to fetch inventory valuation report" })
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message:
+            error.message || "Failed to fetch inventory valuation report",
+        });
     }
   }
 
   static async initiateExpense(req: AuthenticatedRequest, res: Response) {
     try {
-      const org_id = req.user?.org_id
-      const actorId = req.user?.userId
-      if (!org_id || !actorId) return res.status(401).json({ success: false, message: "Unauthorized" })
+      const org_id = req.user?.org_id;
+      const actorId = req.user?.userId;
+      if (!org_id || !actorId)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
 
-      const { payerPhone, payeePhone, amount, purpose } = req.body || {}
+      const { payerPhone, payeePhone, amount, purpose } = req.body || {};
       if (!payerPhone || !payeePhone || !amount || !purpose) {
         return res.status(400).json({
           success: false,
           message: "payerPhone, payeePhone, amount and purpose are required",
-        })
+        });
       }
 
-      const numericAmount = Number(amount)
+      const numericAmount = Number(amount);
       if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
-        return res.status(400).json({ success: false, message: "Invalid amount" })
+        return res
+          .status(400)
+          .json({ success: false, message: "Invalid amount" });
       }
 
-      const accountReference = `EXP-${Date.now()}`
-      const transactionDesc = String(purpose).trim().slice(0, 180) || "Business expense"
+      const accountReference = `EXP-${Date.now()}`;
+      const transactionDesc =
+        String(purpose).trim().slice(0, 180) || "Business expense";
       const stkResult = await mpesaService.initiateStkPush({
         payerPhone: String(payerPhone),
         amount: numericAmount,
         accountReference,
         transactionDesc,
-      })
+      });
 
       const expense = await StockExpense.create({
         org_id,
@@ -2602,56 +3545,93 @@ export class StockController {
         mpesaMerchantRequestId: stkResult.merchantRequestId,
         responseMessage: stkResult.responseMessage,
         initiatedBy: String(actorId),
-      })
+      });
 
       return res.status(201).json({
         success: stkResult.success,
         message: stkResult.responseMessage,
         data: expense,
-      })
+      });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message || "Failed to initiate expense" })
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error.message || "Failed to initiate expense",
+        });
     }
   }
 
   static async getRepeatBills(req: AuthenticatedRequest, res: Response) {
     try {
-      const org_id = req.user?.org_id
-      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+      const org_id = req.user?.org_id;
+      if (!org_id)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
 
-      const repeatBills = await StockRepeatBill.find({ org_id }).sort({ createdAt: -1 }).lean()
-      return res.status(200).json({ success: true, data: repeatBills })
+      const repeatBills = await StockRepeatBill.find({ org_id })
+        .sort({ createdAt: -1 })
+        .lean();
+      return res.status(200).json({ success: true, data: repeatBills });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message || "Failed to fetch repeat bills" })
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error.message || "Failed to fetch repeat bills",
+        });
     }
   }
 
   static async createRepeatBill(req: AuthenticatedRequest, res: Response) {
     try {
-      const org_id = req.user?.org_id
-      const actorId = req.user?.userId
-      if (!org_id || !actorId) return res.status(401).json({ success: false, message: "Unauthorized" })
+      const org_id = req.user?.org_id;
+      const actorId = req.user?.userId;
+      if (!org_id || !actorId)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
 
-      const { payerPhone, payeePhones, amount, purpose, sendNow } = req.body || {}
+      const { payerPhone, payeePhones, amount, purpose, sendNow } =
+        req.body || {};
       if (!payerPhone || !amount || !purpose) {
-        return res.status(400).json({ success: false, message: "payerPhone, amount and purpose are required" })
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message: "payerPhone, amount and purpose are required",
+          });
       }
 
       const normalizedPayees = Array.isArray(payeePhones)
-        ? Array.from(new Set(payeePhones.map((value) => String(value).trim()).filter(Boolean)))
-        : splitPhoneList(String(payeePhones || ""))
+        ? Array.from(
+            new Set(
+              payeePhones.map((value) => String(value).trim()).filter(Boolean),
+            ),
+          )
+        : splitPhoneList(String(payeePhones || ""));
 
       if (!normalizedPayees.length) {
-        return res.status(400).json({ success: false, message: "At least one payee number is required" })
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message: "At least one payee number is required",
+          });
       }
 
-      const numericAmount = Number(amount)
+      const numericAmount = Number(amount);
       if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
-        return res.status(400).json({ success: false, message: "Invalid amount" })
+        return res
+          .status(400)
+          .json({ success: false, message: "Invalid amount" });
       }
 
-      const payer = mpesaService.normalizePhone(String(payerPhone))
-      const payees = normalizedPayees.map((phone) => mpesaService.normalizePhone(phone)).filter(Boolean)
+      const payer = mpesaService.normalizePhone(String(payerPhone));
+      const payees = normalizedPayees
+        .map((phone) => mpesaService.normalizePhone(phone))
+        .filter(Boolean);
 
       const repeatBill = await StockRepeatBill.create({
         org_id,
@@ -2661,21 +3641,22 @@ export class StockController {
         purpose: String(purpose).trim(),
         createdBy: String(actorId),
         updatedBy: String(actorId),
-      })
+      });
 
-      let sentCount = 0
-      let failedCount = 0
+      let sentCount = 0;
+      let failedCount = 0;
 
       if (sendNow !== false) {
         for (const payeePhone of payees) {
-          const accountReference = `EXP-${Date.now()}-${Math.floor(Math.random() * 9999)}`
-          const transactionDesc = String(purpose).trim().slice(0, 180) || "Business expense"
+          const accountReference = `EXP-${Date.now()}-${Math.floor(Math.random() * 9999)}`;
+          const transactionDesc =
+            String(purpose).trim().slice(0, 180) || "Business expense";
           const stkResult = await mpesaService.initiateStkPush({
             payerPhone: payer,
             amount: numericAmount,
             accountReference,
             transactionDesc,
-          })
+          });
 
           await StockExpense.create({
             org_id,
@@ -2688,10 +3669,10 @@ export class StockController {
             mpesaMerchantRequestId: stkResult.merchantRequestId,
             responseMessage: stkResult.responseMessage,
             initiatedBy: String(actorId),
-          })
+          });
 
-          if (stkResult.success) sentCount += 1
-          else failedCount += 1
+          if (stkResult.success) sentCount += 1;
+          else failedCount += 1;
         }
 
         await StockRepeatBill.updateOne(
@@ -2703,48 +3684,65 @@ export class StockController {
               updatedBy: String(actorId),
             },
           },
-        )
+        );
       }
 
       return res.status(201).json({
         success: true,
-        message: sendNow === false
-          ? "Repeat bill saved"
-          : `Repeat bill saved and prompts sent (${sentCount} success, ${failedCount} failed)`,
+        message:
+          sendNow === false
+            ? "Repeat bill saved"
+            : `Repeat bill saved and prompts sent (${sentCount} success, ${failedCount} failed)`,
         data: {
           repeatBillId: String(repeatBill._id),
           sentCount,
           failedCount,
         },
-      })
+      });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message || "Failed to create repeat bill" })
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error.message || "Failed to create repeat bill",
+        });
     }
   }
 
   static async runRepeatBill(req: AuthenticatedRequest, res: Response) {
     try {
-      const org_id = req.user?.org_id
-      const actorId = req.user?.userId
-      if (!org_id || !actorId) return res.status(401).json({ success: false, message: "Unauthorized" })
+      const org_id = req.user?.org_id;
+      const actorId = req.user?.userId;
+      if (!org_id || !actorId)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
 
-      const { repeatBillId } = req.params
-      const repeatBill = await StockRepeatBill.findOne({ _id: repeatBillId, org_id }).lean()
-      if (!repeatBill) return res.status(404).json({ success: false, message: "Repeat bill not found" })
+      const { repeatBillId } = req.params;
+      const repeatBill = await StockRepeatBill.findOne({
+        _id: repeatBillId,
+        org_id,
+      }).lean();
+      if (!repeatBill)
+        return res
+          .status(404)
+          .json({ success: false, message: "Repeat bill not found" });
 
-      let sentCount = 0
-      let failedCount = 0
+      let sentCount = 0;
+      let failedCount = 0;
 
       for (const payeePhone of repeatBill.payeePhones || []) {
-        const accountReference = `EXP-${Date.now()}-${Math.floor(Math.random() * 9999)}`
-        const transactionDesc = String(repeatBill.purpose || "Business expense").trim().slice(0, 180)
+        const accountReference = `EXP-${Date.now()}-${Math.floor(Math.random() * 9999)}`;
+        const transactionDesc = String(repeatBill.purpose || "Business expense")
+          .trim()
+          .slice(0, 180);
 
         const stkResult = await mpesaService.initiateStkPush({
           payerPhone: repeatBill.payerPhone,
           amount: repeatBill.amount,
           accountReference,
           transactionDesc,
-        })
+        });
 
         await StockExpense.create({
           org_id,
@@ -2757,10 +3755,10 @@ export class StockController {
           mpesaMerchantRequestId: stkResult.merchantRequestId,
           responseMessage: stkResult.responseMessage,
           initiatedBy: String(actorId),
-        })
+        });
 
-        if (stkResult.success) sentCount += 1
-        else failedCount += 1
+        if (stkResult.success) sentCount += 1;
+        else failedCount += 1;
       }
 
       await StockRepeatBill.updateOne(
@@ -2772,65 +3770,110 @@ export class StockController {
             updatedBy: String(actorId),
           },
         },
-      )
+      );
 
       return res.status(200).json({
         success: true,
         message: `Repeat bill executed (${sentCount} success, ${failedCount} failed)`,
         data: { sentCount, failedCount },
-      })
+      });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message || "Failed to run repeat bill" })
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error.message || "Failed to run repeat bill",
+        });
     }
   }
 
-  static async convertQuotationToInvoice(req: AuthenticatedRequest, res: Response) {
+  static async convertQuotationToInvoice(
+    req: AuthenticatedRequest,
+    res: Response,
+  ) {
     try {
-      const org_id = req.user?.org_id
-      const actorId = req.user?.userId
-      const role = req.user?.role
-      if (!org_id || !actorId) return res.status(401).json({ success: false, message: "Unauthorized" })
+      const org_id = req.user?.org_id;
+      const actorId = req.user?.userId;
+      const role = req.user?.role;
+      if (!org_id || !actorId)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
 
-      const { quotationId } = req.params
-      const quotation = await StockQuotation.findOne({ _id: quotationId, org_id })
+      const { quotationId } = req.params;
+      const quotation = await StockQuotation.findOne({
+        _id: quotationId,
+        org_id,
+      });
       if (!quotation) {
-        return res.status(404).json({ success: false, message: "Quotation not found" })
+        return res
+          .status(404)
+          .json({ success: false, message: "Quotation not found" });
       }
 
       if (!isAdminRole(role)) {
-        return res.status(403).json({ success: false, message: "Only admin/HR can convert quotations to invoices" })
+        return res
+          .status(403)
+          .json({
+            success: false,
+            message: "Only admin/HR can convert quotations to invoices",
+          });
       }
 
       if (quotation.status === "converted" && quotation.convertedInvoiceId) {
-        const existingInvoice = await StockInvoice.findById(quotation.convertedInvoiceId).lean()
-        return res.status(200).json({ success: true, data: existingInvoice })
+        const existingInvoice = await StockInvoice.findById(
+          quotation.convertedInvoiceId,
+        ).lean();
+        return res.status(200).json({ success: true, data: existingInvoice });
       }
 
-      const quotationProductIds = [...new Set(quotation.items.map((item: any) => item.productId).filter(Boolean))]
-      const allProducts = await StockProduct.find({ _id: { $in: quotationProductIds }, org_id })
-      const productMap = new Map(allProducts.map((product) => [String(product._id), product]))
+      const quotationProductIds = [
+        ...new Set(
+          quotation.items.map((item: any) => item.productId).filter(Boolean),
+        ),
+      ];
+      const allProducts = await StockProduct.find({
+        _id: { $in: quotationProductIds },
+        org_id,
+      });
+      const productMap = new Map(
+        allProducts.map((product) => [String(product._id), product]),
+      );
 
       const stockManagedItems = quotation.items.filter((item: any) => {
-        if (item.isOutsourced) return false
-        if (item.productType === "service") return false
-        const product = productMap.get(String(item.productId))
-        return product ? product.productType !== "service" : true
-      })
+        if (item.isOutsourced) return false;
+        if (item.productType === "service") return false;
+        const product = productMap.get(String(item.productId));
+        return product ? product.productType !== "service" : true;
+      });
 
-      const stockManagedProductIds = [...new Set(stockManagedItems.map((item) => item.productId).filter(Boolean))]
-      const stockManagedProducts = allProducts.filter((product) => stockManagedProductIds.includes(String(product._id)))
-      const stockManagedProductMap = new Map(stockManagedProducts.map((product) => [String(product._id), product]))
+      const stockManagedProductIds = [
+        ...new Set(
+          stockManagedItems.map((item) => item.productId).filter(Boolean),
+        ),
+      ];
+      const stockManagedProducts = allProducts.filter((product) =>
+        stockManagedProductIds.includes(String(product._id)),
+      );
+      const stockManagedProductMap = new Map(
+        stockManagedProducts.map((product) => [String(product._id), product]),
+      );
 
       for (const item of stockManagedItems) {
-        const product = stockManagedProductMap.get(String(item.productId))
+        const product = stockManagedProductMap.get(String(item.productId));
         if (!product) {
-          return res.status(400).json({ success: false, message: `Product not found for quotation item: ${item.productName}` })
+          return res
+            .status(400)
+            .json({
+              success: false,
+              message: `Product not found for quotation item: ${item.productName}`,
+            });
         }
         if (product.currentQuantity < item.quantity) {
           return res.status(400).json({
             success: false,
             message: `Insufficient stock for ${item.productName}. Available: ${product.currentQuantity}, requested: ${item.quantity}`,
-          })
+          });
         }
       }
 
@@ -2856,13 +3899,13 @@ export class StockController {
           inquiries: [],
         },
         createdBy: String(quotation.createdBy || actorId),
-      })
+      });
 
-      const receiptNumber = generateDocumentNumber("RCP")
+      const receiptNumber = generateDocumentNumber("RCP");
 
       const salesToCreate = stockManagedItems.map((item) => {
-        const product = stockManagedProductMap.get(String(item.productId))!
-        product.currentQuantity -= item.quantity
+        const product = stockManagedProductMap.get(String(item.productId))!;
+        product.currentQuantity -= item.quantity;
 
         return {
           org_id,
@@ -2879,58 +3922,113 @@ export class StockController {
           invoiceId: String(invoice._id),
           receiptNumber,
           remainingQuantity: product.currentQuantity,
-        }
-      })
+        };
+      });
 
       if (stockManagedProducts.length > 0) {
-        await Promise.all(stockManagedProducts.map((product) => product.save()))
-        await Promise.all(stockManagedProducts.map((product) => sendLowStockAlert(product, org_id)))
+        await Promise.all(
+          stockManagedProducts.map((product) => product.save()),
+        );
+        await Promise.all(
+          stockManagedProducts.map((product) =>
+            sendLowStockAlert(product, org_id),
+          ),
+        );
       }
 
       if (salesToCreate.length > 0) {
-        await StockSale.insertMany(salesToCreate)
+        await StockSale.insertMany(salesToCreate);
       }
 
-      quotation.status = "converted"
-      quotation.convertedInvoiceId = String(invoice._id)
-      await quotation.save()
+      quotation.status = "converted";
+      quotation.convertedInvoiceId = String(invoice._id);
+      await quotation.save();
 
-      return res.status(201).json({ success: true, data: invoice })
+      return res.status(201).json({ success: true, data: invoice });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message || "Failed to convert quotation" })
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error.message || "Failed to convert quotation",
+        });
     }
   }
 
-  static async createInvoiceFromItems(req: AuthenticatedRequest, res: Response) {
+  static async createInvoiceFromItems(
+    req: AuthenticatedRequest,
+    res: Response,
+  ) {
     try {
-      const org_id = req.user?.org_id
-      const actorId = req.user?.userId
-      if (!org_id || !actorId) return res.status(401).json({ success: false, message: "Unauthorized" })
+      const org_id = req.user?.org_id;
+      const actorId = req.user?.userId;
+      if (!org_id || !actorId)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
 
-      const { clientName, clientNumber, clientLocation, client, items, payNow = false } = req.body || {}
+      const {
+        clientName,
+        clientNumber,
+        clientLocation,
+        client,
+        items,
+        payNow = false,
+      } = req.body || {};
       if (!Array.isArray(items) || items.length === 0) {
-        return res.status(400).json({ success: false, message: "At least one item is required" })
+        return res
+          .status(400)
+          .json({ success: false, message: "At least one item is required" });
       }
 
-      const resolvedClientName = String(clientName || client?.name || "Walk-in Client").trim()
-      const resolvedClientNumber = String(clientNumber || client?.number || "WALK-IN").trim()
-      const resolvedClientLocation = String(clientLocation || client?.location || "Walk-in").trim()
+      const resolvedClientName = String(
+        clientName || client?.name || "Walk-in Client",
+      ).trim();
+      const resolvedClientNumber = String(
+        clientNumber || client?.number || "WALK-IN",
+      ).trim();
+      const resolvedClientLocation = String(
+        clientLocation || client?.location || "Walk-in",
+      ).trim();
 
-      const normalizedItems = await buildQuotationItems(org_id, items || [])
-      const subTotal = Number(normalizedItems.reduce((sum, item) => sum + item.lineTotal, 0).toFixed(2))
+      const normalizedItems = await buildQuotationItems(org_id, items || []);
+      const subTotal = Number(
+        normalizedItems
+          .reduce((sum, item) => sum + item.lineTotal, 0)
+          .toFixed(2),
+      );
 
-      const stockManagedItems = normalizedItems.filter((i: any) => !i.isOutsourced && i.productType !== "service")
-      const productIds = [...new Set(stockManagedItems.map((item: any) => item.productId).filter(Boolean))]
-      const products = await StockProduct.find({ _id: { $in: productIds }, org_id })
-      const productMap = new Map(products.map((p) => [String(p._id), p]))
+      const stockManagedItems = normalizedItems.filter(
+        (i: any) => !i.isOutsourced && i.productType !== "service",
+      );
+      const productIds = [
+        ...new Set(
+          stockManagedItems.map((item: any) => item.productId).filter(Boolean),
+        ),
+      ];
+      const products = await StockProduct.find({
+        _id: { $in: productIds },
+        org_id,
+      });
+      const productMap = new Map(products.map((p) => [String(p._id), p]));
 
       for (const item of stockManagedItems) {
-        const product = productMap.get(String(item.productId))
+        const product = productMap.get(String(item.productId));
         if (!product) {
-          return res.status(400).json({ success: false, message: `Product not found: ${item.productName}` })
+          return res
+            .status(400)
+            .json({
+              success: false,
+              message: `Product not found: ${item.productName}`,
+            });
         }
         if (product.currentQuantity < item.quantity) {
-          return res.status(400).json({ success: false, message: `Insufficient stock for ${item.productName}. Available: ${product.currentQuantity}, requested: ${item.quantity}` })
+          return res
+            .status(400)
+            .json({
+              success: false,
+              message: `Insufficient stock for ${item.productName}. Available: ${product.currentQuantity}, requested: ${item.quantity}`,
+            });
         }
       }
 
@@ -2948,18 +4046,23 @@ export class StockController {
         status: payNow ? "paid" : "issued",
         dispatch: {
           status: "not_assigned",
-          packingItems: stockManagedItems.map((item: any) => ({ productId: item.productId, productName: item.productName, requiredQuantity: item.quantity, packedQuantity: 0 })),
+          packingItems: stockManagedItems.map((item: any) => ({
+            productId: item.productId,
+            productName: item.productName,
+            requiredQuantity: item.quantity,
+            packedQuantity: 0,
+          })),
           packingCompleted: stockManagedItems.length === 0,
           inquiries: [],
         },
         createdBy: String(actorId),
-      })
+      });
 
-      const receiptNumber = generateDocumentNumber("RCP")
+      const receiptNumber = generateDocumentNumber("RCP");
 
       const salesToCreate = stockManagedItems.map((item: any) => {
-        const product = productMap.get(String(item.productId))!
-        product.currentQuantity -= item.quantity
+        const product = productMap.get(String(item.productId))!;
+        product.currentQuantity -= item.quantity;
 
         return {
           org_id,
@@ -2970,26 +4073,28 @@ export class StockController {
           buyerName: invoice.client.name,
           buyerNumber: invoice.client.number,
           buyerLocation: invoice.client.location,
-          isWalkInClient: invoice.client.name === "Walk-in Client" || invoice.client.number === "WALK-IN",
+          isWalkInClient:
+            invoice.client.name === "Walk-in Client" ||
+            invoice.client.number === "WALK-IN",
           isSalesCompany: false,
           quotationId: undefined,
           invoiceId: String(invoice._id),
           receiptNumber,
           remainingQuantity: product.currentQuantity,
-        }
-      })
+        };
+      });
 
       if (products.length > 0) {
-        await Promise.all(products.map((p) => p.save()))
-        await Promise.all(products.map((p) => sendLowStockAlert(p, org_id)))
+        await Promise.all(products.map((p) => p.save()));
+        await Promise.all(products.map((p) => sendLowStockAlert(p, org_id)));
       }
 
       if (salesToCreate.length > 0) {
-        await StockSale.insertMany(salesToCreate)
+        await StockSale.insertMany(salesToCreate);
       }
 
       // If payNow requested, create a payment record marking invoice fully paid
-      let payment: any = null
+      let payment: any = null;
       if (payNow) {
         payment = await StockInvoicePayment.create({
           org_id,
@@ -3000,30 +4105,51 @@ export class StockController {
           reference: receiptNumber,
           paidAt: new Date(),
           receivedBy: String(actorId),
-        })
-        await StockInvoice.updateOne({ _id: invoice._id, org_id }, { $set: { status: "paid" } })
+        });
+        await StockInvoice.updateOne(
+          { _id: invoice._id, org_id },
+          { $set: { status: "paid" } },
+        );
       }
 
-      return res.status(201).json({ success: true, data: { invoice, payment } })
+      return res
+        .status(201)
+        .json({ success: true, data: { invoice, payment } });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message || "Failed to create invoice from items" })
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error.message || "Failed to create invoice from items",
+        });
     }
   }
 
   static async addQuotationFollowUp(req: AuthenticatedRequest, res: Response) {
     try {
-      const org_id = req.user?.org_id
-      const actorId = req.user?.userId
-      if (!org_id || !actorId) return res.status(401).json({ success: false, message: "Unauthorized" })
+      const org_id = req.user?.org_id;
+      const actorId = req.user?.userId;
+      if (!org_id || !actorId)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
 
-      const { quotationId } = req.params
-      const { note, callMade, outcome } = req.body || {}
+      const { quotationId } = req.params;
+      const { note, callMade, outcome } = req.body || {};
       if (!note || String(note).trim().length === 0) {
-        return res.status(400).json({ success: false, message: "Note is required" })
+        return res
+          .status(400)
+          .json({ success: false, message: "Note is required" });
       }
 
-      const quotation = await StockQuotation.findOne({ _id: quotationId, org_id })
-      if (!quotation) return res.status(404).json({ success: false, message: "Quotation not found" })
+      const quotation = await StockQuotation.findOne({
+        _id: quotationId,
+        org_id,
+      });
+      if (!quotation)
+        return res
+          .status(404)
+          .json({ success: false, message: "Quotation not found" });
 
       const doc = await QuotationFollowUp.create({
         org_id,
@@ -3032,73 +4158,122 @@ export class StockController {
         callMade: !!callMade,
         outcome: outcome ? String(outcome).trim() : undefined,
         createdBy: String(actorId),
-      })
+      });
 
-      return res.status(201).json({ success: true, data: doc })
+      return res.status(201).json({ success: true, data: doc });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message || "Failed to add follow up" })
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error.message || "Failed to add follow up",
+        });
     }
   }
 
   static async getQuotationFollowUps(req: AuthenticatedRequest, res: Response) {
     try {
-      const org_id = req.user?.org_id
-      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+      const org_id = req.user?.org_id;
+      if (!org_id)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
 
-      const { quotationId } = req.params
-      const followups = await QuotationFollowUp.find({ org_id, quotationId: String(quotationId) }).sort({ createdAt: -1 }).lean()
-      return res.status(200).json({ success: true, data: followups })
+      const { quotationId } = req.params;
+      const followups = await QuotationFollowUp.find({
+        org_id,
+        quotationId: String(quotationId),
+      })
+        .sort({ createdAt: -1 })
+        .lean();
+      return res.status(200).json({ success: true, data: followups });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message || "Failed to fetch follow ups" })
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error.message || "Failed to fetch follow ups",
+        });
     }
   }
 
   static async getInvoices(req: AuthenticatedRequest, res: Response) {
     try {
-      const org_id = req.user?.org_id
-      const userId = req.user?.userId
-      const role = req.user?.role
-      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+      const org_id = req.user?.org_id;
+      const userId = req.user?.userId;
+      const role = req.user?.role;
+      if (!org_id)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
 
-      const query: any = { org_id }
+      const query: any = { org_id };
       if (role === "employee") {
-        if (!userId) return res.status(401).json({ success: false, message: "Unauthorized" })
-        query.createdBy = String(userId)
+        if (!userId)
+          return res
+            .status(401)
+            .json({ success: false, message: "Unauthorized" });
+        query.createdBy = String(userId);
       }
 
-      const invoices = await StockInvoice.find(query).sort({ createdAt: -1 }).lean()
-      return res.status(200).json({ success: true, data: invoices })
+      const invoices = await StockInvoice.find(query)
+        .sort({ createdAt: -1 })
+        .lean();
+      return res.status(200).json({ success: true, data: invoices });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message || "Failed to fetch invoices" })
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error.message || "Failed to fetch invoices",
+        });
     }
   }
 
   static async getInvoiceLifecycle(req: AuthenticatedRequest, res: Response) {
     try {
-      const org_id = req.user?.org_id
-      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+      const org_id = req.user?.org_id;
+      if (!org_id)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
 
-      const { invoiceId } = req.params
-      const invoice = await StockInvoice.findOne({ _id: invoiceId, org_id }).lean()
-      if (!invoice) return res.status(404).json({ success: false, message: "Invoice not found" })
+      const { invoiceId } = req.params;
+      const invoice = await StockInvoice.findOne({
+        _id: invoiceId,
+        org_id,
+      }).lean();
+      if (!invoice)
+        return res
+          .status(404)
+          .json({ success: false, message: "Invoice not found" });
 
       const [payments, creditNotes, quotation] = await Promise.all([
-        StockInvoicePayment.find({ org_id, invoiceId: String(invoice._id) }).sort({ paidAt: -1, createdAt: -1 }).lean(),
-        CreditNote.find({ org_id, invoiceId: String(invoice._id) }).sort({ createdAt: -1 }).lean(),
+        StockInvoicePayment.find({ org_id, invoiceId: String(invoice._id) })
+          .sort({ paidAt: -1, createdAt: -1 })
+          .lean(),
+        CreditNote.find({ org_id, invoiceId: String(invoice._id) })
+          .sort({ createdAt: -1 })
+          .lean(),
         invoice.quotationId
           ? StockQuotation.findOne({ _id: invoice.quotationId, org_id }).lean()
           : Promise.resolve(null),
-      ])
+      ]);
 
-      const paymentSummary = buildInvoicePaymentSummary(invoice, payments)
-      const dispatchStatus = String(invoice.dispatch?.status || "not_assigned")
-      const creditNoteTotal = creditNotes.reduce((sum: number, note: any) => sum + Number(note.subTotal || 0), 0)
+      const paymentSummary = buildInvoicePaymentSummary(invoice, payments);
+      const dispatchStatus = String(invoice.dispatch?.status || "not_assigned");
+      const creditNoteTotal = creditNotes.reduce(
+        (sum: number, note: any) => sum + Number(note.subTotal || 0),
+        0,
+      );
       const steps = [
         {
           key: "quotation",
           label: "Quotation",
-          status: quotation || invoice.quotationId ? "completed" : "not_started",
-          reference: quotation?.quotationNumber || invoice.quotationNumber || null,
+          status:
+            quotation || invoice.quotationId ? "completed" : "not_started",
+          reference:
+            quotation?.quotationNumber || invoice.quotationNumber || null,
           completedAt: quotation?.createdAt || null,
         },
         {
@@ -3111,15 +4286,27 @@ export class StockController {
         {
           key: "payment",
           label: "Payment",
-          status: paymentSummary.balanceRemaining <= 0 ? "completed" : paymentSummary.paidAmount > 0 ? "in_progress" : "pending",
+          status:
+            paymentSummary.balanceRemaining <= 0
+              ? "completed"
+              : paymentSummary.paidAmount > 0
+                ? "in_progress"
+                : "pending",
           paidAmount: paymentSummary.paidAmount,
           balanceRemaining: paymentSummary.balanceRemaining,
-          completedAt: paymentSummary.balanceRemaining <= 0 ? paymentSummary.lastPayment?.paidAt || paymentSummary.lastPayment?.createdAt || null : null,
+          completedAt:
+            paymentSummary.balanceRemaining <= 0
+              ? paymentSummary.lastPayment?.paidAt ||
+                paymentSummary.lastPayment?.createdAt ||
+                null
+              : null,
         },
         {
           key: "dispatch",
           label: "Dispatch",
-          status: ["dispatched", "delivered"].includes(dispatchStatus) ? "completed" : dispatchStatus,
+          status: ["dispatched", "delivered"].includes(dispatchStatus)
+            ? "completed"
+            : dispatchStatus,
           assignedToUserId: invoice.dispatch?.assignedToUserId || null,
           completedAt: invoice.dispatch?.dispatchedAt || null,
         },
@@ -3137,7 +4324,7 @@ export class StockController {
           count: creditNotes.length,
           totalAmount: Number(creditNoteTotal.toFixed(2)),
         },
-      ]
+      ];
 
       return res.status(200).json({
         success: true,
@@ -3149,56 +4336,104 @@ export class StockController {
           paymentSummary,
           steps,
         },
-      })
+      });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message || "Failed to fetch invoice lifecycle" })
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error.message || "Failed to fetch invoice lifecycle",
+        });
     }
   }
 
   static async getInvoiceById(req: AuthenticatedRequest, res: Response) {
     try {
-      const org_id = req.user?.org_id
-      const userId = req.user?.userId
-      const role = req.user?.role
-      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+      const org_id = req.user?.org_id;
+      const userId = req.user?.userId;
+      const role = req.user?.role;
+      if (!org_id)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
 
-      const { invoiceId } = req.params
-      const invoice = await StockInvoice.findOne({ _id: invoiceId, org_id }).lean()
-      if (!invoice) return res.status(404).json({ success: false, message: "Invoice not found" })
+      const { invoiceId } = req.params;
+      const invoice = await StockInvoice.findOne({
+        _id: invoiceId,
+        org_id,
+      }).lean();
+      if (!invoice)
+        return res
+          .status(404)
+          .json({ success: false, message: "Invoice not found" });
 
-      if (role === "employee" && String((invoice as any).createdBy || "") !== String(userId || "")) {
-        return res.status(403).json({ success: false, message: "You can only view your own invoice" })
+      if (
+        role === "employee" &&
+        String((invoice as any).createdBy || "") !== String(userId || "")
+      ) {
+        return res
+          .status(403)
+          .json({
+            success: false,
+            message: "You can only view your own invoice",
+          });
       }
 
-      return res.status(200).json({ success: true, data: invoice })
+      return res.status(200).json({ success: true, data: invoice });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message || "Failed to fetch invoice" })
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error.message || "Failed to fetch invoice",
+        });
     }
   }
 
-  static async assignInvoiceToDispatch(req: AuthenticatedRequest, res: Response) {
+  static async assignInvoiceToDispatch(
+    req: AuthenticatedRequest,
+    res: Response,
+  ) {
     try {
-      const org_id = req.user?.org_id
-      const actorId = req.user?.userId
-      if (!org_id || !actorId) return res.status(401).json({ success: false, message: "Unauthorized" })
+      const org_id = req.user?.org_id;
+      const actorId = req.user?.userId;
+      if (!org_id || !actorId)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
 
       if (!isAdminRole(req.user?.role)) {
-        return res.status(403).json({ success: false, message: "Only admin/HR can assign dispatch" })
+        return res
+          .status(403)
+          .json({
+            success: false,
+            message: "Only admin/HR can assign dispatch",
+          });
       }
 
-      const { invoiceId } = req.params
-      const { assignedToUserId } = req.body
+      const { invoiceId } = req.params;
+      const { assignedToUserId } = req.body;
       if (!assignedToUserId) {
-        return res.status(400).json({ success: false, message: "assignedToUserId is required" })
+        return res
+          .status(400)
+          .json({ success: false, message: "assignedToUserId is required" });
       }
 
       const [invoice, user] = await Promise.all([
         StockInvoice.findOne({ _id: invoiceId, org_id }).lean(),
-        User.findOne({ _id: assignedToUserId, org_id }).select("_id role firstName lastName"),
-      ])
+        User.findOne({ _id: assignedToUserId, org_id }).select(
+          "_id role firstName lastName",
+        ),
+      ]);
 
-      if (!invoice) return res.status(404).json({ success: false, message: "Invoice not found" })
-      if (!user) return res.status(404).json({ success: false, message: "Assigned user not found" })
+      if (!invoice)
+        return res
+          .status(404)
+          .json({ success: false, message: "Invoice not found" });
+      if (!user)
+        return res
+          .status(404)
+          .json({ success: false, message: "Assigned user not found" });
 
       const packingItems =
         invoice.dispatch?.packingItems?.length > 0
@@ -3208,7 +4443,7 @@ export class StockController {
               productName: item.productName,
               requiredQuantity: item.quantity,
               packedQuantity: 0,
-            }))
+            }));
 
       const updatedInvoice = await StockInvoice.findOneAndUpdate(
         { _id: invoiceId, org_id },
@@ -3231,7 +4466,7 @@ export class StockController {
           },
         },
         { new: true },
-      )
+      );
 
       await upsertPackagingDutyTask({
         orgId: org_id,
@@ -3239,53 +4474,85 @@ export class StockController {
         assignedToUserId: String(assignedToUserId),
         assignedByUserId: String(actorId),
         status: "in_progress",
-      })
+      });
 
-      return res.status(200).json({ success: true, data: updatedInvoice })
+      return res.status(200).json({ success: true, data: updatedInvoice });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message || "Failed to assign dispatch" })
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error.message || "Failed to assign dispatch",
+        });
     }
   }
 
   static async getMyDispatchInvoices(req: AuthenticatedRequest, res: Response) {
     try {
-      const org_id = req.user?.org_id
-      const userId = req.user?.userId
-      if (!org_id || !userId) return res.status(401).json({ success: false, message: "Unauthorized" })
+      const org_id = req.user?.org_id;
+      const userId = req.user?.userId;
+      if (!org_id || !userId)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
 
-      const query: any = { org_id }
+      const query: any = { org_id };
       if (!isAdminRole(req.user?.role)) {
-        query["dispatch.assignedToUserId"] = String(userId)
+        query["dispatch.assignedToUserId"] = String(userId);
       }
 
-      const invoices = await StockInvoice.find(query).sort({ createdAt: -1 }).lean()
-      return res.status(200).json({ success: true, data: invoices })
+      const invoices = await StockInvoice.find(query)
+        .sort({ createdAt: -1 })
+        .lean();
+      return res.status(200).json({ success: true, data: invoices });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message || "Failed to fetch dispatch invoices" })
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error.message || "Failed to fetch dispatch invoices",
+        });
     }
   }
 
   static async updateDispatchPacking(req: AuthenticatedRequest, res: Response) {
     try {
-      const org_id = req.user?.org_id
-      const userId = req.user?.userId
-      if (!org_id || !userId) return res.status(401).json({ success: false, message: "Unauthorized" })
+      const org_id = req.user?.org_id;
+      const userId = req.user?.userId;
+      if (!org_id || !userId)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
 
-      const { invoiceId } = req.params
-      const { items } = req.body
+      const { invoiceId } = req.params;
+      const { items } = req.body;
 
-      const invoice = await StockInvoice.findOne({ _id: invoiceId, org_id }).lean()
-      if (!invoice) return res.status(404).json({ success: false, message: "Invoice not found" })
+      const invoice = await StockInvoice.findOne({
+        _id: invoiceId,
+        org_id,
+      }).lean();
+      if (!invoice)
+        return res
+          .status(404)
+          .json({ success: false, message: "Invoice not found" });
 
       if (!canManageDispatchForInvoice(req, invoice)) {
-        return res.status(403).json({ success: false, message: "Not allowed to update this dispatch" })
+        return res
+          .status(403)
+          .json({
+            success: false,
+            message: "Not allowed to update this dispatch",
+          });
       }
 
-      const currentPacking = invoice.dispatch?.packingItems || []
-      const packedMap = new Map<string, number>()
+      const currentPacking = invoice.dispatch?.packingItems || [];
+      const packedMap = new Map<string, number>();
       if (Array.isArray(items)) {
         for (const item of items) {
-          packedMap.set(String(item.productId), Math.max(0, Number(item.packedQuantity || 0)))
+          packedMap.set(
+            String(item.productId),
+            Math.max(0, Number(item.packedQuantity || 0)),
+          );
         }
       }
 
@@ -3294,11 +4561,14 @@ export class StockController {
         productName: item.productName,
         requiredQuantity: Number(item.requiredQuantity),
         packedQuantity: packedMap.has(String(item.productId))
-          ? Math.min(Number(item.requiredQuantity), Number(packedMap.get(String(item.productId))))
+          ? Math.min(
+              Number(item.requiredQuantity),
+              Number(packedMap.get(String(item.productId))),
+            )
           : Number(item.packedQuantity || 0),
-      }))
+      }));
 
-      const packingCompleted = computePackingCompletion(nextPacking)
+      const packingCompleted = computePackingCompletion(nextPacking);
 
       const updatedInvoice = await StockInvoice.findOneAndUpdate(
         { _id: invoiceId, org_id },
@@ -3307,48 +4577,76 @@ export class StockController {
             "dispatch.status": packingCompleted ? "packed" : "packing",
             "dispatch.packingItems": nextPacking,
             "dispatch.packingCompleted": packingCompleted,
-            ...(packingCompleted && { "dispatch.packingCompletedAt": new Date() }),
+            ...(packingCompleted && {
+              "dispatch.packingCompletedAt": new Date(),
+            }),
           },
         },
         { new: true },
-      )
+      );
 
       if (updatedInvoice?.dispatch?.assignedToUserId) {
         await upsertPackagingDutyTask({
           orgId: org_id,
           invoice: updatedInvoice,
           assignedToUserId: String(updatedInvoice.dispatch.assignedToUserId),
-          assignedByUserId: String(updatedInvoice.dispatch.assignedByUserId || userId),
+          assignedByUserId: String(
+            updatedInvoice.dispatch.assignedByUserId || userId,
+          ),
           status: packingCompleted ? "completed" : "in_progress",
-        })
+        });
       }
 
-      return res.status(200).json({ success: true, data: updatedInvoice })
+      return res.status(200).json({ success: true, data: updatedInvoice });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message || "Failed to update packing" })
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error.message || "Failed to update packing",
+        });
     }
   }
 
   static async getCouriers(req: AuthenticatedRequest, res: Response) {
     try {
-      const org_id = req.user?.org_id
-      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
-      const couriers = await StockCourier.find({ org_id, isActive: true }).sort({ createdAt: -1 }).lean()
-      return res.status(200).json({ success: true, data: couriers })
+      const org_id = req.user?.org_id;
+      if (!org_id)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
+      const couriers = await StockCourier.find({ org_id, isActive: true })
+        .sort({ createdAt: -1 })
+        .lean();
+      return res.status(200).json({ success: true, data: couriers });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message || "Failed to fetch couriers" })
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error.message || "Failed to fetch couriers",
+        });
     }
   }
 
   static async createCourier(req: AuthenticatedRequest, res: Response) {
     try {
-      const org_id = req.user?.org_id
-      const actorId = req.user?.userId
-      if (!org_id || !actorId) return res.status(401).json({ success: false, message: "Unauthorized" })
+      const org_id = req.user?.org_id;
+      const actorId = req.user?.userId;
+      if (!org_id || !actorId)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
 
-      const { name, contactName, contactNumber } = req.body
+      const { name, contactName, contactNumber } = req.body;
       if (!name || !contactName || !contactNumber) {
-        return res.status(400).json({ success: false, message: "Courier name, contact name and contact number are required" })
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message:
+              "Courier name, contact name and contact number are required",
+          });
       }
 
       const courier = await StockCourier.create({
@@ -3357,50 +4655,75 @@ export class StockController {
         contactName: String(contactName).trim(),
         contactNumber: String(contactNumber).trim(),
         createdBy: String(actorId),
-      })
+      });
 
-      return res.status(201).json({ success: true, data: courier })
+      return res.status(201).json({ success: true, data: courier });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message || "Failed to create courier" })
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error.message || "Failed to create courier",
+        });
     }
   }
 
   static async markInvoiceDispatched(req: AuthenticatedRequest, res: Response) {
     try {
-      const org_id = req.user?.org_id
-      const userId = req.user?.userId
-      if (!org_id || !userId) return res.status(401).json({ success: false, message: "Unauthorized" })
+      const org_id = req.user?.org_id;
+      const userId = req.user?.userId;
+      if (!org_id || !userId)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
 
-      const { invoiceId } = req.params
+      const { invoiceId } = req.params;
       const {
         transportMeans,
         courierId,
         courierName,
         courierContactName,
         courierContactNumber,
-      } = req.body
+      } = req.body;
 
-      const invoice = await StockInvoice.findOne({ _id: invoiceId, org_id })
-      if (!invoice) return res.status(404).json({ success: false, message: "Invoice not found" })
+      const invoice = await StockInvoice.findOne({ _id: invoiceId, org_id });
+      if (!invoice)
+        return res
+          .status(404)
+          .json({ success: false, message: "Invoice not found" });
 
       if (!canManageDispatchForInvoice(req, invoice)) {
-        return res.status(403).json({ success: false, message: "Not allowed to dispatch this invoice" })
+        return res
+          .status(403)
+          .json({
+            success: false,
+            message: "Not allowed to dispatch this invoice",
+          });
       }
 
-      const packingItems = invoice.dispatch?.packingItems || []
+      const packingItems = invoice.dispatch?.packingItems || [];
       if (!computePackingCompletion(packingItems)) {
-        return res.status(400).json({ success: false, message: "All items must be fully packed before dispatch" })
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message: "All items must be fully packed before dispatch",
+          });
       }
 
       if (!transportMeans) {
-        return res.status(400).json({ success: false, message: "transportMeans is required" })
+        return res
+          .status(400)
+          .json({ success: false, message: "transportMeans is required" });
       }
 
-      let courierPayload: any
+      let courierPayload: any;
       if (courierId) {
-        const courier = await StockCourier.findOne({ _id: courierId, org_id })
+        const courier = await StockCourier.findOne({ _id: courierId, org_id });
         if (!courier) {
-          return res.status(404).json({ success: false, message: "Courier not found" })
+          return res
+            .status(404)
+            .json({ success: false, message: "Courier not found" });
         }
         courierPayload = {
           courierId: String(courier._id),
@@ -3408,10 +4731,15 @@ export class StockController {
           contactName: courier.contactName,
           contactNumber: courier.contactNumber,
           isNewCourier: false,
-        }
+        };
       } else {
         if (!courierName || !courierContactName || !courierContactNumber) {
-          return res.status(400).json({ success: false, message: "Provide courier details or select an existing courier" })
+          return res
+            .status(400)
+            .json({
+              success: false,
+              message: "Provide courier details or select an existing courier",
+            });
         }
         const newCourier = await StockCourier.create({
           org_id,
@@ -3419,14 +4747,14 @@ export class StockController {
           contactName: String(courierContactName).trim(),
           contactNumber: String(courierContactNumber).trim(),
           createdBy: String(userId),
-        })
+        });
         courierPayload = {
           courierId: String(newCourier._id),
           name: newCourier.name,
           contactName: newCourier.contactName,
           contactNumber: newCourier.contactNumber,
           isNewCourier: true,
-        }
+        };
       }
 
       const updatedInvoice = await StockInvoice.findOneAndUpdate(
@@ -3436,7 +4764,8 @@ export class StockController {
             "dispatch.status": "dispatched",
             "dispatch.packingItems": packingItems,
             "dispatch.packingCompleted": true,
-            "dispatch.packingCompletedAt": invoice.dispatch?.packingCompletedAt || new Date(),
+            "dispatch.packingCompletedAt":
+              invoice.dispatch?.packingCompletedAt || new Date(),
             "dispatch.dispatchedAt": new Date(),
             "dispatch.dispatchedByUserId": String(userId),
             "dispatch.transportMeans": String(transportMeans).trim(),
@@ -3445,119 +4774,202 @@ export class StockController {
           },
         },
         { new: true },
-      )
+      );
 
       if (!updatedInvoice) {
-        return res.status(404).json({ success: false, message: "Invoice not found after dispatch update" })
+        return res
+          .status(404)
+          .json({
+            success: false,
+            message: "Invoice not found after dispatch update",
+          });
       }
 
       const smsNotification = await sendDispatchNotificationForInvoice({
         orgId: org_id,
         userId: String(userId),
         invoice: updatedInvoice,
-      })
+      });
 
-      return res.status(200).json({ success: true, data: updatedInvoice, smsNotification })
+      return res
+        .status(200)
+        .json({ success: true, data: updatedInvoice, smsNotification });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message || "Failed to dispatch invoice" })
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error.message || "Failed to dispatch invoice",
+        });
     }
   }
 
-  static async getDispatchNotifications(req: AuthenticatedRequest, res: Response) {
+  static async getDispatchNotifications(
+    req: AuthenticatedRequest,
+    res: Response,
+  ) {
     try {
-      const org_id = req.user?.org_id
-      const userId = req.user?.userId
-      if (!org_id || !userId) return res.status(401).json({ success: false, message: "Unauthorized" })
+      const org_id = req.user?.org_id;
+      const userId = req.user?.userId;
+      if (!org_id || !userId)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
 
-      const { invoiceId } = req.params
-      const invoice = await StockInvoice.findOne({ _id: invoiceId, org_id })
-      if (!invoice) return res.status(404).json({ success: false, message: "Invoice not found" })
+      const { invoiceId } = req.params;
+      const invoice = await StockInvoice.findOne({ _id: invoiceId, org_id });
+      if (!invoice)
+        return res
+          .status(404)
+          .json({ success: false, message: "Invoice not found" });
 
       if (!canManageDispatchForInvoice(req, invoice)) {
-        return res.status(403).json({ success: false, message: "Not allowed to view dispatch notifications" })
+        return res
+          .status(403)
+          .json({
+            success: false,
+            message: "Not allowed to view dispatch notifications",
+          });
       }
 
-      const notifications = await DispatchNotification.find({ org_id, invoiceId: String(invoice._id) })
+      const notifications = await DispatchNotification.find({
+        org_id,
+        invoiceId: String(invoice._id),
+      })
         .sort({ createdAt: -1 })
-        .lean()
+        .lean();
 
-      return res.status(200).json({ success: true, data: notifications })
+      return res.status(200).json({ success: true, data: notifications });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message || "Failed to fetch dispatch notifications" })
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error.message || "Failed to fetch dispatch notifications",
+        });
     }
   }
 
-  static async sendDispatchClientNotification(req: AuthenticatedRequest, res: Response) {
+  static async sendDispatchClientNotification(
+    req: AuthenticatedRequest,
+    res: Response,
+  ) {
     try {
-      const org_id = req.user?.org_id
-      const userId = req.user?.userId
-      if (!org_id || !userId) return res.status(401).json({ success: false, message: "Unauthorized" })
+      const org_id = req.user?.org_id;
+      const userId = req.user?.userId;
+      if (!org_id || !userId)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
 
-      const { invoiceId } = req.params
-      const invoice = await StockInvoice.findOne({ _id: invoiceId, org_id })
-      if (!invoice) return res.status(404).json({ success: false, message: "Invoice not found" })
+      const { invoiceId } = req.params;
+      const invoice = await StockInvoice.findOne({ _id: invoiceId, org_id });
+      if (!invoice)
+        return res
+          .status(404)
+          .json({ success: false, message: "Invoice not found" });
 
       if (!canManageDispatchForInvoice(req, invoice)) {
-        return res.status(403).json({ success: false, message: "Not allowed to send dispatch notification for this invoice" })
+        return res
+          .status(403)
+          .json({
+            success: false,
+            message:
+              "Not allowed to send dispatch notification for this invoice",
+          });
       }
 
       const smsNotification = await sendDispatchNotificationForInvoice({
         orgId: org_id,
         userId: String(userId),
         invoice,
-      })
+      });
 
-      return res.status(200).json({ success: true, smsNotification })
+      return res.status(200).json({ success: true, smsNotification });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message || "Failed to send dispatch notification" })
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error.message || "Failed to send dispatch notification",
+        });
     }
   }
 
-  static async retryDispatchNotification(req: AuthenticatedRequest, res: Response) {
+  static async retryDispatchNotification(
+    req: AuthenticatedRequest,
+    res: Response,
+  ) {
     try {
-      const org_id = req.user?.org_id
-      const userId = req.user?.userId
-      if (!org_id || !userId) return res.status(401).json({ success: false, message: "Unauthorized" })
+      const org_id = req.user?.org_id;
+      const userId = req.user?.userId;
+      if (!org_id || !userId)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
 
-      const { notificationId } = req.params
-      const notification = await DispatchNotification.findOne({ _id: notificationId, org_id })
+      const { notificationId } = req.params;
+      const notification = await DispatchNotification.findOne({
+        _id: notificationId,
+        org_id,
+      });
       if (!notification) {
-        return res.status(404).json({ success: false, message: "Notification log not found" })
+        return res
+          .status(404)
+          .json({ success: false, message: "Notification log not found" });
       }
 
-      const invoice = await StockInvoice.findOne({ _id: notification.invoiceId, org_id })
-      if (!invoice) return res.status(404).json({ success: false, message: "Invoice not found" })
+      const invoice = await StockInvoice.findOne({
+        _id: notification.invoiceId,
+        org_id,
+      });
+      if (!invoice)
+        return res
+          .status(404)
+          .json({ success: false, message: "Invoice not found" });
 
       if (!canManageDispatchForInvoice(req, invoice)) {
-        return res.status(403).json({ success: false, message: "Not allowed to retry this dispatch notification" })
+        return res
+          .status(403)
+          .json({
+            success: false,
+            message: "Not allowed to retry this dispatch notification",
+          });
       }
 
-      const company = await Company.findById(org_id).select("name dispatchSmsSettings").lean()
-      const smsSenderName = String(company?.dispatchSmsSettings?.smsSenderName || company?.name || process.env.WEBSMS_DEFAULT_SENDER_NAME || "YourCompany").trim()
+      const company = await Company.findById(org_id)
+        .select("name dispatchSmsSettings")
+        .lean();
+      const smsSenderName = String(
+        company?.dispatchSmsSettings?.smsSenderName ||
+          company?.name ||
+          process.env.WEBSMS_DEFAULT_SENDER_NAME ||
+          "YourCompany",
+      ).trim();
 
       const smsResult = await smsService.sendDispatchSms({
         to: notification.clientNumber,
         message: notification.message,
         senderName: smsSenderName,
-      })
+      });
 
-      const now = new Date()
+      const now = new Date();
       if (smsResult.success) {
-        notification.status = "sent"
-        notification.sentAt = now
-        notification.lastAttemptAt = now
-        notification.providerMessageId = smsResult.providerMessageId
-        notification.providerRawResponse = smsResult.providerRawResponse
-        notification.errorMessage = undefined
+        notification.status = "sent";
+        notification.sentAt = now;
+        notification.lastAttemptAt = now;
+        notification.providerMessageId = smsResult.providerMessageId;
+        notification.providerRawResponse = smsResult.providerRawResponse;
+        notification.errorMessage = undefined;
       } else {
-        notification.status = "failed"
-        notification.lastAttemptAt = now
-        notification.errorMessage = smsResult.error
-        notification.providerRawResponse = smsResult.providerRawResponse
+        notification.status = "failed";
+        notification.lastAttemptAt = now;
+        notification.errorMessage = smsResult.error;
+        notification.providerRawResponse = smsResult.providerRawResponse;
       }
 
-      notification.attempts = Number(notification.attempts || 0) + 1
-      await notification.save()
+      notification.attempts = Number(notification.attempts || 0) + 1;
+      await notification.save();
 
       return res.status(200).json({
         success: true,
@@ -3566,31 +4978,47 @@ export class StockController {
           success: smsResult.success,
           message: smsResult.success
             ? `${notification.notificationType === "delivery" ? "Delivery" : "Dispatch"} SMS resent successfully`
-            : (smsResult.error || `${notification.notificationType === "delivery" ? "Delivery" : "Dispatch"} SMS resend failed`),
+            : smsResult.error ||
+              `${notification.notificationType === "delivery" ? "Delivery" : "Dispatch"} SMS resend failed`,
         },
-      })
+      });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message || "Failed to retry dispatch notification" })
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error.message || "Failed to retry dispatch notification",
+        });
     }
   }
 
   static async addDispatchInquiry(req: AuthenticatedRequest, res: Response) {
     try {
-      const org_id = req.user?.org_id
-      const userId = req.user?.userId
-      if (!org_id || !userId) return res.status(401).json({ success: false, message: "Unauthorized" })
+      const org_id = req.user?.org_id;
+      const userId = req.user?.userId;
+      if (!org_id || !userId)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
 
-      const { invoiceId } = req.params
-      const { mode, note } = req.body
+      const { invoiceId } = req.params;
+      const { mode, note } = req.body;
 
-      const invoice = await StockInvoice.findOne({ _id: invoiceId, org_id })
-      if (!invoice) return res.status(404).json({ success: false, message: "Invoice not found" })
+      const invoice = await StockInvoice.findOne({ _id: invoiceId, org_id });
+      if (!invoice)
+        return res
+          .status(404)
+          .json({ success: false, message: "Invoice not found" });
       if (!canManageDispatchForInvoice(req, invoice)) {
-        return res.status(403).json({ success: false, message: "Not allowed to add inquiry" })
+        return res
+          .status(403)
+          .json({ success: false, message: "Not allowed to add inquiry" });
       }
 
       if (!["client", "courier"].includes(String(mode))) {
-        return res.status(400).json({ success: false, message: "mode must be client or courier" })
+        return res
+          .status(400)
+          .json({ success: false, message: "mode must be client or courier" });
       }
 
       const inquiries = (invoice.dispatch?.inquiries || []).map((i: any) => ({
@@ -3599,14 +5027,14 @@ export class StockController {
         note: i.note,
         createdBy: i.createdBy,
         createdAt: new Date(i.createdAt),
-      }))
+      }));
       inquiries.push({
         mode: mode,
         method: "call",
         note: note ? String(note).trim() : undefined,
         createdBy: String(userId),
         createdAt: new Date(),
-      })
+      });
 
       const updatedInvoice = await StockInvoice.findOneAndUpdate(
         { _id: invoiceId, org_id },
@@ -3616,35 +5044,66 @@ export class StockController {
           },
         },
         { new: true },
-      )
+      );
 
-      return res.status(200).json({ success: true, data: updatedInvoice.dispatch?.inquiries || [] })
+      return res
+        .status(200)
+        .json({
+          success: true,
+          data: updatedInvoice.dispatch?.inquiries || [],
+        });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message || "Failed to add inquiry" })
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error.message || "Failed to add inquiry",
+        });
     }
   }
 
-  static async confirmInvoiceDelivery(req: AuthenticatedRequest, res: Response) {
+  static async confirmInvoiceDelivery(
+    req: AuthenticatedRequest,
+    res: Response,
+  ) {
     try {
-      const org_id = req.user?.org_id
-      const userId = req.user?.userId
-      if (!org_id || !userId) return res.status(401).json({ success: false, message: "Unauthorized" })
+      const org_id = req.user?.org_id;
+      const userId = req.user?.userId;
+      if (!org_id || !userId)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
 
-      const { invoiceId } = req.params
-      const { condition, arrivalTime, everythingPacked, note } = req.body
+      const { invoiceId } = req.params;
+      const { condition, arrivalTime, everythingPacked, note } = req.body;
 
-      const invoice = await StockInvoice.findOne({ _id: invoiceId, org_id })
-      if (!invoice) return res.status(404).json({ success: false, message: "Invoice not found" })
+      const invoice = await StockInvoice.findOne({ _id: invoiceId, org_id });
+      if (!invoice)
+        return res
+          .status(404)
+          .json({ success: false, message: "Invoice not found" });
       if (!canManageDispatchForInvoice(req, invoice)) {
-        return res.status(403).json({ success: false, message: "Not allowed to confirm delivery" })
+        return res
+          .status(403)
+          .json({ success: false, message: "Not allowed to confirm delivery" });
       }
 
       if (!invoice.dispatch || invoice.dispatch.status !== "dispatched") {
-        return res.status(400).json({ success: false, message: "Invoice must be dispatched before delivery confirmation" })
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message: "Invoice must be dispatched before delivery confirmation",
+          });
       }
 
       if (!["good", "not_good"].includes(String(condition))) {
-        return res.status(400).json({ success: false, message: "condition must be good or not_good" })
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message: "condition must be good or not_good",
+          });
       }
 
       const updatedInvoice = await StockInvoice.findOneAndUpdate(
@@ -3664,33 +5123,53 @@ export class StockController {
           },
         },
         { new: true },
-      )
+      );
 
       if (!updatedInvoice) {
-        return res.status(404).json({ success: false, message: "Invoice not found after delivery update" })
+        return res
+          .status(404)
+          .json({
+            success: false,
+            message: "Invoice not found after delivery update",
+          });
       }
 
       const deliverySmsNotification = await sendDeliveryNotificationForInvoice({
         orgId: org_id,
         userId: String(userId),
         invoice: updatedInvoice,
-      })
+      });
 
-      return res.status(200).json({ success: true, data: updatedInvoice, deliverySmsNotification })
+      return res
+        .status(200)
+        .json({ success: true, data: updatedInvoice, deliverySmsNotification });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message || "Failed to confirm delivery" })
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error.message || "Failed to confirm delivery",
+        });
     }
   }
 
   static async getDispatchAnalytics(req: AuthenticatedRequest, res: Response) {
     try {
-      const org_id = req.user?.org_id
-      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+      const org_id = req.user?.org_id;
+      if (!org_id)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
       if (!isAdminRole(req.user?.role)) {
-        return res.status(403).json({ success: false, message: "Only admin/HR can view dispatch analytics" })
+        return res
+          .status(403)
+          .json({
+            success: false,
+            message: "Only admin/HR can view dispatch analytics",
+          });
       }
 
-      const invoices = await StockInvoice.find({ org_id }).lean()
+      const invoices = await StockInvoice.find({ org_id }).lean();
       const counts = {
         total: invoices.length,
         not_assigned: 0,
@@ -3699,28 +5178,41 @@ export class StockController {
         packed: 0,
         dispatched: 0,
         delivered: 0,
-      } as Record<string, number>
+      } as Record<string, number>;
 
-      let totalPackingRatio = 0
-      let packingSamples = 0
+      let totalPackingRatio = 0;
+      let packingSamples = 0;
 
       invoices.forEach((invoice: any) => {
-        const status = String(invoice.dispatch?.status || "not_assigned")
-        if (counts[status] !== undefined) counts[status] += 1
+        const status = String(invoice.dispatch?.status || "not_assigned");
+        if (counts[status] !== undefined) counts[status] += 1;
 
-        const packingItems = invoice.dispatch?.packingItems || []
+        const packingItems = invoice.dispatch?.packingItems || [];
         if (packingItems.length > 0) {
-          const required = packingItems.reduce((sum: number, item: any) => sum + Number(item.requiredQuantity || 0), 0)
-          const packed = packingItems.reduce((sum: number, item: any) => sum + Number(item.packedQuantity || 0), 0)
+          const required = packingItems.reduce(
+            (sum: number, item: any) =>
+              sum + Number(item.requiredQuantity || 0),
+            0,
+          );
+          const packed = packingItems.reduce(
+            (sum: number, item: any) => sum + Number(item.packedQuantity || 0),
+            0,
+          );
           if (required > 0) {
-            totalPackingRatio += Math.min(1, packed / required)
-            packingSamples += 1
+            totalPackingRatio += Math.min(1, packed / required);
+            packingSamples += 1;
           }
         }
-      })
+      });
 
-      const completionRate = counts.total > 0 ? Number(((counts.delivered / counts.total) * 100).toFixed(2)) : 0
-      const averagePackingProgress = packingSamples > 0 ? Number(((totalPackingRatio / packingSamples) * 100).toFixed(2)) : 0
+      const completionRate =
+        counts.total > 0
+          ? Number(((counts.delivered / counts.total) * 100).toFixed(2))
+          : 0;
+      const averagePackingProgress =
+        packingSamples > 0
+          ? Number(((totalPackingRatio / packingSamples) * 100).toFixed(2))
+          : 0;
 
       return res.status(200).json({
         success: true,
@@ -3729,33 +5221,52 @@ export class StockController {
           completionRate,
           averagePackingProgress,
         },
-      })
+      });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message || "Failed to fetch dispatch analytics" })
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error.message || "Failed to fetch dispatch analytics",
+        });
     }
   }
 
   static async createCategory(req: AuthenticatedRequest, res: Response) {
     try {
-      const org_id = req.user?.org_id
-      const createdBy = req.user?.userId
+      const org_id = req.user?.org_id;
+      const createdBy = req.user?.userId;
 
       if (!org_id || !createdBy) {
-        return res.status(401).json({ success: false, message: "Unauthorized" })
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
       }
 
       if (!isAdminRole(req.user?.role)) {
-        return res.status(403).json({ success: false, message: "Only admin/HR can create categories" })
+        return res
+          .status(403)
+          .json({
+            success: false,
+            message: "Only admin/HR can create categories",
+          });
       }
 
-      const { name, description } = req.body
+      const { name, description } = req.body;
       if (!name) {
-        return res.status(400).json({ success: false, message: "Category name is required" })
+        return res
+          .status(400)
+          .json({ success: false, message: "Category name is required" });
       }
 
-      const existing = await StockCategory.findOne({ org_id, name: String(name).trim() })
+      const existing = await StockCategory.findOne({
+        org_id,
+        name: String(name).trim(),
+      });
       if (existing) {
-        return res.status(409).json({ success: false, message: "Category already exists" })
+        return res
+          .status(409)
+          .json({ success: false, message: "Category already exists" });
       }
 
       const category = await StockCategory.create({
@@ -3763,40 +5274,62 @@ export class StockController {
         name: String(name).trim(),
         description: description ? String(description).trim() : undefined,
         createdBy,
-      })
+      });
 
-      return res.status(201).json({ success: true, data: category })
+      return res.status(201).json({ success: true, data: category });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message || "Failed to create category" })
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error.message || "Failed to create category",
+        });
     }
   }
 
   static async getCategories(req: AuthenticatedRequest, res: Response) {
     try {
-      const org_id = req.user?.org_id
-      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+      const org_id = req.user?.org_id;
+      if (!org_id)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
 
-      const categories = await StockCategory.find({ org_id }).sort({ name: 1 }).lean()
-      return res.status(200).json({ success: true, data: categories })
+      const categories = await StockCategory.find({ org_id })
+        .sort({ name: 1 })
+        .lean();
+      return res.status(200).json({ success: true, data: categories });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message || "Failed to fetch categories" })
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error.message || "Failed to fetch categories",
+        });
     }
   }
 
   static async createProduct(req: AuthenticatedRequest, res: Response) {
     try {
-      const org_id = req.user?.org_id
-      const createdBy = req.user?.userId
+      const org_id = req.user?.org_id;
+      const createdBy = req.user?.userId;
 
       if (!org_id || !createdBy) {
-        return res.status(401).json({ success: false, message: "Unauthorized" })
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
       }
 
       if (!isAdminRole(req.user?.role)) {
-        return res.status(403).json({ success: false, message: "Only admin/HR can create products" })
+        return res
+          .status(403)
+          .json({
+            success: false,
+            message: "Only admin/HR can create products",
+          });
       }
 
-      const getVal = (v: any) => Array.isArray(v) ? v[0] : v;
+      const getVal = (v: any) => (Array.isArray(v) ? v[0] : v);
 
       const name = getVal(req.body.name);
       const category = getVal(req.body.category);
@@ -3817,40 +5350,80 @@ export class StockController {
       const manufacturer = getVal(req.body.manufacturer);
       const description = getVal(req.body.description);
 
-      const resolvedBuyingPrice = buyingPrice !== undefined ? buyingPrice : startingPrice
+      const resolvedBuyingPrice =
+        buyingPrice !== undefined ? buyingPrice : startingPrice;
 
       if (!name || !category) {
-        return res.status(400).json({ success: false, message: "Product name and category are required" })
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message: "Product name and category are required",
+          });
       }
 
-      if (resolvedBuyingPrice === undefined || resolvedBuyingPrice === null || sellingPrice === undefined || sellingPrice === null) {
-        return res.status(400).json({ success: false, message: "Buying price and selling price are required" })
+      if (
+        resolvedBuyingPrice === undefined ||
+        resolvedBuyingPrice === null ||
+        sellingPrice === undefined ||
+        sellingPrice === null
+      ) {
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message: "Buying price and selling price are required",
+          });
       }
 
-      if (Number(resolvedBuyingPrice) < 0 || Number(sellingPrice) < 0 || Number(minAlertQuantity) < 0 || Number(currentQuantity) < 0) {
-        return res.status(400).json({ success: false, message: "Price and quantity values must be positive" })
+      if (
+        Number(resolvedBuyingPrice) < 0 ||
+        Number(sellingPrice) < 0 ||
+        Number(minAlertQuantity) < 0 ||
+        Number(currentQuantity) < 0
+      ) {
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message: "Price and quantity values must be positive",
+          });
       }
 
       if ((expiryEnabled === "true" || expiryEnabled === true) && !expiryDate) {
-        return res.status(400).json({ success: false, message: "Expiry date is required when expiry checker is enabled" })
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message: "Expiry date is required when expiry checker is enabled",
+          });
       }
 
-      const categoryExists = await StockCategory.findOne({ _id: category, org_id })
+      const categoryExists = await StockCategory.findOne({
+        _id: category,
+        org_id,
+      });
       if (!categoryExists) {
-        return res.status(404).json({ success: false, message: "Category not found" })
+        return res
+          .status(404)
+          .json({ success: false, message: "Category not found" });
       }
 
-      const trimmedBranchId = branchId ? String(branchId).trim() : ""
+      const trimmedBranchId = branchId ? String(branchId).trim() : "";
       if (trimmedBranchId) {
-        const branch = await Branch.findOne({ _id: trimmedBranchId, org_id }).select("_id").lean()
+        const branch = await Branch.findOne({ _id: trimmedBranchId, org_id })
+          .select("_id")
+          .lean();
         if (!branch) {
-          return res.status(404).json({ success: false, message: "Branch not found" })
+          return res
+            .status(404)
+            .json({ success: false, message: "Branch not found" });
         }
       }
 
-      let imageUrl = undefined
+      let imageUrl = undefined;
       if (req.file) {
-        imageUrl = await StockController.processProductImage(req.file)
+        imageUrl = await StockController.processProductImage(req.file);
       }
 
       const product = await StockProduct.create({
@@ -3864,7 +5437,10 @@ export class StockController {
         assignedUsers: Array.isArray(assignedUsers) ? assignedUsers : [],
         isOutsourced: isOutsourced === "true" || isOutsourced === true,
         expiryEnabled: expiryEnabled === "true" || expiryEnabled === true,
-        expiryDate: (expiryEnabled === "true" || expiryEnabled === true) && expiryDate ? new Date(expiryDate) : null,
+        expiryDate:
+          (expiryEnabled === "true" || expiryEnabled === true) && expiryDate
+            ? new Date(expiryDate)
+            : null,
         expiryReminderDays: Number(expiryReminderDays),
         expiryLastReminderOn: null,
         createdBy,
@@ -3874,7 +5450,7 @@ export class StockController {
         manufacturer: manufacturer ? String(manufacturer).trim() : undefined,
         description: description ? String(description).trim() : undefined,
         imageUrl,
-      })
+      });
 
       if (Number(currentQuantity) > 0 && trimmedBranchId) {
         await StockEntry.create({
@@ -3888,61 +5464,108 @@ export class StockController {
           expiryReminderDays: Number(expiryReminderDays),
           addedBy: createdBy,
           note: "Initial stock from product create",
-        })
+        });
       }
 
-      return res.status(201).json({ success: true, data: product })
+      return res.status(201).json({ success: true, data: product });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message || "Failed to create product" })
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error.message || "Failed to create product",
+        });
     }
   }
 
   static async getProducts(req: AuthenticatedRequest, res: Response) {
     try {
-      const org_id = req.user?.org_id
-      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+      const org_id = req.user?.org_id;
+      if (!org_id)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
 
-      const products = await StockProduct.find({ org_id, isActive: { $ne: false } })
+      const products = await StockProduct.find({
+        org_id,
+        isActive: { $ne: false },
+      })
         .sort({ createdAt: -1 })
-        .lean()
+        .lean();
 
-      const categoryIds = [...new Set(products.map((product) => product.category).filter(Boolean))]
-      const categories = await StockCategory.find({ _id: { $in: categoryIds }, org_id }).lean()
-      const categoryMap = new Map(categories.map((category) => [String(category._id), category]))
+      const categoryIds = [
+        ...new Set(products.map((product) => product.category).filter(Boolean)),
+      ];
+      const categories = await StockCategory.find({
+        _id: { $in: categoryIds },
+        org_id,
+      }).lean();
+      const categoryMap = new Map(
+        categories.map((category) => [String(category._id), category]),
+      );
 
       // attach manufacturer details when available (defensive: avoid failing whole request if lookup errors)
-      let manufacturerMap = new Map()
+      let manufacturerMap = new Map();
       try {
-        const manufacturerIds = Array.from(new Set(products.map((p) => String((p as any).manufacturer)).filter(Boolean)))
-        const manufacturers = manufacturerIds.length ? await StockManufacturer.find({ _id: { $in: manufacturerIds }, org_id }).lean() : []
-        manufacturerMap = new Map(manufacturers.map((m) => [String(m._id), m]))
+        const manufacturerIds = Array.from(
+          new Set(
+            products
+              .map((p) => String((p as any).manufacturer))
+              .filter(Boolean),
+          ),
+        );
+        const manufacturers = manufacturerIds.length
+          ? await StockManufacturer.find({
+              _id: { $in: manufacturerIds },
+              org_id,
+            }).lean()
+          : [];
+        manufacturerMap = new Map(manufacturers.map((m) => [String(m._id), m]));
       } catch (manErr) {
-        console.error('Failed to load manufacturers for products list:', manErr)
-        manufacturerMap = new Map()
+        console.error(
+          "Failed to load manufacturers for products list:",
+          manErr,
+        );
+        manufacturerMap = new Map();
       }
 
       const data = products.map((product) => ({
         ...product,
         categoryDetails: categoryMap.get(String(product.category)) || null,
-        manufacturerDetails: product.manufacturer ? manufacturerMap.get(String(product.manufacturer)) || null : null,
-      }))
+        manufacturerDetails: product.manufacturer
+          ? manufacturerMap.get(String(product.manufacturer)) || null
+          : null,
+      }));
 
-      return res.status(200).json({ success: true, data })
+      return res.status(200).json({ success: true, data });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message || "Failed to fetch products" })
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error.message || "Failed to fetch products",
+        });
     }
   }
 
   static async updateProduct(req: AuthenticatedRequest, res: Response) {
     try {
-      const org_id = req.user?.org_id
-      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+      const org_id = req.user?.org_id;
+      if (!org_id)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
 
       if (!isAdminRole(req.user?.role)) {
-        return res.status(403).json({ success: false, message: "Only admin/HR can update products" })
+        return res
+          .status(403)
+          .json({
+            success: false,
+            message: "Only admin/HR can update products",
+          });
       }
 
-      const { id } = req.params
+      const { id } = req.params;
       const {
         name,
         category,
@@ -3958,49 +5581,69 @@ export class StockController {
         expiryDate,
         expiryReminderDays,
         description,
-      } = req.body
+      } = req.body;
 
-      const getVal = (v: any) => Array.isArray(v) ? v[0] : v;
+      const getVal = (v: any) => (Array.isArray(v) ? v[0] : v);
 
-      const payload: any = {}
-      if (name !== undefined) payload.name = String(getVal(name)).trim()
-      if (category !== undefined) payload.category = getVal(category)
-      
-      const resolvedBuyingPrice = buyingPrice !== undefined ? getVal(buyingPrice) : getVal(startingPrice)
-      if (resolvedBuyingPrice !== undefined) payload.startingPrice = Number(resolvedBuyingPrice)
-      
-      if (sellingPrice !== undefined) payload.sellingPrice = Number(getVal(sellingPrice))
-      if (minAlertQuantity !== undefined) payload.minAlertQuantity = Number(getVal(minAlertQuantity))
-      if (currentQuantity !== undefined) payload.currentQuantity = Number(getVal(currentQuantity))
-      if (assignedUsers !== undefined) payload.assignedUsers = Array.isArray(assignedUsers) ? assignedUsers : []
+      const payload: any = {};
+      if (name !== undefined) payload.name = String(getVal(name)).trim();
+      if (category !== undefined) payload.category = getVal(category);
+
+      const resolvedBuyingPrice =
+        buyingPrice !== undefined ? getVal(buyingPrice) : getVal(startingPrice);
+      if (resolvedBuyingPrice !== undefined)
+        payload.startingPrice = Number(resolvedBuyingPrice);
+
+      if (sellingPrice !== undefined)
+        payload.sellingPrice = Number(getVal(sellingPrice));
+      if (minAlertQuantity !== undefined)
+        payload.minAlertQuantity = Number(getVal(minAlertQuantity));
+      if (currentQuantity !== undefined)
+        payload.currentQuantity = Number(getVal(currentQuantity));
+      if (assignedUsers !== undefined)
+        payload.assignedUsers = Array.isArray(assignedUsers)
+          ? assignedUsers
+          : [];
       if (isOutsourced !== undefined) {
-        const val = getVal(isOutsourced)
-        payload.isOutsourced = val === "true" || val === true
+        const val = getVal(isOutsourced);
+        payload.isOutsourced = val === "true" || val === true;
       }
       if (isActive !== undefined) {
-        const val = getVal(isActive)
-        payload.isActive = val === "true" || val === true
+        const val = getVal(isActive);
+        payload.isActive = val === "true" || val === true;
       }
       if (expiryEnabled !== undefined) {
-        const val = getVal(expiryEnabled)
-        payload.expiryEnabled = val === "true" || val === true
+        const val = getVal(expiryEnabled);
+        payload.expiryEnabled = val === "true" || val === true;
       }
-      if (expiryDate !== undefined) payload.expiryDate = getVal(expiryDate) ? new Date(getVal(expiryDate)) : null
-      if (expiryReminderDays !== undefined) payload.expiryReminderDays = Number(getVal(expiryReminderDays))
+      if (expiryDate !== undefined)
+        payload.expiryDate = getVal(expiryDate)
+          ? new Date(getVal(expiryDate))
+          : null;
+      if (expiryReminderDays !== undefined)
+        payload.expiryReminderDays = Number(getVal(expiryReminderDays));
       if (req.body.manufacturer !== undefined) {
-        const val = getVal(req.body.manufacturer)
-        payload.manufacturer = val ? String(val).trim() : null
+        const val = getVal(req.body.manufacturer);
+        payload.manufacturer = val ? String(val).trim() : null;
       }
       if (description !== undefined) {
-        payload.description = description ? String(description).trim() : null
-      }
-      
-      if (req.file) {
-        payload.imageUrl = await StockController.processProductImage(req.file)
+        payload.description = description ? String(description).trim() : null;
       }
 
-      if ((payload.expiryEnabled === "true" || payload.expiryEnabled === true) && !payload.expiryDate) {
-        return res.status(400).json({ success: false, message: "Expiry date is required when expiry checker is enabled" })
+      if (req.file) {
+        payload.imageUrl = await StockController.processProductImage(req.file);
+      }
+
+      if (
+        (payload.expiryEnabled === "true" || payload.expiryEnabled === true) &&
+        !payload.expiryDate
+      ) {
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message: "Expiry date is required when expiry checker is enabled",
+          });
       }
 
       if (
@@ -4010,30 +5653,54 @@ export class StockController {
         payload.currentQuantity < 0 ||
         payload.expiryReminderDays < 0
       ) {
-        return res.status(400).json({ success: false, message: "Price and quantity values must be positive" })
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message: "Price and quantity values must be positive",
+          });
       }
 
-      const product = await StockProduct.findOneAndUpdate({ _id: id, org_id }, { $set: payload }, { new: true })
+      const product = await StockProduct.findOneAndUpdate(
+        { _id: id, org_id },
+        { $set: payload },
+        { new: true },
+      );
       if (!product) {
-        return res.status(404).json({ success: false, message: "Product not found" })
+        return res
+          .status(404)
+          .json({ success: false, message: "Product not found" });
       }
 
-      return res.status(200).json({ success: true, data: product })
+      return res.status(200).json({ success: true, data: product });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message || "Failed to update product" })
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error.message || "Failed to update product",
+        });
     }
   }
 
   static async deleteProduct(req: AuthenticatedRequest, res: Response) {
     try {
-      const org_id = req.user?.org_id
-      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+      const org_id = req.user?.org_id;
+      if (!org_id)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
 
       if (!isAdminRole(req.user?.role)) {
-        return res.status(403).json({ success: false, message: "Only admin/HR can delete products" })
+        return res
+          .status(403)
+          .json({
+            success: false,
+            message: "Only admin/HR can delete products",
+          });
       }
 
-      const { id } = req.params
+      const { id } = req.params;
 
       const product = await StockProduct.findOneAndUpdate(
         { _id: id, org_id },
@@ -4043,58 +5710,91 @@ export class StockController {
           },
         },
         { new: true },
-      )
+      );
 
       if (!product) {
-        return res.status(404).json({ success: false, message: "Product not found" })
+        return res
+          .status(404)
+          .json({ success: false, message: "Product not found" });
       }
 
-      return res.status(200).json({ success: true, message: "Product removed successfully" })
+      return res
+        .status(200)
+        .json({ success: true, message: "Product removed successfully" });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message || "Failed to delete product" })
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error.message || "Failed to delete product",
+        });
     }
   }
 
   static async bulkUploadProducts(req: AuthenticatedRequest, res: Response) {
     try {
-      const org_id = req.user?.org_id
-      const actorId = req.user?.userId
-      if (!org_id || !actorId) return res.status(401).json({ success: false, message: "Unauthorized" })
+      const org_id = req.user?.org_id;
+      const actorId = req.user?.userId;
+      if (!org_id || !actorId)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
 
       if (!isAdminRole(req.user?.role)) {
-        return res.status(403).json({ success: false, message: "Only admin/HR can bulk upload products" })
+        return res
+          .status(403)
+          .json({
+            success: false,
+            message: "Only admin/HR can bulk upload products",
+          });
       }
 
-      const file = req.file as any
+      const file = req.file as any;
       if (!file) {
-        return res.status(400).json({ success: false, message: "CSV file is required" })
+        return res
+          .status(400)
+          .json({ success: false, message: "CSV file is required" });
       }
 
-      const fileContent = await fs.readFile(file.path, "utf-8")
-      const rows = parseCsv(fileContent)
+      const fileContent = await fs.readFile(file.path, "utf-8");
+      const rows = parseCsv(fileContent);
 
       if (rows.length === 0) {
-        return res.status(400).json({ success: false, message: "CSV file is empty" })
+        return res
+          .status(400)
+          .json({ success: false, message: "CSV file is empty" });
       }
 
-      const defaultBranchId = String(req.body?.branchId || "").trim()
+      const defaultBranchId = String(req.body?.branchId || "").trim();
 
       // Get all categories for lookup
       const [categories, orgBranches] = await Promise.all([
         StockCategory.find({ org_id }).lean(),
-        Branch.find({ org_id, isActive: { $ne: false } }).select("_id name code").lean(),
-      ])
+        Branch.find({ org_id, isActive: { $ne: false } })
+          .select("_id name code")
+          .lean(),
+      ]);
       const categoryMap = new Map(
         categories.map((cat: any) => [
           String(cat.name).toLowerCase(),
           String(cat._id),
         ]),
-      )
-      const branchMap = new Map<string, string>()
+      );
+      const branchMap = new Map<string, string>();
       for (const branch of orgBranches) {
-        branchMap.set(String(branch._id).toLowerCase(), String(branch._id))
-        branchMap.set(String(branch.name || "").trim().toLowerCase(), String(branch._id))
-        branchMap.set(String(branch.code || "").trim().toLowerCase(), String(branch._id))
+        branchMap.set(String(branch._id).toLowerCase(), String(branch._id));
+        branchMap.set(
+          String(branch.name || "")
+            .trim()
+            .toLowerCase(),
+          String(branch._id),
+        );
+        branchMap.set(
+          String(branch.code || "")
+            .trim()
+            .toLowerCase(),
+          String(branch._id),
+        );
       }
 
       const resolveBranchId = (row: Record<string, string>) => {
@@ -4107,39 +5807,54 @@ export class StockController {
             row["Branch Code"] ||
             defaultBranchId ||
             "",
-        ).trim()
-        if (!raw) return ""
-        return branchMap.get(raw.toLowerCase()) || ""
-      }
+        ).trim();
+        if (!raw) return "";
+        return branchMap.get(raw.toLowerCase()) || "";
+      };
 
-      let createdCount = 0
-      let updatedCount = 0
-      const errors: string[] = []
+      let createdCount = 0;
+      let updatedCount = 0;
+      const errors: string[] = [];
 
       for (let index = 0; index < rows.length; index += 1) {
         try {
-          const row = rows[index]
-          const name = String(row.name || row["Product Name"] || row.product_name || "").trim()
-          let categoryName = String(row.category || row["Category"] || row.category_name || "").trim()
-          const startingPrice = parseBuyingPrice(row)
-          const sellingPrice = parseAmount(row.sellingPrice || row["Selling Price"] || "0")
-          const minAlertQuantity = Number(row.minAlertQuantity || row["Min Alert Quantity"] || "0")
-          const currentQuantity = Number(row.currentQuantity || row["Current Quantity"] || "0")
-          const branchId = resolveBranchId(row)
-          const description = String(row.description || row["Description"] || row.notes || "").trim()
+          const row = rows[index];
+          const name = String(
+            row.name || row["Product Name"] || row.product_name || "",
+          ).trim();
+          let categoryName = String(
+            row.category || row["Category"] || row.category_name || "",
+          ).trim();
+          const startingPrice = parseBuyingPrice(row);
+          const sellingPrice = parseAmount(
+            row.sellingPrice || row["Selling Price"] || "0",
+          );
+          const minAlertQuantity = Number(
+            row.minAlertQuantity || row["Min Alert Quantity"] || "0",
+          );
+          const currentQuantity = Number(
+            row.currentQuantity || row["Current Quantity"] || "0",
+          );
+          const branchId = resolveBranchId(row);
+          const description = String(
+            row.description || row["Description"] || row.notes || "",
+          ).trim();
 
           if (!name) {
-            errors.push(`Row ${index + 1}: Missing product name`)
-            continue
+            errors.push(`Row ${index + 1}: Missing product name`);
+            continue;
           }
 
-          let categoryId = ""
+          let categoryId = "";
           if (categoryName) {
-            categoryId = categoryMap.get(categoryName.toLowerCase()) || ""
+            categoryId = categoryMap.get(categoryName.toLowerCase()) || "";
             if (!categoryId) {
-              const newCat = await StockCategory.create({ org_id, name: categoryName })
-              categoryId = String(newCat._id)
-              categoryMap.set(categoryName.toLowerCase(), categoryId)
+              const newCat = await StockCategory.create({
+                org_id,
+                name: categoryName,
+              });
+              categoryId = String(newCat._id);
+              categoryMap.set(categoryName.toLowerCase(), categoryId);
             }
           }
 
@@ -4151,20 +5866,20 @@ export class StockController {
               row.branch_code ||
               row["Branch Code"] ||
               "",
-          ).trim()
+          ).trim();
 
           if (branchLookup && !branchId) {
-            errors.push(`Row ${index + 1}: Branch "${branchLookup}" not found`)
-            continue
+            errors.push(`Row ${index + 1}: Branch "${branchLookup}" not found`);
+            continue;
           }
 
           if (orgBranches.length > 0 && currentQuantity > 0 && !branchId) {
-            errors.push(`Row ${index + 1}: Select a branch for stock quantity`)
-            continue
+            errors.push(`Row ${index + 1}: Select a branch for stock quantity`);
+            continue;
           }
 
-          const existingProduct = await StockProduct.findOne({ org_id, name })
-          let productId = existingProduct ? String(existingProduct._id) : ""
+          const existingProduct = await StockProduct.findOne({ org_id, name });
+          let productId = existingProduct ? String(existingProduct._id) : "";
 
           if (existingProduct) {
             await StockProduct.findOneAndUpdate(
@@ -4175,12 +5890,13 @@ export class StockController {
                   startingPrice: startingPrice || existingProduct.startingPrice,
                   sellingPrice: sellingPrice || existingProduct.sellingPrice,
                   minAlertQuantity,
-                  currentQuantity: existingProduct.currentQuantity + currentQuantity,
+                  currentQuantity:
+                    existingProduct.currentQuantity + currentQuantity,
                   description: description || existingProduct.description,
                 },
               },
-            )
-            updatedCount += 1
+            );
+            updatedCount += 1;
           } else {
             const created = await StockProduct.create({
               org_id,
@@ -4192,9 +5908,9 @@ export class StockController {
               currentQuantity,
               description,
               createdBy: actorId,
-            })
-            productId = String(created._id)
-            createdCount += 1
+            });
+            productId = String(created._id);
+            createdCount += 1;
           }
 
           if (branchId && currentQuantity > 0 && productId) {
@@ -4205,16 +5921,18 @@ export class StockController {
               quantityAdded: currentQuantity,
               addedBy: actorId,
               note: "Bulk upload stock",
-            })
+            });
           }
         } catch (rowError: any) {
-          errors.push(`Row ${index + 1}: ${rowError?.message || "Unknown error"}`)
+          errors.push(
+            `Row ${index + 1}: ${rowError?.message || "Unknown error"}`,
+          );
         }
       }
 
       // Clean up uploaded file
       try {
-        await fs.unlink(file.path)
+        await fs.unlink(file.path);
       } catch {
         // Ignore cleanup errors
       }
@@ -4229,18 +5947,26 @@ export class StockController {
           errorCount: errors.length,
           errors: errors.slice(0, 10),
         },
-      })
+      });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message || "Failed to bulk upload products" })
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error.message || "Failed to bulk upload products",
+        });
     }
   }
 
   static async addStock(req: AuthenticatedRequest, res: Response) {
     try {
-      const org_id = req.user?.org_id
-      const actorId = req.user?.userId
+      const org_id = req.user?.org_id;
+      const actorId = req.user?.userId;
 
-      if (!org_id || !actorId) return res.status(401).json({ success: false, message: "Unauthorized" })
+      if (!org_id || !actorId)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
 
       const {
         productId,
@@ -4252,74 +5978,149 @@ export class StockController {
         expiryDate,
         expiryReminderDays,
         branchId,
-      } = req.body
+      } = req.body;
 
       if (!productId || Number(quantityAdded) <= 0) {
-        return res.status(400).json({ success: false, message: "productId and positive quantityAdded are required" })
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message: "productId and positive quantityAdded are required",
+          });
       }
 
       if (Boolean(isOutsourced) && !String(outsourcedCompany || "").trim()) {
-        return res.status(400).json({ success: false, message: "outsourcedCompany is required when stock entry is outsourced" })
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message:
+              "outsourcedCompany is required when stock entry is outsourced",
+          });
       }
 
-      const product = await StockProduct.findOne({ _id: productId, org_id })
-      if (!product) return res.status(404).json({ success: false, message: "Product not found" })
+      const product = await StockProduct.findOne({ _id: productId, org_id });
+      if (!product)
+        return res
+          .status(404)
+          .json({ success: false, message: "Product not found" });
 
-      if (branchId) {
-        const branch = await Branch.findOne({ _id: String(branchId).trim(), org_id })
+      let resolvedBranchId = branchId;
+      let locationId = String(req.body.locationId || "").trim() || undefined;
+
+      if (locationId) {
+        const location = await StockLocation.findOne({
+          _id: locationId,
+          org_id,
+        });
+        if (!location) {
+          return res
+            .status(404)
+            .json({ success: false, message: "Warehouse location not found" });
+        }
+        resolvedBranchId = resolvedBranchId || location.branchId;
+      }
+
+      if (resolvedBranchId) {
+        const branch = await Branch.findOne({
+          _id: String(resolvedBranchId).trim(),
+          org_id,
+        });
         if (!branch) {
-          return res.status(404).json({ success: false, message: "Branch not found" })
+          return res
+            .status(404)
+            .json({ success: false, message: "Branch not found" });
         }
       }
 
       const canManage =
         isAdminRole(req.user?.role) ||
-        product.assignedUsers.map(String).includes(String(actorId))
+        product.assignedUsers.map(String).includes(String(actorId));
 
       if (!canManage) {
-        return res.status(403).json({ success: false, message: "You are not assigned to manage this product" })
+        return res
+          .status(403)
+          .json({
+            success: false,
+            message: "You are not assigned to manage this product",
+          });
       }
 
-      product.currentQuantity += Number(quantityAdded)
+      product.currentQuantity += Number(quantityAdded);
 
       if (expiryEnabled !== undefined) {
-        product.expiryEnabled = Boolean(expiryEnabled)
+        product.expiryEnabled = Boolean(expiryEnabled);
       }
       if (expiryDate !== undefined) {
-        product.expiryDate = expiryDate ? new Date(expiryDate) : null
-        product.expiryLastReminderOn = null
+        product.expiryDate = expiryDate ? new Date(expiryDate) : null;
+        product.expiryLastReminderOn = null;
       }
       if (expiryReminderDays !== undefined) {
-        product.expiryReminderDays = Number(expiryReminderDays)
+        product.expiryReminderDays = Number(expiryReminderDays);
       }
 
       if (product.expiryEnabled && !product.expiryDate) {
-        return res.status(400).json({ success: false, message: "Expiry date is required when expiry checker is enabled" })
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message: "Expiry date is required when expiry checker is enabled",
+          });
       }
 
       if (Number(product.expiryReminderDays || 0) < 0) {
-        return res.status(400).json({ success: false, message: "Expiry reminder days must be zero or positive" })
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message: "Expiry reminder days must be zero or positive",
+          });
       }
 
-      await product.save()
+      await product.save();
 
       const stockEntry = await StockEntry.create({
         org_id,
         productId,
-        branchId: branchId ? String(branchId).trim() : undefined,
+        branchId: resolvedBranchId
+          ? String(resolvedBranchId).trim()
+          : undefined,
+        locationId,
         quantityAdded: Number(quantityAdded),
         isOutsourced: Boolean(isOutsourced),
-        outsourcedCompany: Boolean(isOutsourced) ? String(outsourcedCompany).trim() : undefined,
+        outsourcedCompany: Boolean(isOutsourced)
+          ? String(outsourcedCompany).trim()
+          : undefined,
         expiryEnabled: product.expiryEnabled,
         expiryDate: product.expiryDate || null,
         expiryReminderDays: Number(product.expiryReminderDays || 7),
         addedBy: actorId,
         note: note ? String(note) : undefined,
-        entryDate: req.body?.entryDate ? new Date(req.body.entryDate) : undefined,
-      })
+        entryDate: req.body?.entryDate
+          ? new Date(req.body.entryDate)
+          : undefined,
+      });
 
-      await sendLowStockAlert(product, org_id)
-      await sendExpiryReminderEmail(product, org_id)
+      if (locationId) {
+        await StockProductLocation.findOneAndUpdate(
+          { org_id, productId, locationId },
+          {
+            $set: {
+              org_id,
+              branchId: resolvedBranchId
+                ? String(resolvedBranchId).trim()
+                : undefined,
+              productId,
+              locationId,
+            },
+            $inc: { quantity: Number(quantityAdded) },
+          },
+          { upsert: true, new: true },
+        );
+      }
+
+      await sendLowStockAlert(product, org_id);
+      await sendExpiryReminderEmail(product, org_id);
 
       return res.status(201).json({
         success: true,
@@ -4327,17 +6128,382 @@ export class StockController {
           stockEntry,
           product,
         },
-      })
+      });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message || "Failed to add stock" })
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error.message || "Failed to add stock",
+        });
+    }
+  }
+
+  static async getWarehouseLocations(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = req.user?.org_id;
+      if (!org_id)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
+
+      const branchId = String(req.query.branchId || "").trim();
+      const filter: Record<string, any> = { org_id };
+      if (branchId) filter.branchId = branchId;
+
+      const locations = await StockLocation.find(filter)
+        .sort({ createdAt: -1 })
+        .lean();
+      return res.status(200).json({ success: true, data: locations });
+    } catch (error: any) {
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error.message || "Failed to fetch warehouse locations",
+        });
+    }
+  }
+
+  static async createWarehouseLocation(
+    req: AuthenticatedRequest,
+    res: Response,
+  ) {
+    try {
+      const org_id = req.user?.org_id;
+      if (!org_id)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
+
+      const {
+        name,
+        code,
+        locationType,
+        parentId,
+        branchId,
+        x,
+        y,
+        width,
+        height,
+        color,
+      } = req.body;
+      if (
+        !name ||
+        !code ||
+        typeof x !== "number" ||
+        typeof y !== "number" ||
+        typeof width !== "number" ||
+        typeof height !== "number"
+      ) {
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message: "Name, code, x, y, width and height are required",
+          });
+      }
+
+      if (branchId) {
+        const branch = await Branch.findOne({
+          _id: String(branchId).trim(),
+          org_id,
+        });
+        if (!branch) {
+          // For backward compatibility some callers use a warehouse id in place of branchId.
+          // Accept that by falling back to checking the Warehouse collection.
+          const { Warehouse } = await import("../models/Warehouse");
+          const warehouse = await Warehouse.findOne({
+            _id: String(branchId).trim(),
+            org_id,
+          });
+          if (!warehouse)
+            return res
+              .status(404)
+              .json({
+                success: false,
+                message: "Branch or Warehouse not found",
+              });
+        }
+      }
+
+      const existing = await StockLocation.findOne({
+        org_id,
+        branchId: branchId ? String(branchId).trim() : undefined,
+        code: String(code).trim(),
+      });
+      if (existing) {
+        return res
+          .status(409)
+          .json({
+            success: false,
+            message: "A location with this code already exists",
+          });
+      }
+
+      const location = await StockLocation.create({
+        org_id,
+        branchId: branchId ? String(branchId).trim() : undefined,
+        name: String(name).trim(),
+        code: String(code).trim(),
+        locationType: String(locationType || "bin").trim(),
+        parentId: parentId ? String(parentId).trim() : undefined,
+        x: Number(x),
+        y: Number(y),
+        width: Number(width),
+        height: Number(height),
+        color: String(color || "#38bdf8"),
+      });
+
+      return res.status(201).json({ success: true, data: location });
+    } catch (error: any) {
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error.message || "Failed to create warehouse location",
+        });
+    }
+  }
+
+  static async updateWarehouseLocation(
+    req: AuthenticatedRequest,
+    res: Response,
+  ) {
+    try {
+      const org_id = req.user?.org_id;
+      if (!org_id)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
+
+      const locationId = String(req.params.locationId || "").trim();
+      if (!locationId)
+        return res
+          .status(400)
+          .json({ success: false, message: "Location ID is required" });
+
+      const updates: Record<string, any> = {};
+      const allowed = [
+        "name",
+        "code",
+        "locationType",
+        "parentId",
+        "x",
+        "y",
+        "width",
+        "height",
+        "color",
+        "isActive",
+      ];
+      for (const key of allowed) {
+        if (req.body[key] !== undefined) updates[key] = req.body[key];
+      }
+
+      const location = await StockLocation.findOneAndUpdate(
+        { _id: locationId, org_id },
+        { $set: updates },
+        { new: true },
+      );
+      if (!location)
+        return res
+          .status(404)
+          .json({ success: false, message: "Location not found" });
+
+      return res.status(200).json({ success: true, data: location });
+    } catch (error: any) {
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error.message || "Failed to update warehouse location",
+        });
+    }
+  }
+
+  static async deleteWarehouseLocation(
+    req: AuthenticatedRequest,
+    res: Response,
+  ) {
+    try {
+      const org_id = req.user?.org_id;
+      if (!org_id)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
+
+      const locationId = String(req.params.locationId || "").trim();
+      if (!locationId)
+        return res
+          .status(400)
+          .json({ success: false, message: "Location ID is required" });
+
+      const deleted = await StockLocation.findOneAndDelete({
+        _id: locationId,
+        org_id,
+      });
+      if (!deleted)
+        return res
+          .status(404)
+          .json({ success: false, message: "Location not found" });
+
+      await StockProductLocation.deleteMany({ org_id, locationId });
+      return res.status(200).json({ success: true, data: deleted });
+    } catch (error: any) {
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error.message || "Failed to delete warehouse location",
+        });
+    }
+  }
+
+  static async getWarehouseLocationInventory(
+    req: AuthenticatedRequest,
+    res: Response,
+  ) {
+    try {
+      const org_id = req.user?.org_id;
+      if (!org_id)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
+
+      const locationId = String(req.params.locationId || "").trim();
+      if (!locationId)
+        return res
+          .status(400)
+          .json({ success: false, message: "Location ID is required" });
+
+      const inventory = await StockProductLocation.find({
+        org_id,
+        locationId,
+      }).lean();
+      return res.status(200).json({ success: true, data: inventory });
+    } catch (error: any) {
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error.message || "Failed to fetch location inventory",
+        });
+    }
+  }
+
+  static async getProductLocations(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = req.user?.org_id;
+      if (!org_id)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
+
+      const productId = String(req.query.productId || "").trim();
+      const search = String(req.query.search || "").trim();
+
+      if (!productId && !search) {
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message: "productId or search query is required",
+          });
+      }
+
+      let productIds: string[] = [];
+      if (productId) {
+        productIds = [productId];
+      } else {
+        const matchingProducts = await StockProduct.find({
+          org_id,
+          name: { $regex: search, $options: "i" },
+        })
+          .select("_id")
+          .lean();
+        productIds = matchingProducts.map((product) => String(product._id));
+      }
+
+      const locations = await StockProductLocation.find({
+        org_id,
+        productId: { $in: productIds },
+      }).lean();
+      return res.status(200).json({ success: true, data: locations });
+    } catch (error: any) {
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error.message || "Failed to fetch product locations",
+        });
+    }
+  }
+
+  static async assignProductLocation(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = req.user?.org_id;
+      const actorId = req.user?.userId;
+      if (!org_id || !actorId)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
+
+      const { productId, locationId, quantity } = req.body;
+      if (!productId || !locationId || Number(quantity) < 0) {
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message:
+              "productId, locationId and non-negative quantity are required",
+          });
+      }
+
+      const product = await StockProduct.findOne({ _id: productId, org_id });
+      if (!product)
+        return res
+          .status(404)
+          .json({ success: false, message: "Product not found" });
+
+      const location = await StockLocation.findOne({ _id: locationId, org_id });
+      if (!location)
+        return res
+          .status(404)
+          .json({ success: false, message: "Warehouse location not found" });
+
+      const existing = await StockProductLocation.findOneAndUpdate(
+        { org_id, productId, locationId },
+        {
+          $set: {
+            org_id,
+            branchId: location.branchId,
+            productId,
+            locationId,
+          },
+          $inc: { quantity: Number(quantity) },
+        },
+        { upsert: true, new: true },
+      );
+
+      return res.status(200).json({ success: true, data: existing });
+    } catch (error: any) {
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error.message || "Failed to assign product location",
+        });
     }
   }
 
   static async createSale(req: AuthenticatedRequest, res: Response) {
     try {
-      const org_id = req.user?.org_id
-      const actorId = req.user?.userId
-      if (!org_id || !actorId) return res.status(401).json({ success: false, message: "Unauthorized" })
+      const org_id = req.user?.org_id;
+      const actorId = req.user?.userId;
+      if (!org_id || !actorId)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
 
       const {
         productId,
@@ -4351,37 +6517,67 @@ export class StockController {
         buyerLocation,
         quotationId,
         invoiceId,
-      } = req.body
+      } = req.body;
 
       if (!productId || Number(quantitySold) <= 0 || Number(soldPrice) < 0) {
-        return res.status(400).json({ success: false, message: "productId, positive quantitySold and soldPrice are required" })
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message:
+              "productId, positive quantitySold and soldPrice are required",
+          });
       }
 
       if (isSalesCompany && !salesEmployeeId) {
-        return res.status(400).json({ success: false, message: "salesEmployeeId is required when isSalesCompany is true" })
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message: "salesEmployeeId is required when isSalesCompany is true",
+          });
       }
 
       if (!isWalkInClient && (!buyerName || !buyerNumber || !buyerLocation)) {
-        return res.status(400).json({ success: false, message: "Buyer details are required unless walk-in client is selected" })
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message:
+              "Buyer details are required unless walk-in client is selected",
+          });
       }
 
-      const product = await StockProduct.findOne({ _id: productId, org_id })
-      if (!product) return res.status(404).json({ success: false, message: "Product not found" })
+      const product = await StockProduct.findOne({ _id: productId, org_id });
+      if (!product)
+        return res
+          .status(404)
+          .json({ success: false, message: "Product not found" });
 
       const canManage =
         isAdminRole(req.user?.role) ||
-        product.assignedUsers.map(String).includes(String(actorId))
+        product.assignedUsers.map(String).includes(String(actorId));
 
       if (!canManage) {
-        return res.status(403).json({ success: false, message: "You are not assigned to sell this product" })
+        return res
+          .status(403)
+          .json({
+            success: false,
+            message: "You are not assigned to sell this product",
+          });
       }
 
       if (product.currentQuantity < Number(quantitySold)) {
-        return res.status(400).json({ success: false, message: "Cannot sell more than available stock" })
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message: "Cannot sell more than available stock",
+          });
       }
 
-      product.currentQuantity -= Number(quantitySold)
-      await product.save()
+      product.currentQuantity -= Number(quantitySold);
+      await product.save();
 
       const sale = await StockSale.create({
         org_id,
@@ -4389,9 +6585,15 @@ export class StockController {
         quantitySold: Number(quantitySold),
         soldPrice: Number(soldPrice),
         soldBy: actorId,
-        buyerName: isWalkInClient ? "Walk-in Client" : String(buyerName || "").trim(),
-        buyerNumber: isWalkInClient ? undefined : String(buyerNumber || "").trim(),
-        buyerLocation: isWalkInClient ? undefined : String(buyerLocation || "").trim(),
+        buyerName: isWalkInClient
+          ? "Walk-in Client"
+          : String(buyerName || "").trim(),
+        buyerNumber: isWalkInClient
+          ? undefined
+          : String(buyerNumber || "").trim(),
+        buyerLocation: isWalkInClient
+          ? undefined
+          : String(buyerLocation || "").trim(),
         isWalkInClient: Boolean(isWalkInClient),
         isSalesCompany: Boolean(isSalesCompany),
         salesEmployeeId: isSalesCompany ? String(salesEmployeeId) : undefined,
@@ -4399,29 +6601,39 @@ export class StockController {
         invoiceId: invoiceId ? String(invoiceId) : undefined,
         receiptNumber: generateDocumentNumber("RCP"),
         remainingQuantity: product.currentQuantity,
-      })
+      });
 
-      await sendLowStockAlert(product, org_id)
+      await sendLowStockAlert(product, org_id);
 
-      return res.status(201).json({ success: true, data: { sale, product } })
+      return res.status(201).json({ success: true, data: { sale, product } });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message || "Failed to record sale" })
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error.message || "Failed to record sale",
+        });
     }
   }
 
   static async getSales(req: AuthenticatedRequest, res: Response) {
     try {
-      const org_id = req.user?.org_id
-      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+      const org_id = req.user?.org_id;
+      if (!org_id)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
 
-      const query: any = { org_id }
+      const query: any = { org_id };
       if (!isAdminRole(req.user?.role)) {
-        query.soldBy = req.user?.userId
+        query.soldBy = req.user?.userId;
       }
 
-      const sales = await StockSale.find(query).sort({ createdAt: -1 }).lean()
+      const sales = await StockSale.find(query).sort({ createdAt: -1 }).lean();
 
-      const productIds = [...new Set(sales.map((sale) => sale.productId).filter(Boolean))]
+      const productIds = [
+        ...new Set(sales.map((sale) => sale.productId).filter(Boolean)),
+      ];
       const userIds = [
         ...new Set(
           sales
@@ -4429,43 +6641,66 @@ export class StockController {
             .filter(Boolean)
             .map(String),
         ),
-      ]
+      ];
 
       const [products, users] = await Promise.all([
         StockProduct.find({ _id: { $in: productIds }, org_id }).lean(),
-        User.find({ _id: { $in: userIds }, org_id }).select("firstName lastName email").lean(),
-      ])
+        User.find({ _id: { $in: userIds }, org_id })
+          .select("firstName lastName email")
+          .lean(),
+      ]);
 
-      const productMap = new Map(products.map((product) => [String(product._id), product]))
-      const userMap = new Map(users.map((user) => [String(user._id), user]))
+      const productMap = new Map(
+        products.map((product) => [String(product._id), product]),
+      );
+      const userMap = new Map(users.map((user) => [String(user._id), user]));
 
       const data = sales.map((sale) => ({
         ...sale,
         product: productMap.get(String(sale.productId)) || null,
-        soldByUser: sale.soldBy ? userMap.get(String(sale.soldBy)) || null : null,
-        salesEmployee: sale.salesEmployeeId ? userMap.get(String(sale.salesEmployeeId)) || null : null,
-      }))
+        soldByUser: sale.soldBy
+          ? userMap.get(String(sale.soldBy)) || null
+          : null,
+        salesEmployee: sale.salesEmployeeId
+          ? userMap.get(String(sale.salesEmployeeId)) || null
+          : null,
+      }));
 
-      return res.status(200).json({ success: true, data })
+      return res.status(200).json({ success: true, data });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message || "Failed to fetch sales" })
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error.message || "Failed to fetch sales",
+        });
     }
   }
 
   static async getStockEntries(req: AuthenticatedRequest, res: Response) {
     try {
-      const org_id = req.user?.org_id
-      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+      const org_id = req.user?.org_id;
+      if (!org_id)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
 
-      const query: any = { org_id }
+      const query: any = { org_id };
       if (!isAdminRole(req.user?.role)) {
-        query.addedBy = req.user?.userId
+        query.addedBy = req.user?.userId;
       }
 
-      const entries = await StockEntry.find(query).sort({ createdAt: -1 }).lean()
-      return res.status(200).json({ success: true, data: entries })
+      const entries = await StockEntry.find(query)
+        .sort({ createdAt: -1 })
+        .lean();
+      return res.status(200).json({ success: true, data: entries });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message || "Failed to fetch stock entries" })
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error.message || "Failed to fetch stock entries",
+        });
     }
   }
 
@@ -4473,124 +6708,203 @@ export class StockController {
 
   static async getCategoryById(req: AuthenticatedRequest, res: Response) {
     try {
-      const org_id = req.user?.org_id
-      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+      const org_id = req.user?.org_id;
+      if (!org_id)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
 
-      const { id } = req.params
-      const category = await StockCategory.findOne({ _id: id, org_id }).lean()
-      
+      const { id } = req.params;
+      const category = await StockCategory.findOne({ _id: id, org_id }).lean();
+
       if (!category) {
-        return res.status(404).json({ success: false, message: "Category not found" })
+        return res
+          .status(404)
+          .json({ success: false, message: "Category not found" });
       }
 
       const products = await StockProduct.find({ category: id, org_id })
-        .select("_id name sku startingPrice sellingPrice minAlertQuantity currentQuantity")
-        .lean()
+        .select(
+          "_id name sku startingPrice sellingPrice minAlertQuantity currentQuantity",
+        )
+        .lean();
 
-      return res.status(200).json({ 
-        success: true, 
+      return res.status(200).json({
+        success: true,
         data: {
           ...category,
           productCount: products.length,
-          products
-        }
-      })
+          products,
+        },
+      });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message || "Failed to fetch category" })
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error.message || "Failed to fetch category",
+        });
     }
   }
 
   static async getCategorySales(req: AuthenticatedRequest, res: Response) {
     try {
-      const org_id = req.user?.org_id
-      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+      const org_id = req.user?.org_id;
+      if (!org_id)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
 
-      const { id } = req.params
+      const { id } = req.params;
 
-      const products = await StockProduct.find({ category: id, org_id }).select("_id name").lean()
-      const productIds = products.map((p) => String(p._id))
+      const products = await StockProduct.find({ category: id, org_id })
+        .select("_id name")
+        .lean();
+      const productIds = products.map((p) => String(p._id));
 
-      const sales = await StockSale.find({ org_id, productId: { $in: productIds } }).sort({ createdAt: -1 }).lean()
+      const sales = await StockSale.find({
+        org_id,
+        productId: { $in: productIds },
+      })
+        .sort({ createdAt: -1 })
+        .lean();
 
-      const totalRevenue = sales.reduce((sum: number, s: any) => sum + Number(s.quantitySold || 0) * Number(s.soldPrice || 0), 0)
-      const totalUnits = sales.reduce((sum: number, s: any) => sum + Number(s.quantitySold || 0), 0)
+      const totalRevenue = sales.reduce(
+        (sum: number, s: any) =>
+          sum + Number(s.quantitySold || 0) * Number(s.soldPrice || 0),
+        0,
+      );
+      const totalUnits = sales.reduce(
+        (sum: number, s: any) => sum + Number(s.quantitySold || 0),
+        0,
+      );
 
       // Monthly trend
-      const monthMap = new Map<string, { units: number; revenue: number }>()
+      const monthMap = new Map<string, { units: number; revenue: number }>();
       sales.forEach((s: any) => {
-        const m = new Date(s.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "short" })
-        const cur = monthMap.get(m) || { units: 0, revenue: 0 }
-        cur.units += Number(s.quantitySold || 0)
-        cur.revenue += Number(s.quantitySold || 0) * Number(s.soldPrice || 0)
-        monthMap.set(m, cur)
-      })
+        const m = new Date(s.createdAt).toLocaleDateString("en-US", {
+          year: "numeric",
+          month: "short",
+        });
+        const cur = monthMap.get(m) || { units: 0, revenue: 0 };
+        cur.units += Number(s.quantitySold || 0);
+        cur.revenue += Number(s.quantitySold || 0) * Number(s.soldPrice || 0);
+        monthMap.set(m, cur);
+      });
 
-      const monthlyTrend = Array.from(monthMap.entries()).map(([month, data]) => ({ month, ...data }))
+      const monthlyTrend = Array.from(monthMap.entries()).map(
+        ([month, data]) => ({ month, ...data }),
+      );
 
-      return res.status(200).json({ success: true, data: { products, sales, totalRevenue, totalUnits, monthlyTrend } })
+      return res
+        .status(200)
+        .json({
+          success: true,
+          data: { products, sales, totalRevenue, totalUnits, monthlyTrend },
+        });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message || "Failed to fetch category sales" })
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error.message || "Failed to fetch category sales",
+        });
     }
   }
 
   static async getAllCategorySales(req: AuthenticatedRequest, res: Response) {
     try {
-      const org_id = req.user?.org_id
-      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+      const org_id = req.user?.org_id;
+      if (!org_id)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
 
       const [categories, products, sales] = await Promise.all([
         StockCategory.find({ org_id }).lean(),
         StockProduct.find({ org_id }).select("_id category name").lean(),
         StockSale.find({ org_id }).lean(),
-      ])
+      ]);
 
-      const productMap = new Map(products.map((p: any) => [String(p._id), p]))
+      const productMap = new Map(products.map((p: any) => [String(p._id), p]));
 
-      const categoryMap = new Map<string, { id: string; name: string; units: number; revenue: number }>()
-      categories.forEach((c: any) => categoryMap.set(String(c._id), { id: String(c._id), name: c.name, units: 0, revenue: 0 }))
+      const categoryMap = new Map<
+        string,
+        { id: string; name: string; units: number; revenue: number }
+      >();
+      categories.forEach((c: any) =>
+        categoryMap.set(String(c._id), {
+          id: String(c._id),
+          name: c.name,
+          units: 0,
+          revenue: 0,
+        }),
+      );
 
       sales.forEach((s: any) => {
-        const prod = productMap.get(String(s.productId))
-        if (!prod) return
-        const catId = String(prod.category || "")
-        if (!categoryMap.has(catId)) return
-        const entry = categoryMap.get(catId)!
-        entry.units += Number(s.quantitySold || 0)
-        entry.revenue += Number(s.quantitySold || 0) * Number(s.soldPrice || 0)
-      })
+        const prod = productMap.get(String(s.productId));
+        if (!prod) return;
+        const catId = String(prod.category || "");
+        if (!categoryMap.has(catId)) return;
+        const entry = categoryMap.get(catId)!;
+        entry.units += Number(s.quantitySold || 0);
+        entry.revenue += Number(s.quantitySold || 0) * Number(s.soldPrice || 0);
+      });
 
-      const result = Array.from(categoryMap.values()).sort((a, b) => b.revenue - a.revenue)
+      const result = Array.from(categoryMap.values()).sort(
+        (a, b) => b.revenue - a.revenue,
+      );
 
-      return res.status(200).json({ success: true, data: result })
+      return res.status(200).json({ success: true, data: result });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message || "Failed to fetch categories sales" })
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error.message || "Failed to fetch categories sales",
+        });
     }
   }
 
   static async updateCategory(req: AuthenticatedRequest, res: Response) {
     try {
-      const org_id = req.user?.org_id
-      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+      const org_id = req.user?.org_id;
+      if (!org_id)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
 
       if (!isAdminRole(req.user?.role)) {
-        return res.status(403).json({ success: false, message: "Only admin/HR can update categories" })
+        return res
+          .status(403)
+          .json({
+            success: false,
+            message: "Only admin/HR can update categories",
+          });
       }
 
-      const { id } = req.params
-      const { name, description } = req.body
+      const { id } = req.params;
+      const { name, description } = req.body;
 
       if (!name) {
-        return res.status(400).json({ success: false, message: "Category name is required" })
+        return res
+          .status(400)
+          .json({ success: false, message: "Category name is required" });
       }
 
       const existing = await StockCategory.findOne({
         _id: { $ne: id },
         org_id,
-        name: String(name).trim()
-      })
+        name: String(name).trim(),
+      });
 
       if (existing) {
-        return res.status(409).json({ success: false, message: "Category with this name already exists" })
+        return res
+          .status(409)
+          .json({
+            success: false,
+            message: "Category with this name already exists",
+          });
       }
 
       const category = await StockCategory.findOneAndUpdate(
@@ -4598,79 +6912,122 @@ export class StockController {
         {
           $set: {
             name: String(name).trim(),
-            ...(description !== undefined && { description: description ? String(description).trim() : null })
-          }
+            ...(description !== undefined && {
+              description: description ? String(description).trim() : null,
+            }),
+          },
         },
-        { new: true }
-      )
+        { new: true },
+      );
 
       if (!category) {
-        return res.status(404).json({ success: false, message: "Category not found" })
+        return res
+          .status(404)
+          .json({ success: false, message: "Category not found" });
       }
 
-      return res.status(200).json({ success: true, data: category })
+      return res.status(200).json({ success: true, data: category });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message || "Failed to update category" })
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error.message || "Failed to update category",
+        });
     }
   }
 
   static async deleteCategory(req: AuthenticatedRequest, res: Response) {
     try {
-      const org_id = req.user?.org_id
-      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+      const org_id = req.user?.org_id;
+      if (!org_id)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
 
       if (!isAdminRole(req.user?.role)) {
-        return res.status(403).json({ success: false, message: "Only admin/HR can delete categories" })
+        return res
+          .status(403)
+          .json({
+            success: false,
+            message: "Only admin/HR can delete categories",
+          });
       }
 
-      const { id } = req.params
+      const { id } = req.params;
 
-      const category = await StockCategory.findOneAndDelete({ _id: id, org_id })
+      const category = await StockCategory.findOneAndDelete({
+        _id: id,
+        org_id,
+      });
 
       if (!category) {
-        return res.status(404).json({ success: false, message: "Category not found" })
+        return res
+          .status(404)
+          .json({ success: false, message: "Category not found" });
       }
 
-      return res.status(200).json({ success: true, message: "Category deleted successfully" })
+      return res
+        .status(200)
+        .json({ success: true, message: "Category deleted successfully" });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message || "Failed to delete category" })
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error.message || "Failed to delete category",
+        });
     }
   }
 
   // SERVICES & JOBS
   static async getServiceJobs(req: AuthenticatedRequest, res: Response) {
     try {
-      const org_id = req.user?.org_id
-      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+      const org_id = req.user?.org_id;
+      if (!org_id)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
 
-      const { status, clientId } = req.query
-      const query: any = { org_id }
-      if (status) query.status = status
-      if (clientId) query.clientId = clientId
+      const { status, clientId } = req.query;
+      const query: any = { org_id };
+      if (status) query.status = status;
+      if (clientId) query.clientId = clientId;
 
-      const jobs = await StockServiceJob.find(query).sort({ scheduledDate: 1 }).lean()
-      return res.json({ success: true, data: jobs })
+      const jobs = await StockServiceJob.find(query)
+        .sort({ scheduledDate: 1 })
+        .lean();
+      return res.json({ success: true, data: jobs });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message })
+      return res.status(500).json({ success: false, message: error.message });
     }
   }
 
   static async createServiceJob(req: AuthenticatedRequest, res: Response) {
     try {
-      const org_id = req.user?.org_id
-      const createdBy = req.user?.userId
-      if (!org_id || !createdBy) return res.status(401).json({ success: false, message: "Unauthorized" })
+      const org_id = req.user?.org_id;
+      const createdBy = req.user?.userId;
+      if (!org_id || !createdBy)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
 
-      const { serviceId, clientId, scheduledDate, notes } = req.body
-      if (!serviceId || !scheduledDate) return res.status(400).json({ success: false, message: "Service and date required" })
+      const { serviceId, clientId, scheduledDate, notes } = req.body;
+      if (!serviceId || !scheduledDate)
+        return res
+          .status(400)
+          .json({ success: false, message: "Service and date required" });
 
-      const service = await StockProduct.findOne({ _id: serviceId, org_id })
-      if (!service) return res.status(404).json({ success: false, message: "Service not found" })
+      const service = await StockProduct.findOne({ _id: serviceId, org_id });
+      if (!service)
+        return res
+          .status(404)
+          .json({ success: false, message: "Service not found" });
 
-      let clientName = ""
+      let clientName = "";
       if (clientId) {
-        const client = await StockClient.findOne({ _id: clientId, org_id })
-        clientName = client?.name || ""
+        const client = await StockClient.findOne({ _id: clientId, org_id });
+        clientName = client?.name || "";
       }
 
       const job = await StockServiceJob.create({
@@ -4685,34 +7042,43 @@ export class StockController {
         isRecurring: !!service.isRecurring,
         intervalDays: service.intervalDays || 0,
         createdBy,
-      })
+      });
 
-      return res.status(201).json({ success: true, data: job })
+      return res.status(201).json({ success: true, data: job });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message })
+      return res.status(500).json({ success: false, message: error.message });
     }
   }
 
-  static async updateServiceJobStatus(req: AuthenticatedRequest, res: Response) {
+  static async updateServiceJobStatus(
+    req: AuthenticatedRequest,
+    res: Response,
+  ) {
     try {
-      const org_id = req.user?.org_id
-      const userId = req.user?.userId
-      if (!org_id || !userId) return res.status(401).json({ success: false, message: "Unauthorized" })
+      const org_id = req.user?.org_id;
+      const userId = req.user?.userId;
+      if (!org_id || !userId)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
 
-      const { jobId } = req.params
-      const { status, notes } = req.body
+      const { jobId } = req.params;
+      const { status, notes } = req.body;
 
-      const job = await StockServiceJob.findOne({ _id: jobId, org_id })
-      if (!job) return res.status(404).json({ success: false, message: "Job not found" })
+      const job = await StockServiceJob.findOne({ _id: jobId, org_id });
+      if (!job)
+        return res
+          .status(404)
+          .json({ success: false, message: "Job not found" });
 
-      job.status = status
+      job.status = status;
       if (status === "done") {
-        job.completedDate = new Date()
+        job.completedDate = new Date();
 
         // If recurring, create next job
         if (job.isRecurring && job.intervalDays > 0) {
-          const nextDate = new Date()
-          nextDate.setDate(nextDate.getDate() + job.intervalDays)
+          const nextDate = new Date();
+          nextDate.setDate(nextDate.getDate() + job.intervalDays);
 
           await StockServiceJob.create({
             org_id,
@@ -4726,32 +7092,50 @@ export class StockController {
             isRecurring: true,
             intervalDays: job.intervalDays,
             createdBy: userId,
-          })
+          });
         }
       }
-      if (notes) job.notes = notes
+      if (notes) job.notes = notes;
 
-      await job.save()
-      return res.json({ success: true, message: "Status updated" })
+      await job.save();
+      return res.json({ success: true, message: "Status updated" });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message })
+      return res.status(500).json({ success: false, message: error.message });
     }
   }
 
   // SERVICES MANAGEMENT
   static async createService(req: AuthenticatedRequest, res: Response) {
     try {
-      const org_id = req.user?.org_id
-      const createdBy = req.user?.userId
-      if (!org_id || !createdBy) return res.status(401).json({ success: false, message: "Unauthorized" })
+      const org_id = req.user?.org_id;
+      const createdBy = req.user?.userId;
+      if (!org_id || !createdBy)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
 
       if (!isAdminRole(req.user?.role)) {
-        return res.status(403).json({ success: false, message: "Only admin/HR can create services" })
+        return res
+          .status(403)
+          .json({
+            success: false,
+            message: "Only admin/HR can create services",
+          });
       }
 
-      const { name, description, category, price, duration, isRecurring, intervalDays } = req.body
+      const {
+        name,
+        description,
+        category,
+        price,
+        duration,
+        isRecurring,
+        intervalDays,
+      } = req.body;
       if (!name || !price) {
-        return res.status(400).json({ success: false, message: "Name and price are required" })
+        return res
+          .status(400)
+          .json({ success: false, message: "Name and price are required" });
       }
 
       const service = await StockProduct.create({
@@ -4767,265 +7151,421 @@ export class StockController {
         isRecurring: Boolean(isRecurring),
         intervalDays: Number(intervalDays || 0),
         createdBy,
-      })
+      });
 
-      return res.status(201).json({ success: true, data: service })
+      return res.status(201).json({ success: true, data: service });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message || "Failed to create service" })
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error.message || "Failed to create service",
+        });
     }
   }
 
   static async getServices(req: AuthenticatedRequest, res: Response) {
     try {
-      const org_id = req.user?.org_id
-      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+      const org_id = req.user?.org_id;
+      if (!org_id)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
 
-      const services = await StockProduct.find({ org_id, productType: "service", isActive: { $ne: false } })
+      const services = await StockProduct.find({
+        org_id,
+        productType: "service",
+        isActive: { $ne: false },
+      })
         .sort({ createdAt: -1 })
-        .lean()
+        .lean();
 
-      return res.status(200).json({ success: true, data: services })
+      return res.status(200).json({ success: true, data: services });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message || "Failed to fetch services" })
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error.message || "Failed to fetch services",
+        });
     }
   }
 
   static async getServiceById(req: AuthenticatedRequest, res: Response) {
     try {
-      const org_id = req.user?.org_id
-      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+      const org_id = req.user?.org_id;
+      if (!org_id)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
 
-      const { serviceId } = req.params
-      const service = await StockProduct.findOne({ _id: serviceId, org_id, productType: "service" }).lean()
+      const { serviceId } = req.params;
+      const service = await StockProduct.findOne({
+        _id: serviceId,
+        org_id,
+        productType: "service",
+      }).lean();
 
-      if (!service) return res.status(404).json({ success: false, message: "Service not found" })
-      return res.status(200).json({ success: true, data: service })
+      if (!service)
+        return res
+          .status(404)
+          .json({ success: false, message: "Service not found" });
+      return res.status(200).json({ success: true, data: service });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message || "Failed to fetch service" })
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error.message || "Failed to fetch service",
+        });
     }
   }
 
   static async updateService(req: AuthenticatedRequest, res: Response) {
     try {
-      const org_id = req.user?.org_id
-      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+      const org_id = req.user?.org_id;
+      if (!org_id)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
 
       if (!isAdminRole(req.user?.role)) {
-        return res.status(403).json({ success: false, message: "Only admin/HR can update services" })
+        return res
+          .status(403)
+          .json({
+            success: false,
+            message: "Only admin/HR can update services",
+          });
       }
 
-      const { serviceId } = req.params
-      const { name, description, price, duration, isRecurring, intervalDays, status } = req.body
+      const { serviceId } = req.params;
+      const {
+        name,
+        description,
+        price,
+        duration,
+        isRecurring,
+        intervalDays,
+        status,
+      } = req.body;
 
-      const payload: any = {}
-      if (name) payload.name = String(name).trim()
-      if (price) payload.sellingPrice = Number(price)
-      if (description) payload.description = String(description).trim()
-      if (isRecurring !== undefined) payload.isRecurring = Boolean(isRecurring)
-      if (intervalDays !== undefined) payload.intervalDays = Number(intervalDays)
-      if (status) payload.isActive = status === "active"
+      const payload: any = {};
+      if (name) payload.name = String(name).trim();
+      if (price) payload.sellingPrice = Number(price);
+      if (description) payload.description = String(description).trim();
+      if (isRecurring !== undefined) payload.isRecurring = Boolean(isRecurring);
+      if (intervalDays !== undefined)
+        payload.intervalDays = Number(intervalDays);
+      if (status) payload.isActive = status === "active";
 
       const service = await StockProduct.findOneAndUpdate(
         { _id: serviceId, org_id, productType: "service" },
         { $set: payload },
-        { new: true }
-      )
+        { new: true },
+      );
 
-      if (!service) return res.status(404).json({ success: false, message: "Service not found" })
-      return res.status(200).json({ success: true, data: service })
+      if (!service)
+        return res
+          .status(404)
+          .json({ success: false, message: "Service not found" });
+      return res.status(200).json({ success: true, data: service });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message || "Failed to update service" })
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error.message || "Failed to update service",
+        });
     }
   }
 
   static async deleteService(req: AuthenticatedRequest, res: Response) {
     try {
-      const org_id = req.user?.org_id
-      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+      const org_id = req.user?.org_id;
+      if (!org_id)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
 
       if (!isAdminRole(req.user?.role)) {
-        return res.status(403).json({ success: false, message: "Only admin/HR can delete services" })
+        return res
+          .status(403)
+          .json({
+            success: false,
+            message: "Only admin/HR can delete services",
+          });
       }
 
-      const { serviceId } = req.params
+      const { serviceId } = req.params;
       const service = await StockProduct.findOneAndUpdate(
         { _id: serviceId, org_id, productType: "service" },
         { $set: { isActive: false } },
-        { new: true }
-      )
+        { new: true },
+      );
 
-      if (!service) return res.status(404).json({ success: false, message: "Service not found" })
-      return res.status(200).json({ success: true, message: "Service deleted successfully" })
+      if (!service)
+        return res
+          .status(404)
+          .json({ success: false, message: "Service not found" });
+      return res
+        .status(200)
+        .json({ success: true, message: "Service deleted successfully" });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message || "Failed to delete service" })
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error.message || "Failed to delete service",
+        });
     }
   }
 
-  static async getServiceJobsByStatus(req: AuthenticatedRequest, res: Response) {
+  static async getServiceJobsByStatus(
+    req: AuthenticatedRequest,
+    res: Response,
+  ) {
     try {
-      const org_id = req.user?.org_id
-      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+      const org_id = req.user?.org_id;
+      if (!org_id)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
 
-      const { status } = req.params
-      const jobs = await StockServiceJob.find({ org_id, status }).sort({ scheduledDate: 1 }).lean()
+      const { status } = req.params;
+      const jobs = await StockServiceJob.find({ org_id, status })
+        .sort({ scheduledDate: 1 })
+        .lean();
 
-      return res.status(200).json({ success: true, data: jobs })
+      return res.status(200).json({ success: true, data: jobs });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message })
+      return res.status(500).json({ success: false, message: error.message });
     }
   }
 
   static async getServiceJobById(req: AuthenticatedRequest, res: Response) {
     try {
-      const org_id = req.user?.org_id
-      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+      const org_id = req.user?.org_id;
+      if (!org_id)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
 
-      const { jobId } = req.params
-      const job = await StockServiceJob.findOne({ _id: jobId, org_id }).lean()
+      const { jobId } = req.params;
+      const job = await StockServiceJob.findOne({ _id: jobId, org_id }).lean();
 
-      if (!job) return res.status(404).json({ success: false, message: "Job not found" })
-      return res.status(200).json({ success: true, data: job })
+      if (!job)
+        return res
+          .status(404)
+          .json({ success: false, message: "Job not found" });
+      return res.status(200).json({ success: true, data: job });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message })
+      return res.status(500).json({ success: false, message: error.message });
     }
   }
 
   static async deleteServiceJob(req: AuthenticatedRequest, res: Response) {
     try {
-      const org_id = req.user?.org_id
-      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+      const org_id = req.user?.org_id;
+      if (!org_id)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
 
       if (!isAdminRole(req.user?.role)) {
-        return res.status(403).json({ success: false, message: "Only admin/HR can delete jobs" })
+        return res
+          .status(403)
+          .json({ success: false, message: "Only admin/HR can delete jobs" });
       }
 
-      const { jobId } = req.params
-      const result = await StockServiceJob.deleteOne({ _id: jobId, org_id })
+      const { jobId } = req.params;
+      const result = await StockServiceJob.deleteOne({ _id: jobId, org_id });
 
-      if (result.deletedCount === 0) return res.status(404).json({ success: false, message: "Job not found" })
-      return res.status(200).json({ success: true, message: "Job deleted successfully" })
+      if (result.deletedCount === 0)
+        return res
+          .status(404)
+          .json({ success: false, message: "Job not found" });
+      return res
+        .status(200)
+        .json({ success: true, message: "Job deleted successfully" });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message })
+      return res.status(500).json({ success: false, message: error.message });
     }
   }
 
   // Helper to process product image to webp
-  private static async processProductImage(file: Express.Multer.File): Promise<string> {
-    const filename = `product-${Date.now()}-${Math.round(Math.random() * 1e9)}.webp`
-    const uploadPath = path.join(process.cwd(), "uploads/products", filename)
-    
-    await sharp(file.buffer)
-      .webp({ quality: 80 })
-      .toFile(uploadPath)
-      
-    return `/uploads/products/${filename}`
+  private static async processProductImage(
+    file: Express.Multer.File,
+  ): Promise<string> {
+    const filename = `product-${Date.now()}-${Math.round(Math.random() * 1e9)}.webp`;
+    const uploadPath = path.join(process.cwd(), "uploads/products", filename);
+
+    await sharp(file.buffer).webp({ quality: 80 }).toFile(uploadPath);
+
+    return `/uploads/products/${filename}`;
   }
 
   // Manufacturers (Importation)
   static async createManufacturer(req: AuthenticatedRequest, res: Response) {
     try {
-      const org_id = req.user?.org_id
-      const createdBy = req.user?.userId
-      if (!org_id || !createdBy) return res.status(401).json({ success: false, message: "Unauthorized" })
+      const org_id = req.user?.org_id;
+      const createdBy = req.user?.userId;
+      if (!org_id || !createdBy)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
 
-      const { type, companyName, countryOrLocation, contactPerson, contactPhone, comments } = req.body
-      if (!type || !companyName) return res.status(400).json({ success: false, message: "Type and company name are required" })
+      const {
+        type,
+        companyName,
+        countryOrLocation,
+        contactPerson,
+        contactPhone,
+        comments,
+      } = req.body;
+      if (!type || !companyName)
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message: "Type and company name are required",
+          });
 
       const manufacturer = await StockManufacturer.create({
         org_id,
         type,
         companyName: String(companyName).trim(),
-        countryOrLocation: countryOrLocation ? String(countryOrLocation).trim() : undefined,
+        countryOrLocation: countryOrLocation
+          ? String(countryOrLocation).trim()
+          : undefined,
         contactPerson: contactPerson ? String(contactPerson).trim() : undefined,
         contactPhone: contactPhone ? String(contactPhone).trim() : undefined,
         comments: comments ? String(comments).trim() : undefined,
         createdBy,
-      })
+      });
 
-      return res.status(201).json({ success: true, data: manufacturer })
+      return res.status(201).json({ success: true, data: manufacturer });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message || "Failed to create manufacturer" })
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error.message || "Failed to create manufacturer",
+        });
     }
   }
 
   static async getManufacturers(req: AuthenticatedRequest, res: Response) {
     try {
-      const org_id = req.user?.org_id
-      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+      const org_id = req.user?.org_id;
+      if (!org_id)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
 
-      const manufacturers = await StockManufacturer.find({ org_id }).sort({ createdAt: -1 }).lean()
-      return res.status(200).json({ success: true, data: manufacturers })
+      const manufacturers = await StockManufacturer.find({ org_id })
+        .sort({ createdAt: -1 })
+        .lean();
+      return res.status(200).json({ success: true, data: manufacturers });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message || "Failed to fetch manufacturers" })
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: error.message || "Failed to fetch manufacturers",
+        });
     }
   }
 
-  static async getServicesAnalyticsSummary(req: AuthenticatedRequest, res: Response) {
+  static async getServicesAnalyticsSummary(
+    req: AuthenticatedRequest,
+    res: Response,
+  ) {
     try {
-      const org_id = req.user?.org_id
-      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+      const org_id = req.user?.org_id;
+      if (!org_id)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
 
-      const jobs = await StockServiceJob.find({ org_id }).lean()
+      const jobs = await StockServiceJob.find({ org_id }).lean();
 
       const summary = {
         totalJobs: jobs.length,
-        pending: jobs.filter(j => j.status === "pending").length,
-        inProgress: jobs.filter(j => j.status === "in-progress").length,
-        completed: jobs.filter(j => j.status === "done").length,
-        cancelled: jobs.filter(j => j.status === "cancelled").length,
-        overdue: jobs.filter(j => j.status !== "done" && j.status !== "cancelled" && new Date(j.scheduledDate) < new Date()).length,
-      }
+        pending: jobs.filter((j) => j.status === "pending").length,
+        inProgress: jobs.filter((j) => j.status === "in-progress").length,
+        completed: jobs.filter((j) => j.status === "done").length,
+        cancelled: jobs.filter((j) => j.status === "cancelled").length,
+        overdue: jobs.filter(
+          (j) =>
+            j.status !== "done" &&
+            j.status !== "cancelled" &&
+            new Date(j.scheduledDate) < new Date(),
+        ).length,
+      };
 
       const byStatus = {
-        pending: jobs.filter(j => j.status === "pending"),
-        inProgress: jobs.filter(j => j.status === "in-progress"),
-        completed: jobs.filter(j => j.status === "done"),
-      }
+        pending: jobs.filter((j) => j.status === "pending"),
+        inProgress: jobs.filter((j) => j.status === "in-progress"),
+        completed: jobs.filter((j) => j.status === "done"),
+      };
 
-      return res.status(200).json({ success: true, data: { summary, byStatus } })
+      return res
+        .status(200)
+        .json({ success: true, data: { summary, byStatus } });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message })
+      return res.status(500).json({ success: false, message: error.message });
     }
   }
 
-  static async getServicesAnalyticsByCategory(req: AuthenticatedRequest, res: Response) {
+  static async getServicesAnalyticsByCategory(
+    req: AuthenticatedRequest,
+    res: Response,
+  ) {
     try {
-      const org_id = req.user?.org_id
-      if (!org_id) return res.status(401).json({ success: false, message: "Unauthorized" })
+      const org_id = req.user?.org_id;
+      if (!org_id)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
 
-      const services = await StockProduct.find({ org_id, productType: "service" }).lean()
-      const jobs = await StockServiceJob.find({ org_id }).lean()
+      const services = await StockProduct.find({
+        org_id,
+        productType: "service",
+      }).lean();
+      const jobs = await StockServiceJob.find({ org_id }).lean();
 
-      const byCategory = new Map()
-      services.forEach(s => {
+      const byCategory = new Map();
+      services.forEach((s) => {
         byCategory.set(String(s.category), {
           category: s.category,
           totalServices: 0,
           totalJobs: 0,
           completedJobs: 0,
           pendingJobs: 0,
-        })
-      })
+        });
+      });
 
-      services.forEach(s => {
-        const cat = byCategory.get(String(s.category))
-        if (cat) cat.totalServices += 1
-      })
+      services.forEach((s) => {
+        const cat = byCategory.get(String(s.category));
+        if (cat) cat.totalServices += 1;
+      });
 
-      jobs.forEach(j => {
-        const service = services.find(s => s._id.toString() === j.serviceId)
+      jobs.forEach((j) => {
+        const service = services.find((s) => s._id.toString() === j.serviceId);
         if (service && byCategory.has(String(service.category))) {
-          const cat = byCategory.get(String(service.category))
-          cat.totalJobs += 1
-          if (j.status === "done") cat.completedJobs += 1
-          if (j.status === "pending") cat.pendingJobs += 1
+          const cat = byCategory.get(String(service.category));
+          cat.totalJobs += 1;
+          if (j.status === "done") cat.completedJobs += 1;
+          if (j.status === "pending") cat.pendingJobs += 1;
         }
-      })
+      });
 
-      const data = Array.from(byCategory.values()).sort((a, b) => b.totalJobs - a.totalJobs)
-      return res.status(200).json({ success: true, data })
+      const data = Array.from(byCategory.values()).sort(
+        (a, b) => b.totalJobs - a.totalJobs,
+      );
+      return res.status(200).json({ success: true, data });
     } catch (error: any) {
-      return res.status(500).json({ success: false, message: error.message })
+      return res.status(500).json({ success: false, message: error.message });
     }
   }
 }

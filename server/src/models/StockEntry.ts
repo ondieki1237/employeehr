@@ -4,6 +4,7 @@ export interface IStockEntry {
   _id?: string
   org_id: string
   branchId?: string // New: branch identifier for multi-location support
+  locationId?: string
   productId: string
   quantityAdded: number
   isOutsourced?: boolean
@@ -22,6 +23,7 @@ const stockEntrySchema = new Schema<IStockEntry>(
   {
     org_id: { type: String, required: true, index: true },
     branchId: { type: String, default: null, index: true },
+    locationId: { type: String, default: null, index: true },
     productId: { type: String, required: true, index: true },
     quantityAdded: { type: Number, required: true, min: 1 },
     isOutsourced: { type: Boolean, default: false },
