@@ -705,6 +705,18 @@ export const stockApi = {
   },
   getWarehouseLocations: (warehouseId: string) =>
     client.get<any[]>(`/api/stock/warehouses/${warehouseId}/locations`),
+  // Installed machines
+  getInstalledMachines: () =>
+    client.get<any[]>(`/api/stock/installed-machines`),
+  createInstalledMachine: (data: any) =>
+    client.post<any>(`/api/stock/installed-machines`, data),
+  updateInstalledMachine: (id: string, data: any) =>
+    client.patch<any>(`/api/stock/installed-machines/${id}`, data),
+  deleteInstalledMachine: (id: string) =>
+    client.delete<any>(`/api/stock/installed-machines/${id}`),
+  // Candidates
+  getInstallableCandidates: () =>
+    client.get<any>(`/api/stock/installed-candidates`),
   assignProductLocation: (
     productId: string,
     data: { locationId: string; quantity: number; notes?: string },

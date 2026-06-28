@@ -8,6 +8,7 @@ import {
   uploadLogo,
 } from "../middleware/upload.middleware";
 import WarehouseController from "../controllers/warehouseController";
+import { InstalledMachineController } from "../controllers/installedMachineController";
 
 const router = Router();
 
@@ -181,12 +182,10 @@ router.post(
       );
       return res.status(200).json({ success: true, data: updated });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to upload logo",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to upload logo",
+      });
     }
   },
 );
@@ -259,6 +258,30 @@ router.get(
 router.get(
   "/services/analytics/by-category",
   StockController.getServicesAnalyticsByCategory,
+);
+
+// Installed machines management
+router.get(
+  "/installed-machines",
+  InstalledMachineController.listInstalledMachines,
+);
+router.post(
+  "/installed-machines",
+  InstalledMachineController.createInstalledMachine,
+);
+router.patch(
+  "/installed-machines/:id",
+  InstalledMachineController.updateInstalledMachine,
+);
+router.delete(
+  "/installed-machines/:id",
+  InstalledMachineController.deleteInstalledMachine,
+);
+
+// Candidates: products from converted & delivered invoices eligible to be marked as Installed
+router.get(
+  "/installed-candidates",
+  InstalledMachineController.listInstallableCandidates,
 );
 
 export default router;

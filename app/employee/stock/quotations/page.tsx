@@ -630,11 +630,13 @@ export default function EmployeeQuotationsPage() {
     try {
       setSavingQuotation(true);
 
-      const effectiveClientNumber = clientNumber.trim() || selectedClientPhone.trim();
+      const effectiveClientNumber =
+        clientNumber.trim() || selectedClientPhone.trim();
       if (!clientName.trim() || !effectiveClientNumber || items.length === 0) {
         toast({
           title: "Missing data",
-          description: "Client name, phone number, and at least one item are required",
+          description:
+            "Client name, phone number, and at least one item are required",
           variant: "destructive",
         });
         return;
@@ -754,7 +756,8 @@ export default function EmployeeQuotationsPage() {
     if (!canDownloadQuotation(quotation)) {
       toast({
         title: "Download unavailable",
-        description: "This quotation can only be downloaded after admin approval.",
+        description:
+          "This quotation can only be downloaded after admin approval.",
         variant: "destructive",
       });
       return;
@@ -1000,13 +1003,29 @@ export default function EmployeeQuotationsPage() {
       </div>
 
       {showCreate && (
-        <div ref={createFormRef}>
-          <Card>
-            <CardHeader>
-              <CardTitle>Create Quotation</CardTitle>
-              <p className="text-sm text-muted-foreground">
-                Your quotation will be submitted for admin approval.
-              </p>
+        <div
+          ref={createFormRef}
+          className="transition-all duration-300 ease-out"
+        >
+          <Card className="shadow-sm">
+            <CardHeader className="border-b bg-linear-to-r from-primary/5 to-primary/0">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Create Quotation</CardTitle>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Your quotation will be submitted for admin approval.
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => resetForm()}
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  ✕
+                </Button>
+              </div>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid gap-4 md:grid-cols-2">
@@ -1155,14 +1174,24 @@ export default function EmployeeQuotationsPage() {
                 </div>
               </div>
 
-              <div className="rounded-md border p-4 space-y-4">
+              <div className="rounded-md border p-4 space-y-3 bg-muted/20">
+                <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground mb-2">
+                  <span>Add Products to Quotation</span>
+                  {productSearch.trim() && productSuggestions.length > 0 && (
+                    <span className="inline-flex items-center rounded-full bg-primary text-primary-foreground px-2.5 py-0.5 text-xs font-medium">
+                      {productSuggestions.length} match
+                      {productSuggestions.length !== 1 ? "es" : ""}
+                    </span>
+                  )}
+                </div>
                 <div className="grid gap-4 md:grid-cols-4">
                   <div>
                     <Label>Type Product Name</Label>
                     <Input
-                      placeholder="Start typing product name"
+                      placeholder="Start typing product name..."
                       value={productSearch}
                       onChange={(event) => setProductSearch(event.target.value)}
+                      autoComplete="off"
                     />
                   </div>
                   <div>
@@ -1201,42 +1230,63 @@ export default function EmployeeQuotationsPage() {
                 </div>
 
                 {productSearch.trim() && (
-                  <div className="border rounded-md divide-y">
+                  <div className="border rounded-md divide-y bg-white shadow-sm animate-in fade-in slide-in-from-top-2 duration-200">
                     {productSuggestions.length === 0 ? (
-                      <div className="p-3 text-sm text-muted-foreground space-y-2">
-                        <p>No matching products</p>
+                      <div className="p-4 text-sm text-muted-foreground space-y-2">
+                        <p className="font-medium">
+                          No matching products found
+                        </p>
                         <p className="text-xs">
-                          Choose a matching inventory item to continue.
+                          Try searching with different keywords or check if the
+                          product is in stock.
                         </p>
                       </div>
                     ) : (
                       <>
-                        {productSuggestions.map((product) => (
-                          <button
-                            key={product._id}
-                            type="button"
-                            className="w-full text-left p-3 hover:bg-secondary text-sm"
-                            onClick={() => addItemFromSuggestion(product)}
-                          >
-                            <div className="font-medium flex items-center gap-2">
-                              {product.name}
-                              {product.isOutsourced ? (
-                                <span className="rounded bg-amber-100 px-2 py-0.5 text-[11px] text-amber-800">
-                                  Outsourced
+                        <div className="bg-muted/30 px-3 py-2 text-xs text-muted-foreground font-medium">
+                          Available Products ({productSuggestions.length})
+                        </div>
+                        <div className="max-h-72 overflow-y-auto">
+                          {productSuggestions.map((product) => (
+                            <button
+                              key={product._id}
+                              type="button"
+                              className="w-full text-left p-3 hover:bg-primary/5 transition-colors text-sm border-b last:border-b-0"
+                              onClick={() => addItemFromSuggestion(product)}
+                            >
+                              <div className="font-medium flex items-center gap-2">
+                                {product.name}
+                                {product.isOutsourced ? (
+                                  <span className="rounded bg-amber-100 px-2 py-0.5 text-[11px] text-amber-800 font-medium">
+                                    Outsourced
+                                  </span>
+                                ) : null}
+                              </div>
+                              <div className="text-xs text-muted-foreground mt-1 grid grid-cols-3 gap-2">
+                                <span>
+                                  Category:{" "}
+                                  {product.categoryDetails?.name || "N/A"}
                                 </span>
-                              ) : null}
-                            </div>
-                            <div className="text-muted-foreground">
-                              Category: {product.categoryDetails?.name || "N/A"}{" "}
-                              | Product Price: {product.sellingPrice} | In
-                              stock: {product.currentQuantity}
-                            </div>
-                          </button>
-                        ))}
+                                <span>Price: KES {product.sellingPrice}</span>
+                                <span
+                                  className={
+                                    product.currentQuantity > 0
+                                      ? "text-green-600 font-medium"
+                                      : "text-red-600 font-medium"
+                                  }
+                                >
+                                  Stock: {product.currentQuantity}
+                                </span>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
                         {outOfStockHiddenCount > 0 ? (
-                          <div className="p-3 text-xs text-muted-foreground">
-                            {outOfStockHiddenCount} out-of-stock product(s)
-                            hidden from selectable list.
+                          <div className="p-3 text-xs text-muted-foreground bg-muted/20">
+                            <span className="font-medium">
+                              {outOfStockHiddenCount} out-of-stock product(s)
+                            </span>{" "}
+                            hidden from list
                           </div>
                         ) : null}
                       </>
@@ -1246,17 +1296,17 @@ export default function EmployeeQuotationsPage() {
               </div>
 
               {items.length > 0 && (
-                <div className="overflow-x-auto border rounded-md">
+                <div className="overflow-x-auto border rounded-md bg-muted/30 shadow-sm">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="text-left border-b">
-                        <th className="py-2 px-2">Product</th>
-                        <th className="py-2 px-2">Qty</th>
-                        <th className="py-2 px-2">Product Price</th>
-                        <th className="py-2 px-2">Sold Price (Editable)</th>
-                        <th className="py-2 px-2">Outsourced</th>
-                        <th className="py-2 px-2">Total</th>
-                        <th className="py-2 px-2">Drop</th>
+                      <tr className="text-left border-b bg-muted/50 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        <th className="py-3 px-3">Product</th>
+                        <th className="py-3 px-3 text-center">Qty</th>
+                        <th className="py-3 px-3 text-right">Product Price</th>
+                        <th className="py-3 px-3 text-right">Sold Price</th>
+                        <th className="py-3 px-3 text-center">Outsourced</th>
+                        <th className="py-3 px-3 text-right">Total</th>
+                        <th className="py-3 px-3 text-center">Action</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1276,9 +1326,9 @@ export default function EmployeeQuotationsPage() {
                         return (
                           <tr
                             key={`${item.productId}-${index}`}
-                            className="border-b"
+                            className="border-b hover:bg-muted/20 transition-colors"
                           >
-                            <td className="py-2 px-2">
+                            <td className="py-3 px-3">
                               <div className="font-medium">{name}</div>
                               <Textarea
                                 value={item.description || ""}
@@ -1292,9 +1342,13 @@ export default function EmployeeQuotationsPage() {
                                 className="mt-1 h-16 w-full text-xs"
                               />
                             </td>
-                            <td className="py-2 px-2">{item.quantity}</td>
-                            <td className="py-2 px-2">{referencePrice}</td>
-                            <td className="py-2 px-2">
+                            <td className="py-3 px-3 text-center font-medium">
+                              {item.quantity}
+                            </td>
+                            <td className="py-3 px-3 text-right font-medium">
+                              KES {referencePrice}
+                            </td>
+                            <td className="py-3 px-3">
                               <Input
                                 type="number"
                                 min={Number(referencePrice || 0)}
@@ -1305,19 +1359,21 @@ export default function EmployeeQuotationsPage() {
                                     event.target.value,
                                   )
                                 }
-                                className="h-8"
+                                className="h-8 text-right"
                               />
-                              <div className="mt-1 text-[10px] text-muted-foreground">
-                                Min: {referencePrice}
+                              <div className="mt-1 text-[10px] text-muted-foreground text-right">
+                                Min: KES {referencePrice}
                               </div>
                             </td>
-                            <td className="py-2 px-2">
-                              {item.isOutsourced ? "Yes" : "No"}
+                            <td className="py-3 px-3 text-center">
+                              <span className="text-xs font-medium rounded px-2 py-1 bg-muted">
+                                {item.isOutsourced ? "Yes" : "No"}
+                              </span>
                             </td>
-                            <td className="py-2 px-2">
-                              {(item.quantity * soldPrice).toFixed(2)}
+                            <td className="py-3 px-3 text-right font-semibold">
+                              KES {(item.quantity * soldPrice).toFixed(2)}
                             </td>
-                            <td className="py-2 px-2">
+                            <td className="py-3 px-3 text-center">
                               <Button
                                 size="sm"
                                 type="button"
@@ -1335,17 +1391,24 @@ export default function EmployeeQuotationsPage() {
                 </div>
               )}
 
-              <div className="flex gap-2">
-                <Button onClick={createQuotation} disabled={savingQuotation}>
-                  {savingQuotation ? "Saving..." : "Submit for Approval"}
-                </Button>
-                <Button variant="outline" onClick={resetForm}>
-                  Cancel
-                </Button>
+              <div className="flex flex-col gap-3 border-t pt-4">
+                <div className="flex gap-2">
+                  <Button
+                    onClick={createQuotation}
+                    disabled={savingQuotation}
+                    className="flex-1"
+                  >
+                    {savingQuotation ? "Saving..." : "Submit for Approval"}
+                  </Button>
+                  <Button variant="outline" onClick={resetForm}>
+                    Cancel
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Once submitted, your quotation will be reviewed by an admin
+                  for approval.
+                </p>
               </div>
-              <p className="text-xs text-muted-foreground">
-                Once submitted, your quotation will be reviewed by an admin.
-              </p>
             </CardContent>
           </Card>
         </div>
@@ -1407,9 +1470,9 @@ export default function EmployeeQuotationsPage() {
                         >
                           {quotation.client.name}
                         </div>
-                                        <div className="truncate text-[11px] text-muted-foreground">
-                        {quotation.client.location || "-"}
-                      </div>
+                        <div className="truncate text-[11px] text-muted-foreground">
+                          {quotation.client.location || "-"}
+                        </div>
                       </td>
                       <td
                         className="px-3 py-2 align-top truncate"
@@ -1431,37 +1494,52 @@ export default function EmployeeQuotationsPage() {
                         })}
                       </td>
                       <td className="px-3 py-2 align-top">
-                        <div className="flex flex-wrap gap-2">
-                        {canEditQuotation(quotation) ? (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => startEditQuotation(quotation)}
+                        <div className="space-y-1">
+                          <div className="flex flex-wrap gap-2 items-center">
+                            {canEditQuotation(quotation) ? (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => startEditQuotation(quotation)}
+                                className="text-blue-600 border-blue-200 hover:bg-blue-50"
+                              >
+                                Edit
+                              </Button>
+                            ) : null}
+                            {canDownloadQuotation(quotation) ? (
+                              <Button
+                                size="sm"
+                                onClick={() => downloadQuotationPdf(quotation)}
+                                className="bg-green-600 hover:bg-green-700 text-white"
+                              >
+                                PDF
+                              </Button>
+                            ) : (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled
+                                className="opacity-50 cursor-not-allowed"
+                              >
+                                PDF
+                              </Button>
+                            )}
+                          </div>
+                          <span
+                            className="text-xs font-medium"
+                            style={{
+                              color: canDownloadQuotation(quotation)
+                                ? "#16a34a"
+                                : "#ea580c",
+                            }}
                           >
-                            Edit
-                          </Button>
-                        ) : null}
-                        {canDownloadQuotation(quotation) ? (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => downloadQuotationPdf(quotation)}
-                          >
-                            PDF
-                          </Button>
-                        ) : (
-                          <Button size="sm" variant="outline" disabled>
-                            PDF
-                          </Button>
-                        )}
-                        <span className="text-xs text-muted-foreground self-center">
-                          {canDownloadQuotation(quotation)
-                            ? "Ready to download"
-                            : "Awaiting admin approval"}
-                        </span>
-                      </div>
-                        <div className="mt-1 text-[11px] text-muted-foreground">
-                          Prepared by {getUser()?.first_name || "Employee"}
+                            {canDownloadQuotation(quotation)
+                              ? "✓ Ready to download"
+                              : "⏳ Awaiting admin approval"}
+                          </span>
+                          <div className="mt-0.5 text-[11px] text-muted-foreground">
+                            By {getUser()?.first_name || "Employee"}
+                          </div>
                         </div>
                       </td>
                     </tr>
@@ -1571,39 +1649,54 @@ export default function EmployeeQuotationsPage() {
                       </Badge>
                     </td>
                     <td className="px-3 py-2 align-top">
-                      <div className="flex flex-wrap gap-2">
-                        {canEditQuotation(quotation) ? (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => startEditQuotation(quotation)}
-                          >
-                            Edit
-                          </Button>
-                        ) : null}
-                        {canDownloadQuotation(quotation) ? (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => downloadQuotationPdf(quotation)}
-                          >
-                            PDF
-                          </Button>
-                        ) : (
-                          <Button size="sm" variant="outline" disabled>
-                            PDF
-                          </Button>
-                        )}
-                        <span className="text-xs text-muted-foreground self-center">
+                      <div className="space-y-1">
+                        <div className="flex flex-wrap gap-2 items-center">
+                          {canEditQuotation(quotation) ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => startEditQuotation(quotation)}
+                              className="text-blue-600 border-blue-200 hover:bg-blue-50"
+                            >
+                              Edit
+                            </Button>
+                          ) : null}
+                          {canDownloadQuotation(quotation) ? (
+                            <Button
+                              size="sm"
+                              onClick={() => downloadQuotationPdf(quotation)}
+                              className="bg-green-600 hover:bg-green-700 text-white"
+                            >
+                              PDF
+                            </Button>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled
+                              className="opacity-50 cursor-not-allowed"
+                            >
+                              PDF
+                            </Button>
+                          )}
+                        </div>
+                        <span
+                          className="text-xs font-medium"
+                          style={{
+                            color: canDownloadQuotation(quotation)
+                              ? "#16a34a"
+                              : "#ea580c",
+                          }}
+                        >
                           {canDownloadQuotation(quotation)
                             ? quotation.status === "converted"
-                              ? "Converted"
-                              : "Ready to download"
-                            : "Awaiting approval"}
+                              ? "✓ Converted"
+                              : "✓ Ready to download"
+                            : "⏳ Awaiting approval"}
                         </span>
-                      </div>
-                      <div className="mt-1 text-[11px] text-muted-foreground">
-                        Prepared by {getUser()?.first_name || "Employee"}
+                        <div className="mt-0.5 text-[11px] text-muted-foreground">
+                          By {getUser()?.first_name || "Employee"}
+                        </div>
                       </div>
                     </td>
                   </tr>

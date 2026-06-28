@@ -1,4 +1,4 @@
-"use client"
+"use client";
 
 import React, {
   useCallback,
@@ -6,182 +6,330 @@ import React, {
   useRef,
   useState,
   MouseEvent as RMouseEvent,
-} from "react"
+} from "react";
+import {
+  Accordion,
+  AccordionItem,
+  AccordionTrigger,
+  AccordionContent,
+} from "@/components/ui/accordion";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type ToolId =
-  | "pointer" | "hand" | "select" | "wall" | "door" | "zone"
-  | "rack" | "shelf" | "bin" | "aisle" | "walkway" | "loading-dock"
-  | "office" | "cold-room" | "charging" | "measure" | "delete"
+  | "pointer"
+  | "hand"
+  | "select"
+  | "wall"
+  | "door"
+  | "zone"
+  | "rack"
+  | "shelf"
+  | "bin"
+  | "aisle"
+  | "walkway"
+  | "loading-dock"
+  | "office"
+  | "cold-room"
+  | "charging"
+  | "measure"
+  | "delete";
 
 type PlaceableTool = Exclude<
   ToolId,
   "pointer" | "hand" | "select" | "measure" | "delete"
->
+>;
 
 type ObjectType =
-  | "wall" | "door" | "zone" | "rack" | "shelf" | "bin"
-  | "aisle" | "walkway" | "loading-dock" | "office"
-  | "cold-room" | "charging" | "label"
+  | "wall"
+  | "door"
+  | "zone"
+  | "rack"
+  | "shelf"
+  | "bin"
+  | "aisle"
+  | "walkway"
+  | "loading-dock"
+  | "office"
+  | "cold-room"
+  | "charging"
+  | "label";
 
-type AppMode = "design" | "operations"
+type AppMode = "design" | "operations";
 
 interface CanvasObject {
-  id: string
-  type: ObjectType
-  x: number        // percentage 0-100
-  y: number        // percentage 0-100
-  width: number    // percentage
-  height: number   // percentage
-  label: string
-  color: string
-  locked?: boolean
-  hidden?: boolean
-  rotation?: number
-  meta?: Record<string, string | number>
+  id: string;
+  type: ObjectType;
+  x: number; // percentage 0-100
+  y: number; // percentage 0-100
+  width: number; // percentage
+  height: number; // percentage
+  label: string;
+  color: string;
+  locked?: boolean;
+  hidden?: boolean;
+  rotation?: number;
+  meta?: Record<string, string | number>;
 }
 
 interface Warehouse {
-  _id: string
-  name: string
-  rows: number
-  cols: number
-  cellPrefix?: string
-  description?: string
-  layoutObjects?: CanvasObject[]
+  _id: string;
+  name: string;
+  rows: number;
+  cols: number;
+  cellPrefix?: string;
+  description?: string;
+  layoutObjects?: CanvasObject[];
 }
 
 interface Product {
-  _id: string
-  name: string
-  sku?: string
-  category?: string
+  _id: string;
+  name: string;
+  sku?: string;
+  category?: string;
 }
 
 interface Viewport {
-  x: number     // pan offset px
-  y: number     // pan offset px
-  zoom: number  // scale factor
+  x: number; // pan offset px
+  y: number; // pan offset px
+  zoom: number; // scale factor
 }
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
 const OBJECT_COLORS: Record<ObjectType, string> = {
-  wall:          "#64748b",
-  door:          "#3b82f6",
-  zone:          "#22c55e",
-  rack:          "#f59e0b",
-  shelf:         "#8b5cf6",
-  bin:           "#38bdf8",
-  aisle:         "#e2e8f0",
-  walkway:       "#cbd5e1",
-  "loading-dock":"#f97316",
-  office:        "#a78bfa",
-  "cold-room":   "#67e8f9",
-  charging:      "#facc15",
-  label:         "#94a3b8",
-}
+  wall: "#64748b",
+  door: "#3b82f6",
+  zone: "#22c55e",
+  rack: "#f59e0b",
+  shelf: "#8b5cf6",
+  bin: "#38bdf8",
+  aisle: "#e2e8f0",
+  walkway: "#cbd5e1",
+  "loading-dock": "#f97316",
+  office: "#a78bfa",
+  "cold-room": "#67e8f9",
+  charging: "#facc15",
+  label: "#94a3b8",
+};
 
 const OBJECT_ICONS: Record<ObjectType, string> = {
-  wall:          "▬",
-  door:          "🚪",
-  zone:          "⬡",
-  rack:          "⊞",
-  shelf:         "≡",
-  bin:           "□",
-  aisle:         "⟵",
-  walkway:       "─",
-  "loading-dock":"⬛",
-  office:        "⌂",
-  "cold-room":   "❄",
-  charging:      "⚡",
-  label:         "𝐓",
-}
+  wall: "▬",
+  door: "🚪",
+  zone: "⬡",
+  rack: "⊞",
+  shelf: "≡",
+  bin: "□",
+  aisle: "⟵",
+  walkway: "─",
+  "loading-dock": "⬛",
+  office: "⌂",
+  "cold-room": "❄",
+  charging: "⚡",
+  label: "𝐓",
+};
 
 const TOOL_SECTIONS = [
   {
     label: "Tools",
     items: [
       { id: "pointer" as ToolId, icon: "↖", label: "Select" },
-      { id: "hand"    as ToolId, icon: "✋", label: "Pan" },
-      { id: "delete"  as ToolId, icon: "✕",  label: "Delete" },
+      { id: "hand" as ToolId, icon: "✋", label: "Pan" },
+      { id: "delete" as ToolId, icon: "✕", label: "Delete" },
       { id: "measure" as ToolId, icon: "📐", label: "Measure" },
     ],
   },
   {
     label: "Areas",
     items: [
-      { id: "zone"         as ToolId, icon: "⬡", label: "Zone" },
-      { id: "wall"         as ToolId, icon: "▬", label: "Wall" },
-      { id: "door"         as ToolId, icon: "🚪", label: "Door" },
-      { id: "aisle"        as ToolId, icon: "⟵", label: "Aisle" },
-      { id: "walkway"      as ToolId, icon: "─", label: "Walkway" },
+      { id: "zone" as ToolId, icon: "⬡", label: "Zone" },
+      { id: "wall" as ToolId, icon: "▬", label: "Wall" },
+      { id: "door" as ToolId, icon: "🚪", label: "Door" },
+      { id: "aisle" as ToolId, icon: "⟵", label: "Aisle" },
+      { id: "walkway" as ToolId, icon: "─", label: "Walkway" },
       { id: "loading-dock" as ToolId, icon: "⬛", label: "Loading Dock" },
-      { id: "office"       as ToolId, icon: "⌂", label: "Office" },
-      { id: "cold-room"    as ToolId, icon: "❄", label: "Cold Room" },
-      { id: "charging"     as ToolId, icon: "⚡", label: "Charging" },
+      { id: "office" as ToolId, icon: "⌂", label: "Office" },
+      { id: "cold-room" as ToolId, icon: "❄", label: "Cold Room" },
+      { id: "charging" as ToolId, icon: "⚡", label: "Charging" },
     ],
   },
   {
     label: "Storage",
     items: [
-      { id: "rack"  as ToolId, icon: "⊞", label: "Rack" },
+      { id: "rack" as ToolId, icon: "⊞", label: "Rack" },
       { id: "shelf" as ToolId, icon: "≡", label: "Shelf" },
-      { id: "bin"   as ToolId, icon: "□", label: "Bin" },
+      { id: "bin" as ToolId, icon: "□", label: "Bin" },
     ],
   },
-]
+];
 
 const STATUS_COLORS: Record<string, string> = {
-  available:   "#22c55e",
-  occupied:    "#f59e0b",
-  reserved:    "#3b82f6",
+  available: "#22c55e",
+  occupied: "#f59e0b",
+  reserved: "#3b82f6",
   maintenance: "#ef4444",
-  inactive:    "#94a3b8",
-}
+  inactive: "#94a3b8",
+};
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
-const uid = () => Math.random().toString(36).slice(2, 9)
+const uid = () => Math.random().toString(36).slice(2, 9);
 
 const DEFAULT_DIMS: Record<ObjectType, { w: number; h: number }> = {
-  zone:          { w: 20, h: 15 },
-  wall:          { w: 20, h: 2  },
-  door:          { w: 5,  h: 2  },
-  aisle:         { w: 20, h: 5  },
-  walkway:       { w: 15, h: 3  },
-  "loading-dock":{ w: 10, h: 8  },
-  office:        { w: 12, h: 10 },
-  "cold-room":   { w: 14, h: 12 },
-  charging:      { w: 8,  h: 6  },
-  rack:          { w: 4,  h: 10 },
-  shelf:         { w: 6,  h: 4  },
-  bin:           { w: 3,  h: 3  },
-  label:         { w: 8,  h: 3  },
-}
+  zone: { w: 20, h: 15 },
+  wall: { w: 20, h: 2 },
+  door: { w: 5, h: 2 },
+  aisle: { w: 20, h: 5 },
+  walkway: { w: 15, h: 3 },
+  "loading-dock": { w: 10, h: 8 },
+  office: { w: 12, h: 10 },
+  "cold-room": { w: 14, h: 12 },
+  charging: { w: 8, h: 6 },
+  rack: { w: 4, h: 10 },
+  shelf: { w: 6, h: 4 },
+  bin: { w: 3, h: 3 },
+  label: { w: 8, h: 3 },
+};
 
 const buildDefaultObjects = (_wh: Warehouse): CanvasObject[] => [
-  { id: uid(), type: "wall", x: 0, y: 0, width: 100, height: 2, label: "Back Wall", color: "#64748b", locked: true },
-  { id: uid(), type: "wall", x: 0, y: 98, width: 100, height: 2, label: "Front Wall", color: "#64748b", locked: true },
-  { id: uid(), type: "wall", x: 0, y: 0, width: 2, height: 100, label: "Left Wall", color: "#64748b", locked: true },
-  { id: uid(), type: "wall", x: 98, y: 0, width: 2, height: 100, label: "Right Wall", color: "#64748b", locked: true },
-  { id: uid(), type: "door", x: 46, y: 96, width: 8, height: 4, label: "Entrance / Exit", color: "#3b82f6" },
-  { id: uid(), type: "zone", x: 6, y: 10, width: 24, height: 16, label: "Receiving", color: "#22c55e" },
-  { id: uid(), type: "aisle", x: 32, y: 10, width: 36, height: 14, label: "Aisle", color: "#cbd5e1" },
-  { id: uid(), type: "zone", x: 70, y: 10, width: 24, height: 16, label: "Quarantine", color: "#f59e0b" },
-  { id: uid(), type: "walkway", x: 18, y: 38, width: 64, height: 6, label: "Path-ready block", color: "#e2e8f0" },
-  { id: uid(), type: "zone", x: 6, y: 58, width: 24, height: 16, label: "Packing", color: "#a855f7" },
-  { id: uid(), type: "walkway", x: 32, y: 58, width: 36, height: 6, label: "Path-ready block", color: "#e2e8f0" },
-  { id: uid(), type: "zone", x: 70, y: 58, width: 24, height: 16, label: "Storage", color: "#06b6d4" },
-]
+  {
+    id: uid(),
+    type: "wall",
+    x: 0,
+    y: 0,
+    width: 100,
+    height: 2,
+    label: "Back Wall",
+    color: "#64748b",
+    locked: true,
+  },
+  {
+    id: uid(),
+    type: "wall",
+    x: 0,
+    y: 98,
+    width: 100,
+    height: 2,
+    label: "Front Wall",
+    color: "#64748b",
+    locked: true,
+  },
+  {
+    id: uid(),
+    type: "wall",
+    x: 0,
+    y: 0,
+    width: 2,
+    height: 100,
+    label: "Left Wall",
+    color: "#64748b",
+    locked: true,
+  },
+  {
+    id: uid(),
+    type: "wall",
+    x: 98,
+    y: 0,
+    width: 2,
+    height: 100,
+    label: "Right Wall",
+    color: "#64748b",
+    locked: true,
+  },
+  {
+    id: uid(),
+    type: "door",
+    x: 46,
+    y: 96,
+    width: 8,
+    height: 4,
+    label: "Entrance / Exit",
+    color: "#3b82f6",
+  },
+  {
+    id: uid(),
+    type: "zone",
+    x: 6,
+    y: 10,
+    width: 24,
+    height: 16,
+    label: "Receiving",
+    color: "#22c55e",
+  },
+  {
+    id: uid(),
+    type: "aisle",
+    x: 32,
+    y: 10,
+    width: 36,
+    height: 14,
+    label: "Aisle",
+    color: "#cbd5e1",
+  },
+  {
+    id: uid(),
+    type: "zone",
+    x: 70,
+    y: 10,
+    width: 24,
+    height: 16,
+    label: "Quarantine",
+    color: "#f59e0b",
+  },
+  {
+    id: uid(),
+    type: "walkway",
+    x: 18,
+    y: 38,
+    width: 64,
+    height: 6,
+    label: "Path-ready block",
+    color: "#e2e8f0",
+  },
+  {
+    id: uid(),
+    type: "zone",
+    x: 6,
+    y: 58,
+    width: 24,
+    height: 16,
+    label: "Packing",
+    color: "#a855f7",
+  },
+  {
+    id: uid(),
+    type: "walkway",
+    x: 32,
+    y: 58,
+    width: 36,
+    height: 6,
+    label: "Path-ready block",
+    color: "#e2e8f0",
+  },
+  {
+    id: uid(),
+    type: "zone",
+    x: 70,
+    y: 58,
+    width: 24,
+    height: 16,
+    label: "Storage",
+    color: "#06b6d4",
+  },
+];
 
 // ─── Sub-components ────────────────────────────────────────────────────────────
 
 function ToolButton({
-  icon, label, active, onClick,
+  icon,
+  label,
+  active,
+  onClick,
 }: {
-  icon: string; label: string; active: boolean; onClick: () => void
+  icon: string;
+  label: string;
+  active: boolean;
+  onClick: () => void;
 }) {
   return (
     <div className="relative group">
@@ -190,24 +338,27 @@ function ToolButton({
         className={`
           w-9 h-9 rounded-lg flex items-center justify-center text-sm
           transition-all duration-150
-          ${active
-            ? "bg-blue-500 text-white shadow-sm"
-            : "text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+          ${
+            active
+              ? "bg-blue-500 text-white shadow-sm"
+              : "text-slate-500 hover:bg-slate-100 hover:text-slate-700"
           }
         `}
       >
         {icon}
       </button>
-      <div className="
+      <div
+        className="
         absolute left-12 top-1/2 -translate-y-1/2 z-50
         bg-slate-800 text-white text-xs px-2 py-1 rounded-md
         whitespace-nowrap pointer-events-none
         opacity-0 group-hover:opacity-100 transition-opacity duration-150
-      ">
+      "
+      >
         {label}
       </div>
     </div>
-  )
+  );
 }
 
 function PropertyPanel({
@@ -219,18 +370,18 @@ function PropertyPanel({
   onDuplicate,
   mode,
 }: {
-  selected: string | null
-  objects: CanvasObject[]
-  products: Product[]
-  onUpdate: (id: string, patch: Partial<CanvasObject>) => void
-  onDelete: (id: string) => void
-  onDuplicate: (id: string) => void
-  mode: AppMode
+  selected: string | null;
+  objects: CanvasObject[];
+  products: Product[];
+  onUpdate: (id: string, patch: Partial<CanvasObject>) => void;
+  onDelete: (id: string) => void;
+  onDuplicate: (id: string) => void;
+  mode: AppMode;
 }) {
-  const obj = objects.find((o) => o.id === selected)
+  const obj = objects.find((o) => o.id === selected);
   const attachedProduct = obj?.meta?.productId
     ? products.find((item) => item._id === String(obj.meta?.productId))
-    : null
+    : null;
 
   if (!obj) {
     return (
@@ -241,16 +392,27 @@ function PropertyPanel({
         <div className="grid grid-cols-2 gap-2">
           {[
             { label: "Total objects", value: objects.length },
-            { label: "Zones", value: objects.filter((o) => o.type === "zone").length },
-            { label: "Racks", value: objects.filter((o) => o.type === "rack").length },
-            { label: "Bins", value: objects.filter((o) => o.type === "bin").length },
+            {
+              label: "Zones",
+              value: objects.filter((o) => o.type === "zone").length,
+            },
+            {
+              label: "Racks",
+              value: objects.filter((o) => o.type === "rack").length,
+            },
+            {
+              label: "Bins",
+              value: objects.filter((o) => o.type === "bin").length,
+            },
           ].map((stat) => (
             <div
               key={stat.label}
               className="bg-slate-50 rounded-xl p-3 border border-slate-100"
             >
               <p className="text-[11px] text-slate-400 mb-1">{stat.label}</p>
-              <p className="text-xl font-semibold text-slate-700">{stat.value}</p>
+              <p className="text-xl font-semibold text-slate-700">
+                {stat.value}
+              </p>
             </div>
           ))}
         </div>
@@ -269,13 +431,19 @@ function PropertyPanel({
           Select an object to edit its properties
         </div>
       </div>
-    )
+    );
   }
 
   const Field = ({
-    label, value, onChange, type = "text",
+    label,
+    value,
+    onChange,
+    type = "text",
   }: {
-    label: string; value: string | number; onChange: (v: string) => void; type?: string
+    label: string;
+    value: string | number;
+    onChange: (v: string) => void;
+    type?: string;
   }) => (
     <div className="mb-3">
       <label className="block text-[11px] font-medium text-slate-400 mb-1 uppercase tracking-wider">
@@ -293,210 +461,307 @@ function PropertyPanel({
         "
       />
     </div>
-  )
+  );
 
   return (
-    <div className="h-full flex flex-col overflow-y-auto p-4">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <span className="text-lg">{OBJECT_ICONS[obj.type]}</span>
-          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-            {obj.type.replace(/-/g, " ")}
-          </span>
-        </div>
-        {mode === "design" && (
-          <div className="flex gap-1">
-            <button
-              onClick={() => onDuplicate(obj.id)}
-              className="text-xs px-2 py-1 rounded-md border border-slate-200 text-slate-500 hover:bg-slate-50"
-            >
-              Copy
-            </button>
-            <button
-              onClick={() => onDelete(obj.id)}
-              className="text-xs px-2 py-1 rounded-md border border-red-200 text-red-400 hover:bg-red-50"
-            >
-              Delete
-            </button>
+    <div className="h-full flex flex-col overflow-y-auto">
+      {/* Header with icon and actions */}
+      <div className="sticky top-0 bg-white z-10 px-4 py-3 border-b border-slate-100">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-lg">{OBJECT_ICONS[obj.type]}</span>
+            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+              {obj.type.replace(/-/g, " ")}
+            </span>
           </div>
-        )}
-      </div>
-
-      <Field
-        label="Label"
-        value={obj.label}
-        onChange={(v) => onUpdate(obj.id, { label: v })}
-      />
-
-      <div className="mb-3">
-        <label className="block text-[11px] font-medium text-slate-400 mb-1 uppercase tracking-wider">
-          Color
-        </label>
-        <div className="flex gap-2 items-center">
-          <input
-            type="color"
-            value={obj.color}
-            onChange={(e) => onUpdate(obj.id, { color: e.target.value })}
-            disabled={mode === "operations"}
-            className="w-8 h-8 rounded-lg border border-slate-200 cursor-pointer"
-          />
-          <span className="text-xs text-slate-400 font-mono">{obj.color}</span>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-2 mb-3">
-        <Field label="X (%)" value={Math.round(obj.x)} type="number"
-          onChange={(v) => onUpdate(obj.id, { x: Number(v) })} />
-        <Field label="Y (%)" value={Math.round(obj.y)} type="number"
-          onChange={(v) => onUpdate(obj.id, { y: Number(v) })} />
-        <Field label="Width (%)" value={Math.round(obj.width)} type="number"
-          onChange={(v) => onUpdate(obj.id, { width: Number(v) })} />
-        <Field label="Height (%)" value={Math.round(obj.height)} type="number"
-          onChange={(v) => onUpdate(obj.id, { height: Number(v) })} />
-      </div>
-
-      {obj.type === "zone" && (
-        <>
-          <div className="border-t border-slate-100 pt-3 mt-1">
-            <p className="text-[11px] font-medium text-slate-400 uppercase tracking-wider mb-2">
-              Zone details
-            </p>
-            <div className="bg-slate-50 rounded-xl p-3 space-y-1">
-              <div className="flex justify-between text-xs">
-                <span className="text-slate-400">Capacity</span>
-                <span className="font-medium text-slate-600">
-                  {obj.meta?.capacity ?? "—"}
-                </span>
-              </div>
-              <div className="flex justify-between text-xs">
-                <span className="text-slate-400">Occupancy</span>
-                <span className="font-medium text-slate-600">
-                  {obj.meta?.occupancy ?? "—"}
-                </span>
-              </div>
-              <div className="flex justify-between text-xs">
-                <span className="text-slate-400">Temperature</span>
-                <span className="font-medium text-slate-600">
-                  {obj.meta?.temperature ?? "Ambient"}
-                </span>
-              </div>
-            </div>
-          </div>
-        </>
-      )}
-
-      {obj.type === "rack" && (
-        <div className="border-t border-slate-100 pt-3 mt-1">
-          <p className="text-[11px] font-medium text-slate-400 uppercase tracking-wider mb-2">
-            Rack details
-          </p>
-          <div className="bg-slate-50 rounded-xl p-3 space-y-1">
-            <div className="flex justify-between text-xs">
-              <span className="text-slate-400">Shelves</span>
-              <span className="font-medium text-slate-600">{obj.meta?.shelves ?? 4}</span>
-            </div>
-            <div className="flex justify-between text-xs">
-              <span className="text-slate-400">Weight limit</span>
-              <span className="font-medium text-slate-600">{obj.meta?.weightLimit ?? "500 kg"}</span>
-            </div>
-            <div className="flex justify-between text-xs">
-              <span className="text-slate-400">Utilization</span>
-              <div className="flex items-center gap-1">
-                <div className="w-16 h-1.5 bg-slate-200 rounded-full overflow-hidden">
-                  <div
-                    className="h-full rounded-full"
-                    style={{
-                      width: `${obj.meta?.utilization ?? 65}%`,
-                      background:
-                        Number(obj.meta?.utilization ?? 65) > 85 ? "#ef4444" : "#22c55e",
-                    }}
-                  />
-                </div>
-                <span className="font-medium text-slate-600 text-[11px]">
-                  {obj.meta?.utilization ?? 65}%
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {(obj.type === "rack" || obj.type === "shelf" || obj.type === "bin") && (
-        <div className="border-t border-slate-100 pt-3 mt-1">
-          <p className="text-[11px] font-medium text-slate-400 uppercase tracking-wider mb-2">
-            Storage allocation
-          </p>
-          <div className="bg-slate-50 rounded-xl p-3 space-y-3">
-            <div>
-              <label className="block text-[11px] font-medium text-slate-400 mb-1 uppercase tracking-wider">
-                Product
-              </label>
-              <select
-                value={String(obj.meta?.productId ?? "")}
-                onChange={(e) => {
-                  const productId = e.target.value
-                  const product = products.find((item) => item._id === productId)
-                  onUpdate(obj.id, {
-                    meta: {
-                      ...obj.meta,
-                      productId,
-                      product: product?.name || "",
-                      productSku: product?.sku || "",
-                    },
-                  })
-                }}
-                disabled={mode === "design"}
-                className="w-full bg-white border border-slate-200 rounded px-2 py-1.5 text-xs text-slate-600 disabled:bg-slate-100 disabled:text-slate-400"
+          {mode === "design" && (
+            <div className="flex gap-1">
+              <button
+                onClick={() => onDuplicate(obj.id)}
+                className="text-xs px-2 py-1 rounded-md border border-slate-200 text-slate-500 hover:bg-slate-50"
               >
-                <option value="">Unassigned</option>
-                {products.map((product) => (
-                  <option key={product._id} value={product._id}>
-                    {product.name}{product.sku ? ` (${product.sku})` : ""}
-                  </option>
-                ))}
-              </select>
+                Copy
+              </button>
+              <button
+                onClick={() => onDelete(obj.id)}
+                className="text-xs px-2 py-1 rounded-md border border-red-200 text-red-400 hover:bg-red-50"
+              >
+                Delete
+              </button>
             </div>
-            <div className="flex justify-between text-xs">
-              <span className="text-slate-400">Quantity</span>
-              <input
+          )}
+        </div>
+      </div>
+
+      {/* Collapsible sections */}
+      <Accordion
+        type="single"
+        collapsible
+        defaultValue="basic"
+        className="flex-1"
+      >
+        {/* Basic Properties */}
+        <AccordionItem value="basic" className="border-b border-slate-100 px-3">
+          <AccordionTrigger className="py-2.5 text-sm font-medium text-slate-700 hover:text-slate-900">
+            Properties
+          </AccordionTrigger>
+          <AccordionContent className="pb-3 pt-0">
+            <div className="space-y-3">
+              <Field
+                label="Label"
+                value={obj.label}
+                onChange={(v) => onUpdate(obj.id, { label: v })}
+              />
+              <div>
+                <label className="block text-[11px] font-medium text-slate-400 mb-1 uppercase tracking-wider">
+                  Color
+                </label>
+                <div className="flex gap-2 items-center">
+                  <input
+                    type="color"
+                    value={obj.color}
+                    onChange={(e) =>
+                      onUpdate(obj.id, { color: e.target.value })
+                    }
+                    disabled={mode === "operations"}
+                    className="w-8 h-8 rounded-lg border border-slate-200 cursor-pointer"
+                  />
+                  <span className="text-xs text-slate-400 font-mono">
+                    {obj.color}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+
+        {/* Position & Size */}
+        <AccordionItem
+          value="position"
+          className="border-b border-slate-100 px-3"
+        >
+          <AccordionTrigger className="py-2.5 text-sm font-medium text-slate-700 hover:text-slate-900">
+            Position & Size
+          </AccordionTrigger>
+          <AccordionContent className="pb-3 pt-0">
+            <div className="grid grid-cols-2 gap-2">
+              <Field
+                label="X (%)"
+                value={Math.round(obj.x)}
                 type="number"
-                value={Number(obj.meta?.quantity ?? 0)}
-                onChange={(e) => onUpdate(obj.id, { meta: { ...obj.meta, quantity: Number(e.target.value) } })}
-                disabled={mode === "design"}
-                className="w-20 bg-white border border-slate-200 rounded px-2 py-1 text-xs text-slate-600 disabled:bg-slate-100 disabled:text-slate-400"
+                onChange={(v) => onUpdate(obj.id, { x: Number(v) })}
+              />
+              <Field
+                label="Y (%)"
+                value={Math.round(obj.y)}
+                type="number"
+                onChange={(v) => onUpdate(obj.id, { y: Number(v) })}
+              />
+              <Field
+                label="Width (%)"
+                value={Math.round(obj.width)}
+                type="number"
+                onChange={(v) => onUpdate(obj.id, { width: Number(v) })}
+              />
+              <Field
+                label="Height (%)"
+                value={Math.round(obj.height)}
+                type="number"
+                onChange={(v) => onUpdate(obj.id, { height: Number(v) })}
               />
             </div>
-          </div>
-        </div>
-      )}
+          </AccordionContent>
+        </AccordionItem>
 
-      {obj.type === "bin" && (
-        <div className="border-t border-slate-100 pt-3 mt-1">
-          <p className="text-[11px] font-medium text-slate-400 uppercase tracking-wider mb-2">
-            Bin details
-          </p>
-          <div className="bg-slate-50 rounded-xl p-3 space-y-1">
-            <div className="flex justify-between text-xs">
-              <span className="text-slate-400">Bin code</span>
-              <span className="font-mono font-medium text-slate-600">{obj.label}</span>
-            </div>
-            <div className="flex justify-between text-xs">
-              <span className="text-slate-400">Available</span>
-              <span className="font-medium text-slate-600">{obj.meta?.available ?? "100%"}</span>
-            </div>
-            <div className="flex justify-between text-xs">
-              <span className="text-slate-400">Product</span>
-              <span className="font-medium text-slate-600">{attachedProduct?.name || obj.meta?.product || "Empty"}</span>
-            </div>
-            <div className="flex justify-between text-xs">
-              <span className="text-slate-400">SKU</span>
-              <span className="font-medium text-slate-600">{attachedProduct?.sku || obj.meta?.productSku || "—"}</span>
-            </div>
-          </div>
-        </div>
-      )}
+        {/* Zone Details */}
+        {obj.type === "zone" && (
+          <AccordionItem
+            value="zone-details"
+            className="border-b border-slate-100 px-3"
+          >
+            <AccordionTrigger className="py-2.5 text-sm font-medium text-slate-700 hover:text-slate-900">
+              Zone Details
+            </AccordionTrigger>
+            <AccordionContent className="pb-3 pt-0">
+              <div className="space-y-2">
+                <div className="flex justify-between text-xs">
+                  <span className="text-slate-400">Capacity</span>
+                  <span className="font-medium text-slate-600">
+                    {obj.meta?.capacity ?? "—"}
+                  </span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-slate-400">Occupancy</span>
+                  <span className="font-medium text-slate-600">
+                    {obj.meta?.occupancy ?? "—"}
+                  </span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-slate-400">Temperature</span>
+                  <span className="font-medium text-slate-600">
+                    {obj.meta?.temperature ?? "Ambient"}
+                  </span>
+                </div>
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+        )}
 
-      <div className="mt-auto pt-3 border-t border-slate-100">
+        {/* Rack Details */}
+        {obj.type === "rack" && (
+          <AccordionItem
+            value="rack-details"
+            className="border-b border-slate-100 px-3"
+          >
+            <AccordionTrigger className="py-2.5 text-sm font-medium text-slate-700 hover:text-slate-900">
+              Rack Details
+            </AccordionTrigger>
+            <AccordionContent className="pb-3 pt-0">
+              <div className="space-y-2">
+                <div className="flex justify-between text-xs">
+                  <span className="text-slate-400">Shelves</span>
+                  <span className="font-medium text-slate-600">
+                    {obj.meta?.shelves ?? 4}
+                  </span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-slate-400">Weight limit</span>
+                  <span className="font-medium text-slate-600">
+                    {obj.meta?.weightLimit ?? "500 kg"}
+                  </span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-slate-400">Utilization</span>
+                  <div className="flex items-center gap-1">
+                    <div className="w-16 h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                      <div
+                        className="h-full rounded-full"
+                        style={{
+                          width: `${obj.meta?.utilization ?? 65}%`,
+                          background:
+                            Number(obj.meta?.utilization ?? 65) > 85
+                              ? "#ef4444"
+                              : "#22c55e",
+                        }}
+                      />
+                    </div>
+                    <span className="font-medium text-slate-600 text-[11px]">
+                      {obj.meta?.utilization ?? 65}%
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+        )}
+
+        {/* Storage Allocation */}
+        {(obj.type === "rack" ||
+          obj.type === "shelf" ||
+          obj.type === "bin") && (
+          <AccordionItem
+            value="storage"
+            className="border-b border-slate-100 px-3"
+          >
+            <AccordionTrigger className="py-2.5 text-sm font-medium text-slate-700 hover:text-slate-900">
+              Storage Allocation
+            </AccordionTrigger>
+            <AccordionContent className="pb-3 pt-0">
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-[11px] font-medium text-slate-400 mb-1 uppercase tracking-wider">
+                    Product
+                  </label>
+                  <select
+                    value={String(obj.meta?.productId ?? "")}
+                    onChange={(e) => {
+                      const productId = e.target.value;
+                      const product = products.find(
+                        (item) => item._id === productId,
+                      );
+                      onUpdate(obj.id, {
+                        meta: {
+                          ...obj.meta,
+                          productId,
+                          product: product?.name || "",
+                          productSku: product?.sku || "",
+                        },
+                      });
+                    }}
+                    disabled={mode === "design"}
+                    className="w-full bg-white border border-slate-200 rounded px-2 py-1.5 text-xs text-slate-600 disabled:bg-slate-100 disabled:text-slate-400"
+                  >
+                    <option value="">Unassigned</option>
+                    {products.map((product) => (
+                      <option key={product._id} value={product._id}>
+                        {product.name}
+                        {product.sku ? ` (${product.sku})` : ""}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-slate-400">Quantity</span>
+                  <input
+                    type="number"
+                    value={Number(obj.meta?.quantity ?? 0)}
+                    onChange={(e) =>
+                      onUpdate(obj.id, {
+                        meta: { ...obj.meta, quantity: Number(e.target.value) },
+                      })
+                    }
+                    disabled={mode === "design"}
+                    className="w-20 bg-white border border-slate-200 rounded px-2 py-1 text-xs text-slate-600 disabled:bg-slate-100 disabled:text-slate-400"
+                  />
+                </div>
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+        )}
+
+        {/* Bin Details */}
+        {obj.type === "bin" && (
+          <AccordionItem
+            value="bin-details"
+            className="border-b border-slate-100 px-3"
+          >
+            <AccordionTrigger className="py-2.5 text-sm font-medium text-slate-700 hover:text-slate-900">
+              Bin Details
+            </AccordionTrigger>
+            <AccordionContent className="pb-3 pt-0">
+              <div className="space-y-2">
+                <div className="flex justify-between text-xs">
+                  <span className="text-slate-400">Bin code</span>
+                  <span className="font-mono font-medium text-slate-600">
+                    {obj.label}
+                  </span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-slate-400">Available</span>
+                  <span className="font-medium text-slate-600">
+                    {obj.meta?.available ?? "100%"}
+                  </span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-slate-400">Product</span>
+                  <span className="font-medium text-slate-600">
+                    {attachedProduct?.name || obj.meta?.product || "Empty"}
+                  </span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-slate-400">SKU</span>
+                  <span className="font-medium text-slate-600">
+                    {attachedProduct?.sku || obj.meta?.productSku || "—"}
+                  </span>
+                </div>
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+        )}
+      </Accordion>
+
+      {/* Footer - Lock Status */}
+      <div className="px-4 py-3 border-t border-slate-100 bg-slate-50/50 mt-auto">
         <div className="flex items-center gap-2">
           <div
             className="w-2 h-2 rounded-full"
@@ -508,7 +773,7 @@ function PropertyPanel({
           {mode === "design" && (
             <button
               onClick={() => onUpdate(obj.id, { locked: !obj.locked })}
-              className="ml-auto text-[11px] px-2 py-0.5 rounded-md border border-slate-200 text-slate-400 hover:bg-slate-50"
+              className="ml-auto text-[11px] px-2 py-0.5 rounded-md border border-slate-200 text-slate-400 hover:bg-white"
             >
               {obj.locked ? "Unlock" : "Lock"}
             </button>
@@ -516,21 +781,20 @@ function PropertyPanel({
         </div>
       </div>
     </div>
-  )
+  );
 }
-
 function MiniMap({
   objects,
   viewport,
   canvasSize,
   onNavigate,
 }: {
-  objects: CanvasObject[]
-  viewport: Viewport
-  canvasSize: { w: number; h: number }
-  onNavigate: (vp: Partial<Viewport>) => void
+  objects: CanvasObject[];
+  viewport: Viewport;
+  canvasSize: { w: number; h: number };
+  onNavigate: (vp: Partial<Viewport>) => void;
 }) {
-  const scale = 0.12
+  const scale = 0.12;
 
   return (
     <div
@@ -540,42 +804,46 @@ function MiniMap({
         overflow-hidden cursor-pointer
       "
       onClick={(e) => {
-        const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect()
-        const rx = (e.clientX - rect.left) / rect.width
-        const ry = (e.clientY - rect.top) / rect.height
+        const rect = (
+          e.currentTarget as HTMLDivElement
+        ).getBoundingClientRect();
+        const rx = (e.clientX - rect.left) / rect.width;
+        const ry = (e.clientY - rect.top) / rect.height;
         onNavigate({
           x: -(rx * canvasSize.w - canvasSize.w / 2) * viewport.zoom,
           y: -(ry * canvasSize.h - canvasSize.h / 2) * viewport.zoom,
-        })
+        });
       }}
     >
       <div className="relative w-full h-full">
-        {objects.filter((o) => !o.hidden).map((o) => (
-          <div
-            key={o.id}
-            className="absolute rounded-sm opacity-80"
-            style={{
-              left: `${o.x * scale}%`,
-              top: `${o.y * scale}%`,
-              width: `${o.width * scale}%`,
-              height: `${o.height * scale}%`,
-              background: o.color,
-            }}
-          />
-        ))}
+        {objects
+          .filter((o) => !o.hidden)
+          .map((o) => (
+            <div
+              key={o.id}
+              className="absolute rounded-sm opacity-80"
+              style={{
+                left: `${o.x * scale}%`,
+                top: `${o.y * scale}%`,
+                width: `${o.width * scale}%`,
+                height: `${o.height * scale}%`,
+                background: o.color,
+              }}
+            />
+          ))}
         {/* viewport indicator */}
         <div
           className="absolute border border-blue-400 rounded bg-blue-400/10"
           style={{
             left: `${Math.max(0, (-viewport.x / (canvasSize.w * viewport.zoom)) * 100)}%`,
             top: `${Math.max(0, (-viewport.y / (canvasSize.h * viewport.zoom)) * 100)}%`,
-            width: `${Math.min(100, (100 / viewport.zoom))}%`,
-            height: `${Math.min(100, (100 / viewport.zoom))}%`,
+            width: `${Math.min(100, 100 / viewport.zoom)}%`,
+            height: `${Math.min(100, 100 / viewport.zoom)}%`,
           }}
         />
       </div>
     </div>
-  )
+  );
 }
 
 function FloatingToolbar({
@@ -585,11 +853,11 @@ function FloatingToolbar({
   onDelete,
   onLock,
 }: {
-  obj: CanvasObject
-  onEdit: () => void
-  onDuplicate: () => void
-  onDelete: () => void
-  onLock: () => void
+  obj: CanvasObject;
+  onEdit: () => void;
+  onDuplicate: () => void;
+  onDelete: () => void;
+  onLock: () => void;
 }) {
   return (
     <div
@@ -601,14 +869,21 @@ function FloatingToolbar({
       "
     >
       {[
-        { icon: "✎", label: "Edit",      action: onEdit      },
+        { icon: "✎", label: "Edit", action: onEdit },
         { icon: "⧉", label: "Duplicate", action: onDuplicate },
-        { icon: obj.locked ? "🔓" : "🔒", label: obj.locked ? "Unlock" : "Lock", action: onLock },
-        { icon: "✕", label: "Delete",    action: onDelete    },
+        {
+          icon: obj.locked ? "🔓" : "🔒",
+          label: obj.locked ? "Unlock" : "Lock",
+          action: onLock,
+        },
+        { icon: "✕", label: "Delete", action: onDelete },
       ].map(({ icon, label, action }) => (
         <button
           key={label}
-          onClick={(e) => { e.stopPropagation(); action() }}
+          onClick={(e) => {
+            e.stopPropagation();
+            action();
+          }}
           title={label}
           className="
             w-7 h-7 rounded-lg flex items-center justify-center text-xs
@@ -620,7 +895,7 @@ function FloatingToolbar({
         </button>
       ))}
     </div>
-  )
+  );
 }
 
 // ─── Main Component ────────────────────────────────────────────────────────────
@@ -631,128 +906,142 @@ export function WarehouseCanvas({
   products = [],
   onSave,
 }: {
-  warehouse?: Warehouse
-  initialObjects?: CanvasObject[]
-  products?: Product[]
-  onSave?: (objects: CanvasObject[]) => void
+  warehouse?: Warehouse;
+  initialObjects?: CanvasObject[];
+  products?: Product[];
+  onSave?: (objects: CanvasObject[]) => void;
 }) {
-  const canvasRef = useRef<HTMLDivElement>(null)
+  const canvasRef = useRef<HTMLDivElement>(null);
 
   const [objects, setObjects] = useState<CanvasObject[]>(
     initialObjects ?? (warehouse ? buildDefaultObjects(warehouse) : []),
-  )
-  const [selected, setSelected] = useState<string | null>(null)
-  const [activeTool, setActiveTool] = useState<ToolId>("pointer")
-  const [mode, setMode] = useState<AppMode>("operations")
-  const [viewport, setViewport] = useState<Viewport>({ x: 0, y: 0, zoom: 1 })
-  const [showGrid, setShowGrid] = useState(true)
-  const [search, setSearch] = useState("")
-  const [searchFocus, setSearchFocus] = useState(false)
-  const [savedAt, setSavedAt] = useState<Date | null>(null)
-  const [zoom, setZoom] = useState(100)
+  );
+  const [selected, setSelected] = useState<string | null>(null);
+  const [activeTool, setActiveTool] = useState<ToolId>("pointer");
+  const [mode, setMode] = useState<AppMode>("operations");
+  const [viewport, setViewport] = useState<Viewport>({ x: 0, y: 0, zoom: 1 });
+  const [showGrid, setShowGrid] = useState(true);
+  const [search, setSearch] = useState("");
+  const [searchFocus, setSearchFocus] = useState(false);
+  const [savedAt, setSavedAt] = useState<Date | null>(null);
+  const [zoom, setZoom] = useState(100);
 
   // drag state
   const drag = useRef<{
-    active: boolean
-    objId: string | null
-    startX: number; startY: number
-    origX: number; origY: number
-  }>({ active: false, objId: null, startX: 0, startY: 0, origX: 0, origY: 0 })
+    active: boolean;
+    objId: string | null;
+    startX: number;
+    startY: number;
+    origX: number;
+    origY: number;
+  }>({ active: false, objId: null, startX: 0, startY: 0, origX: 0, origY: 0 });
 
   // pan state (hand tool)
   const pan = useRef<{
-    active: boolean; startX: number; startY: number; origVX: number; origVY: number
-  }>({ active: false, startX: 0, startY: 0, origVX: 0, origVY: 0 })
+    active: boolean;
+    startX: number;
+    startY: number;
+    origVX: number;
+    origVY: number;
+  }>({ active: false, startX: 0, startY: 0, origVX: 0, origVY: 0 });
 
   // draw state (place new objects)
   const draw = useRef<{
-    active: boolean; startX: number; startY: number; previewId: string | null
-  }>({ active: false, startX: 0, startY: 0, previewId: null })
+    active: boolean;
+    startX: number;
+    startY: number;
+    previewId: string | null;
+  }>({ active: false, startX: 0, startY: 0, previewId: null });
 
   const isDrawTool = (t: ToolId): t is PlaceableTool =>
-    !["pointer", "hand", "delete", "measure", "select"].includes(t)
+    !["pointer", "hand", "delete", "measure", "select"].includes(t);
 
-  const canvasSize = { w: 1200, h: 900 }
+  const canvasSize = { w: 1200, h: 900 };
 
   // ── zoom wheel ───────────────────────────────────────────────────────────────
   useEffect(() => {
-    const el = canvasRef.current
-    if (!el) return
+    const el = canvasRef.current;
+    if (!el) return;
     const handleWheel = (e: WheelEvent) => {
-      e.preventDefault()
+      e.preventDefault();
       setViewport((vp) => {
-        const delta = e.deltaY > 0 ? -0.08 : 0.08
-        const newZoom = Math.min(4, Math.max(0.2, vp.zoom + delta))
-        setZoom(Math.round(newZoom * 100))
-        return { ...vp, zoom: newZoom }
-      })
-    }
-    el.addEventListener("wheel", handleWheel, { passive: false })
-    return () => el.removeEventListener("wheel", handleWheel)
-  }, [])
+        const delta = e.deltaY > 0 ? -0.08 : 0.08;
+        const newZoom = Math.min(4, Math.max(0.2, vp.zoom + delta));
+        setZoom(Math.round(newZoom * 100));
+        return { ...vp, zoom: newZoom };
+      });
+    };
+    el.addEventListener("wheel", handleWheel, { passive: false });
+    return () => el.removeEventListener("wheel", handleWheel);
+  }, []);
 
   // ── keyboard shortcuts ───────────────────────────────────────────────────────
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if ((e.target as HTMLElement).tagName === "INPUT") return
-      if (e.key === "Escape") { setSelected(null); setActiveTool("pointer") }
-      if (e.key === "Delete" && selected) deleteObj(selected)
-      if (e.key === "v") setActiveTool("pointer")
-      if (e.key === "h") setActiveTool("hand")
-      if (e.key === "g") setShowGrid((v) => !v)
-    }
-    window.addEventListener("keydown", handler)
-    return () => window.removeEventListener("keydown", handler)
-  }, [selected])
+      if ((e.target as HTMLElement).tagName === "INPUT") return;
+      if (e.key === "Escape") {
+        setSelected(null);
+        setActiveTool("pointer");
+      }
+      if (e.key === "Delete" && selected) deleteObj(selected);
+      if (e.key === "v") setActiveTool("pointer");
+      if (e.key === "h") setActiveTool("hand");
+      if (e.key === "g") setShowGrid((v) => !v);
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [selected]);
 
   // ── canvas mouse events ──────────────────────────────────────────────────────
   const pxToPercent = (px: number, axis: "x" | "y") => {
-    const total = axis === "x" ? canvasSize.w : canvasSize.h
-    return (px / total) * 100
-  }
+    const total = axis === "x" ? canvasSize.w : canvasSize.h;
+    return (px / total) * 100;
+  };
 
   const canvasMouseDown = (e: RMouseEvent<HTMLDivElement>) => {
-    if (e.button !== 0) return
-    const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect()
-    const cx = (e.clientX - rect.left - viewport.x) / viewport.zoom
-    const cy = (e.clientY - rect.top  - viewport.y) / viewport.zoom
+    if (e.button !== 0) return;
+    const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
+    const cx = (e.clientX - rect.left - viewport.x) / viewport.zoom;
+    const cy = (e.clientY - rect.top - viewport.y) / viewport.zoom;
 
     if (activeTool === "hand") {
       pan.current = {
         active: true,
-        startX: e.clientX, startY: e.clientY,
-        origVX: viewport.x, origVY: viewport.y,
-      }
-      return
+        startX: e.clientX,
+        startY: e.clientY,
+        origVX: viewport.x,
+        origVY: viewport.y,
+      };
+      return;
     }
 
     if (isDrawTool(activeTool) && mode === "design") {
-      draw.current = { active: true, startX: cx, startY: cy, previewId: uid() }
-      return
+      draw.current = { active: true, startX: cx, startY: cy, previewId: uid() };
+      return;
     }
 
     // clicking empty canvas deselects
-    setSelected(null)
-  }
+    setSelected(null);
+  };
 
   const canvasMouseMove = (e: RMouseEvent<HTMLDivElement>) => {
     if (pan.current.active) {
-      const dx = e.clientX - pan.current.startX
-      const dy = e.clientY - pan.current.startY
+      const dx = e.clientX - pan.current.startX;
+      const dy = e.clientY - pan.current.startY;
       setViewport((vp) => ({
         ...vp,
         x: pan.current.origVX + dx,
         y: pan.current.origVY + dy,
-      }))
-      return
+      }));
+      return;
     }
 
     if (drag.current.active && drag.current.objId) {
-      const rect = canvasRef.current!.getBoundingClientRect()
-      const cx = (e.clientX - rect.left - viewport.x) / viewport.zoom
-      const cy = (e.clientY - rect.top  - viewport.y) / viewport.zoom
-      const dx = pxToPercent(cx - drag.current.startX, "x")
-      const dy = pxToPercent(cy - drag.current.startY, "y")
+      const rect = canvasRef.current!.getBoundingClientRect();
+      const cx = (e.clientX - rect.left - viewport.x) / viewport.zoom;
+      const cy = (e.clientY - rect.top - viewport.y) / viewport.zoom;
+      const dx = pxToPercent(cx - drag.current.startX, "x");
+      const dy = pxToPercent(cy - drag.current.startY, "y");
       setObjects((objs) =>
         objs.map((o) =>
           o.id === drag.current.objId
@@ -763,19 +1052,19 @@ export function WarehouseCanvas({
               }
             : o,
         ),
-      )
+      );
     }
 
     if (draw.current.active && draw.current.previewId) {
-      const rect = canvasRef.current!.getBoundingClientRect()
-      const cx = (e.clientX - rect.left - viewport.x) / viewport.zoom
-      const cy = (e.clientY - rect.top  - viewport.y) / viewport.zoom
-      const sx = Math.min(draw.current.startX, cx)
-      const sy = Math.min(draw.current.startY, cy)
-      const ew = Math.abs(cx - draw.current.startX)
-      const eh = Math.abs(cy - draw.current.startY)
+      const rect = canvasRef.current!.getBoundingClientRect();
+      const cx = (e.clientX - rect.left - viewport.x) / viewport.zoom;
+      const cy = (e.clientY - rect.top - viewport.y) / viewport.zoom;
+      const sx = Math.min(draw.current.startX, cx);
+      const sy = Math.min(draw.current.startY, cy);
+      const ew = Math.abs(cx - draw.current.startX);
+      const eh = Math.abs(cy - draw.current.startY);
       setObjects((objs) => {
-        const filtered = objs.filter((o) => o.id !== draw.current.previewId)
+        const filtered = objs.filter((o) => o.id !== draw.current.previewId);
         return [
           ...filtered,
           {
@@ -788,106 +1077,131 @@ export function WarehouseCanvas({
             label: `New ${activeTool}`,
             color: OBJECT_COLORS[activeTool as ObjectType] ?? "#94a3b8",
           },
-        ]
-      })
+        ];
+      });
     }
-  }
+  };
 
   const canvasMouseUp = () => {
-    pan.current.active = false
-    drag.current.active = false
+    pan.current.active = false;
+    drag.current.active = false;
 
     if (draw.current.active && draw.current.previewId) {
-      const id = draw.current.previewId
-      draw.current = { active: false, startX: 0, startY: 0, previewId: null }
-      setSelected(id)
-      setActiveTool("pointer")
+      const id = draw.current.previewId;
+      draw.current = { active: false, startX: 0, startY: 0, previewId: null };
+      setSelected(id);
+      setActiveTool("pointer");
     } else {
-      draw.current.active = false
+      draw.current.active = false;
     }
-  }
+  };
 
   // ── object actions ───────────────────────────────────────────────────────────
   const updateObj = useCallback((id: string, patch: Partial<CanvasObject>) => {
-    setObjects((objs) => objs.map((o) => (o.id === id ? { ...o, ...patch } : o)))
-  }, [])
+    setObjects((objs) =>
+      objs.map((o) => (o.id === id ? { ...o, ...patch } : o)),
+    );
+  }, []);
 
   const deleteObj = useCallback((id: string) => {
-    setObjects((objs) => objs.filter((o) => o.id !== id))
-    setSelected(null)
-  }, [])
+    setObjects((objs) => objs.filter((o) => o.id !== id));
+    setSelected(null);
+  }, []);
 
   const duplicateObj = useCallback((id: string) => {
     setObjects((objs) => {
-      const orig = objs.find((o) => o.id === id)
-      if (!orig) return objs
-      return [...objs, { ...orig, id: uid(), x: orig.x + 3, y: orig.y + 3 }]
-    })
-  }, [])
+      const orig = objs.find((o) => o.id === id);
+      if (!orig) return objs;
+      return [...objs, { ...orig, id: uid(), x: orig.x + 3, y: orig.y + 3 }];
+    });
+  }, []);
 
-  const handleObjMouseDown = (e: RMouseEvent<HTMLDivElement>, obj: CanvasObject) => {
-    e.stopPropagation()
-    if (activeTool === "delete") { deleteObj(obj.id); return }
-    if (obj.locked || mode === "operations") return
-    if (activeTool === "hand") return
-    setSelected(obj.id)
-    drag.current = {
-      active: true, objId: obj.id,
-      startX: (e.clientX - canvasRef.current!.getBoundingClientRect().left - viewport.x) / viewport.zoom,
-      startY: (e.clientY - canvasRef.current!.getBoundingClientRect().top  - viewport.y) / viewport.zoom,
-      origX: obj.x, origY: obj.y,
+  const handleObjMouseDown = (
+    e: RMouseEvent<HTMLDivElement>,
+    obj: CanvasObject,
+  ) => {
+    e.stopPropagation();
+    if (activeTool === "delete") {
+      deleteObj(obj.id);
+      return;
     }
-  }
+    if (obj.locked || mode === "operations") return;
+    if (activeTool === "hand") return;
+    setSelected(obj.id);
+    drag.current = {
+      active: true,
+      objId: obj.id,
+      startX:
+        (e.clientX -
+          canvasRef.current!.getBoundingClientRect().left -
+          viewport.x) /
+        viewport.zoom,
+      startY:
+        (e.clientY -
+          canvasRef.current!.getBoundingClientRect().top -
+          viewport.y) /
+        viewport.zoom,
+      origX: obj.x,
+      origY: obj.y,
+    };
+  };
 
   const handleSave = () => {
-    onSave?.(objects)
-    setSavedAt(new Date())
-  }
+    onSave?.(objects);
+    setSavedAt(new Date());
+  };
 
   useEffect(() => {
     if (initialObjects) {
-      setObjects(initialObjects)
-      return
+      setObjects(initialObjects);
+      return;
     }
     if (warehouse) {
-      setObjects(warehouse.layoutObjects?.length ? warehouse.layoutObjects : buildDefaultObjects(warehouse))
+      setObjects(
+        warehouse.layoutObjects?.length
+          ? warehouse.layoutObjects
+          : buildDefaultObjects(warehouse),
+      );
     }
-  }, [initialObjects, warehouse])
+  }, [initialObjects, warehouse]);
 
   // ── search results ───────────────────────────────────────────────────────────
-  const searchResults = search.length > 1
-    ? objects.filter((o) =>
-        o.label.toLowerCase().includes(search.toLowerCase()) ||
-        o.type.includes(search.toLowerCase()),
-      )
-    : []
+  const searchResults =
+    search.length > 1
+      ? objects.filter(
+          (o) =>
+            o.label.toLowerCase().includes(search.toLowerCase()) ||
+            o.type.includes(search.toLowerCase()),
+        )
+      : [];
 
   const jumpTo = (obj: CanvasObject) => {
-    setSelected(obj.id)
-    setSearch("")
+    setSelected(obj.id);
+    setSearch("");
     // center viewport on obj
-    const tx = -(obj.x / 100) * canvasSize.w * viewport.zoom + 400
-    const ty = -(obj.y / 100) * canvasSize.h * viewport.zoom + 300
-    setViewport((vp) => ({ ...vp, x: tx, y: ty }))
-  }
+    const tx = -(obj.x / 100) * canvasSize.w * viewport.zoom + 400;
+    const ty = -(obj.y / 100) * canvasSize.h * viewport.zoom + 300;
+    setViewport((vp) => ({ ...vp, x: tx, y: ty }));
+  };
 
   // ── stats ────────────────────────────────────────────────────────────────────
   const stats = {
-    total:  objects.length,
-    zones:  objects.filter((o) => o.type === "zone").length,
-    racks:  objects.filter((o) => o.type === "rack").length,
-    bins:   objects.filter((o) => o.type === "bin").length,
-  }
+    total: objects.length,
+    zones: objects.filter((o) => o.type === "zone").length,
+    racks: objects.filter((o) => o.type === "rack").length,
+    bins: objects.filter((o) => o.type === "bin").length,
+  };
 
   // ── render ───────────────────────────────────────────────────────────────────
   return (
     <div className="flex flex-col h-screen bg-slate-50 font-sans select-none overflow-hidden">
-
       {/* ── Top Bar ─────────────────────────────────────────────────────────── */}
-      <header className="
+      <header
+        className="
         flex items-center gap-4 h-12 px-4 shrink-0
         bg-white/90 backdrop-blur border-b border-slate-200 z-30
-      ">
+      "
+      >
         {/* left */}
         <div className="flex items-center gap-2 min-w-0">
           <div className="w-7 h-7 rounded-lg bg-blue-500 flex items-center justify-center shrink-0">
@@ -905,7 +1219,9 @@ export function WarehouseCanvas({
         {/* center – search */}
         <div className="flex-1 max-w-xs mx-auto relative">
           <div className="relative">
-            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm">🔍</span>
+            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm">
+              🔍
+            </span>
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -921,18 +1237,25 @@ export function WarehouseCanvas({
             />
           </div>
           {searchFocus && searchResults.length > 0 && (
-            <div className="
+            <div
+              className="
               absolute top-full mt-1 left-0 right-0 z-50
               bg-white rounded-xl border border-slate-200 shadow-lg overflow-hidden
-            ">
+            "
+            >
               {searchResults.slice(0, 6).map((r) => (
                 <button
                   key={r.id}
                   onMouseDown={() => jumpTo(r)}
                   className="w-full flex items-center gap-2 px-3 py-2 hover:bg-slate-50 text-left"
                 >
-                  <div className="w-3 h-3 rounded-sm shrink-0" style={{ background: r.color }} />
-                  <span className="text-sm text-slate-700 truncate">{r.label}</span>
+                  <div
+                    className="w-3 h-3 rounded-sm shrink-0"
+                    style={{ background: r.color }}
+                  />
+                  <span className="text-sm text-slate-700 truncate">
+                    {r.label}
+                  </span>
                   <span className="text-xs text-slate-400 ml-auto shrink-0">
                     {r.type.replace(/-/g, " ")}
                   </span>
@@ -949,12 +1272,16 @@ export function WarehouseCanvas({
             {(["design", "operations"] as AppMode[]).map((m) => (
               <button
                 key={m}
-                onClick={() => { setMode(m); setSelected(null) }}
+                onClick={() => {
+                  setMode(m);
+                  setSelected(null);
+                }}
                 className={`
                   px-3 py-1 text-xs font-medium rounded-md capitalize transition-all
-                  ${mode === m
-                    ? "bg-white text-slate-700 shadow-sm"
-                    : "text-slate-400 hover:text-slate-600"
+                  ${
+                    mode === m
+                      ? "bg-white text-slate-700 shadow-sm"
+                      : "text-slate-400 hover:text-slate-600"
                   }
                 `}
               >
@@ -967,9 +1294,10 @@ export function WarehouseCanvas({
             onClick={() => setShowGrid((v) => !v)}
             className={`
               px-2.5 py-1.5 text-xs rounded-lg border transition-all
-              ${showGrid
-                ? "bg-blue-50 border-blue-200 text-blue-600"
-                : "border-slate-200 text-slate-500 hover:bg-slate-50"
+              ${
+                showGrid
+                  ? "bg-blue-50 border-blue-200 text-blue-600"
+                  : "border-slate-200 text-slate-500 hover:bg-slate-50"
               }
             `}
           >
@@ -995,12 +1323,13 @@ export function WarehouseCanvas({
 
       {/* ── Body ─────────────────────────────────────────────────────────────── */}
       <div className="flex flex-1 min-h-0">
-
         {/* ── Left Toolbar ──────────────────────────────────────────────────── */}
-        <aside className="
+        <aside
+          className="
           w-12 shrink-0 bg-white border-r border-slate-200
           flex flex-col items-center py-3 gap-1 z-20 overflow-y-auto
-        ">
+        "
+        >
           {TOOL_SECTIONS.map((section, si) => (
             <React.Fragment key={si}>
               {si > 0 && <div className="w-6 border-t border-slate-200 my-1" />}
@@ -1011,8 +1340,9 @@ export function WarehouseCanvas({
                   label={item.label}
                   active={activeTool === item.id}
                   onClick={() => {
-                    if (mode === "operations" && isDrawTool(item.id as ToolId)) return
-                    setActiveTool(item.id)
+                    if (mode === "operations" && isDrawTool(item.id as ToolId))
+                      return;
+                    setActiveTool(item.id);
                   }}
                 />
               ))}
@@ -1046,84 +1376,94 @@ export function WarehouseCanvas({
           <div
             className="absolute origin-top-left"
             style={{
-              width:     canvasSize.w,
-              height:    canvasSize.h,
+              width: canvasSize.w,
+              height: canvasSize.h,
               transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.zoom})`,
             }}
           >
             {/* objects */}
-            {objects.filter((o) => !o.hidden).map((o) => {
-              const isSelected = selected === o.id
-              return (
-                <div
-                  key={o.id}
-                  className={`
+            {objects
+              .filter((o) => !o.hidden)
+              .map((o) => {
+                const isSelected = selected === o.id;
+                return (
+                  <div
+                    key={o.id}
+                    className={`
                     absolute transition-shadow duration-100
                     ${isSelected ? "ring-2 ring-blue-400 ring-offset-1 z-20" : "z-10"}
                     ${!o.locked && mode === "design" ? "cursor-move" : "cursor-default"}
                   `}
-                  style={{
-                    left:    `${o.x}%`,
-                    top:     `${o.y}%`,
-                    width:   `${o.width}%`,
-                    height:  `${o.height}%`,
-                    background: o.color + "33",
-                    border: `1.5px solid ${o.color}`,
-                    borderRadius: o.type === "bin" ? 4 : 8,
-                    opacity: o.locked ? 0.7 : 1,
-                  }}
-                  onMouseDown={(e) => handleObjMouseDown(e, o)}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    if (activeTool === "delete") { deleteObj(o.id); return }
-                    setSelected(o.id)
-                  }}
-                >
-                  {/* floating toolbar */}
-                  {isSelected && mode === "design" && (
-                    <FloatingToolbar
-                      obj={o}
-                      onEdit={() => {}}
-                      onDuplicate={() => duplicateObj(o.id)}
-                      onDelete={() => deleteObj(o.id)}
-                      onLock={() => updateObj(o.id, { locked: !o.locked })}
-                    />
-                  )}
-
-                  {/* label */}
-                  <div
-                    className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none overflow-hidden px-1"
-                  >
-                    <span
-                      className="text-center font-medium leading-tight"
-                      style={{
-                        fontSize: Math.min(12, Math.max(7, o.width * 0.9)) + "px",
-                        color:    o.color,
-                      }}
-                    >
-                      {o.label}
-                    </span>
-                  </div>
-
-                  {/* type badge */}
-                  <div
-                    className="absolute top-0.5 right-0.5 px-1 rounded text-white"
                     style={{
-                      fontSize: 7,
-                      background: o.color,
-                      lineHeight: "14px",
+                      left: `${o.x}%`,
+                      top: `${o.y}%`,
+                      width: `${o.width}%`,
+                      height: `${o.height}%`,
+                      background: o.color + "33",
+                      border: `1.5px solid ${o.color}`,
+                      borderRadius: o.type === "bin" ? 4 : 8,
+                      opacity: o.locked ? 0.7 : 1,
+                    }}
+                    onMouseDown={(e) => handleObjMouseDown(e, o)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (activeTool === "delete") {
+                        deleteObj(o.id);
+                        return;
+                      }
+                      setSelected(o.id);
                     }}
                   >
-                    {o.type.replace(/-/g, " ")}
-                  </div>
+                    {/* floating toolbar */}
+                    {isSelected && mode === "design" && (
+                      <FloatingToolbar
+                        obj={o}
+                        onEdit={() => {}}
+                        onDuplicate={() => duplicateObj(o.id)}
+                        onDelete={() => deleteObj(o.id)}
+                        onLock={() => updateObj(o.id, { locked: !o.locked })}
+                      />
+                    )}
 
-                  {/* lock indicator */}
-                  {o.locked && (
-                    <div className="absolute top-0.5 left-0.5 text-[8px]">🔒</div>
-                  )}
-                </div>
-              )
-            })}
+                    {/* label - only show on hover/selected */}
+                    {isSelected && (
+                      <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none overflow-hidden px-1">
+                        <span
+                          className="text-center font-medium leading-tight"
+                          style={{
+                            fontSize:
+                              Math.min(12, Math.max(7, o.width * 0.9)) + "px",
+                            color: o.color,
+                          }}
+                        >
+                          {o.label}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* type badge - only show on selected */}
+                    {isSelected && (
+                      <div
+                        className="absolute top-0.5 right-0.5 px-1 rounded text-white"
+                        style={{
+                          fontSize: 7,
+                          background: o.color,
+                          lineHeight: "14px",
+                        }}
+                      >
+                        {o.type.replace(/-/g, " ")}
+                      </div>
+                    )}
+
+                    {/* lock indicator */}
+                    {o.locked && (
+                      <div className="absolute top-0.5 left-0.5 text-[8px]">
+                        🔒
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
           </div>
 
           {/* mini map */}
@@ -1135,34 +1475,45 @@ export function WarehouseCanvas({
           />
 
           {/* zoom controls */}
-          <div className="
+          <div
+            className="
             absolute bottom-4 left-1/2 -translate-x-1/2
             flex items-center gap-1 bg-white rounded-xl border border-slate-200
             shadow-md px-2 py-1
-          ">
+          "
+          >
             <button
-              onClick={() => setViewport((vp) => {
-                const z = Math.max(0.2, vp.zoom - 0.1)
-                setZoom(Math.round(z * 100))
-                return { ...vp, zoom: z }
-              })}
+              onClick={() =>
+                setViewport((vp) => {
+                  const z = Math.max(0.2, vp.zoom - 0.1);
+                  setZoom(Math.round(z * 100));
+                  return { ...vp, zoom: z };
+                })
+              }
               className="w-7 h-7 flex items-center justify-center text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg text-lg"
             >
               −
             </button>
-            <span className="text-xs text-slate-500 w-10 text-center font-mono">{zoom}%</span>
+            <span className="text-xs text-slate-500 w-10 text-center font-mono">
+              {zoom}%
+            </span>
             <button
-              onClick={() => setViewport((vp) => {
-                const z = Math.min(4, vp.zoom + 0.1)
-                setZoom(Math.round(z * 100))
-                return { ...vp, zoom: z }
-              })}
+              onClick={() =>
+                setViewport((vp) => {
+                  const z = Math.min(4, vp.zoom + 0.1);
+                  setZoom(Math.round(z * 100));
+                  return { ...vp, zoom: z };
+                })
+              }
               className="w-7 h-7 flex items-center justify-center text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg text-lg"
             >
               +
             </button>
             <button
-              onClick={() => { setViewport({ x: 0, y: 0, zoom: 1 }); setZoom(100) }}
+              onClick={() => {
+                setViewport({ x: 0, y: 0, zoom: 1 });
+                setZoom(100);
+              }}
               className="w-7 h-7 flex items-center justify-center text-[10px] text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg"
             >
               ⊡
@@ -1172,60 +1523,71 @@ export function WarehouseCanvas({
           {/* tool hint */}
           {isDrawTool(activeTool) && mode === "design" && (
             <div className="absolute top-3 left-1/2 -translate-x-1/2 bg-slate-800/80 text-white text-xs px-3 py-1.5 rounded-full pointer-events-none">
-              Click and drag to place a <strong>{activeTool}</strong>. Press Esc to cancel.
+              Click and drag to place a <strong>{activeTool}</strong>. Press Esc
+              to cancel.
             </div>
           )}
         </main>
 
         {/* ── Right Panel ───────────────────────────────────────────────────── */}
-        <aside className="
+        <aside
+          className="
           w-60 shrink-0 bg-white border-l border-slate-200 z-20 overflow-hidden
           flex flex-col
-        ">
+        "
+        >
           <div className="px-4 py-2.5 border-b border-slate-100 shrink-0">
             <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
               {selected ? "Properties" : "Overview"}
             </p>
           </div>
           <div className="flex-1 overflow-y-auto">
-          <PropertyPanel
-            selected={selected}
-            objects={objects}
-            products={products}
-            onUpdate={updateObj}
-            onDelete={deleteObj}
-            onDuplicate={duplicateObj}
-            mode={mode}
-          />
+            <PropertyPanel
+              selected={selected}
+              objects={objects}
+              products={products}
+              onUpdate={updateObj}
+              onDelete={deleteObj}
+              onDuplicate={duplicateObj}
+              mode={mode}
+            />
           </div>
         </aside>
       </div>
 
       {/* ── Status Bar ───────────────────────────────────────────────────────── */}
-      <footer className="
+      <footer
+        className="
         flex items-center gap-4 px-4 h-8 shrink-0
         bg-white border-t border-slate-200 z-30
-      ">
+      "
+      >
         <div className="flex items-center gap-4 text-[11px] text-slate-400">
           <span>
-            <span className="text-slate-600 font-medium">{stats.total}</span> objects
+            <span className="text-slate-600 font-medium">{stats.total}</span>{" "}
+            objects
           </span>
           <span className="text-slate-200">|</span>
           <span>
-            <span className="text-slate-600 font-medium">{stats.zones}</span> zones
+            <span className="text-slate-600 font-medium">{stats.zones}</span>{" "}
+            zones
           </span>
           <span className="text-slate-200">|</span>
           <span>
-            <span className="text-slate-600 font-medium">{stats.racks}</span> racks
+            <span className="text-slate-600 font-medium">{stats.racks}</span>{" "}
+            racks
           </span>
           <span className="text-slate-200">|</span>
           <span>
-            <span className="text-slate-600 font-medium">{stats.bins}</span> bins
+            <span className="text-slate-600 font-medium">{stats.bins}</span>{" "}
+            bins
           </span>
           <span className="text-slate-200">|</span>
           <span>
             Mode:{" "}
-            <span className={`font-medium ${mode === "design" ? "text-blue-500" : "text-green-500"}`}>
+            <span
+              className={`font-medium ${mode === "design" ? "text-blue-500" : "text-green-500"}`}
+            >
               {mode}
             </span>
           </span>
@@ -1235,7 +1597,10 @@ export function WarehouseCanvas({
               <span>
                 Saved{" "}
                 <span className="text-green-500 font-medium">
-                  {savedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                  {savedAt.toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
                 </span>
               </span>
             </>
@@ -1243,19 +1608,29 @@ export function WarehouseCanvas({
         </div>
 
         <div className="ml-auto flex items-center gap-2 text-[11px] text-slate-400">
-          <span>Press <kbd className="bg-slate-100 px-1 rounded text-[10px]">V</kbd> select</span>
+          <span>
+            Press <kbd className="bg-slate-100 px-1 rounded text-[10px]">V</kbd>{" "}
+            select
+          </span>
           <span>·</span>
-          <span><kbd className="bg-slate-100 px-1 rounded text-[10px]">H</kbd> pan</span>
+          <span>
+            <kbd className="bg-slate-100 px-1 rounded text-[10px]">H</kbd> pan
+          </span>
           <span>·</span>
-          <span><kbd className="bg-slate-100 px-1 rounded text-[10px]">G</kbd> grid</span>
+          <span>
+            <kbd className="bg-slate-100 px-1 rounded text-[10px]">G</kbd> grid
+          </span>
           <span>·</span>
-          <span><kbd className="bg-slate-100 px-1 rounded text-[10px]">Del</kbd> delete</span>
+          <span>
+            <kbd className="bg-slate-100 px-1 rounded text-[10px]">Del</kbd>{" "}
+            delete
+          </span>
         </div>
       </footer>
     </div>
-  )
+  );
 }
 
-export const WarehouseManagement = WarehouseCanvas
+export const WarehouseManagement = WarehouseCanvas;
 
-export default WarehouseCanvas
+export default WarehouseCanvas;

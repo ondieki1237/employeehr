@@ -690,13 +690,114 @@ async function sendLowStockAlert(product: any, orgId: string) {
 
   if (!recipients.length) return;
 
-  const subject = `Low Stock Alert: ${product.name}`;
+  const company = await Company.findById(orgId)
+    .select("name logo primaryColor")
+    .lean();
+  const primaryColor = (company as any)?.primaryColor || "#3b82f6";
+  const logoUrl =
+    (company as any)?.logo ||
+    `${process.env.FRONTEND_URL || "https://hr.codewithseth.co.ke"}/icon.svg`;
+  const companyName = (company as any)?.name || "Company";
+  const currentYear = new Date().getFullYear();
+  const stockPercentage = Math.round(
+    (product.currentQuantity / product.minAlertQuantity) * 100,
+  );
+
+  const subject = `⚠️ Low Stock Alert: ${product.name}`;
   const html = `
-    <h2>Low Stock Alert</h2>
-    <p>The product <strong>${product.name}</strong> has reached the alert threshold.</p>
-    <p><strong>Remaining Quantity:</strong> ${product.currentQuantity}</p>
-    <p><strong>Alert Threshold:</strong> ${product.minAlertQuantity}</p>
-    <p>Advice: Please restock this product soon.</p>
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8" />
+      <meta name="viewport" content="width=device-width,initial-scale=1" />
+      <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; color: #1f2937; background: #f8fafc; line-height: 1.6; }
+        .wrapper { width: 100%; padding: 24px 0; }
+        .container { max-width: 640px; margin: 0 auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08); }
+        .header { padding: 32px 24px; background: linear-gradient(135deg, #f97316 0%, #ea580c 100%); color: #fff; text-align: center; }
+        .logo-wrapper { margin-bottom: 16px; }
+        .logo-wrapper img { max-width: 100px; height: auto; display: block; margin: 0 auto; }
+        .header-title { font-size: 24px; font-weight: 700; margin: 12px 0 4px; letter-spacing: -0.5px; }
+        .content { padding: 32px 24px; }
+        .content-section { margin-bottom: 20px; }
+        .content-section p { margin: 12px 0; line-height: 1.6; }
+        .content-section p:first-child { margin-top: 0; }
+        .alert-box { background: #fff7ed; border: 2px solid #fed7aa; border-left: 4px solid #f97316; padding: 16px; border-radius: 6px; margin: 16px 0; }
+        .alert-box h3 { color: #92400e; font-size: 16px; margin-bottom: 12px; }
+        .stock-details { background: #f9fafb; border: 1px solid #e5e7eb; padding: 16px; border-radius: 6px; margin: 16px 0; }
+        .detail-row { display: flex; justify-content: space-between; margin: 8px 0; padding: 6px 0; border-bottom: 1px solid #e5e7eb; }
+        .detail-row:last-child { border-bottom: none; }
+        .detail-label { font-weight: 600; color: #6b7280; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .detail-value { font-weight: 700; color: #1f2937; }
+        .progress-bar { width: 100%; height: 8px; background: #e5e7eb; border-radius: 4px; overflow: hidden; margin: 8px 0; }
+        .progress-fill { height: 100%; background: #f97316; width: ${stockPercentage}%; transition: width 0.3s ease; }
+        .action-button { display: inline-block; padding: 12px 24px; background: ${primaryColor}; color: #fff; text-decoration: none; border-radius: 6px; font-weight: 600; margin-top: 12px; }
+        .action-button:hover { opacity: 0.9; }
+        .footer-content { padding: 24px; border-top: 1px solid #e5e7eb; text-align: center; }
+        .footer-text { font-size: 12px; color: #6b7280; }
+        @media (max-width: 600px) {
+          .container { margin: 12px; border-radius: 8px; }
+          .header { padding: 24px 16px; }
+          .content { padding: 24px 16px; }
+          .header-title { font-size: 20px; }
+          .detail-row { flex-direction: column; }
+          .detail-value { margin-top: 4px; }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="wrapper">
+        <div class="container">
+          <div class="header">
+            <div class="logo-wrapper">
+              <img src="${logoUrl}" alt="${companyName}" style="max-width: 100px; height: auto; border-radius: 4px;" />
+            </div>
+            <div class="header-title">Low Stock Alert</div>
+          </div>
+          <div class="content">
+            <div class="content-section">
+              <p>Hello Team,</p>
+            </div>
+            <div class="alert-box">
+              <h3>⚠️ Stock Level Warning</h3>
+              <p style="margin: 0; font-size: 14px;">The product <strong>${product.name}</strong> has fallen below the minimum alert threshold and requires immediate attention.</p>
+            </div>
+            <div class="stock-details">
+              <div class="detail-row">
+                <span class="detail-label">Product Name</span>
+                <span class="detail-value">${product.name}</span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Current Quantity</span>
+                <span class="detail-value">${product.currentQuantity} units</span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Alert Threshold</span>
+                <span class="detail-value">${product.minAlertQuantity} units</span>
+              </div>
+              <div style="margin-top: 12px;">
+                <span class="detail-label">Stock Level</span>
+                <div class="progress-bar">
+                  <div class="progress-fill"></div>
+                </div>
+                <span style="font-size: 12px; color: #6b7280;">${stockPercentage}% of alert threshold</span>
+              </div>
+            </div>
+            <div class="content-section">
+              <p><strong>Action Required:</strong> Please restock this product as soon as possible to avoid inventory shortages. Monitor stock levels regularly to prevent future disruptions.</p>
+            </div>
+            <div class="content-section">
+              <p style="font-size: 13px; color: #6b7280;">This is an automated alert from your inventory management system. Please take appropriate action to replenish stock.</p>
+            </div>
+          </div>
+          <div class="footer-content">
+            <p class="footer-text">© ${currentYear} <strong>${companyName}</strong>. All rights reserved.</p>
+          </div>
+        </div>
+      </div>
+    </body>
+    </html>
   `;
 
   await Promise.all(
@@ -1136,17 +1237,116 @@ async function sendExpiryReminderEmail(product: any, orgId: string) {
   const daysLeft = Math.ceil(
     (expiryDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
   );
+
+  const company = await Company.findById(orgId)
+    .select("name logo primaryColor")
+    .lean();
+  const primaryColor = (company as any)?.primaryColor || "#ef4444";
+  const logoUrl =
+    (company as any)?.logo ||
+    `${process.env.FRONTEND_URL || "https://hr.codewithseth.co.ke"}/icon.svg`;
+  const companyName = (company as any)?.name || "Company";
+  const currentYear = new Date().getFullYear();
+
   const subject = isExpired
-    ? `Expired Stock Alert: ${product.name}`
-    : `Expiry Reminder: ${product.name} (${Math.max(daysLeft, 0)} day(s) left)`;
+    ? `🚨 Expired Stock Alert: ${product.name}`
+    : `⏰ Expiry Reminder: ${product.name} (${Math.max(daysLeft, 0)} day(s) left)`;
+
+  const headerColor = isExpired ? "#dc2626" : "#ea580c";
+  const bgColor = isExpired ? "#fef2f2" : "#fff7ed";
+  const borderColor = isExpired ? "#fecaca" : "#fed7aa";
+  const alertIcon = isExpired ? "🚨" : "⏰";
 
   const html = `
-    <h2>${isExpired ? "Expired Product In Stock" : "Product Expiry Reminder"}</h2>
-    <p><strong>Product:</strong> ${product.name}</p>
-    <p><strong>Current Quantity:</strong> ${product.currentQuantity}</p>
-    <p><strong>Expiry Date:</strong> ${expiryDate.toDateString()}</p>
-    <p><strong>Reminder Window:</strong> ${reminderDays} day(s) before expiry</p>
-    <p>${isExpired ? "This product is expired and still available in stock." : "This product is nearing expiry and still in stock."}</p>
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8" />
+      <meta name="viewport" content="width=device-width,initial-scale=1" />
+      <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; color: #1f2937; background: #f8fafc; line-height: 1.6; }
+        .wrapper { width: 100%; padding: 24px 0; }
+        .container { max-width: 640px; margin: 0 auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08); }
+        .header { padding: 32px 24px; background: linear-gradient(135deg, ${headerColor} 0%, ${headerColor}dd 100%); color: #fff; text-align: center; }
+        .logo-wrapper { margin-bottom: 16px; }
+        .logo-wrapper img { max-width: 100px; height: auto; display: block; margin: 0 auto; }
+        .header-title { font-size: 24px; font-weight: 700; margin: 12px 0 4px; letter-spacing: -0.5px; }
+        .content { padding: 32px 24px; }
+        .content-section { margin-bottom: 20px; }
+        .content-section p { margin: 12px 0; line-height: 1.6; }
+        .content-section p:first-child { margin-top: 0; }
+        .alert-box { background: ${bgColor}; border: 2px solid ${borderColor}; border-left: 4px solid ${headerColor}; padding: 16px; border-radius: 6px; margin: 16px 0; }
+        .alert-box h3 { color: ${isExpired ? "#7f1d1d" : "#92400e"}; font-size: 16px; margin-bottom: 8px; }
+        .product-details { background: #f9fafb; border: 1px solid #e5e7eb; padding: 16px; border-radius: 6px; margin: 16px 0; }
+        .detail-row { display: flex; justify-content: space-between; margin: 10px 0; padding: 6px 0; border-bottom: 1px solid #e5e7eb; }
+        .detail-row:last-child { border-bottom: none; }
+        .detail-label { font-weight: 600; color: #6b7280; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .detail-value { font-weight: 700; color: #1f2937; text-align: right; }
+        .action-text { background: #f3f4f6; padding: 12px 16px; border-radius: 6px; margin: 16px 0; border-left: 3px solid ${primaryColor}; }
+        .action-text p { margin: 0; font-size: 14px; line-height: 1.6; }
+        .action-text strong { color: ${headerColor}; }
+        .footer-content { padding: 24px; border-top: 1px solid #e5e7eb; text-align: center; }
+        .footer-text { font-size: 12px; color: #6b7280; }
+        @media (max-width: 600px) {
+          .container { margin: 12px; border-radius: 8px; }
+          .header { padding: 24px 16px; }
+          .content { padding: 24px 16px; }
+          .header-title { font-size: 20px; }
+          .detail-row { flex-direction: column; }
+          .detail-value { margin-top: 4px; text-align: left; }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="wrapper">
+        <div class="container">
+          <div class="header">
+            <div class="logo-wrapper">
+              <img src="${logoUrl}" alt="${companyName}" style="max-width: 100px; height: auto; border-radius: 4px;" />
+            </div>
+            <div class="header-title">${isExpired ? "Expired Stock Alert" : "Product Expiry Reminder"}</div>
+          </div>
+          <div class="content">
+            <div class="content-section">
+              <p>Hello Team,</p>
+            </div>
+            <div class="alert-box">
+              <h3>${alertIcon} ${isExpired ? "Product Expired" : "Expiry Alert"}</h3>
+              <p style="margin: 0; font-size: 14px;">${isExpired ? "This product has passed its expiry date and must be removed from stock immediately." : "This product is nearing its expiry date and should be prioritized for sale or disposal."}</p>
+            </div>
+            <div class="product-details">
+              <div class="detail-row">
+                <span class="detail-label">Product Name</span>
+                <span class="detail-value">${product.name}</span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Current Quantity</span>
+                <span class="detail-value">${product.currentQuantity} units</span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Expiry Date</span>
+                <span class="detail-value">${expiryDate.toDateString()}</span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">${isExpired ? "Days Expired" : "Days Until Expiry"}</span>
+                <span class="detail-value" style="color: ${isExpired ? "#dc2626" : "#ea580c"};">${isExpired ? Math.abs(daysLeft) : Math.max(daysLeft, 0)} day(s)</span>
+              </div>
+            </div>
+            <div class="action-text">
+              <p><strong>Action Required:</strong> ${isExpired ? "Remove this product from stock immediately to prevent customer dissatisfaction and regulatory issues." : "Prioritize selling remaining stock before the expiry date. Consider promotional pricing if needed."}</p>
+            </div>
+            <div class="content-section">
+              <p style="font-size: 13px; color: #6b7280;">This is an automated alert from your inventory management system. Timely action helps maintain product quality and customer trust.</p>
+            </div>
+          </div>
+          <div class="footer-content">
+            <p class="footer-text">© ${currentYear} <strong>${companyName}</strong>. All rights reserved.</p>
+          </div>
+        </div>
+      </div>
+    </body>
+    </html>
   `;
 
   await Promise.all(
@@ -1186,12 +1386,10 @@ export class StockController {
   static async checkExpiringProducts(req: AuthenticatedRequest, res: Response) {
     try {
       if (!isAdminRole(req.user?.role)) {
-        return res
-          .status(403)
-          .json({
-            success: false,
-            message: "Only admin/HR can run expiry checks",
-          });
+        return res.status(403).json({
+          success: false,
+          message: "Only admin/HR can run expiry checks",
+        });
       }
 
       const org_id = req.user?.org_id;
@@ -1220,12 +1418,10 @@ export class StockController {
         data: { checked: products.length, remindersSent },
       });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to run expiry checks",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to run expiry checks",
+      });
     }
   }
 
@@ -1248,12 +1444,10 @@ export class StockController {
         branchId,
       } = req.body;
       if (!clientName || !clientNumber) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message: "Client name and phone number are required",
-          });
+        return res.status(400).json({
+          success: false,
+          message: "Client name and phone number are required",
+        });
       }
 
       if (ownerUserId) {
@@ -1264,12 +1458,10 @@ export class StockController {
           .select("_id firstName lastName role")
           .lean();
         if (!owner) {
-          return res
-            .status(404)
-            .json({
-              success: false,
-              message: "Selected quotation owner not found",
-            });
+          return res.status(404).json({
+            success: false,
+            message: "Selected quotation owner not found",
+          });
         }
       }
 
@@ -1317,12 +1509,10 @@ export class StockController {
 
       return res.status(201).json({ success: true, data: quotation });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to create quotation",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to create quotation",
+      });
     }
   }
 
@@ -1418,12 +1608,10 @@ export class StockController {
 
       return res.status(200).json({ success: true, data: enriched });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to fetch quotations",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to fetch quotations",
+      });
     }
   }
 
@@ -1449,24 +1637,20 @@ export class StockController {
       }
 
       if (!isAdminRole(role)) {
-        return res
-          .status(403)
-          .json({
-            success: false,
-            message: "Only admin/HR can edit quotations",
-          });
+        return res.status(403).json({
+          success: false,
+          message: "Only admin/HR can edit quotations",
+        });
       }
 
       if (
         quotation.status !== "draft" &&
         quotation.status !== "pending_approval"
       ) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message: "Only draft or pending quotations can be edited",
-          });
+        return res.status(400).json({
+          success: false,
+          message: "Only draft or pending quotations can be edited",
+        });
       }
 
       const {
@@ -1477,12 +1661,10 @@ export class StockController {
         items,
       } = req.body;
       if (!clientName || !clientNumber) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message: "Client name and phone number are required",
-          });
+        return res.status(400).json({
+          success: false,
+          message: "Client name and phone number are required",
+        });
       }
 
       const normalizedLocation =
@@ -1509,12 +1691,10 @@ export class StockController {
 
       return res.status(200).json({ success: true, data: quotation });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to update quotation",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to update quotation",
+      });
     }
   }
 
@@ -1527,12 +1707,10 @@ export class StockController {
           .json({ success: false, message: "Unauthorized" });
 
       if (!isAdminRole(req.user?.role)) {
-        return res
-          .status(403)
-          .json({
-            success: false,
-            message: "Only admin/HR can approve quotations",
-          });
+        return res.status(403).json({
+          success: false,
+          message: "Only admin/HR can approve quotations",
+        });
       }
 
       const { quotationId } = req.params;
@@ -1550,12 +1728,10 @@ export class StockController {
         quotation.status === "converted" ||
         quotation.status === "cancelled"
       ) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message: `Cannot approve ${quotation.status} quotation`,
-          });
+        return res.status(400).json({
+          success: false,
+          message: `Cannot approve ${quotation.status} quotation`,
+        });
       }
 
       quotation.status = "draft";
@@ -1569,12 +1745,10 @@ export class StockController {
         data: quotation,
       });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to approve quotation",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to approve quotation",
+      });
     }
   }
 
@@ -1587,12 +1761,10 @@ export class StockController {
           .json({ success: false, message: "Unauthorized" });
 
       if (!isAdminRole(req.user?.role)) {
-        return res
-          .status(403)
-          .json({
-            success: false,
-            message: "Only admin/HR can reject quotations",
-          });
+        return res.status(403).json({
+          success: false,
+          message: "Only admin/HR can reject quotations",
+        });
       }
 
       const { quotationId } = req.params;
@@ -1607,12 +1779,10 @@ export class StockController {
       }
 
       if (quotation.status === "converted") {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message: "Cannot reject converted quotation",
-          });
+        return res.status(400).json({
+          success: false,
+          message: "Cannot reject converted quotation",
+        });
       }
 
       quotation.status = "cancelled";
@@ -1624,12 +1794,10 @@ export class StockController {
         data: quotation,
       });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to reject quotation",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to reject quotation",
+      });
     }
   }
 
@@ -1709,12 +1877,10 @@ export class StockController {
         .status(200)
         .json({ success: true, data: Array.from(clientMap.values()) });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to fetch clients",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to fetch clients",
+      });
     }
   }
 
@@ -1749,12 +1915,10 @@ export class StockController {
 
       return res.status(200).json({ success: true, data: clients });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to fetch saved clients",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to fetch saved clients",
+      });
     }
   }
 
@@ -1811,12 +1975,10 @@ export class StockController {
 
       return res.status(200).json({ success: true, data });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to fetch posts",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to fetch posts",
+      });
     }
   }
 
@@ -1836,12 +1998,10 @@ export class StockController {
       const { legalName, kraPin, email, branchId } = req.body || {};
 
       if (!legalName || !kraPin) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message: "legalName and kraPin are required",
-          });
+        return res.status(400).json({
+          success: false,
+          message: "legalName and kraPin are required",
+        });
       }
 
       const invoice = await StockInvoice.findOne({
@@ -1859,12 +2019,10 @@ export class StockController {
         !source.sourceNumber ||
         !source.sourceLocation
       ) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message: "Invoice client details are incomplete",
-          });
+        return res.status(400).json({
+          success: false,
+          message: "Invoice client details are incomplete",
+        });
       }
 
       const hasKraDetails = Boolean(
@@ -1905,12 +2063,10 @@ export class StockController {
 
       return res.status(200).json({ success: true, data: profile });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to save client KRA details",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to save client KRA details",
+      });
     }
   }
 
@@ -1935,12 +2091,10 @@ export class StockController {
       } = req.body || {};
 
       if (!sourceName || !sourceNumber || !sourceLocation) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message: "sourceName, sourceNumber and sourceLocation are required",
-          });
+        return res.status(400).json({
+          success: false,
+          message: "sourceName, sourceNumber and sourceLocation are required",
+        });
       }
 
       const resolvedLegalName = String(legalName || sourceName).trim();
@@ -1977,12 +2131,10 @@ export class StockController {
 
       return res.status(200).json({ success: true, data: profile });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to create/update client",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to create/update client",
+      });
     }
   }
 
@@ -1996,12 +2148,10 @@ export class StockController {
           .json({ success: false, message: "Unauthorized" });
 
       if (!isAdminRole(req.user?.role)) {
-        return res
-          .status(403)
-          .json({
-            success: false,
-            message: "Only admin/HR can bulk upload clients",
-          });
+        return res.status(403).json({
+          success: false,
+          message: "Only admin/HR can bulk upload clients",
+        });
       }
 
       const file = req.file as any;
@@ -2143,12 +2293,10 @@ export class StockController {
         },
       });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to bulk upload clients",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to bulk upload clients",
+      });
     }
   }
 
@@ -2180,12 +2328,10 @@ export class StockController {
       }).lean();
 
       if (!clientProfile || !clientProfile.hasKraDetails) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message: "Save client legal name and KRA PIN first",
-          });
+        return res.status(400).json({
+          success: false,
+          message: "Save client legal name and KRA PIN first",
+        });
       }
 
       const etimsPayload = {
@@ -2233,12 +2379,10 @@ export class StockController {
         },
       });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to post sale to eTIMS",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to post sale to eTIMS",
+      });
     }
   }
 
@@ -2255,12 +2399,10 @@ export class StockController {
         .lean();
       return res.status(200).json({ success: true, data: expenses });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to fetch expenses",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to fetch expenses",
+      });
     }
   }
 
@@ -2305,12 +2447,10 @@ export class StockController {
 
       return res.status(200).json({ success: true, data });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to fetch payment management data",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to fetch payment management data",
+      });
     }
   }
 
@@ -2536,12 +2676,10 @@ export class StockController {
 
       return res.status(200).json({ success: true, data });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to fetch accounts clients",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to fetch accounts clients",
+      });
     }
   }
 
@@ -2563,12 +2701,10 @@ export class StockController {
         .status(200)
         .json({ success: true, data: audience.clients, meta: audience.meta });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to build SMS audience",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to build SMS audience",
+      });
     }
   }
 
@@ -2580,12 +2716,10 @@ export class StockController {
           .status(401)
           .json({ success: false, message: "Unauthorized" });
       if (!isAdminRole(req.user?.role)) {
-        return res
-          .status(403)
-          .json({
-            success: false,
-            message: "Only admin/HR can view bulk SMS campaigns",
-          });
+        return res.status(403).json({
+          success: false,
+          message: "Only admin/HR can view bulk SMS campaigns",
+        });
       }
 
       const campaigns = await BulkSmsCampaign.find({ org_id })
@@ -2594,12 +2728,10 @@ export class StockController {
         .lean();
       return res.status(200).json({ success: true, data: campaigns });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to fetch SMS campaigns",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to fetch SMS campaigns",
+      });
     }
   }
 
@@ -2612,12 +2744,10 @@ export class StockController {
           .status(401)
           .json({ success: false, message: "Unauthorized" });
       if (!isAdminRole(req.user?.role)) {
-        return res
-          .status(403)
-          .json({
-            success: false,
-            message: "Only admin/HR can send bulk SMS campaigns",
-          });
+        return res.status(403).json({
+          success: false,
+          message: "Only admin/HR can send bulk SMS campaigns",
+        });
       }
 
       const name = String(req.body?.name || "").trim();
@@ -2638,19 +2768,15 @@ export class StockController {
           .status(400)
           .json({ success: false, message: "Message is required" });
       if (name.length > 120)
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message: "Campaign name is too long (max 120 characters)",
-          });
+        return res.status(400).json({
+          success: false,
+          message: "Campaign name is too long (max 120 characters)",
+        });
       if (message.length > 800)
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message: "Message is too long (max 800 characters)",
-          });
+        return res.status(400).json({
+          success: false,
+          message: "Message is too long (max 800 characters)",
+        });
 
       const audience = await buildBulkSmsAudience(org_id, filters);
       let recipients = audience.clients;
@@ -2663,12 +2789,10 @@ export class StockController {
       }
 
       if (recipients.length === 0) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message: "No recipients selected for this campaign",
-          });
+        return res.status(400).json({
+          success: false,
+          message: "No recipients selected for this campaign",
+        });
       }
 
       const company = await Company.findById(org_id)
@@ -2748,12 +2872,10 @@ export class StockController {
         data: campaign,
       });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to send bulk SMS campaign",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to send bulk SMS campaign",
+      });
     }
   }
 
@@ -2771,12 +2893,10 @@ export class StockController {
 
       const numericAmount = Number(amount);
       if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message: "Valid payment amount is required",
-          });
+        return res.status(400).json({
+          success: false,
+          message: "Valid payment amount is required",
+        });
       }
 
       const invoice = await StockInvoice.findOne({ _id: invoiceId, org_id });
@@ -2785,12 +2905,10 @@ export class StockController {
           .status(404)
           .json({ success: false, message: "Invoice not found" });
       if (invoice.status === "cancelled") {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message: "Cannot add payment to cancelled invoice",
-          });
+        return res.status(400).json({
+          success: false,
+          message: "Cannot add payment to cancelled invoice",
+        });
       }
 
       const existingPayments = await StockInvoicePayment.find({
@@ -2848,12 +2966,10 @@ export class StockController {
         data: payment,
       });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to add payment",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to add payment",
+      });
     }
   }
 
@@ -2898,12 +3014,10 @@ export class StockController {
 
       return res.status(200).json({ success: true, data });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to fetch debt management data",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to fetch debt management data",
+      });
     }
   }
 
@@ -3003,12 +3117,10 @@ export class StockController {
         },
       });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to fetch aging debt report",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to fetch aging debt report",
+      });
     }
   }
 
@@ -3131,12 +3243,10 @@ export class StockController {
         },
       });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to fetch profit margin analytics",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to fetch profit margin analytics",
+      });
     }
   }
 
@@ -3352,12 +3462,10 @@ export class StockController {
         },
       });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to fetch financial breakdown",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to fetch financial breakdown",
+      });
     }
   }
 
@@ -3424,12 +3532,10 @@ export class StockController {
 
       return res.status(200).json({ success: true, data: rows });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to fetch product movement forecast",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to fetch product movement forecast",
+      });
     }
   }
 
@@ -3490,13 +3596,10 @@ export class StockController {
         },
       });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message:
-            error.message || "Failed to fetch inventory valuation report",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to fetch inventory valuation report",
+      });
     }
   }
 
@@ -3553,12 +3656,10 @@ export class StockController {
         data: expense,
       });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to initiate expense",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to initiate expense",
+      });
     }
   }
 
@@ -3575,12 +3676,10 @@ export class StockController {
         .lean();
       return res.status(200).json({ success: true, data: repeatBills });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to fetch repeat bills",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to fetch repeat bills",
+      });
     }
   }
 
@@ -3596,12 +3695,10 @@ export class StockController {
       const { payerPhone, payeePhones, amount, purpose, sendNow } =
         req.body || {};
       if (!payerPhone || !amount || !purpose) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message: "payerPhone, amount and purpose are required",
-          });
+        return res.status(400).json({
+          success: false,
+          message: "payerPhone, amount and purpose are required",
+        });
       }
 
       const normalizedPayees = Array.isArray(payeePhones)
@@ -3613,12 +3710,10 @@ export class StockController {
         : splitPhoneList(String(payeePhones || ""));
 
       if (!normalizedPayees.length) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message: "At least one payee number is required",
-          });
+        return res.status(400).json({
+          success: false,
+          message: "At least one payee number is required",
+        });
       }
 
       const numericAmount = Number(amount);
@@ -3700,12 +3795,10 @@ export class StockController {
         },
       });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to create repeat bill",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to create repeat bill",
+      });
     }
   }
 
@@ -3778,12 +3871,10 @@ export class StockController {
         data: { sentCount, failedCount },
       });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to run repeat bill",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to run repeat bill",
+      });
     }
   }
 
@@ -3812,12 +3903,10 @@ export class StockController {
       }
 
       if (!isAdminRole(role)) {
-        return res
-          .status(403)
-          .json({
-            success: false,
-            message: "Only admin/HR can convert quotations to invoices",
-          });
+        return res.status(403).json({
+          success: false,
+          message: "Only admin/HR can convert quotations to invoices",
+        });
       }
 
       if (quotation.status === "converted" && quotation.convertedInvoiceId) {
@@ -3862,12 +3951,10 @@ export class StockController {
       for (const item of stockManagedItems) {
         const product = stockManagedProductMap.get(String(item.productId));
         if (!product) {
-          return res
-            .status(400)
-            .json({
-              success: false,
-              message: `Product not found for quotation item: ${item.productName}`,
-            });
+          return res.status(400).json({
+            success: false,
+            message: `Product not found for quotation item: ${item.productName}`,
+          });
         }
         if (product.currentQuantity < item.quantity) {
           return res.status(400).json({
@@ -3946,12 +4033,10 @@ export class StockController {
 
       return res.status(201).json({ success: true, data: invoice });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to convert quotation",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to convert quotation",
+      });
     }
   }
 
@@ -4015,20 +4100,16 @@ export class StockController {
       for (const item of stockManagedItems) {
         const product = productMap.get(String(item.productId));
         if (!product) {
-          return res
-            .status(400)
-            .json({
-              success: false,
-              message: `Product not found: ${item.productName}`,
-            });
+          return res.status(400).json({
+            success: false,
+            message: `Product not found: ${item.productName}`,
+          });
         }
         if (product.currentQuantity < item.quantity) {
-          return res
-            .status(400)
-            .json({
-              success: false,
-              message: `Insufficient stock for ${item.productName}. Available: ${product.currentQuantity}, requested: ${item.quantity}`,
-            });
+          return res.status(400).json({
+            success: false,
+            message: `Insufficient stock for ${item.productName}. Available: ${product.currentQuantity}, requested: ${item.quantity}`,
+          });
         }
       }
 
@@ -4116,12 +4197,10 @@ export class StockController {
         .status(201)
         .json({ success: true, data: { invoice, payment } });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to create invoice from items",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to create invoice from items",
+      });
     }
   }
 
@@ -4162,12 +4241,10 @@ export class StockController {
 
       return res.status(201).json({ success: true, data: doc });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to add follow up",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to add follow up",
+      });
     }
   }
 
@@ -4188,12 +4265,10 @@ export class StockController {
         .lean();
       return res.status(200).json({ success: true, data: followups });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to fetch follow ups",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to fetch follow ups",
+      });
     }
   }
 
@@ -4221,12 +4296,10 @@ export class StockController {
         .lean();
       return res.status(200).json({ success: true, data: invoices });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to fetch invoices",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to fetch invoices",
+      });
     }
   }
 
@@ -4338,12 +4411,10 @@ export class StockController {
         },
       });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to fetch invoice lifecycle",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to fetch invoice lifecycle",
+      });
     }
   }
 
@@ -4371,22 +4442,18 @@ export class StockController {
         role === "employee" &&
         String((invoice as any).createdBy || "") !== String(userId || "")
       ) {
-        return res
-          .status(403)
-          .json({
-            success: false,
-            message: "You can only view your own invoice",
-          });
+        return res.status(403).json({
+          success: false,
+          message: "You can only view your own invoice",
+        });
       }
 
       return res.status(200).json({ success: true, data: invoice });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to fetch invoice",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to fetch invoice",
+      });
     }
   }
 
@@ -4403,12 +4470,10 @@ export class StockController {
           .json({ success: false, message: "Unauthorized" });
 
       if (!isAdminRole(req.user?.role)) {
-        return res
-          .status(403)
-          .json({
-            success: false,
-            message: "Only admin/HR can assign dispatch",
-          });
+        return res.status(403).json({
+          success: false,
+          message: "Only admin/HR can assign dispatch",
+        });
       }
 
       const { invoiceId } = req.params;
@@ -4478,12 +4543,10 @@ export class StockController {
 
       return res.status(200).json({ success: true, data: updatedInvoice });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to assign dispatch",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to assign dispatch",
+      });
     }
   }
 
@@ -4506,12 +4569,10 @@ export class StockController {
         .lean();
       return res.status(200).json({ success: true, data: invoices });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to fetch dispatch invoices",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to fetch dispatch invoices",
+      });
     }
   }
 
@@ -4537,12 +4598,10 @@ export class StockController {
           .json({ success: false, message: "Invoice not found" });
 
       if (!canManageDispatchForInvoice(req, invoice)) {
-        return res
-          .status(403)
-          .json({
-            success: false,
-            message: "Not allowed to update this dispatch",
-          });
+        return res.status(403).json({
+          success: false,
+          message: "Not allowed to update this dispatch",
+        });
       }
 
       const currentPacking = invoice.dispatch?.packingItems || [];
@@ -4599,12 +4658,10 @@ export class StockController {
 
       return res.status(200).json({ success: true, data: updatedInvoice });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to update packing",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to update packing",
+      });
     }
   }
 
@@ -4620,12 +4677,10 @@ export class StockController {
         .lean();
       return res.status(200).json({ success: true, data: couriers });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to fetch couriers",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to fetch couriers",
+      });
     }
   }
 
@@ -4640,13 +4695,10 @@ export class StockController {
 
       const { name, contactName, contactNumber } = req.body;
       if (!name || !contactName || !contactNumber) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message:
-              "Courier name, contact name and contact number are required",
-          });
+        return res.status(400).json({
+          success: false,
+          message: "Courier name, contact name and contact number are required",
+        });
       }
 
       const courier = await StockCourier.create({
@@ -4659,12 +4711,10 @@ export class StockController {
 
       return res.status(201).json({ success: true, data: courier });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to create courier",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to create courier",
+      });
     }
   }
 
@@ -4693,22 +4743,18 @@ export class StockController {
           .json({ success: false, message: "Invoice not found" });
 
       if (!canManageDispatchForInvoice(req, invoice)) {
-        return res
-          .status(403)
-          .json({
-            success: false,
-            message: "Not allowed to dispatch this invoice",
-          });
+        return res.status(403).json({
+          success: false,
+          message: "Not allowed to dispatch this invoice",
+        });
       }
 
       const packingItems = invoice.dispatch?.packingItems || [];
       if (!computePackingCompletion(packingItems)) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message: "All items must be fully packed before dispatch",
-          });
+        return res.status(400).json({
+          success: false,
+          message: "All items must be fully packed before dispatch",
+        });
       }
 
       if (!transportMeans) {
@@ -4734,12 +4780,10 @@ export class StockController {
         };
       } else {
         if (!courierName || !courierContactName || !courierContactNumber) {
-          return res
-            .status(400)
-            .json({
-              success: false,
-              message: "Provide courier details or select an existing courier",
-            });
+          return res.status(400).json({
+            success: false,
+            message: "Provide courier details or select an existing courier",
+          });
         }
         const newCourier = await StockCourier.create({
           org_id,
@@ -4777,12 +4821,10 @@ export class StockController {
       );
 
       if (!updatedInvoice) {
-        return res
-          .status(404)
-          .json({
-            success: false,
-            message: "Invoice not found after dispatch update",
-          });
+        return res.status(404).json({
+          success: false,
+          message: "Invoice not found after dispatch update",
+        });
       }
 
       const smsNotification = await sendDispatchNotificationForInvoice({
@@ -4795,12 +4837,10 @@ export class StockController {
         .status(200)
         .json({ success: true, data: updatedInvoice, smsNotification });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to dispatch invoice",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to dispatch invoice",
+      });
     }
   }
 
@@ -4824,12 +4864,10 @@ export class StockController {
           .json({ success: false, message: "Invoice not found" });
 
       if (!canManageDispatchForInvoice(req, invoice)) {
-        return res
-          .status(403)
-          .json({
-            success: false,
-            message: "Not allowed to view dispatch notifications",
-          });
+        return res.status(403).json({
+          success: false,
+          message: "Not allowed to view dispatch notifications",
+        });
       }
 
       const notifications = await DispatchNotification.find({
@@ -4841,12 +4879,10 @@ export class StockController {
 
       return res.status(200).json({ success: true, data: notifications });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to fetch dispatch notifications",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to fetch dispatch notifications",
+      });
     }
   }
 
@@ -4870,13 +4906,10 @@ export class StockController {
           .json({ success: false, message: "Invoice not found" });
 
       if (!canManageDispatchForInvoice(req, invoice)) {
-        return res
-          .status(403)
-          .json({
-            success: false,
-            message:
-              "Not allowed to send dispatch notification for this invoice",
-          });
+        return res.status(403).json({
+          success: false,
+          message: "Not allowed to send dispatch notification for this invoice",
+        });
       }
 
       const smsNotification = await sendDispatchNotificationForInvoice({
@@ -4887,12 +4920,10 @@ export class StockController {
 
       return res.status(200).json({ success: true, smsNotification });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to send dispatch notification",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to send dispatch notification",
+      });
     }
   }
 
@@ -4929,12 +4960,10 @@ export class StockController {
           .json({ success: false, message: "Invoice not found" });
 
       if (!canManageDispatchForInvoice(req, invoice)) {
-        return res
-          .status(403)
-          .json({
-            success: false,
-            message: "Not allowed to retry this dispatch notification",
-          });
+        return res.status(403).json({
+          success: false,
+          message: "Not allowed to retry this dispatch notification",
+        });
       }
 
       const company = await Company.findById(org_id)
@@ -4983,12 +5012,10 @@ export class StockController {
         },
       });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to retry dispatch notification",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to retry dispatch notification",
+      });
     }
   }
 
@@ -5046,19 +5073,15 @@ export class StockController {
         { new: true },
       );
 
-      return res
-        .status(200)
-        .json({
-          success: true,
-          data: updatedInvoice.dispatch?.inquiries || [],
-        });
+      return res.status(200).json({
+        success: true,
+        data: updatedInvoice.dispatch?.inquiries || [],
+      });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to add inquiry",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to add inquiry",
+      });
     }
   }
 
@@ -5089,21 +5112,17 @@ export class StockController {
       }
 
       if (!invoice.dispatch || invoice.dispatch.status !== "dispatched") {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message: "Invoice must be dispatched before delivery confirmation",
-          });
+        return res.status(400).json({
+          success: false,
+          message: "Invoice must be dispatched before delivery confirmation",
+        });
       }
 
       if (!["good", "not_good"].includes(String(condition))) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message: "condition must be good or not_good",
-          });
+        return res.status(400).json({
+          success: false,
+          message: "condition must be good or not_good",
+        });
       }
 
       const updatedInvoice = await StockInvoice.findOneAndUpdate(
@@ -5126,12 +5145,10 @@ export class StockController {
       );
 
       if (!updatedInvoice) {
-        return res
-          .status(404)
-          .json({
-            success: false,
-            message: "Invoice not found after delivery update",
-          });
+        return res.status(404).json({
+          success: false,
+          message: "Invoice not found after delivery update",
+        });
       }
 
       const deliverySmsNotification = await sendDeliveryNotificationForInvoice({
@@ -5144,12 +5161,10 @@ export class StockController {
         .status(200)
         .json({ success: true, data: updatedInvoice, deliverySmsNotification });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to confirm delivery",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to confirm delivery",
+      });
     }
   }
 
@@ -5161,12 +5176,10 @@ export class StockController {
           .status(401)
           .json({ success: false, message: "Unauthorized" });
       if (!isAdminRole(req.user?.role)) {
-        return res
-          .status(403)
-          .json({
-            success: false,
-            message: "Only admin/HR can view dispatch analytics",
-          });
+        return res.status(403).json({
+          success: false,
+          message: "Only admin/HR can view dispatch analytics",
+        });
       }
 
       const invoices = await StockInvoice.find({ org_id }).lean();
@@ -5223,12 +5236,10 @@ export class StockController {
         },
       });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to fetch dispatch analytics",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to fetch dispatch analytics",
+      });
     }
   }
 
@@ -5244,12 +5255,10 @@ export class StockController {
       }
 
       if (!isAdminRole(req.user?.role)) {
-        return res
-          .status(403)
-          .json({
-            success: false,
-            message: "Only admin/HR can create categories",
-          });
+        return res.status(403).json({
+          success: false,
+          message: "Only admin/HR can create categories",
+        });
       }
 
       const { name, description } = req.body;
@@ -5278,12 +5287,10 @@ export class StockController {
 
       return res.status(201).json({ success: true, data: category });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to create category",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to create category",
+      });
     }
   }
 
@@ -5300,12 +5307,10 @@ export class StockController {
         .lean();
       return res.status(200).json({ success: true, data: categories });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to fetch categories",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to fetch categories",
+      });
     }
   }
 
@@ -5321,12 +5326,10 @@ export class StockController {
       }
 
       if (!isAdminRole(req.user?.role)) {
-        return res
-          .status(403)
-          .json({
-            success: false,
-            message: "Only admin/HR can create products",
-          });
+        return res.status(403).json({
+          success: false,
+          message: "Only admin/HR can create products",
+        });
       }
 
       const getVal = (v: any) => (Array.isArray(v) ? v[0] : v);
@@ -5354,12 +5357,10 @@ export class StockController {
         buyingPrice !== undefined ? buyingPrice : startingPrice;
 
       if (!name || !category) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message: "Product name and category are required",
-          });
+        return res.status(400).json({
+          success: false,
+          message: "Product name and category are required",
+        });
       }
 
       if (
@@ -5368,12 +5369,10 @@ export class StockController {
         sellingPrice === undefined ||
         sellingPrice === null
       ) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message: "Buying price and selling price are required",
-          });
+        return res.status(400).json({
+          success: false,
+          message: "Buying price and selling price are required",
+        });
       }
 
       if (
@@ -5382,21 +5381,17 @@ export class StockController {
         Number(minAlertQuantity) < 0 ||
         Number(currentQuantity) < 0
       ) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message: "Price and quantity values must be positive",
-          });
+        return res.status(400).json({
+          success: false,
+          message: "Price and quantity values must be positive",
+        });
       }
 
       if ((expiryEnabled === "true" || expiryEnabled === true) && !expiryDate) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message: "Expiry date is required when expiry checker is enabled",
-          });
+        return res.status(400).json({
+          success: false,
+          message: "Expiry date is required when expiry checker is enabled",
+        });
       }
 
       const categoryExists = await StockCategory.findOne({
@@ -5469,12 +5464,10 @@ export class StockController {
 
       return res.status(201).json({ success: true, data: product });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to create product",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to create product",
+      });
     }
   }
 
@@ -5539,12 +5532,10 @@ export class StockController {
 
       return res.status(200).json({ success: true, data });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to fetch products",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to fetch products",
+      });
     }
   }
 
@@ -5557,12 +5548,10 @@ export class StockController {
           .json({ success: false, message: "Unauthorized" });
 
       if (!isAdminRole(req.user?.role)) {
-        return res
-          .status(403)
-          .json({
-            success: false,
-            message: "Only admin/HR can update products",
-          });
+        return res.status(403).json({
+          success: false,
+          message: "Only admin/HR can update products",
+        });
       }
 
       const { id } = req.params;
@@ -5638,12 +5627,10 @@ export class StockController {
         (payload.expiryEnabled === "true" || payload.expiryEnabled === true) &&
         !payload.expiryDate
       ) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message: "Expiry date is required when expiry checker is enabled",
-          });
+        return res.status(400).json({
+          success: false,
+          message: "Expiry date is required when expiry checker is enabled",
+        });
       }
 
       if (
@@ -5653,12 +5640,10 @@ export class StockController {
         payload.currentQuantity < 0 ||
         payload.expiryReminderDays < 0
       ) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message: "Price and quantity values must be positive",
-          });
+        return res.status(400).json({
+          success: false,
+          message: "Price and quantity values must be positive",
+        });
       }
 
       const product = await StockProduct.findOneAndUpdate(
@@ -5674,12 +5659,10 @@ export class StockController {
 
       return res.status(200).json({ success: true, data: product });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to update product",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to update product",
+      });
     }
   }
 
@@ -5692,12 +5675,10 @@ export class StockController {
           .json({ success: false, message: "Unauthorized" });
 
       if (!isAdminRole(req.user?.role)) {
-        return res
-          .status(403)
-          .json({
-            success: false,
-            message: "Only admin/HR can delete products",
-          });
+        return res.status(403).json({
+          success: false,
+          message: "Only admin/HR can delete products",
+        });
       }
 
       const { id } = req.params;
@@ -5722,12 +5703,10 @@ export class StockController {
         .status(200)
         .json({ success: true, message: "Product removed successfully" });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to delete product",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to delete product",
+      });
     }
   }
 
@@ -5741,12 +5720,10 @@ export class StockController {
           .json({ success: false, message: "Unauthorized" });
 
       if (!isAdminRole(req.user?.role)) {
-        return res
-          .status(403)
-          .json({
-            success: false,
-            message: "Only admin/HR can bulk upload products",
-          });
+        return res.status(403).json({
+          success: false,
+          message: "Only admin/HR can bulk upload products",
+        });
       }
 
       const file = req.file as any;
@@ -5949,12 +5926,10 @@ export class StockController {
         },
       });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to bulk upload products",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to bulk upload products",
+      });
     }
   }
 
@@ -5981,22 +5956,18 @@ export class StockController {
       } = req.body;
 
       if (!productId || Number(quantityAdded) <= 0) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message: "productId and positive quantityAdded are required",
-          });
+        return res.status(400).json({
+          success: false,
+          message: "productId and positive quantityAdded are required",
+        });
       }
 
       if (Boolean(isOutsourced) && !String(outsourcedCompany || "").trim()) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message:
-              "outsourcedCompany is required when stock entry is outsourced",
-          });
+        return res.status(400).json({
+          success: false,
+          message:
+            "outsourcedCompany is required when stock entry is outsourced",
+        });
       }
 
       const product = await StockProduct.findOne({ _id: productId, org_id });
@@ -6038,12 +6009,10 @@ export class StockController {
         product.assignedUsers.map(String).includes(String(actorId));
 
       if (!canManage) {
-        return res
-          .status(403)
-          .json({
-            success: false,
-            message: "You are not assigned to manage this product",
-          });
+        return res.status(403).json({
+          success: false,
+          message: "You are not assigned to manage this product",
+        });
       }
 
       product.currentQuantity += Number(quantityAdded);
@@ -6060,21 +6029,17 @@ export class StockController {
       }
 
       if (product.expiryEnabled && !product.expiryDate) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message: "Expiry date is required when expiry checker is enabled",
-          });
+        return res.status(400).json({
+          success: false,
+          message: "Expiry date is required when expiry checker is enabled",
+        });
       }
 
       if (Number(product.expiryReminderDays || 0) < 0) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message: "Expiry reminder days must be zero or positive",
-          });
+        return res.status(400).json({
+          success: false,
+          message: "Expiry reminder days must be zero or positive",
+        });
       }
 
       await product.save();
@@ -6130,12 +6095,10 @@ export class StockController {
         },
       });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to add stock",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to add stock",
+      });
     }
   }
 
@@ -6156,12 +6119,10 @@ export class StockController {
         .lean();
       return res.status(200).json({ success: true, data: locations });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to fetch warehouse locations",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to fetch warehouse locations",
+      });
     }
   }
 
@@ -6196,58 +6157,38 @@ export class StockController {
         typeof width !== "number" ||
         typeof height !== "number"
       ) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message: "Name, code, x, y, width and height are required",
-          });
+        return res.status(400).json({
+          success: false,
+          message: "Name, code, x, y, width and height are required",
+        });
       }
 
-      if (branchId) {
-        const branch = await Branch.findOne({
-          _id: String(branchId).trim(),
-          org_id,
+      if (!branchId) {
+        return res.status(400).json({
+          success: false,
+          message: "branchId is required",
         });
-        if (!branch) {
-          // For backward compatibility some callers use a warehouse id in place of branchId.
-          // Accept that by falling back to checking the Warehouse collection.
-          const { Warehouse } = await import("../models/Warehouse");
-          const warehouse = await Warehouse.findOne({
-            _id: String(branchId).trim(),
-            org_id,
-          });
-          if (!warehouse)
-            return res
-              .status(404)
-              .json({
-                success: false,
-                message: "Branch or Warehouse not found",
-              });
-        }
       }
 
       const existing = await StockLocation.findOne({
         org_id,
-        branchId: branchId ? String(branchId).trim() : undefined,
+        branchId: String(branchId).trim(),
         code: String(code).trim(),
       });
       if (existing) {
-        return res
-          .status(409)
-          .json({
-            success: false,
-            message: "A location with this code already exists",
-          });
+        return res.status(409).json({
+          success: false,
+          message: "A location with this code already exists",
+        });
       }
 
       const location = await StockLocation.create({
         org_id,
-        branchId: branchId ? String(branchId).trim() : undefined,
+        branchId: String(branchId).trim(),
         name: String(name).trim(),
         code: String(code).trim(),
         locationType: String(locationType || "bin").trim(),
-        parentId: parentId ? String(parentId).trim() : undefined,
+        parentId: parentId ? String(parentId).trim() : null,
         x: Number(x),
         y: Number(y),
         width: Number(width),
@@ -6257,12 +6198,10 @@ export class StockController {
 
       return res.status(201).json({ success: true, data: location });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to create warehouse location",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to create warehouse location",
+      });
     }
   }
 
@@ -6312,12 +6251,10 @@ export class StockController {
 
       return res.status(200).json({ success: true, data: location });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to update warehouse location",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to update warehouse location",
+      });
     }
   }
 
@@ -6350,12 +6287,10 @@ export class StockController {
       await StockProductLocation.deleteMany({ org_id, locationId });
       return res.status(200).json({ success: true, data: deleted });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to delete warehouse location",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to delete warehouse location",
+      });
     }
   }
 
@@ -6382,12 +6317,10 @@ export class StockController {
       }).lean();
       return res.status(200).json({ success: true, data: inventory });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to fetch location inventory",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to fetch location inventory",
+      });
     }
   }
 
@@ -6403,12 +6336,10 @@ export class StockController {
       const search = String(req.query.search || "").trim();
 
       if (!productId && !search) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message: "productId or search query is required",
-          });
+        return res.status(400).json({
+          success: false,
+          message: "productId or search query is required",
+        });
       }
 
       let productIds: string[] = [];
@@ -6430,12 +6361,10 @@ export class StockController {
       }).lean();
       return res.status(200).json({ success: true, data: locations });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to fetch product locations",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to fetch product locations",
+      });
     }
   }
 
@@ -6450,13 +6379,11 @@ export class StockController {
 
       const { productId, locationId, quantity } = req.body;
       if (!productId || !locationId || Number(quantity) < 0) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message:
-              "productId, locationId and non-negative quantity are required",
-          });
+        return res.status(400).json({
+          success: false,
+          message:
+            "productId, locationId and non-negative quantity are required",
+        });
       }
 
       const product = await StockProduct.findOne({ _id: productId, org_id });
@@ -6487,12 +6414,10 @@ export class StockController {
 
       return res.status(200).json({ success: true, data: existing });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to assign product location",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to assign product location",
+      });
     }
   }
 
@@ -6520,32 +6445,26 @@ export class StockController {
       } = req.body;
 
       if (!productId || Number(quantitySold) <= 0 || Number(soldPrice) < 0) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message:
-              "productId, positive quantitySold and soldPrice are required",
-          });
+        return res.status(400).json({
+          success: false,
+          message:
+            "productId, positive quantitySold and soldPrice are required",
+        });
       }
 
       if (isSalesCompany && !salesEmployeeId) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message: "salesEmployeeId is required when isSalesCompany is true",
-          });
+        return res.status(400).json({
+          success: false,
+          message: "salesEmployeeId is required when isSalesCompany is true",
+        });
       }
 
       if (!isWalkInClient && (!buyerName || !buyerNumber || !buyerLocation)) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message:
-              "Buyer details are required unless walk-in client is selected",
-          });
+        return res.status(400).json({
+          success: false,
+          message:
+            "Buyer details are required unless walk-in client is selected",
+        });
       }
 
       const product = await StockProduct.findOne({ _id: productId, org_id });
@@ -6559,21 +6478,17 @@ export class StockController {
         product.assignedUsers.map(String).includes(String(actorId));
 
       if (!canManage) {
-        return res
-          .status(403)
-          .json({
-            success: false,
-            message: "You are not assigned to sell this product",
-          });
+        return res.status(403).json({
+          success: false,
+          message: "You are not assigned to sell this product",
+        });
       }
 
       if (product.currentQuantity < Number(quantitySold)) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message: "Cannot sell more than available stock",
-          });
+        return res.status(400).json({
+          success: false,
+          message: "Cannot sell more than available stock",
+        });
       }
 
       product.currentQuantity -= Number(quantitySold);
@@ -6607,12 +6522,10 @@ export class StockController {
 
       return res.status(201).json({ success: true, data: { sale, product } });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to record sale",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to record sale",
+      });
     }
   }
 
@@ -6668,12 +6581,10 @@ export class StockController {
 
       return res.status(200).json({ success: true, data });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to fetch sales",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to fetch sales",
+      });
     }
   }
 
@@ -6695,12 +6606,10 @@ export class StockController {
         .lean();
       return res.status(200).json({ success: true, data: entries });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to fetch stock entries",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to fetch stock entries",
+      });
     }
   }
 
@@ -6738,12 +6647,10 @@ export class StockController {
         },
       });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to fetch category",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to fetch category",
+      });
     }
   }
 
@@ -6796,19 +6703,15 @@ export class StockController {
         ([month, data]) => ({ month, ...data }),
       );
 
-      return res
-        .status(200)
-        .json({
-          success: true,
-          data: { products, sales, totalRevenue, totalUnits, monthlyTrend },
-        });
+      return res.status(200).json({
+        success: true,
+        data: { products, sales, totalRevenue, totalUnits, monthlyTrend },
+      });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to fetch category sales",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to fetch category sales",
+      });
     }
   }
 
@@ -6857,12 +6760,10 @@ export class StockController {
 
       return res.status(200).json({ success: true, data: result });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to fetch categories sales",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to fetch categories sales",
+      });
     }
   }
 
@@ -6875,12 +6776,10 @@ export class StockController {
           .json({ success: false, message: "Unauthorized" });
 
       if (!isAdminRole(req.user?.role)) {
-        return res
-          .status(403)
-          .json({
-            success: false,
-            message: "Only admin/HR can update categories",
-          });
+        return res.status(403).json({
+          success: false,
+          message: "Only admin/HR can update categories",
+        });
       }
 
       const { id } = req.params;
@@ -6899,12 +6798,10 @@ export class StockController {
       });
 
       if (existing) {
-        return res
-          .status(409)
-          .json({
-            success: false,
-            message: "Category with this name already exists",
-          });
+        return res.status(409).json({
+          success: false,
+          message: "Category with this name already exists",
+        });
       }
 
       const category = await StockCategory.findOneAndUpdate(
@@ -6928,12 +6825,10 @@ export class StockController {
 
       return res.status(200).json({ success: true, data: category });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to update category",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to update category",
+      });
     }
   }
 
@@ -6946,12 +6841,10 @@ export class StockController {
           .json({ success: false, message: "Unauthorized" });
 
       if (!isAdminRole(req.user?.role)) {
-        return res
-          .status(403)
-          .json({
-            success: false,
-            message: "Only admin/HR can delete categories",
-          });
+        return res.status(403).json({
+          success: false,
+          message: "Only admin/HR can delete categories",
+        });
       }
 
       const { id } = req.params;
@@ -6971,12 +6864,10 @@ export class StockController {
         .status(200)
         .json({ success: true, message: "Category deleted successfully" });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to delete category",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to delete category",
+      });
     }
   }
 
@@ -7115,12 +7006,10 @@ export class StockController {
           .json({ success: false, message: "Unauthorized" });
 
       if (!isAdminRole(req.user?.role)) {
-        return res
-          .status(403)
-          .json({
-            success: false,
-            message: "Only admin/HR can create services",
-          });
+        return res.status(403).json({
+          success: false,
+          message: "Only admin/HR can create services",
+        });
       }
 
       const {
@@ -7155,12 +7044,10 @@ export class StockController {
 
       return res.status(201).json({ success: true, data: service });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to create service",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to create service",
+      });
     }
   }
 
@@ -7182,12 +7069,10 @@ export class StockController {
 
       return res.status(200).json({ success: true, data: services });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to fetch services",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to fetch services",
+      });
     }
   }
 
@@ -7212,12 +7097,10 @@ export class StockController {
           .json({ success: false, message: "Service not found" });
       return res.status(200).json({ success: true, data: service });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to fetch service",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to fetch service",
+      });
     }
   }
 
@@ -7230,12 +7113,10 @@ export class StockController {
           .json({ success: false, message: "Unauthorized" });
 
       if (!isAdminRole(req.user?.role)) {
-        return res
-          .status(403)
-          .json({
-            success: false,
-            message: "Only admin/HR can update services",
-          });
+        return res.status(403).json({
+          success: false,
+          message: "Only admin/HR can update services",
+        });
       }
 
       const { serviceId } = req.params;
@@ -7270,12 +7151,10 @@ export class StockController {
           .json({ success: false, message: "Service not found" });
       return res.status(200).json({ success: true, data: service });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to update service",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to update service",
+      });
     }
   }
 
@@ -7288,12 +7167,10 @@ export class StockController {
           .json({ success: false, message: "Unauthorized" });
 
       if (!isAdminRole(req.user?.role)) {
-        return res
-          .status(403)
-          .json({
-            success: false,
-            message: "Only admin/HR can delete services",
-          });
+        return res.status(403).json({
+          success: false,
+          message: "Only admin/HR can delete services",
+        });
       }
 
       const { serviceId } = req.params;
@@ -7311,12 +7188,10 @@ export class StockController {
         .status(200)
         .json({ success: true, message: "Service deleted successfully" });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to delete service",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to delete service",
+      });
     }
   }
 
@@ -7423,12 +7298,10 @@ export class StockController {
         comments,
       } = req.body;
       if (!type || !companyName)
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message: "Type and company name are required",
-          });
+        return res.status(400).json({
+          success: false,
+          message: "Type and company name are required",
+        });
 
       const manufacturer = await StockManufacturer.create({
         org_id,
@@ -7445,12 +7318,10 @@ export class StockController {
 
       return res.status(201).json({ success: true, data: manufacturer });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to create manufacturer",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to create manufacturer",
+      });
     }
   }
 
@@ -7467,12 +7338,10 @@ export class StockController {
         .lean();
       return res.status(200).json({ success: true, data: manufacturers });
     } catch (error: any) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Failed to fetch manufacturers",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to fetch manufacturers",
+      });
     }
   }
 
