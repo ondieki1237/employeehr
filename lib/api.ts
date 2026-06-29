@@ -444,6 +444,28 @@ export const companyApi = {
     state?: string;
     city?: string;
     countryCode?: string;
+    // Advanced branding
+    glassEnabled?: boolean;
+    glassOpacity?: number;
+    glassBlur?: number;
+    glassTint?: string;
+    buttonShadow?: string;
+    hoverAnimation?: string;
+    buttonGradient?: boolean;
+    glowEffect?: string;
+    transparency?: number;
+    rippleEffect?: boolean;
+    animationSpeed?: string;
+    cardStyle?: string;
+    sidebarStyle?: string;
+    borderStyle?: string;
+    cornerStyle?: string;
+    pageBackground?: string;
+    iconStyle?: string;
+    buttonSize?: string;
+    buttonPadding?: string;
+    navigationAnimation?: string;
+    themePreset?: string;
   }) => {
     // If logoFile is provided, use FormData instead of JSON
     if (data.logoFile) {
@@ -464,6 +486,39 @@ export const companyApi = {
       if (data.state) formData.append("state", data.state);
       if (data.city) formData.append("city", data.city);
       if (data.countryCode) formData.append("countryCode", data.countryCode);
+      // Advanced branding
+      if (data.glassEnabled !== undefined)
+        formData.append("glassEnabled", String(data.glassEnabled));
+      if (data.glassOpacity !== undefined)
+        formData.append("glassOpacity", String(data.glassOpacity));
+      if (data.glassBlur !== undefined)
+        formData.append("glassBlur", String(data.glassBlur));
+      if (data.glassTint) formData.append("glassTint", data.glassTint);
+      if (data.buttonShadow) formData.append("buttonShadow", data.buttonShadow);
+      if (data.hoverAnimation)
+        formData.append("hoverAnimation", data.hoverAnimation);
+      if (data.buttonGradient !== undefined)
+        formData.append("buttonGradient", String(data.buttonGradient));
+      if (data.glowEffect) formData.append("glowEffect", data.glowEffect);
+      if (data.transparency !== undefined)
+        formData.append("transparency", String(data.transparency));
+      if (data.rippleEffect !== undefined)
+        formData.append("rippleEffect", String(data.rippleEffect));
+      if (data.animationSpeed)
+        formData.append("animationSpeed", data.animationSpeed);
+      if (data.cardStyle) formData.append("cardStyle", data.cardStyle);
+      if (data.sidebarStyle) formData.append("sidebarStyle", data.sidebarStyle);
+      if (data.borderStyle) formData.append("borderStyle", data.borderStyle);
+      if (data.cornerStyle) formData.append("cornerStyle", data.cornerStyle);
+      if (data.pageBackground)
+        formData.append("pageBackground", data.pageBackground);
+      if (data.iconStyle) formData.append("iconStyle", data.iconStyle);
+      if (data.buttonSize) formData.append("buttonSize", data.buttonSize);
+      if (data.buttonPadding)
+        formData.append("buttonPadding", data.buttonPadding);
+      if (data.navigationAnimation)
+        formData.append("navigationAnimation", data.navigationAnimation);
+      if (data.themePreset) formData.append("themePreset", data.themePreset);
 
       const headers: Record<string, string> = {};
       if (token) headers["Authorization"] = `Bearer ${token}`;
@@ -489,6 +544,7 @@ export const companyApi = {
 
     // Otherwise use JSON
     return client.post<any>("/api/company/branding", {
+      // Basic branding
       primaryColor: data.primaryColor,
       secondaryColor: data.secondaryColor,
       accentColor: data.accentColor,
@@ -502,6 +558,28 @@ export const companyApi = {
       state: data.state,
       city: data.city,
       countryCode: data.countryCode,
+      // Advanced branding
+      glassEnabled: data.glassEnabled,
+      glassOpacity: data.glassOpacity,
+      glassBlur: data.glassBlur,
+      glassTint: data.glassTint,
+      buttonShadow: data.buttonShadow,
+      hoverAnimation: data.hoverAnimation,
+      buttonGradient: data.buttonGradient,
+      glowEffect: data.glowEffect,
+      transparency: data.transparency,
+      rippleEffect: data.rippleEffect,
+      animationSpeed: data.animationSpeed,
+      cardStyle: data.cardStyle,
+      sidebarStyle: data.sidebarStyle,
+      borderStyle: data.borderStyle,
+      cornerStyle: data.cornerStyle,
+      pageBackground: data.pageBackground,
+      iconStyle: data.iconStyle,
+      buttonSize: data.buttonSize,
+      buttonPadding: data.buttonPadding,
+      navigationAnimation: data.navigationAnimation,
+      themePreset: data.themePreset,
     });
   },
 

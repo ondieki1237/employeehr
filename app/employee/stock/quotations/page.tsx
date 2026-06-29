@@ -1082,7 +1082,7 @@ export default function EmployeeQuotationsPage() {
                               {clientName}
                             </div>
                             <div className="text-xs text-teal-700">
-                              {clientNumber} · {clientLocation}
+                              {clientLocation}
                               {clientContactPerson
                                 ? ` · ${clientContactPerson}`
                                 : ""}

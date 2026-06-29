@@ -29,6 +29,7 @@ import {
 import { CategoriesManager } from "./categories-manager";
 import { ProductsManager } from "./products-manager";
 import dynamic from "next/dynamic";
+import type { ComponentType } from "react";
 import {
   ResponsiveContainer,
   BarChart,
@@ -49,10 +50,9 @@ import {
   type TenantBranding,
 } from "@/lib/stock-document-pdf";
 
-const WarehouseManagement = dynamic(
-  () => import("./warehouse-management").then((mod) => mod.WarehouseManagement),
-  { ssr: false },
-);
+const WarehouseManagement = dynamic(() => import("./warehouse-management"), {
+  ssr: false,
+});
 
 type StockView =
   | "add-inventory"

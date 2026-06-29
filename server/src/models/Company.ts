@@ -1,5 +1,5 @@
-import mongoose, { Schema, type Document } from "mongoose"
-import type { ICompany } from "../types/interfaces"
+import mongoose, { Schema, type Document } from "mongoose";
+import type { ICompany } from "../types/interfaces";
 
 const DEFAULT_ADMIN_SECTIONS = [
   "CORE",
@@ -9,7 +9,7 @@ const DEFAULT_ADMIN_SECTIONS = [
   "ACCOUNTS",
   "PERFORMANCE",
   "SYSTEM",
-]
+];
 
 const companySchema = new Schema<ICompany>(
   {
@@ -32,7 +32,121 @@ const companySchema = new Schema<ICompany>(
     textColor: { type: String, default: "#1f2937" },
     borderRadius: { type: String, default: "0.5rem" },
     fontFamily: { type: String, default: "system-ui" },
-    buttonStyle: { type: String, enum: ["rounded", "sharp", "pill"], default: "rounded" },
+    buttonStyle: {
+      type: String,
+      enum: ["rounded", "sharp", "pill"],
+      default: "rounded",
+    },
+    // Advanced Branding Features
+    glassEnabled: { type: Boolean, default: true },
+    glassOpacity: { type: Number, default: 15 }, // 0-100
+    glassBlur: { type: Number, default: 18 }, // 0-40px
+    glassTint: {
+      type: String,
+      enum: ["white", "primary", "custom"],
+      default: "white",
+    },
+    buttonShadow: {
+      type: String,
+      enum: ["none", "small", "medium", "large", "floating"],
+      default: "medium",
+    },
+    hoverAnimation: {
+      type: String,
+      enum: ["lift", "glow", "scale", "pulse", "rotate", "none"],
+      default: "lift",
+    },
+    buttonGradient: { type: Boolean, default: true },
+    glowEffect: {
+      type: String,
+      enum: ["off", "soft", "medium", "strong", "neon"],
+      default: "soft",
+    },
+    transparency: { type: Number, default: 0 }, // 0-40
+    rippleEffect: { type: Boolean, default: true },
+    animationSpeed: {
+      type: String,
+      enum: ["fast", "normal", "slow"],
+      default: "normal",
+    },
+    cardStyle: {
+      type: String,
+      enum: ["flat", "glass", "floating", "outlined", "shadow", "elevated"],
+      default: "glass",
+    },
+    sidebarStyle: {
+      type: String,
+      enum: ["solid", "glass", "floating", "collapsed", "rounded", "gradient"],
+      default: "glass",
+    },
+    borderStyle: {
+      type: String,
+      enum: ["solid", "gradient", "glass", "outlined", "dashed"],
+      default: "solid",
+    },
+    cornerStyle: {
+      type: String,
+      enum: ["sharp", "rounded", "soft", "pill", "squircle"],
+      default: "rounded",
+    },
+    pageBackground: {
+      type: String,
+      enum: [
+        "solid",
+        "gradient",
+        "glass",
+        "pattern",
+        "mesh",
+        "image",
+        "animated",
+      ],
+      default: "gradient",
+    },
+    iconStyle: {
+      type: String,
+      enum: [
+        "text-only",
+        "icon-left",
+        "icon-right",
+        "icon-only",
+        "rounded-icon",
+      ],
+      default: "icon-left",
+    },
+    buttonSize: {
+      type: String,
+      enum: ["xs", "small", "medium", "large", "xl"],
+      default: "medium",
+    },
+    buttonPadding: {
+      type: String,
+      enum: ["compact", "comfortable", "spacious"],
+      default: "comfortable",
+    },
+    navigationAnimation: {
+      type: String,
+      enum: ["fade", "slide", "scale", "none"],
+      default: "slide",
+    },
+    themePreset: {
+      type: String,
+      enum: [
+        "default",
+        "corporate",
+        "healthcare",
+        "finance",
+        "dark-glass",
+        "ocean",
+        "emerald",
+        "royal-blue",
+        "minimal",
+        "apple",
+        "stripe",
+        "vercel",
+        "linear",
+      ],
+      default: "corporate",
+    },
     subscription: {
       type: String,
       enum: ["starter", "professional", "enterprise"],
@@ -176,6 +290,6 @@ const companySchema = new Schema<ICompany>(
     },
   },
   { timestamps: true },
-)
+);
 
-export const Company = mongoose.model<ICompany>("Company", companySchema)
+export const Company = mongoose.model<ICompany>("Company", companySchema);
