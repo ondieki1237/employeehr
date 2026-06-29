@@ -925,6 +925,7 @@ export function WarehouseCanvas({
   const [searchFocus, setSearchFocus] = useState(false);
   const [savedAt, setSavedAt] = useState<Date | null>(null);
   const [zoom, setZoom] = useState(100);
+  const [isSaving, setIsSaving] = useState(false);
 
   // drag state
   const drag = useRef<{
@@ -1146,9 +1147,32 @@ export function WarehouseCanvas({
     };
   };
 
-  const handleSave = () => {
-    onSave?.(objects);
-    setSavedAt(new Date());
+  const handleSave = async () => {
+    if (!warehouse?._id) {
+      alert("No warehouse selected");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const response = await fetch(`/api/stock/warehouses/${warehouse._id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ layoutObjects: objects }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to save: ${response.statusText}`);
+      }
+
+      setSavedAt(new Date());
+      onSave?.(objects);
+    } catch (error) {
+      console.error("Save failed:", error);
+      alert("Failed to save warehouse layout");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   useEffect(() => {
@@ -1310,13 +1334,14 @@ export function WarehouseCanvas({
 
           <button
             onClick={handleSave}
-            className="
+            disabled={isSaving}
+            className={`
               px-3 py-1.5 text-xs font-medium rounded-lg
-              bg-blue-500 text-white hover:bg-blue-600
               transition-colors shadow-sm
-            "
+              ${isSaving ? "bg-slate-400 text-white cursor-not-allowed" : "bg-blue-500 text-white hover:bg-blue-600"}
+            `}
           >
-            {savedAt ? "Saved ✓" : "Save"}
+            {isSaving ? "Saving..." : savedAt ? "Saved ✓" : "Save"}
           </button>
         </div>
       </header>
@@ -1631,6 +1656,217 @@ export function WarehouseCanvas({
   );
 }
 
-export const WarehouseManagement = WarehouseCanvas;
+// Warehouse Management Wrapper Component
+function WarehouseManagementWrapper({
+  branches = [],
+  products = [],
+  warehouseLocations = [],
+  onRefreshLocations,
+}: {
+  branches?: any[];
+  products?: Product[];
+  warehouseLocations?: any[];
+  onRefreshLocations?: () => void;
+}) {
+  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
+  const [selectedWarehouseId, setSelectedWarehouseId] = useState<string | null>(
+    null,
+  );
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [newWarehouseName, setNewWarehouseName] = useState("");
+  const [newWarehouseRows, setNewWarehouseRows] = useState("10");
+  const [newWarehouseCols, setNewWarehouseCols] = useState("10");
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-export default WarehouseCanvas;
+  // Fetch warehouses on mount
+  useEffect(() => {
+    const fetchWarehouses = async () => {
+      try {
+        const response = await fetch("/api/stock/warehouses");
+        if (!response.ok) throw new Error("Failed to fetch warehouses");
+        const data = await response.json();
+        const warehouseList = data.data || [];
+        setWarehouses(warehouseList);
+        if (warehouseList.length > 0 && !selectedWarehouseId) {
+          setSelectedWarehouseId(warehouseList[0]._id);
+        }
+      } catch (err) {
+        console.error("Error fetching warehouses:", err);
+        setError("Failed to load warehouses");
+      }
+    };
+    fetchWarehouses();
+  }, []);
+
+  const handleCreateWarehouse = async () => {
+    if (!newWarehouseName.trim()) {
+      setError("Warehouse name is required");
+      return;
+    }
+
+    const rows = parseInt(newWarehouseRows) || 10;
+    const cols = parseInt(newWarehouseCols) || 10;
+
+    if (rows < 1 || cols < 1) {
+      setError("Rows and columns must be at least 1");
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch("/api/stock/warehouses", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: newWarehouseName,
+          rows,
+          cols,
+          layoutObjects: [],
+        }),
+      });
+
+      if (!response.ok) throw new Error("Failed to create warehouse");
+      const data = await response.json();
+      const newWarehouse = data.data;
+
+      setWarehouses((prev) => [...prev, newWarehouse]);
+      setSelectedWarehouseId(newWarehouse._id);
+      setNewWarehouseName("");
+      setNewWarehouseRows("10");
+      setNewWarehouseCols("10");
+      setShowCreateForm(false);
+    } catch (err) {
+      console.error("Error creating warehouse:", err);
+      setError("Failed to create warehouse");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const selectedWarehouse = warehouses.find(
+    (w) => w._id === selectedWarehouseId,
+  );
+
+  return (
+    <div className="flex flex-col h-full">
+      {/* Warehouse Selector */}
+      <div className="border-b border-slate-200 bg-slate-50/50 p-4">
+        <div className="flex items-center gap-3 flex-wrap">
+          <label className="text-sm font-medium text-slate-700">
+            Warehouse:
+          </label>
+          <select
+            value={selectedWarehouseId || ""}
+            onChange={(e) => setSelectedWarehouseId(e.target.value)}
+            className="px-3 py-2 text-sm rounded-lg border border-slate-200 bg-white hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-400"
+          >
+            <option value="">Select a warehouse...</option>
+            {warehouses.map((w) => (
+              <option key={w._id} value={w._id}>
+                {w.name}
+              </option>
+            ))}
+          </select>
+          <button
+            onClick={() => setShowCreateForm(!showCreateForm)}
+            className="px-3 py-2 text-sm font-medium rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition-colors"
+          >
+            + New Warehouse
+          </button>
+        </div>
+
+        {/* Create Warehouse Form */}
+        {showCreateForm && (
+          <div className="mt-4 p-4 bg-white border border-slate-200 rounded-lg">
+            <h3 className="text-sm font-semibold text-slate-700 mb-3">
+              Create New Warehouse
+            </h3>
+            <div className="space-y-3">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={newWarehouseName}
+                  onChange={(e) => setNewWarehouseName(e.target.value)}
+                  placeholder="Warehouse name (e.g., Main Warehouse)"
+                  className="flex-1 px-3 py-2 text-sm rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                />
+              </div>
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <label className="text-xs font-medium text-slate-600 block mb-1">
+                    Rows
+                  </label>
+                  <input
+                    type="number"
+                    value={newWarehouseRows}
+                    onChange={(e) => setNewWarehouseRows(e.target.value)}
+                    min="1"
+                    max="100"
+                    className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="text-xs font-medium text-slate-600 block mb-1">
+                    Columns
+                  </label>
+                  <input
+                    type="number"
+                    value={newWarehouseCols}
+                    onChange={(e) => setNewWarehouseCols(e.target.value)}
+                    min="1"
+                    max="100"
+                    className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-2 mt-4">
+              <button
+                onClick={handleCreateWarehouse}
+                disabled={isLoading}
+                className="px-4 py-2 text-sm font-medium rounded-lg bg-green-500 text-white hover:bg-green-600 disabled:opacity-50 transition-colors"
+              >
+                {isLoading ? "Creating..." : "Create"}
+              </button>
+              <button
+                onClick={() => {
+                  setShowCreateForm(false);
+                  setNewWarehouseName("");
+                  setNewWarehouseRows("10");
+                  setNewWarehouseCols("10");
+                  setError(null);
+                }}
+                className="px-4 py-2 text-sm font-medium rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+            {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
+          </div>
+        )}
+      </div>
+
+      {/* Canvas */}
+      <div className="flex-1">
+        {selectedWarehouse ? (
+          <WarehouseCanvas
+            warehouse={selectedWarehouse}
+            products={products}
+            onSave={onRefreshLocations}
+          />
+        ) : (
+          <div className="flex items-center justify-center h-full text-slate-500">
+            <p>Please select or create a warehouse to start designing</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export const WarehouseManagement = WarehouseManagementWrapper;
+
+export default WarehouseManagementWrapper;

@@ -285,7 +285,7 @@ export default function NewComplaintPage() {
         description: "Complaint created successfully",
       });
 
-      router.push(`/admin/accounts/complaints/${result.data._id}`);
+      router.push(`/admin/clients/complaints/${result.data._id}`);
     } catch (error) {
       toast({
         title: "Error",
@@ -370,8 +370,6 @@ export default function NewComplaintPage() {
                           clientName: "",
                           clientNumber: "",
                           clientLocation: "",
-                          relatedInvoiceId: "",
-                          relatedMachineId: "",
                         });
                       }}
                     >
@@ -556,7 +554,7 @@ export default function NewComplaintPage() {
               </div>
             </div>
 
-            {/* Related Invoice - Show for delivery/billing/refund complaint types */}
+            {/* Related Invoice - Show for specific complaint types */}
             {shouldShowInvoiceDropdown && (
               <div className="space-y-2">
                 <Label>Related Invoice</Label>
@@ -585,17 +583,10 @@ export default function NewComplaintPage() {
                       : null}
                   </SelectContent>
                 </Select>
-                {invoices.length === 0 &&
-                  formData.clientKey &&
-                  !loadingRelated && (
-                    <p className="text-xs text-muted-foreground">
-                      No invoices found for this client
-                    </p>
-                  )}
               </div>
             )}
 
-            {/* Related Machine - Show for warranty/technical/quality complaint types */}
+            {/* Related Machine - Show for machine-related complaint types */}
             {shouldShowMachineDropdown && (
               <div className="space-y-2">
                 <Label>Related Machine</Label>
@@ -626,13 +617,6 @@ export default function NewComplaintPage() {
                       : null}
                   </SelectContent>
                 </Select>
-                {machines.length === 0 &&
-                  formData.clientKey &&
-                  !loadingRelated && (
-                    <p className="text-xs text-muted-foreground">
-                      No machines found for this client
-                    </p>
-                  )}
               </div>
             )}
 

@@ -169,6 +169,12 @@ const adminMenuItems = [
     section: "CLIENTS",
   },
   {
+    label: "Client Complaints",
+    icon: AlertCircle,
+    href: "/admin/clients/complaints",
+    section: "CLIENTS",
+  },
+  {
     label: "Invoices",
     icon: FileCheck,
     href: "/admin/stock/invoices",
@@ -227,12 +233,6 @@ const adminMenuItems = [
     icon: Users,
     href: "/admin/clients/clients-list",
     section: "CLIENTS",
-  },
-  {
-    label: "Client Complaints",
-    icon: AlertCircle,
-    href: "/admin/accounts/complaints",
-    section: "ACCOUNTS",
   },
   {
     label: "Payment Management",
