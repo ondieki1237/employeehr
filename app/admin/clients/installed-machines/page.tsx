@@ -118,20 +118,18 @@ export default function InstalledMachinesPage() {
     });
   };
 
-  const openDetailDialog = (machine?: InstalledMachine) => {
-    if (machine) {
-      setEditingMachine(machine);
-      setDetailForm({
-        serialNumber: machine.serialNumber || "",
-        nextServiceDate: machine.nextServiceDate || "",
-        installedBy: machine.installedBy || "",
-        attendant: machine.attendant || "",
-        attendantNumber: machine.attendantNumber || "",
-        isTrained: machine.isTrained || false,
-        installationLocation: machine.installationLocation || "",
-        notes: machine.notes || "",
-      });
-    }
+  const openDetailDialog = (machine: InstalledMachine) => {
+    setEditingMachine(machine);
+    setDetailForm({
+      serialNumber: machine.serialNumber || "",
+      nextServiceDate: machine.nextServiceDate || "",
+      installedBy: machine.installedBy || "",
+      attendant: machine.attendant || "",
+      attendantNumber: machine.attendantNumber || "",
+      isTrained: machine.isTrained || false,
+      installationLocation: machine.installationLocation || "",
+      notes: machine.notes || "",
+    });
     setShowDetailDialog(true);
   };
 
@@ -550,7 +548,7 @@ export default function InstalledMachinesPage() {
                   <Dialog
                     open={
                       showDetailDialog &&
-                      editingMachine?._id === selectedMachine._id
+                      editingMachine?._id === selectedMachine?._id
                     }
                     onOpenChange={setShowDetailDialog}
                   >
@@ -739,8 +737,7 @@ export default function InstalledMachinesPage() {
               <CardHeader>
                 <CardTitle className="text-sm"> Notes</CardTitle>
               </CardHeader>
-              <CardContent className="text-xs text-muted-foreground space-y-2">
-              </CardContent>
+              <CardContent className="text-xs text-muted-foreground space-y-2"></CardContent>
             </Card>
           </div>
         )}

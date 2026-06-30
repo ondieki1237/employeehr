@@ -16,6 +16,7 @@ import { StockExpense } from "../models/StockExpense";
 import { StockRepeatBill } from "../models/StockRepeatBill";
 import { StockInvoicePayment } from "../models/StockInvoicePayment";
 import { CreditNote } from "../models/CreditNote";
+import { InstalledMachine } from "../models/InstalledMachine";
 import { DispatchNotification } from "../models/DispatchNotification";
 import { BulkSmsCampaign } from "../models/BulkSmsCampaign";
 import { Task } from "../models/Task";
@@ -4027,6 +4028,39 @@ export class StockController {
         await StockSale.insertMany(salesToCreate);
       }
 
+      // Auto-create InstalledMachine records for physical products (machines)
+      const machineRecordsToCreate = quotation.items
+        .filter((item: any) => {
+          if (item.isOutsourced) return false;
+          if (item.productType === "service") return false;
+          const product = productMap.get(String(item.productId));
+          return product ? product.productType !== "service" : true;
+        })
+        .map((item: any) => ({
+          org_id,
+          client: {
+            name: quotation.client.name,
+            number: quotation.client.number,
+            location: quotation.client.location,
+            contactPerson: quotation.client.contactPerson,
+          },
+          productId: String(item.productId),
+          productName: item.productName,
+          category:
+            productMap.get(String(item.productId))?.category ||
+            item.productType ||
+            "Uncategorized",
+          invoiceId: String(invoice._id),
+          quotationId: String(quotation._id),
+          status: "installation_pending",
+          isActive: true,
+          createdBy: actorId,
+        }));
+
+      if (machineRecordsToCreate.length > 0) {
+        await InstalledMachine.insertMany(machineRecordsToCreate);
+      }
+
       quotation.status = "converted";
       quotation.convertedInvoiceId = String(invoice._id);
       await quotation.save();
@@ -4172,6 +4206,30 @@ export class StockController {
 
       if (salesToCreate.length > 0) {
         await StockSale.insertMany(salesToCreate);
+      }
+
+      // Auto-create InstalledMachine records for physical products (machines)
+      const machineRecordsToCreate = stockManagedItems
+        .map((item: any) => ({
+          org_id,
+          client: {
+            name: invoice.client.name,
+            number: invoice.client.number,
+            location: invoice.client.location,
+          },
+          productId: String(item.productId),
+          productName: item.productName,
+          category:
+            productMap.get(String(item.productId))?.category || "Uncategorized",
+          invoiceId: String(invoice._id),
+          status: "installation_pending",
+          isActive: true,
+          createdBy: actorId,
+        }))
+        .filter((record: any) => !!record.productId);
+
+      if (machineRecordsToCreate.length > 0) {
+        await InstalledMachine.insertMany(machineRecordsToCreate);
       }
 
       // If payNow requested, create a payment record marking invoice fully paid

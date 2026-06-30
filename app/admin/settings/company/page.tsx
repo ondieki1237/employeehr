@@ -177,15 +177,7 @@ export default function CompanySettingsPage() {
 
         // Apply colors immediately after loading
         setTimeout(() => {
-          applyCssVarsFromApi(
-            res.data.primaryColor || "#2563eb",
-            res.data.secondaryColor || "#059669",
-            res.data.accentColor || "#f59e0b",
-            res.data.backgroundColor || "#ffffff",
-            res.data.textColor || "#1f2937",
-            res.data.borderRadius || "0.5rem",
-            res.data.logo,
-          );
+          applyCssVarsFromApi(res.data);
         }, 0);
       }
     } catch (e: any) {
@@ -198,16 +190,18 @@ export default function CompanySettingsPage() {
     }
   };
 
-  const applyCssVarsFromApi = (
-    pc: string,
-    sc: string,
-    ac: string,
-    bgc: string,
-    tc: string,
-    br: string,
-    logo?: string,
-  ) => {
+  const applyCssVarsFromApi = (brandingData: any) => {
     const root = document.documentElement;
+    const pc = brandingData.primaryColor || "#2563eb";
+    const sc = brandingData.secondaryColor || "#059669";
+    const ac = brandingData.accentColor || "#f59e0b";
+    const bgc = brandingData.backgroundColor || "#ffffff";
+    const tc = brandingData.textColor || "#1f2937";
+    const br = brandingData.borderRadius || "0.5rem";
+    const ff = brandingData.fontFamily || "system-ui";
+    const logo = brandingData.logo;
+
+    // Core colors and styles
     root.style.setProperty("--brand-primary", pc);
     root.style.setProperty("--primary", pc);
     root.style.setProperty("--brand-secondary", sc);
@@ -219,34 +213,61 @@ export default function CompanySettingsPage() {
     root.style.setProperty("--foreground", tc);
     root.style.setProperty("--brand-radius", br);
     root.style.setProperty("--radius", br);
+    root.style.setProperty("--brand-font", ff);
+    root.style.fontFamily = ff;
     root.style.backgroundColor = bgc;
     if (logo) root.style.setProperty("--company-logo-url", `url('${logo}')`);
+
     // Apply advanced branding vars
-    root.style.setProperty("--glass-enabled", glassEnabled ? "1" : "0");
-    root.style.setProperty("--glass-opacity", `${glassOpacity}%`);
-    root.style.setProperty("--glass-blur", `${glassBlur}px`);
-    root.style.setProperty("--glass-tint", glassTint);
-    root.style.setProperty("--button-shadow", buttonShadow);
-    root.style.setProperty("--hover-animation", hoverAnimation);
-    root.style.setProperty("--gradient-enabled", buttonGradient ? "1" : "0");
-    root.style.setProperty("--glow-effect", glowEffect);
-    root.style.setProperty("--transparency", `${transparency}%`);
-    root.style.setProperty("--ripple-enabled", rippleEffect ? "1" : "0");
+    const glassEnabledVal = brandingData.glassEnabled ?? true;
+    const glassOpacityVal = brandingData.glassOpacity ?? 15;
+    const glassBlurVal = brandingData.glassBlur ?? 18;
+    const glassTintVal = brandingData.glassTint || "white";
+    const buttonShadowVal = brandingData.buttonShadow || "medium";
+    const hoverAnimationVal = brandingData.hoverAnimation || "lift";
+    const buttonGradientVal = brandingData.buttonGradient ?? true;
+    const glowEffectVal = brandingData.glowEffect || "soft";
+    const transparencyVal = brandingData.transparency ?? 0;
+    const rippleEffectVal = brandingData.rippleEffect ?? true;
+    const animationSpeedVal = brandingData.animationSpeed || "normal";
+    const cardStyleVal = brandingData.cardStyle || "glass";
+    const sidebarStyleVal = brandingData.sidebarStyle || "glass";
+    const borderStyleVal = brandingData.borderStyle || "solid";
+    const cornerStyleVal = brandingData.cornerStyle || "rounded";
+    const pageBackgroundVal = brandingData.pageBackground || "gradient";
+    const iconStyleVal = brandingData.iconStyle || "icon-left";
+    const buttonSizeVal = brandingData.buttonSize || "medium";
+    const buttonPaddingVal = brandingData.buttonPadding || "comfortable";
+    const navigationAnimationVal = brandingData.navigationAnimation || "slide";
+    const themePresetVal = brandingData.themePreset || "corporate";
+
+    root.style.setProperty("--glass-enabled", glassEnabledVal ? "1" : "0");
+    root.style.setProperty("--glass-opacity", `${glassOpacityVal}%`);
+    root.style.setProperty("--glass-blur", `${glassBlurVal}px`);
+    root.style.setProperty("--glass-tint", glassTintVal);
+    root.style.setProperty("--button-shadow", buttonShadowVal);
+    root.style.setProperty("--hover-animation", hoverAnimationVal);
+    root.style.setProperty("--gradient-enabled", buttonGradientVal ? "1" : "0");
+    root.style.setProperty("--glow-effect", glowEffectVal);
+    root.style.setProperty("--transparency", `${transparencyVal}%`);
+    root.style.setProperty("--ripple-enabled", rippleEffectVal ? "1" : "0");
     const speeds = { fast: "0.15s", normal: "0.3s", slow: "0.5s" };
     root.style.setProperty(
       "--animation-duration",
-      speeds[animationSpeed as keyof typeof speeds] || "0.3s",
+      speeds[animationSpeedVal as keyof typeof speeds] || "0.3s",
     );
-    root.style.setProperty("--card-style", cardStyle);
-    root.style.setProperty("--sidebar-style", sidebarStyle);
-    root.style.setProperty("--border-style", borderStyle);
-    root.style.setProperty("--corner-style", cornerStyle);
-    root.style.setProperty("--page-background", pageBackground);
-    root.style.setProperty("--icon-style", iconStyle);
-    root.style.setProperty("--button-size", buttonSize);
-    root.style.setProperty("--button-padding", buttonPadding);
-    root.style.setProperty("--nav-animation", navigationAnimation);
-    root.style.setProperty("--theme-preset", themePreset);
+    root.style.setProperty("--card-style", cardStyleVal);
+    root.style.setProperty("--sidebar-style", sidebarStyleVal);
+    root.style.setProperty("--border-style", borderStyleVal);
+    root.style.setProperty("--corner-style", cornerStyleVal);
+    root.style.setProperty("--page-background", pageBackgroundVal);
+    root.style.setProperty("--icon-style", iconStyleVal);
+    root.style.setProperty("--button-size", buttonSizeVal);
+    root.style.setProperty("--button-padding", buttonPaddingVal);
+    root.style.setProperty("--nav-animation", navigationAnimationVal);
+    root.style.setProperty("--theme-preset", themePresetVal);
+
+    console.log("✓ CSS variables applied from branding data");
   };
 
   const onLogoFile = (file: File) => {
@@ -279,34 +300,6 @@ export default function CompanySettingsPage() {
     // Apply to actual page background
     root.style.backgroundColor = backgroundColor;
     if (logo) root.style.setProperty("--company-logo-url", `url('${logo}')`);
-    // Apply advanced branding vars
-    root.style.setProperty("--glass-enabled", glassEnabled ? "1" : "0");
-    root.style.setProperty("--glass-opacity", `${glassOpacity}%`);
-    root.style.setProperty("--glass-blur", `${glassBlur}px`);
-    root.style.setProperty("--glass-tint", glassTint);
-    root.style.setProperty("--button-shadow", buttonShadow);
-    root.style.setProperty("--hover-animation", hoverAnimation);
-    root.style.setProperty("--gradient-enabled", buttonGradient ? "1" : "0");
-    root.style.setProperty("--glow-effect", glowEffect);
-    root.style.setProperty("--transparency", `${transparency}%`);
-    root.style.setProperty("--ripple-enabled", rippleEffect ? "1" : "0");
-    const speeds = { fast: "0.15s", normal: "0.3s", slow: "0.5s" };
-    root.style.setProperty(
-      "--animation-duration",
-      speeds[animationSpeed as keyof typeof speeds] || "0.3s",
-    );
-    root.style.setProperty("--card-style", cardStyle);
-    root.style.setProperty("--sidebar-style", sidebarStyle);
-    root.style.setProperty("--border-style", borderStyle);
-    root.style.setProperty("--corner-style", cornerStyle);
-    root.style.setProperty("--page-background", pageBackground);
-    root.style.setProperty("--icon-style", iconStyle);
-    root.style.setProperty("--button-size", buttonSize);
-    root.style.setProperty("--button-padding", buttonPadding);
-    root.style.setProperty("--nav-animation", navigationAnimation);
-    root.style.setProperty("--theme-preset", themePreset);
-  };
-
     // Apply advanced branding vars
     root.style.setProperty("--glass-enabled", glassEnabled ? "1" : "0");
     root.style.setProperty("--glass-opacity", `${glassOpacity}%`);
@@ -415,13 +408,12 @@ export default function CompanySettingsPage() {
         // Update logo display with the server response
         setLogo(res.data.logo);
         setLogoFile(null); // Clear file input
-        // Apply CSS variables after state update (use setTimeout to ensure state is updated)
-        setTimeout(() => {
-          applyCssVars();
-        }, 0);
+        // Apply CSS variables directly from response data
+        console.log("Applying CSS variables from saved branding data");
+        applyCssVarsFromApi(res.data);
         toast({
           description:
-            "✓ Branding updated and synced across your organization. All employees will see the new branding when they refresh.",
+            "✓ Branding saved successfully! All changes have been applied.",
           variant: "default",
         });
       } else {
@@ -796,7 +788,7 @@ export default function CompanySettingsPage() {
         </Card>
 
         {/* Department KPIs (collapsible) */}
-        <Collapsible defaultOpen>
+        <Collapsible defaultOpen={false}>
           <Card className="border-2">
             <CardHeader>
               <div className="flex items-center justify-between w-full">

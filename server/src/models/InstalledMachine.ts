@@ -17,7 +17,7 @@ interface IInstalledMachine {
   installationDepartment?: string;
   installationDate?: Date;
   warrantyUntil?: Date;
-  status?: "active" | "maintenance" | "ended";
+  status?: "active" | "maintenance" | "ended" | "installation_pending";
   invoiceId?: string;
   quotationId?: string;
   isActive?: boolean;
@@ -51,7 +51,7 @@ const installedMachineSchema = new Schema<IInstalledMachine>(
     warrantyUntil: { type: Date },
     status: {
       type: String,
-      enum: ["active", "maintenance", "ended"],
+      enum: ["active", "maintenance", "ended", "installation_pending"],
       default: "active",
     },
     invoiceId: { type: String, index: true },
