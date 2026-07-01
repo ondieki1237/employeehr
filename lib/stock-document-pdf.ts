@@ -1478,8 +1478,8 @@ export function generateTenderPdf(params: {
   drawWatermark(doc, params.watermarkText);
 
   drawModernHeader(doc, {
-    title: "Tender",
-    numberLabel: "Tender Number",
+    title: "Quotation",
+    numberLabel: "Quotation Number",
     numberValue: params.tenderNumber,
     createdAt: params.createdAt,
     branding: params.branding,

@@ -5887,6 +5887,7 @@ export class StockController {
               const newCat = await StockCategory.create({
                 org_id,
                 name: categoryName,
+                createdBy: actorId,
               });
               categoryId = String(newCat._id);
               categoryMap.set(categoryName.toLowerCase(), categoryId);

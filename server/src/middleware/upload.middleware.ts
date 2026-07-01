@@ -25,10 +25,19 @@ const storage = multer.diskStorage({
   },
 })
 
+const getFileExtension = (fileName: string) => path.extname(fileName).toLowerCase()
+
+const isAllowedExtension = (fileName: string, allowedExtensions: string[]) => {
+  const ext = getFileExtension(fileName)
+  return allowedExtensions.includes(ext)
+}
+
 // File filter: only images
 const fileFilter = (req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
   const allowedMimes = ["image/png", "image/jpeg", "image/jpg", "image/svg+xml", "image/webp"]
-  if (allowedMimes.includes(file.mimetype)) {
+  const allowedExtensions = [".png", ".jpg", ".jpeg", ".svg", ".webp"]
+
+  if (allowedMimes.includes(file.mimetype) || isAllowedExtension(file.originalname, allowedExtensions)) {
     cb(null, true)
   } else {
     cb(new Error("Only image files are allowed"))
@@ -71,14 +80,17 @@ const applicationFileFilter = (req: any, file: Express.Multer.File, cb: multer.F
     "text/plain",
     "text/csv",
     "application/csv",
+    "application/octet-stream",
     "image/png",
     "image/jpeg",
     "image/jpg",
   ]
-  if (allowedMimes.includes(file.mimetype)) {
+  const allowedExtensions = [".pdf", ".doc", ".docx", ".xls", ".xlsx", ".txt", ".csv", ".png", ".jpg", ".jpeg"]
+
+  if (allowedMimes.includes(file.mimetype) || isAllowedExtension(file.originalname, allowedExtensions)) {
     cb(null, true)
   } else {
-    cb(new Error("File type not allowed. Supported: PDF, DOC, DOCX, XLS, XLSX, TXT, PNG, JPG"))
+    cb(new Error("File type not allowed. Supported: PDF, DOC, DOCX, XLS, XLSX, TXT, PNG, JPG, CSV"))
   }
 }
 
