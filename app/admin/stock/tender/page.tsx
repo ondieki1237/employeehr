@@ -74,6 +74,7 @@ interface TenderItem {
   description?: string;
   imageUrl?: string;
   showImageOnQuote?: boolean;
+  categoryGroup?: string;
 }
 
 interface Tender {
@@ -187,6 +188,7 @@ export default function TendersPage() {
   const [itemUnitPrice, setItemUnitPrice] = useState("");
   const [itemTaxRate, setItemTaxRate] = useState("0");
   const [itemDescription, setItemDescription] = useState("");
+  const [itemCategoryGroup, setItemCategoryGroup] = useState("");
   const [items, setItems] = useState<DraftItem[]>([]);
 
   // Bulk add by category
@@ -560,6 +562,7 @@ export default function TendersPage() {
     setItemUnitPrice("");
     setItemTaxRate("0");
     setItemDescription("");
+    setItemCategoryGroup("");
     setItems([]);
     setBulkCategoryId("");
     setEditingTenderId(null);
@@ -616,6 +619,9 @@ export default function TendersPage() {
       return;
     }
 
+    const inferredCategoryGroup =
+      itemCategoryGroup.trim() || product.categoryDetails?.name || undefined;
+
     setItems((prev) => [
       ...prev,
       {
@@ -628,6 +634,7 @@ export default function TendersPage() {
         description: itemDescription || product.description || "",
         imageUrl: product.imageUrl,
         showImageOnQuote: true,
+        categoryGroup: inferredCategoryGroup,
       },
     ]);
 
@@ -635,6 +642,7 @@ export default function TendersPage() {
     setItemQuantity("1");
     setItemUnitPrice("");
     setItemDescription("");
+    setItemCategoryGroup("");
   };
 
   const removeDraftItem = (index: number) => {
@@ -674,6 +682,42 @@ export default function TendersPage() {
         };
       }),
     );
+  };
+
+  const updateDraftItemCategoryGroup = (index: number, value: string) => {
+    setItems((prev) =>
+      prev.map((item, currentIndex) => {
+        if (currentIndex !== index) return item;
+        return {
+          ...item,
+          categoryGroup: value.trim() || undefined,
+        };
+      }),
+    );
+  };
+
+  const moveDraftItem = (index: number, direction: -1 | 1) => {
+    setItems((prev) => {
+      const next = [...prev];
+      const targetIndex = index + direction;
+      if (targetIndex < 0 || targetIndex >= next.length) return prev;
+      [next[index], next[targetIndex]] = [next[targetIndex], next[index]];
+      return next;
+    });
+  };
+
+  const duplicateDraftItem = (index: number) => {
+    setItems((prev) => {
+      const item = prev[index];
+      if (!item) return prev;
+      const duplicate: DraftItem = {
+        ...item,
+        quantity: item.quantity || 1,
+      };
+      const next = [...prev];
+      next.splice(index + 1, 0, duplicate);
+      return next;
+    });
   };
 
   const createOrUpdateTender = async () => {
@@ -779,18 +823,27 @@ export default function TendersPage() {
     setTenderBranchId(tender.branchId || "");
     setBranchHint(tender.branchName || "");
     setItems(
-      tender.items.map((item) => ({
-        productId: item.productId,
-        productName: item.productName,
-        quantity: item.quantity,
-        productUnitPrice: item.productUnitPrice ?? item.unitPrice,
-        soldUnitPrice: item.soldUnitPrice ?? item.unitPrice,
-        unitPrice: item.unitPrice,
-        isOutsourced: Boolean(item.isOutsourced),
-        description: item.description,
-        imageUrl: item.imageUrl,
-        showImageOnQuote: item.showImageOnQuote ?? true,
-      })),
+      tender.items.map((item) => {
+        const matchedProduct = products.find(
+          (product) => product._id === item.productId,
+        );
+        const categoryGroup =
+          item.categoryGroup || matchedProduct?.categoryDetails?.name || "";
+
+        return {
+          productId: item.productId,
+          productName: item.productName,
+          quantity: item.quantity,
+          productUnitPrice: item.productUnitPrice ?? item.unitPrice,
+          soldUnitPrice: item.soldUnitPrice ?? item.unitPrice,
+          unitPrice: item.unitPrice,
+          isOutsourced: Boolean(item.isOutsourced),
+          description: item.description,
+          imageUrl: item.imageUrl,
+          showImageOnQuote: item.showImageOnQuote ?? true,
+          categoryGroup: categoryGroup || undefined,
+        };
+      }),
     );
   };
 
@@ -1584,6 +1637,15 @@ export default function TendersPage() {
                   />
                 </div>
                 <div className="md:col-span-4">
+                  <Label>Section / Category (optional)</Label>
+                  <Input
+                    placeholder="e.g. Furniture, Installation, Civil Works"
+                    value={itemCategoryGroup}
+                    onChange={(event) => setItemCategoryGroup(event.target.value)}
+                    className="mt-1"
+                  />
+                </div>
+                <div className="md:col-span-4">
                   <Label>
                     Product Description / Scope of Work (optional, supports
                     bullet points)
@@ -1646,7 +1708,11 @@ export default function TendersPage() {
             </div>
 
             {items.length > 0 && (
-              <div className="overflow-x-auto border rounded-md">
+              <div className="space-y-2">
+                <p className="text-xs text-muted-foreground">
+                  Reorder rows with ↑/↓ to change the quote output order, or duplicate a row to place the same product in another section/category.
+                </p>
+                <div className="overflow-x-auto border rounded-md">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="text-left border-b">
@@ -1654,9 +1720,10 @@ export default function TendersPage() {
                       <th className="py-2 px-2">Qty</th>
                       <th className="py-2 px-2">Product Price</th>
                       <th className="py-2 px-2">Sold Price (Editable)</th>
+                      <th className="py-2 px-2">Section</th>
                       <th className="py-2 px-2">Outsourced</th>
                       <th className="py-2 px-2">Total</th>
-                      <th className="py-2 px-2">Drop</th>
+                      <th className="py-2 px-2">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1688,7 +1755,7 @@ export default function TendersPage() {
                               <td colSpan={7} className="px-2 pt-4 pb-1">
                                 <div className="flex items-center gap-3">
                                   <div className="h-px flex-1 bg-border" />
-                                  <span className="rounded-full border bg-muted px-3 py-0.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground whitespace-nowrap">
+                                  <span className="rounded-full border bg-muted px-3 py-0.5 text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground whitespace-nowrap">
                                     {group}
                                   </span>
                                   <div className="h-px flex-1 bg-border" />
@@ -1783,20 +1850,60 @@ export default function TendersPage() {
                               </div>
                             </td>
                             <td className="py-2 px-2">
+                              <Input
+                                value={item.categoryGroup || ""}
+                                onChange={(e) =>
+                                  updateDraftItemCategoryGroup(index, e.target.value)
+                                }
+                                placeholder="e.g. Furniture"
+                                className="h-8 min-w-[140px]"
+                              />
+                            </td>
+                            <td className="py-2 px-2">
                               {item.isOutsourced ? "Yes" : "No"}
                             </td>
                             <td className="py-2 px-2">
                               {(item.quantity * soldPrice).toFixed(2)}
                             </td>
                             <td className="py-2 px-2">
-                              <Button
-                                size="sm"
-                                type="button"
-                                variant="destructive"
-                                onClick={() => removeDraftItem(index)}
-                              >
-                                Drop
-                              </Button>
+                              <div className="flex flex-wrap gap-1">
+                                <Button
+                                  size="sm"
+                                  type="button"
+                                  variant="outline"
+                                  className="h-8 w-8 px-0"
+                                  onClick={() => moveDraftItem(index, -1)}
+                                  disabled={index === 0}
+                                >
+                                  ↑
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  type="button"
+                                  variant="outline"
+                                  className="h-8 w-8 px-0"
+                                  onClick={() => moveDraftItem(index, 1)}
+                                  disabled={index === items.length - 1}
+                                >
+                                  ↓
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  type="button"
+                                  variant="outline"
+                                  onClick={() => duplicateDraftItem(index)}
+                                >
+                                  Duplicate
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  type="button"
+                                  variant="destructive"
+                                  onClick={() => removeDraftItem(index)}
+                                >
+                                  Drop
+                                </Button>
+                              </div>
                             </td>
                           </tr>,
                         );
@@ -1805,6 +1912,7 @@ export default function TendersPage() {
                     })()}
                   </tbody>
                 </table>
+                </div>
               </div>
             )}
 

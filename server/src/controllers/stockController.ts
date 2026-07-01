@@ -617,6 +617,7 @@ async function buildQuotationItems(
         lineTotal: Number((quantity * unitPrice).toFixed(2)),
         description: item.description,
         isOutsourced: true,
+        categoryGroup: item.categoryGroup,
       });
       continue;
     }
@@ -673,6 +674,7 @@ async function buildQuotationItems(
       isOutsourced: false,
       imageUrl: (product as any).imageUrl,
       showImageOnQuote: (item as any).showImageOnQuote || false,
+      categoryGroup: item.categoryGroup,
     });
   }
   return result;
