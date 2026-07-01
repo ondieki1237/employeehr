@@ -639,23 +639,28 @@ function drawTotalsSection(
   startY: number,
   branding?: TenantBranding,
   settings?: InvoiceDocumentSettings,
+  skipAutoPageBreak = false,
 ) {
   const primary = branding?.primaryColor || DEFAULT_PRIMARY;
   const showVat = Boolean(settings?.includeVat === true);
   const vat = showVat ? subtotal * 0.16 : 0;
   const grandTotal = subtotal + vat;
 
+  const rowH = 7;
+  const rows = showVat ? 3 : 2;
+  const boxH = rows * rowH + 3;
+
   let y = startY + 6;
-  if (y + 50 > 280) {
+  // Only auto-break if the caller hasn't already guaranteed placement
+  // (skipAutoPageBreak=true is used when the position was pre-computed,
+  // e.g. tender totals pinned to the bottom of the current page).
+  if (!skipAutoPageBreak && y + boxH > 280) {
     doc.addPage();
     y = 20;
   }
 
   const boxX = 115;
   const boxW = 83;
-  const rowH = 7;
-  const rows = showVat ? 3 : 2;
-  const boxH = rows * rowH + 3;
   const splitX = boxX + 48;
 
   // Totals table with better spacing and hierarchy
@@ -994,6 +999,7 @@ function drawTenderDetailsSection(
     department: string;
     tenderNumber: string;
     createdAt: string;
+    clientName?: string;
   },
   branding?: TenantBranding,
   startY = 72,
@@ -1007,9 +1013,10 @@ function drawTenderDetailsSection(
   const lineH = 4.2;
 
   const lines = [
-    { label: "Tender Name", value: details.tenderName || "—" },
+    { label: "Application Name", value: details.tenderName || "—" },
+    { label: "Client Name", value: details.clientName || "—" },
     { label: "Department", value: details.department || "—" },
-    { label: "Tender Number", value: details.tenderNumber || "—" },
+    { label: "Application Number", value: details.tenderNumber || "—" },
     {
       label: "Date Issued",
       value: new Date(details.createdAt).toLocaleDateString("en-KE"),
@@ -1028,7 +1035,7 @@ function drawTenderDetailsSection(
   doc.setFont("helvetica", "bold");
   doc.setFontSize(9.5);
   setColorFromHex(doc, DEFAULT_TEXT, "text");
-  doc.text("Tender Details", boxX + padX, boxY + 4.5);
+  doc.text("Application Details", boxX + padX, boxY + 4.5);
 
   let y = boxY + headerH + 5;
   doc.setFont("helvetica", "normal");
@@ -1093,6 +1100,10 @@ function drawTenderItemsTable(
   const headerHeight = 11;
   const baseRowHeight = 10.5;
   const descLineH = 3;
+  // Leave enough room on every page for the footer; the totals box (and,
+  // on the very last page, the signature block) are positioned separately
+  // by the caller, so this only needs to guard the item rows themselves.
+  const pageBottomLimit = 265;
 
   const columns = [
     { key: "index", label: "#", width: 12, align: "left" as const },
@@ -1186,7 +1197,7 @@ function drawTenderItemsTable(
   };
 
   const ensureSpace = (currentY: number, needed: number) => {
-    if (currentY + needed <= 248) return currentY;
+    if (currentY + needed <= pageBottomLimit) return currentY;
     doc.addPage();
     const headerStart = drawContinuationPageHeader(
       doc,
@@ -1198,6 +1209,13 @@ function drawTenderItemsTable(
   };
 
   let y = startY;
+  // Guard the very first header draw too — if the tender details box left
+  // almost no room on page 1, start the table on a fresh page instead of
+  // squeezing in a header with no rows under it.
+  if (y + headerHeight + baseRowHeight > pageBottomLimit) {
+    doc.addPage();
+    y = drawContinuationPageHeader(doc, branding, invoiceSettings);
+  }
   drawTableHeader(y);
   y += headerHeight;
 
@@ -1322,53 +1340,41 @@ function drawTenderItemsTable(
   return y;
 }
 
-function drawTotalsAtLastPageBottom(
+/**
+ * Category-by-category subtotal recap, drawn as part of the continuous
+ * document flow (right after the items table, before the totals box) —
+ * never as a page appended after the document has already "ended".
+ * Only starts a new page if it genuinely doesn't fit where it is.
+ */
+function drawTenderCategoryRecap(
   doc: jsPDF,
-  subTotal: number,
-  branding?: TenantBranding,
-  settings?: InvoiceDocumentSettings,
-  footerReserve = 20,
-) {
-  const lastPage = doc.getNumberOfPages();
-  doc.setPage(lastPage);
-
-  const showVat = Boolean(settings?.includeVat === true);
-  const rowH = 7;
-  const rows = showVat ? 3 : 2;
-  const boxH = rows * rowH + 3;
-  const y = 297 - footerReserve - boxH;
-
-  return drawTotalsSection(doc, subTotal, y - 6, branding, settings);
-}
-
-function drawTenderSummaryPage(
-  doc: jsPDF,
+  startY: number,
   groupedByCategory: Record<string, DocumentItem[]> | undefined,
   subTotal: number,
   branding?: TenantBranding,
+  settings?: InvoiceDocumentSettings,
 ) {
   if (!groupedByCategory || Object.keys(groupedByCategory).length === 0) {
-    return;
+    return startY;
   }
-
-  doc.addPage();
-  const headerStart = drawContinuationPageHeader(doc, branding);
 
   const primary = branding?.primaryColor || DEFAULT_PRIMARY;
   const tableX = 12;
   const tableWidth = 186;
-  let y = headerStart + 10;
+  const titleH = 10;
+  const headerHeight = 8.5;
+  const rowHeight = 7;
+  const totalRowHeight = 9;
+  const categoryCount = Object.keys(groupedByCategory).length;
+  const neededHeight =
+    titleH + headerHeight + categoryCount * rowHeight + totalRowHeight + 4;
 
-  // Title
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(12);
-  doc.setTextColor(30, 30, 30);
-  doc.text("Tender Summary by Category", tableX, y);
-  y += 12;
+  let y = startY + 6;
+  if (y + neededHeight > 265) {
+    doc.addPage();
+    y = drawContinuationPageHeader(doc, branding, settings) + 6;
+  }
 
-  // Table header
-  const headerHeight = 10;
-  const rowHeight = 8;
   const colWidths = [120, 40, 26];
   const colPositions = [
     tableX,
@@ -1376,22 +1382,24 @@ function drawTenderSummaryPage(
     tableX + colWidths[0] + colWidths[1],
   ];
 
-  // Header background
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(10.5);
+  setColorFromHex(doc, DEFAULT_TEXT, "text");
+  doc.text("Summary by Category", tableX, y);
+  y += titleH;
+
   setColorFromHex(doc, primary, "fill");
   doc.rect(tableX, y, tableWidth, headerHeight, "F");
   doc.setTextColor(255, 255, 255);
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(9);
-  doc.text("Category", colPositions[0] + 3, y + 6.5);
-  doc.text("Items", colPositions[1] + 3, y + 6.5);
-  doc.text("Subtotal", colPositions[2] + 3, y + 6.5, { align: "right" });
-
+  doc.setFontSize(8.5);
+  doc.text("Category", colPositions[0] + 3, y + 5.8);
+  doc.text("Items", colPositions[1] + 3, y + 5.8);
+  doc.text("Subtotal", colPositions[2] + 3, y + 5.8, { align: "right" });
   y += headerHeight;
 
-  // Category rows
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(9);
-  doc.setTextColor(30, 30, 30);
+  doc.setFontSize(8.5);
 
   let rowIndex = 0;
   for (const [category, items] of Object.entries(groupedByCategory)) {
@@ -1399,58 +1407,54 @@ function drawTenderSummaryPage(
       (sum, item) => sum + item.lineTotal,
       0,
     );
-    const itemCount = items.length;
 
-    // Alternating row color
     if (rowIndex % 2 === 0) {
       doc.setFillColor(248, 250, 252);
       doc.rect(tableX, y, tableWidth, rowHeight, "F");
     }
 
-    // Border
     setColorFromHex(doc, primary, "draw");
-    doc.setLineWidth(0.35);
+    doc.setLineWidth(0.3);
     doc.rect(tableX, y, tableWidth, rowHeight);
     doc.line(colPositions[1], y, colPositions[1], y + rowHeight);
     doc.line(colPositions[2], y, colPositions[2], y + rowHeight);
 
-    // Text
     doc.setTextColor(30, 30, 30);
-    doc.text(category, colPositions[0] + 3, y + 5.5);
-    doc.text(String(itemCount), colPositions[1] + 3, y + 5.5);
+    doc.text(category, colPositions[0] + 3, y + 4.8);
+    doc.text(String(items.length), colPositions[1] + 3, y + 4.8);
     doc.text(
       formatAmount(categorySubtotal),
       colPositions[2] + colWidths[2] - 3,
-      y + 5.5,
-      {
-        align: "right",
-      },
+      y + 4.8,
+      { align: "right" },
     );
 
     y += rowHeight;
     rowIndex += 1;
   }
 
-  // Total row
-  y += 3;
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(10);
   setColorFromHex(doc, primary, "fill");
-  doc.rect(tableX, y, tableWidth, 10, "F");
+  doc.rect(tableX, y, tableWidth, totalRowHeight, "F");
+  setColorFromHex(doc, primary, "draw");
+  doc.setLineWidth(0.3);
+  doc.rect(tableX, y, tableWidth, totalRowHeight);
   doc.setTextColor(255, 255, 255);
-  doc.text("GRAND TOTAL", colPositions[0] + 3, y + 6.5);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(9);
+  doc.text("GRAND TOTAL", colPositions[0] + 3, y + 6);
   doc.text(
     formatAmount(subTotal),
     colPositions[2] + colWidths[2] - 3,
-    y + 6.5,
-    {
-      align: "right",
-    },
+    y + 6,
+    { align: "right" },
   );
+  y += totalRowHeight;
 
-  setColorFromHex(doc, primary, "draw");
-  doc.setLineWidth(0.35);
-  doc.rect(tableX, y, tableWidth, 10);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.setTextColor(30, 30, 30);
+
+  return y;
 }
 
 export function generateTenderPdf(params: {
@@ -1467,6 +1471,7 @@ export function generateTenderPdf(params: {
   watermarkText?: string;
   autoSave?: boolean;
   groupedByCategory?: Record<string, DocumentItem[]>;
+  clientName?: string;
 }) {
   const doc = new jsPDF({ unit: "mm", format: "a4" });
 
@@ -1487,11 +1492,12 @@ export function generateTenderPdf(params: {
       department: params.department,
       tenderNumber: params.tenderNumber,
       createdAt: params.createdAt,
+      clientName: params.clientName,
     },
     params.branding,
   );
 
-  drawTenderItemsTable(
+  const itemsEndY = drawTenderItemsTable(
     doc,
     tableY,
     params.items,
@@ -1500,17 +1506,22 @@ export function generateTenderPdf(params: {
     params.invoiceSettings,
   );
 
-  // Add summary page if grouped by category
-  drawTenderSummaryPage(
+  // Category recap flows directly on from the items table — same page if
+  // there's room, otherwise a normal continuation page. Never appended
+  // after the rest of the document has already finished.
+  const recapEndY = drawTenderCategoryRecap(
     doc,
+    itemsEndY,
     params.groupedByCategory,
     params.subTotal,
     params.branding,
+    params.invoiceSettings,
   );
 
-  const totalsY = drawTotalsAtLastPageBottom(
+  const totalsY = drawTotalsSection(
     doc,
     params.subTotal,
+    recapEndY,
     params.branding,
     params.invoiceSettings,
   );
@@ -1518,7 +1529,7 @@ export function generateTenderPdf(params: {
   if (params.invoiceSettings?.includePreparedBy !== false) {
     drawPreparedBySignatureBlock(
       doc,
-      Math.min(totalsY - 28, 228),
+      totalsY,
       params.preparedBy,
       params.preparedBySignature,
     );

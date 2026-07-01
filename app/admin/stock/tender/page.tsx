@@ -989,6 +989,7 @@ export default function TendersPage() {
       tenderName: tender.tenderName,
       department: tender.department,
       createdAt: tender.createdAt,
+      clientName: tender.client?.name,
       items: tender.items.map((item) => ({
         productName: item.productName,
         quantity: item.quantity,
