@@ -3,7 +3,7 @@ import API_URL from "./apiBase";
 
 export interface TenantBranding {
   name?: string;
-  logo?: string;           // base64 or url
+  logo?: string; // base64 or url
   primaryColor?: string;
   secondaryColor?: string;
   invoiceEmail?: string;
@@ -47,7 +47,7 @@ export interface InvoiceDocumentSettings {
 
 export interface DocumentClient {
   name: string;
-  number: string;         // phone
+  number: string; // phone
   location: string;
 }
 
@@ -71,7 +71,7 @@ interface HeaderArgs {
   branding?: TenantBranding;
 }
 
-const DEFAULT_PRIMARY = "#0f766e";    // teal - modern & professional
+const DEFAULT_PRIMARY = "#0f766e"; // teal - modern & professional
 const DEFAULT_SECONDARY = "#14b8a6";
 const DEFAULT_TEXT = "#1f2937";
 const DEFAULT_LIGHT = "#f1f5f9";
@@ -87,7 +87,11 @@ function hexToRgb(hex: string) {
   };
 }
 
-function setColorFromHex(doc: jsPDF, hex: string, kind: "fill" | "text" | "draw") {
+function setColorFromHex(
+  doc: jsPDF,
+  hex: string,
+  kind: "fill" | "text" | "draw",
+) {
   const { r, g, b } = hexToRgb(hex);
   if (kind === "fill") doc.setFillColor(r, g, b);
   if (kind === "text") doc.setTextColor(r, g, b);
@@ -123,7 +127,9 @@ function drawWatermark(doc: jsPDF, value?: string) {
 }
 
 function buildCompanyAddress(branding?: TenantBranding): string {
-  const parts = [branding?.city, branding?.state, branding?.country].filter(Boolean);
+  const parts = [branding?.city, branding?.state, branding?.country].filter(
+    Boolean,
+  );
   return parts.length ? parts.join(", ") : "";
 }
 
@@ -138,7 +144,8 @@ function drawModernHeader(doc: jsPDF, args: HeaderArgs) {
   if (hasLogo) {
     try {
       const lower = args.branding!.logo!.toLowerCase();
-      const format = lower.includes("jpg") || lower.includes("jpeg") ? "JPEG" : "PNG";
+      const format =
+        lower.includes("jpg") || lower.includes("jpeg") ? "JPEG" : "PNG";
       const maxLogoWidth = 44;
       const maxLogoHeight = 20;
       let imageWidth = 0;
@@ -168,7 +175,14 @@ function drawModernHeader(doc: jsPDF, args: HeaderArgs) {
       }
 
       const alignedY = logoY + (maxLogoHeight - drawHeight) / 2;
-      doc.addImage(args.branding!.logo!, format, logoX, alignedY, drawWidth, drawHeight);
+      doc.addImage(
+        args.branding!.logo!,
+        format,
+        logoX,
+        alignedY,
+        drawWidth,
+        drawHeight,
+      );
     } catch (e) {
       console.warn("Logo failed to load", e);
     }
@@ -194,7 +208,12 @@ function drawModernHeader(doc: jsPDF, args: HeaderArgs) {
   doc.setFontSize(10);
   setColorFromHex(doc, DEFAULT_TEXT, "text");
   doc.text(args.numberValue, 198, metaY, { align: "right" });
-  doc.text(new Date(args.createdAt).toLocaleDateString("en-KE"), 198, metaY + 12, { align: "right" });
+  doc.text(
+    new Date(args.createdAt).toLocaleDateString("en-KE"),
+    198,
+    metaY + 12,
+    { align: "right" },
+  );
 
   drawThinDivider(doc, 68);
 }
@@ -206,13 +225,17 @@ function drawContactSlotBelowLogo(
 ) {
   const primary = branding?.primaryColor || DEFAULT_PRIMARY;
   const phone = String(settings?.contactPhone || branding?.phone || "").trim();
-  const location = String(settings?.officeLocation || buildCompanyAddress(branding) || "").trim();
+  const location = String(
+    settings?.officeLocation || buildCompanyAddress(branding) || "",
+  ).trim();
   const secondLocation = String(settings?.secondLocation || "").trim();
-  const email = String(settings?.contactEmail || settings?.invoiceEmail || branding?.email || "").trim();
+  const email = String(
+    settings?.contactEmail || settings?.invoiceEmail || branding?.email || "",
+  ).trim();
   const website = String(settings?.website || branding?.website || "").trim();
   const vatNumber = String(settings?.vatNumber || "").trim();
   const pinNumber = String(settings?.pinNumber || "").trim();
-  const useBothLocations = Boolean(settings?.useBothLocations)
+  const useBothLocations = Boolean(settings?.useBothLocations);
 
   const rows = [
     { label: "Phone", value: phone },
@@ -268,13 +291,19 @@ function drawPartiesSection(
   const padY = 3;
 
   const nameLines = doc.splitTextToSize(client.name || "Client Name", 84);
-  const preparedLines = preparedBy ? doc.splitTextToSize(`Prepared by: ${preparedBy}`, 84) : [];
-  const companyLines = doc.splitTextToSize(`Company: ${branding?.name || "—"}`, 84);
+  const preparedLines = preparedBy
+    ? doc.splitTextToSize(`Prepared by: ${preparedBy}`, 84)
+    : [];
+  const companyLines = doc.splitTextToSize(
+    `Company: ${branding?.name || "—"}`,
+    84,
+  );
   const contact = branding?.phone || branding?.email || "—";
   const contactLines = doc.splitTextToSize(`Contact: ${contact}`, 84);
 
   const leftContentLines = nameLines.length + 2;
-  const rightContentLines = companyLines.length + contactLines.length + (preparedLines.length || 0);
+  const rightContentLines =
+    companyLines.length + contactLines.length + (preparedLines.length || 0);
   const leftHeight = headerH + padY + leftContentLines * lineH + 1;
   const rightHeight = headerH + padY + rightContentLines * lineH + 1;
   const boxH = Math.max(leftHeight, rightHeight, headerH + 12);
@@ -328,7 +357,7 @@ function drawItemsTable(
   items: DocumentItem[],
   branding?: TenantBranding,
   compact = false,
-  includeTax = false
+  includeTax = false,
 ) {
   const primary = branding?.primaryColor || DEFAULT_PRIMARY;
   const tableX = 12;
@@ -340,28 +369,60 @@ function drawItemsTable(
   const columns = compact
     ? [
         { key: "index", label: "#", width: 14, align: "left" as const },
-        { key: "description", label: "Description", width: 128, align: "left" as const },
+        {
+          key: "description",
+          label: "Description",
+          width: 128,
+          align: "left" as const,
+        },
         { key: "quantity", label: "Qty", width: 44, align: "right" as const },
       ]
     : includeTax
       ? [
           { key: "index", label: "#", width: 12, align: "left" as const },
-          { key: "description", label: "Description", width: 76, align: "left" as const },
+          {
+            key: "description",
+            label: "Description",
+            width: 76,
+            align: "left" as const,
+          },
           { key: "quantity", label: "Qty", width: 16, align: "right" as const },
-          { key: "unitPrice", label: "Unit Price (KSh)", width: 34, align: "right" as const },
+          {
+            key: "unitPrice",
+            label: "Unit Price (KSh)",
+            width: 34,
+            align: "right" as const,
+          },
           { key: "tax", label: "Tax %", width: 18, align: "right" as const },
-          { key: "totalAfterTax", label: "Total", width: 30, align: "right" as const },
+          {
+            key: "totalAfterTax",
+            label: "Total",
+            width: 30,
+            align: "right" as const,
+          },
         ]
       : [
           { key: "index", label: "#", width: 12, align: "left" as const },
-          { key: "description", label: "Description", width: 98, align: "left" as const },
+          {
+            key: "description",
+            label: "Description",
+            width: 98,
+            align: "left" as const,
+          },
           { key: "quantity", label: "Qty", width: 18, align: "right" as const },
-          { key: "unitPrice", label: "Unit Price (KSh)", width: 34, align: "right" as const },
+          {
+            key: "unitPrice",
+            label: "Unit Price (KSh)",
+            width: 34,
+            align: "right" as const,
+          },
           { key: "total", label: "Total", width: 24, align: "right" as const },
         ];
 
   const columnStartX = columns.map((_, index) => {
-    return tableX + columns.slice(0, index).reduce((sum, c) => sum + c.width, 0);
+    return (
+      tableX + columns.slice(0, index).reduce((sum, c) => sum + c.width, 0)
+    );
   });
 
   // Pre-compute description lines for each item so we know the row height
@@ -400,7 +461,9 @@ function drawItemsTable(
       const startX = columnStartX[index];
       const endX = startX + column.width;
       if (column.key === "unitPrice") {
-        doc.text("Unit Price (KSh)", endX - 3, headerY + 8.5, { align: "right" });
+        doc.text("Unit Price (KSh)", endX - 3, headerY + 8.5, {
+          align: "right",
+        });
       } else if (column.align === "right") {
         doc.text(column.label, endX - 3, headerY + 8.5, { align: "right" });
       } else {
@@ -460,9 +523,10 @@ function drawItemsTable(
     drawRowGrid(y, rh);
 
     const maxNameLength = compact ? 76 : includeTax ? 48 : 62;
-    const name = item.productName.length > maxNameLength
-      ? item.productName.slice(0, maxNameLength - 3) + "..."
-      : item.productName;
+    const name =
+      item.productName.length > maxNameLength
+        ? item.productName.slice(0, maxNameLength - 3) + "..."
+        : item.productName;
 
     doc.setFontSize(9);
     doc.setTextColor(30, 30, 30);
@@ -471,7 +535,9 @@ function drawItemsTable(
     let textX = columnStartX[1] + 3;
     if (item.showImageOnQuote && item.imageUrl) {
       try {
-        const fullUrl = item.imageUrl.startsWith("http") ? item.imageUrl : `${API_URL}${item.imageUrl}`;
+        const fullUrl = item.imageUrl.startsWith("http")
+          ? item.imageUrl
+          : `${API_URL}${item.imageUrl}`;
         doc.addImage(fullUrl, "WEBP", textX, y + 2, 12, 12);
         textX += 15;
       } catch (e) {
@@ -503,20 +569,62 @@ function drawItemsTable(
 
     if (compact) {
       const qtyCol = columns[2];
-      doc.text(String(item.quantity), tableX + qtyCol.width + columns[0].width + columns[1].width - 2, y + 7, { align: "right" });
+      doc.text(
+        String(item.quantity),
+        tableX + qtyCol.width + columns[0].width + columns[1].width - 2,
+        y + 7,
+        { align: "right" },
+      );
     } else if (includeTax) {
       const taxRate = Number(item.taxRate || 0);
       const baseTotal = Number(item.lineTotal || 0);
-      const totalAfterTax = Number(item.totalAfterTax || (baseTotal + baseTotal * (taxRate / 100)));
+      const totalAfterTax = Number(
+        item.totalAfterTax || baseTotal + baseTotal * (taxRate / 100),
+      );
 
-      doc.text(String(item.quantity), columnStartX[2] + columns[2].width - 3, y + 7, { align: "right" });
-      doc.text(formatAmount(item.unitPrice), columnStartX[3] + columns[3].width - 3, y + 7, { align: "right" });
-      doc.text(`${taxRate.toFixed(2)}%`, columnStartX[4] + columns[4].width - 3, y + 7, { align: "right" });
-      doc.text(formatAmount(totalAfterTax), columnStartX[5] + columns[5].width - 3, y + 7, { align: "right" });
+      doc.text(
+        String(item.quantity),
+        columnStartX[2] + columns[2].width - 3,
+        y + 7,
+        { align: "right" },
+      );
+      doc.text(
+        formatAmount(item.unitPrice),
+        columnStartX[3] + columns[3].width - 3,
+        y + 7,
+        { align: "right" },
+      );
+      doc.text(
+        `${taxRate.toFixed(2)}%`,
+        columnStartX[4] + columns[4].width - 3,
+        y + 7,
+        { align: "right" },
+      );
+      doc.text(
+        formatAmount(totalAfterTax),
+        columnStartX[5] + columns[5].width - 3,
+        y + 7,
+        { align: "right" },
+      );
     } else {
-      doc.text(String(item.quantity), columnStartX[2] + columns[2].width - 3, y + 7, { align: "right" });
-      doc.text(formatAmount(item.unitPrice), columnStartX[3] + columns[3].width - 3, y + 7, { align: "right" });
-      doc.text(formatAmount(item.lineTotal), columnStartX[4] + columns[4].width - 3, y + 7, { align: "right" });
+      doc.text(
+        String(item.quantity),
+        columnStartX[2] + columns[2].width - 3,
+        y + 7,
+        { align: "right" },
+      );
+      doc.text(
+        formatAmount(item.unitPrice),
+        columnStartX[3] + columns[3].width - 3,
+        y + 7,
+        { align: "right" },
+      );
+      doc.text(
+        formatAmount(item.lineTotal),
+        columnStartX[4] + columns[4].width - 3,
+        y + 7,
+        { align: "right" },
+      );
     }
 
     y += rh;
@@ -534,8 +642,8 @@ function drawTotalsSection(
 ) {
   const primary = branding?.primaryColor || DEFAULT_PRIMARY;
   const showVat = Boolean(settings?.includeVat === true);
-  const vat = showVat ? subtotal * 0.16 : 0
-  const grandTotal = subtotal + vat
+  const vat = showVat ? subtotal * 0.16 : 0;
+  const grandTotal = subtotal + vat;
 
   let y = startY + 6;
   if (y + 50 > 280) {
@@ -600,7 +708,9 @@ function drawBottomFooter(
   doc.setFont("helvetica", "normal");
   doc.setFontSize(7.5);
   setColorFromHex(doc, DEFAULT_GRAY, "text");
-  doc.text("System build and managed by codewithseth.co.ke", 105, footerY, { align: "center" });
+  doc.text("System build and managed by codewithseth.co.ke", 105, footerY, {
+    align: "center",
+  });
 }
 
 function drawTermsAndPaymentChannelsSection(
@@ -609,84 +719,101 @@ function drawTermsAndPaymentChannelsSection(
   settings?: InvoiceDocumentSettings,
   branding?: TenantBranding,
 ) {
-  const availableBottom = 284
-  const y = availableBottom - 22
-  const terms = String(settings?.termsAndConditions || "").trim()
-  const channels = Array.isArray(settings?.paymentChannels) ? settings!.paymentChannels : []
+  const availableBottom = 284;
+  const y = availableBottom - 22;
+  const terms = String(settings?.termsAndConditions || "").trim();
+  const channels = Array.isArray(settings?.paymentChannels)
+    ? settings!.paymentChannels
+    : [];
 
-  if (!terms && !(settings?.includePaymentChannels !== false && channels.length)) {
-    return y
+  if (
+    !terms &&
+    !(settings?.includePaymentChannels !== false && channels.length)
+  ) {
+    return y;
   }
 
-  const leftX = 12
-  const rightX = 105
-  const lineH = 3.2
-  const colW = 91
+  const leftX = 12;
+  const rightX = 105;
+  const lineH = 3.2;
+  const colW = 91;
 
   // Small compact header for terms
-  doc.setFont("helvetica", "bold")
-  doc.setFontSize(8)
-  setColorFromHex(doc, DEFAULT_TEXT, "text")
-  doc.text("Terms & Conditions", leftX, y)
-  doc.text("Payment Channels", rightX, y)
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(8);
+  setColorFromHex(doc, DEFAULT_TEXT, "text");
+  doc.text("Terms & Conditions", leftX, y);
+  doc.text("Payment Channels", rightX, y);
 
-  let ty = y + 3.5
+  let ty = y + 3.5;
 
   // Terms content - compact
   if (terms) {
-    doc.setFont("helvetica", "normal")
-    doc.setFontSize(7)
-    setColorFromHex(doc, DEFAULT_GRAY, "text")
-    const termsLines = doc.splitTextToSize(terms, colW - 2)
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7);
+    setColorFromHex(doc, DEFAULT_GRAY, "text");
+    const termsLines = doc.splitTextToSize(terms, colW - 2);
     termsLines.slice(0, 3).forEach((line: string) => {
-      doc.text(line, leftX, ty)
-      ty += lineH
-    })
+      doc.text(line, leftX, ty);
+      ty += lineH;
+    });
   }
 
   // Payment channels content - compact
-  let cy = y + 3.5
+  let cy = y + 3.5;
   if (settings?.includePaymentChannels !== false && channels.length) {
-    doc.setFont("helvetica", "normal")
-    doc.setFontSize(7)
-    setColorFromHex(doc, DEFAULT_GRAY, "text")
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7);
+    setColorFromHex(doc, DEFAULT_GRAY, "text");
     channels.slice(0, 2).forEach((channel) => {
-      const isMpesa = String(channel.paymentType || "").toLowerCase() === "mpesa" || /mpesa/i.test(`${channel.channelName || ""} ${channel.bankName || ""}`)
-      const mpesaMode = String(channel.mpesaMode || "").toLowerCase()
-      const title = channel.channelName || channel.bankName || (isMpesa ? "M-Pesa" : "Payment Channel")
-      doc.text(title, rightX, cy)
-      cy += lineH
+      const isMpesa =
+        String(channel.paymentType || "").toLowerCase() === "mpesa" ||
+        /mpesa/i.test(`${channel.channelName || ""} ${channel.bankName || ""}`);
+      const mpesaMode = String(channel.mpesaMode || "").toLowerCase();
+      const title =
+        channel.channelName ||
+        channel.bankName ||
+        (isMpesa ? "M-Pesa" : "Payment Channel");
+      doc.text(title, rightX, cy);
+      cy += lineH;
       if (isMpesa) {
-        if ((mpesaMode === "paybill" || channel.paybillNumber) && channel.paybillNumber) {
-          doc.text(`Paybill: ${channel.paybillNumber}`, rightX, cy)
-          cy += lineH
+        if (
+          (mpesaMode === "paybill" || channel.paybillNumber) &&
+          channel.paybillNumber
+        ) {
+          doc.text(`Paybill: ${channel.paybillNumber}`, rightX, cy);
+          cy += lineH;
         }
         if (channel.accountNumber) {
-          doc.text(`Account No: ${channel.accountNumber}`, rightX, cy)
-          cy += lineH
+          doc.text(`Account No: ${channel.accountNumber}`, rightX, cy);
+          cy += lineH;
         }
         if (mpesaMode === "till" || channel.tillNumber) {
-          const till = channel.tillNumber || channel.accountNumber
+          const till = channel.tillNumber || channel.accountNumber;
           if (till) {
-            doc.text(`Till No: ${till}`, rightX, cy)
-            cy += lineH
+            doc.text(`Till No: ${till}`, rightX, cy);
+            cy += lineH;
           }
         }
       } else if (channel.accountNumber) {
-        doc.text(`A/C: ${channel.accountNumber}`, rightX, cy)
-        cy += lineH
+        doc.text(`A/C: ${channel.accountNumber}`, rightX, cy);
+        cy += lineH;
       }
       if (channel.notes) {
-        doc.text(channel.notes, rightX, cy)
-        cy += lineH
+        doc.text(channel.notes, rightX, cy);
+        cy += lineH;
       }
-    })
+    });
   }
 
-  return availableBottom
+  return availableBottom;
 }
 
-function drawDeliverySignatures(doc: jsPDF, startY: number, preparedBy: string) {
+function drawDeliverySignatures(
+  doc: jsPDF,
+  startY: number,
+  preparedBy: string,
+) {
   let y = Math.max(startY + 10, 240);
 
   doc.setFont("helvetica", "normal");
@@ -727,7 +854,7 @@ function drawPreparedBySignatureBlock(
   // Draw primary signature line (left-aligned)
   const lineW = 60;
   const lineRight = leftEdge + lineW;
-  
+
   setColorFromHex(doc, "#94a3b8", "draw");
   doc.setLineWidth(0.35);
   doc.line(leftEdge, y + 14, lineRight, y + 14);
@@ -736,10 +863,18 @@ function drawPreparedBySignatureBlock(
   if (signatureDataUrl) {
     try {
       const lower = signatureDataUrl.toLowerCase();
-      const format = lower.includes("jpeg") || lower.includes("jpg") ? "JPEG" : "PNG";
+      const format =
+        lower.includes("jpeg") || lower.includes("jpg") ? "JPEG" : "PNG";
       const sigX = leftEdge + 2; // small padding from left
       const sigY = y + 2; // signature image top
-      doc.addImage(signatureDataUrl, format, sigX, sigY, signatureW, signatureH);
+      doc.addImage(
+        signatureDataUrl,
+        format,
+        sigX,
+        sigY,
+        signatureW,
+        signatureH,
+      );
     } catch {
       // ignore
     }
@@ -750,6 +885,657 @@ function drawPreparedBySignatureBlock(
   doc.setFontSize(8.5);
   setColorFromHex(doc, DEFAULT_TEXT, "text");
   doc.text(preparedBy || "", leftEdge, y + 19);
+}
+
+function getCompanyContactRows(
+  branding?: TenantBranding,
+  settings?: InvoiceDocumentSettings,
+) {
+  const phone = String(settings?.contactPhone || branding?.phone || "").trim();
+  const location = String(
+    settings?.officeLocation || buildCompanyAddress(branding) || "",
+  ).trim();
+  const email = String(
+    settings?.contactEmail || settings?.invoiceEmail || branding?.email || "",
+  ).trim();
+  const website = String(settings?.website || branding?.website || "").trim();
+  const vatNumber = String(settings?.vatNumber || "").trim();
+  const pinNumber = String(settings?.pinNumber || "").trim();
+
+  return [
+    { label: "Phone", value: phone },
+    { label: "Email", value: email },
+    { label: "Website", value: website },
+    { label: "Address", value: location },
+    { label: "VAT", value: vatNumber },
+    { label: "PIN", value: pinNumber },
+  ].filter((row) => row.value);
+}
+
+function drawLogoBlock(
+  doc: jsPDF,
+  branding?: TenantBranding,
+  x = 12,
+  y = 12,
+  maxWidth = 44,
+  maxHeight = 20,
+) {
+  if (!branding?.logo) return;
+  try {
+    const lower = branding.logo.toLowerCase();
+    const format =
+      lower.includes("jpg") || lower.includes("jpeg") ? "JPEG" : "PNG";
+    let imageWidth = 0;
+    let imageHeight = 0;
+    try {
+      const imageProps = doc.getImageProperties(branding.logo);
+      imageWidth = Number(imageProps?.width || 0);
+      imageHeight = Number(imageProps?.height || 0);
+    } catch {
+      imageWidth = 3;
+      imageHeight = 1;
+    }
+
+    let drawWidth = maxWidth;
+    let drawHeight = maxHeight;
+    if (imageWidth > 0 && imageHeight > 0) {
+      const ratio = imageWidth / imageHeight;
+      if (ratio >= 1) {
+        drawWidth = maxWidth;
+        drawHeight = Math.min(maxHeight, drawWidth / ratio);
+      } else {
+        drawHeight = maxHeight;
+        drawWidth = Math.min(maxWidth, drawHeight * ratio);
+      }
+    }
+
+    doc.addImage(
+      branding.logo,
+      format,
+      x,
+      y + (maxHeight - drawHeight) / 2,
+      drawWidth,
+      drawHeight,
+    );
+  } catch (e) {
+    console.warn("Logo failed to load", e);
+  }
+}
+
+/** Page 2+ header: logo left, company contact block right-aligned */
+function drawContinuationPageHeader(
+  doc: jsPDF,
+  branding?: TenantBranding,
+  settings?: InvoiceDocumentSettings,
+) {
+  drawLogoBlock(doc, branding, 12, 12);
+
+  const rows = getCompanyContactRows(branding, settings);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(7.8);
+  setColorFromHex(doc, DEFAULT_GRAY, "text");
+
+  let y = 14;
+  rows.forEach((row) => {
+    const wrapped = doc.splitTextToSize(row.value, 88) as string[];
+    doc.text(`${row.label}: ${wrapped[0] || ""}`, 198, y, { align: "right" });
+    y += 3.8;
+  });
+
+  drawThinDivider(doc, Math.max(38, y + 2));
+  return Math.max(44, y + 4);
+}
+
+/** Page 1 tender metadata — replaces Bill To / Quotation Info on tender PDFs */
+function drawTenderDetailsSection(
+  doc: jsPDF,
+  details: {
+    tenderName: string;
+    department: string;
+    tenderNumber: string;
+    createdAt: string;
+  },
+  branding?: TenantBranding,
+  startY = 72,
+) {
+  const primary = branding?.primaryColor || DEFAULT_PRIMARY;
+  const boxX = 12;
+  const boxY = startY;
+  const boxW = 186;
+  const headerH = 6.5;
+  const padX = 3.5;
+  const lineH = 4.2;
+
+  const lines = [
+    { label: "Tender Name", value: details.tenderName || "—" },
+    { label: "Department", value: details.department || "—" },
+    { label: "Tender Number", value: details.tenderNumber || "—" },
+    {
+      label: "Date Issued",
+      value: new Date(details.createdAt).toLocaleDateString("en-KE"),
+    },
+  ];
+
+  const boxH = headerH + 8 + lines.length * lineH;
+
+  setColorFromHex(doc, primary, "draw");
+  doc.setLineWidth(0.35);
+  doc.rect(boxX, boxY, boxW, boxH);
+  setColorFromHex(doc, DEFAULT_LIGHT, "fill");
+  doc.rect(boxX, boxY, boxW, headerH, "F");
+  doc.line(boxX, boxY + headerH, boxX + boxW, boxY + headerH);
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(9.5);
+  setColorFromHex(doc, DEFAULT_TEXT, "text");
+  doc.text("Tender Details", boxX + padX, boxY + 4.5);
+
+  let y = boxY + headerH + 5;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8);
+  lines.forEach((line) => {
+    doc.setFont("helvetica", "bold");
+    setColorFromHex(doc, DEFAULT_TEXT, "text");
+    doc.text(`${line.label}:`, boxX + padX, y);
+    doc.setFont("helvetica", "normal");
+    setColorFromHex(doc, DEFAULT_GRAY, "text");
+    const valueX = boxX + 38;
+    const wrapped = doc.splitTextToSize(line.value, boxW - 42) as string[];
+    doc.text(wrapped[0] || "—", valueX, y);
+    y += lineH;
+  });
+
+  return boxY + boxH + 4;
+}
+
+type TenderTableRow =
+  | { kind: "category"; name: string }
+  | { kind: "item"; item: DocumentItem; index: number }
+  | { kind: "categorySubtotal"; categoryName: string; subtotal: number };
+
+function buildTenderTableRows(
+  items: DocumentItem[],
+  groupedByCategory?: Record<string, DocumentItem[]>,
+): TenderTableRow[] {
+  if (groupedByCategory && Object.keys(groupedByCategory).length > 0) {
+    const rows: TenderTableRow[] = [];
+    for (const [category, categoryItems] of Object.entries(groupedByCategory)) {
+      rows.push({ kind: "category", name: category });
+      let categoryIndex = 0;
+      let categorySubtotal = 0;
+      for (const item of categoryItems) {
+        rows.push({ kind: "item", item, index: categoryIndex });
+        categorySubtotal += item.lineTotal;
+        categoryIndex += 1;
+      }
+      rows.push({
+        kind: "categorySubtotal",
+        categoryName: category,
+        subtotal: categorySubtotal,
+      });
+    }
+    return rows;
+  }
+  return items.map((item, index) => ({ kind: "item", item, index }));
+}
+
+function drawTenderItemsTable(
+  doc: jsPDF,
+  startY: number,
+  items: DocumentItem[],
+  branding?: TenantBranding,
+  groupedByCategory?: Record<string, DocumentItem[]>,
+  invoiceSettings?: InvoiceDocumentSettings,
+) {
+  const primary = branding?.primaryColor || DEFAULT_PRIMARY;
+  const tableX = 12;
+  const tableWidth = 186;
+  const headerHeight = 11;
+  const baseRowHeight = 10.5;
+  const descLineH = 3;
+
+  const columns = [
+    { key: "index", label: "#", width: 12, align: "left" as const },
+    {
+      key: "description",
+      label: "Description",
+      width: 98,
+      align: "left" as const,
+    },
+    { key: "quantity", label: "Qty", width: 18, align: "right" as const },
+    {
+      key: "unitPrice",
+      label: "Unit Price (KSh)",
+      width: 34,
+      align: "right" as const,
+    },
+    { key: "total", label: "Total", width: 24, align: "right" as const },
+  ];
+
+  const columnStartX = columns.map((_, index) => {
+    return (
+      tableX + columns.slice(0, index).reduce((sum, c) => sum + c.width, 0)
+    );
+  });
+
+  const rows = buildTenderTableRows(items, groupedByCategory);
+  const descColWidth = columns[1].width - 8;
+
+  doc.setFont("helvetica", "italic");
+  doc.setFontSize(7);
+  const itemDescLines = rows.map((row) => {
+    if (row.kind !== "item" || !row.item.description) return [] as string[];
+    return doc.splitTextToSize(row.item.description, descColWidth) as string[];
+  });
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+
+  const getRowHeight = (rowIndex: number) => {
+    const row = rows[rowIndex];
+    if (row.kind === "category") return 8;
+    if (row.kind === "categorySubtotal") return 8;
+    const lines = itemDescLines[rowIndex];
+    let h = baseRowHeight;
+    if (lines.length > 0) h = Math.max(h, 10 + lines.length * descLineH + 2);
+    const item = row.item;
+    if (item.showImageOnQuote && item.imageUrl) h = Math.max(h, 22);
+    return h;
+  };
+
+  const drawTableHeader = (headerY: number) => {
+    setColorFromHex(doc, primary, "fill");
+    doc.rect(tableX, headerY, tableWidth, headerHeight, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9.5);
+    columns.forEach((column, index) => {
+      const startX = columnStartX[index];
+      const endX = startX + column.width;
+      if (column.key === "unitPrice") {
+        doc.text("Unit Price (KSh)", endX - 3, headerY + 8.5, {
+          align: "right",
+        });
+      } else if (column.align === "right") {
+        doc.text(column.label, endX - 3, headerY + 8.5, { align: "right" });
+      } else {
+        doc.text(column.label, startX + 3, headerY + 8.5);
+      }
+    });
+    setColorFromHex(doc, primary, "draw");
+    doc.setLineWidth(0.45);
+    doc.rect(tableX, headerY, tableWidth, headerHeight);
+    columns.forEach((_, index) => {
+      if (index === 0) return;
+      doc.line(
+        columnStartX[index],
+        headerY,
+        columnStartX[index],
+        headerY + headerHeight,
+      );
+    });
+  };
+
+  const drawRowGrid = (rowY: number, rh: number) => {
+    setColorFromHex(doc, primary, "draw");
+    doc.setLineWidth(0.35);
+    doc.rect(tableX, rowY, tableWidth, rh);
+    columns.forEach((_, index) => {
+      if (index === 0) return;
+      doc.line(columnStartX[index], rowY, columnStartX[index], rowY + rh);
+    });
+  };
+
+  const ensureSpace = (currentY: number, needed: number) => {
+    if (currentY + needed <= 248) return currentY;
+    doc.addPage();
+    const headerStart = drawContinuationPageHeader(
+      doc,
+      branding,
+      invoiceSettings,
+    );
+    drawTableHeader(headerStart);
+    return headerStart + headerHeight;
+  };
+
+  let y = startY;
+  drawTableHeader(y);
+  y += headerHeight;
+
+  doc.setTextColor(30, 30, 30);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+
+  rows.forEach((row, rowIndex) => {
+    const rh = getRowHeight(rowIndex);
+    y = ensureSpace(y, rh);
+
+    if (row.kind === "category") {
+      setColorFromHex(doc, DEFAULT_LIGHT, "fill");
+      doc.rect(tableX, y, tableWidth, rh, "F");
+      setColorFromHex(doc, primary, "draw");
+      doc.setLineWidth(0.35);
+      doc.rect(tableX, y, tableWidth, rh);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(8.5);
+      setColorFromHex(doc, DEFAULT_TEXT, "text");
+      doc.text(String(row.name).toUpperCase(), tableX + 3, y + 5.5);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      y += rh;
+      return;
+    }
+
+    if (row.kind === "categorySubtotal") {
+      y = ensureSpace(y, 8);
+      setColorFromHex(doc, "#f3f4f6", "fill");
+      doc.rect(tableX, y, tableWidth, 8, "F");
+      setColorFromHex(doc, primary, "draw");
+      doc.setLineWidth(0.35);
+      doc.rect(tableX, y, tableWidth, 8);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(8.5);
+      setColorFromHex(doc, "#1f2937", "text");
+      doc.text("Category Total", tableX + 3, y + 5.5);
+      doc.text(
+        formatAmount(row.subtotal),
+        columnStartX[4] + columns[4].width - 3,
+        y + 5.5,
+        { align: "right" },
+      );
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      y += 8;
+      return;
+    }
+
+    const item = row.item;
+    const displayIndex = row.index + 1;
+
+    if (row.index % 2 === 0) {
+      doc.setFillColor(248, 250, 252);
+      doc.rect(tableX, y, tableWidth, rh, "F");
+    }
+    drawRowGrid(y, rh);
+
+    const maxNameLength = 62;
+    const name =
+      item.productName.length > maxNameLength
+        ? `${item.productName.slice(0, maxNameLength - 3)}...`
+        : item.productName;
+
+    doc.setFontSize(9);
+    doc.setTextColor(30, 30, 30);
+    doc.text(String(displayIndex).padStart(2, "0"), columnStartX[0] + 2, y + 7);
+
+    let textX = columnStartX[1] + 3;
+    if (item.showImageOnQuote && item.imageUrl) {
+      try {
+        const fullUrl = item.imageUrl.startsWith("http")
+          ? item.imageUrl
+          : `${API_URL}${item.imageUrl}`;
+        doc.addImage(fullUrl, "WEBP", textX, y + 2, 12, 12);
+        textX += 15;
+      } catch (e) {
+        console.warn("Failed to add image to tender PDF", e);
+      }
+    }
+
+    doc.text(name, textX, y + 7);
+
+    const descLines = itemDescLines[rowIndex];
+    if (descLines.length > 0) {
+      doc.setFont("helvetica", "italic");
+      doc.setFontSize(7);
+      setColorFromHex(doc, DEFAULT_GRAY, "text");
+      let descY = y + 11;
+      descLines.forEach((line: string) => {
+        doc.text(`• ${line}`, textX + 2, descY);
+        descY += descLineH;
+      });
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      doc.setTextColor(30, 30, 30);
+    }
+
+    doc.text(
+      String(item.quantity),
+      columnStartX[2] + columns[2].width - 3,
+      y + 7,
+      { align: "right" },
+    );
+    doc.text(
+      formatAmount(item.unitPrice),
+      columnStartX[3] + columns[3].width - 3,
+      y + 7,
+      { align: "right" },
+    );
+    doc.text(
+      formatAmount(item.lineTotal),
+      columnStartX[4] + columns[4].width - 3,
+      y + 7,
+      { align: "right" },
+    );
+
+    y += rh;
+  });
+
+  return y;
+}
+
+function drawTotalsAtLastPageBottom(
+  doc: jsPDF,
+  subTotal: number,
+  branding?: TenantBranding,
+  settings?: InvoiceDocumentSettings,
+  footerReserve = 20,
+) {
+  const lastPage = doc.getNumberOfPages();
+  doc.setPage(lastPage);
+
+  const showVat = Boolean(settings?.includeVat === true);
+  const rowH = 7;
+  const rows = showVat ? 3 : 2;
+  const boxH = rows * rowH + 3;
+  const y = 297 - footerReserve - boxH;
+
+  return drawTotalsSection(doc, subTotal, y - 6, branding, settings);
+}
+
+function drawTenderSummaryPage(
+  doc: jsPDF,
+  groupedByCategory: Record<string, DocumentItem[]> | undefined,
+  subTotal: number,
+  branding?: TenantBranding,
+) {
+  if (!groupedByCategory || Object.keys(groupedByCategory).length === 0) {
+    return;
+  }
+
+  doc.addPage();
+  const headerStart = drawContinuationPageHeader(doc, branding);
+
+  const primary = branding?.primaryColor || DEFAULT_PRIMARY;
+  const tableX = 12;
+  const tableWidth = 186;
+  let y = headerStart + 10;
+
+  // Title
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(12);
+  doc.setTextColor(30, 30, 30);
+  doc.text("Tender Summary by Category", tableX, y);
+  y += 12;
+
+  // Table header
+  const headerHeight = 10;
+  const rowHeight = 8;
+  const colWidths = [120, 40, 26];
+  const colPositions = [
+    tableX,
+    tableX + colWidths[0],
+    tableX + colWidths[0] + colWidths[1],
+  ];
+
+  // Header background
+  setColorFromHex(doc, primary, "fill");
+  doc.rect(tableX, y, tableWidth, headerHeight, "F");
+  doc.setTextColor(255, 255, 255);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(9);
+  doc.text("Category", colPositions[0] + 3, y + 6.5);
+  doc.text("Items", colPositions[1] + 3, y + 6.5);
+  doc.text("Subtotal", colPositions[2] + 3, y + 6.5, { align: "right" });
+
+  y += headerHeight;
+
+  // Category rows
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.setTextColor(30, 30, 30);
+
+  let rowIndex = 0;
+  for (const [category, items] of Object.entries(groupedByCategory)) {
+    const categorySubtotal = items.reduce(
+      (sum, item) => sum + item.lineTotal,
+      0,
+    );
+    const itemCount = items.length;
+
+    // Alternating row color
+    if (rowIndex % 2 === 0) {
+      doc.setFillColor(248, 250, 252);
+      doc.rect(tableX, y, tableWidth, rowHeight, "F");
+    }
+
+    // Border
+    setColorFromHex(doc, primary, "draw");
+    doc.setLineWidth(0.35);
+    doc.rect(tableX, y, tableWidth, rowHeight);
+    doc.line(colPositions[1], y, colPositions[1], y + rowHeight);
+    doc.line(colPositions[2], y, colPositions[2], y + rowHeight);
+
+    // Text
+    doc.setTextColor(30, 30, 30);
+    doc.text(category, colPositions[0] + 3, y + 5.5);
+    doc.text(String(itemCount), colPositions[1] + 3, y + 5.5);
+    doc.text(
+      formatAmount(categorySubtotal),
+      colPositions[2] + colWidths[2] - 3,
+      y + 5.5,
+      {
+        align: "right",
+      },
+    );
+
+    y += rowHeight;
+    rowIndex += 1;
+  }
+
+  // Total row
+  y += 3;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(10);
+  setColorFromHex(doc, primary, "fill");
+  doc.rect(tableX, y, tableWidth, 10, "F");
+  doc.setTextColor(255, 255, 255);
+  doc.text("GRAND TOTAL", colPositions[0] + 3, y + 6.5);
+  doc.text(
+    formatAmount(subTotal),
+    colPositions[2] + colWidths[2] - 3,
+    y + 6.5,
+    {
+      align: "right",
+    },
+  );
+
+  setColorFromHex(doc, primary, "draw");
+  doc.setLineWidth(0.35);
+  doc.rect(tableX, y, tableWidth, 10);
+}
+
+export function generateTenderPdf(params: {
+  tenderNumber: string;
+  tenderName: string;
+  department: string;
+  createdAt: string;
+  items: DocumentItem[];
+  subTotal: number;
+  branding?: TenantBranding;
+  invoiceSettings?: InvoiceDocumentSettings;
+  preparedBy: string;
+  preparedBySignature?: string;
+  watermarkText?: string;
+  autoSave?: boolean;
+  groupedByCategory?: Record<string, DocumentItem[]>;
+}) {
+  const doc = new jsPDF({ unit: "mm", format: "a4" });
+
+  drawWatermark(doc, params.watermarkText);
+
+  drawModernHeader(doc, {
+    title: "Tender",
+    numberLabel: "Tender Number",
+    numberValue: params.tenderNumber,
+    createdAt: params.createdAt,
+    branding: params.branding,
+  });
+
+  const tableY = drawTenderDetailsSection(
+    doc,
+    {
+      tenderName: params.tenderName,
+      department: params.department,
+      tenderNumber: params.tenderNumber,
+      createdAt: params.createdAt,
+    },
+    params.branding,
+  );
+
+  drawTenderItemsTable(
+    doc,
+    tableY,
+    params.items,
+    params.branding,
+    params.groupedByCategory,
+    params.invoiceSettings,
+  );
+
+  // Add summary page if grouped by category
+  drawTenderSummaryPage(
+    doc,
+    params.groupedByCategory,
+    params.subTotal,
+    params.branding,
+  );
+
+  const totalsY = drawTotalsAtLastPageBottom(
+    doc,
+    params.subTotal,
+    params.branding,
+    params.invoiceSettings,
+  );
+
+  if (params.invoiceSettings?.includePreparedBy !== false) {
+    drawPreparedBySignatureBlock(
+      doc,
+      Math.min(totalsY - 28, 228),
+      params.preparedBy,
+      params.preparedBySignature,
+    );
+  }
+
+  drawBottomFooter(
+    doc,
+    params.branding,
+    params.invoiceSettings,
+    params.preparedBy,
+  );
+
+  if (params.autoSave !== false) {
+    doc.save(`tender-${params.tenderNumber}.pdf`);
+  }
+
+  return doc;
 }
 
 export function generateQuotationPdf(params: {
@@ -776,21 +1562,53 @@ export function generateQuotationPdf(params: {
     createdAt: params.createdAt,
     branding: params.branding,
   });
-  const contactBottom = drawContactSlotBelowLogo(doc, params.branding, params.invoiceSettings);
+  const contactBottom = drawContactSlotBelowLogo(
+    doc,
+    params.branding,
+    params.invoiceSettings,
+  );
 
-  const tableY = drawPartiesSection(doc, params.client, undefined, params.branding, "Quotation Info", contactBottom + 1);
+  const tableY = drawPartiesSection(
+    doc,
+    params.client,
+    undefined,
+    params.branding,
+    "Quotation Info",
+    contactBottom + 1,
+  );
   const endY = drawItemsTable(doc, tableY, params.items, params.branding);
 
-  const totalsY = drawTotalsSection(doc, params.subTotal, endY, params.branding, params.invoiceSettings);
-  
+  const totalsY = drawTotalsSection(
+    doc,
+    params.subTotal,
+    endY,
+    params.branding,
+    params.invoiceSettings,
+  );
+
   if (params.invoiceSettings?.includePreparedBy !== false) {
-    drawPreparedBySignatureBlock(doc, totalsY, params.preparedBy, params.preparedBySignature);
+    drawPreparedBySignatureBlock(
+      doc,
+      totalsY,
+      params.preparedBy,
+      params.preparedBySignature,
+    );
   }
 
   // Include terms and payment channels for visual balance
-  drawTermsAndPaymentChannelsSection(doc, totalsY, params.invoiceSettings, params.branding);
+  drawTermsAndPaymentChannelsSection(
+    doc,
+    totalsY,
+    params.invoiceSettings,
+    params.branding,
+  );
 
-  drawBottomFooter(doc, params.branding, params.invoiceSettings, params.preparedBy);
+  drawBottomFooter(
+    doc,
+    params.branding,
+    params.invoiceSettings,
+    params.preparedBy,
+  );
 
   if (params.autoSave !== false) {
     doc.save(`quotation-${params.quotationNumber}.pdf`);
@@ -825,11 +1643,16 @@ export function generateInvoicePdf(params: {
     createdAt: params.createdAt,
     branding: {
       ...params.branding,
-      invoiceEmail: params.invoiceSettings?.invoiceEmail || params.branding?.invoiceEmail,
+      invoiceEmail:
+        params.invoiceSettings?.invoiceEmail || params.branding?.invoiceEmail,
     },
   });
 
-  const contactBottom = drawContactSlotBelowLogo(doc, params.branding, params.invoiceSettings);
+  const contactBottom = drawContactSlotBelowLogo(
+    doc,
+    params.branding,
+    params.invoiceSettings,
+  );
 
   let tableY = drawPartiesSection(
     doc,
@@ -837,7 +1660,8 @@ export function generateInvoicePdf(params: {
     undefined,
     {
       ...params.branding,
-      invoiceEmail: params.invoiceSettings?.invoiceEmail || params.branding?.invoiceEmail,
+      invoiceEmail:
+        params.invoiceSettings?.invoiceEmail || params.branding?.invoiceEmail,
     },
     "Invoice Info",
     contactBottom + 1,
@@ -846,33 +1670,57 @@ export function generateInvoicePdf(params: {
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
   setColorFromHex(doc, DEFAULT_GRAY, "text");
-  const showDelivery = params.invoiceSettings?.includeDeliveryNoteNumber !== false
-  const showQuote = params.invoiceSettings?.includeQuotationReference !== false
+  const showDelivery =
+    params.invoiceSettings?.includeDeliveryNoteNumber !== false;
+  const showQuote = params.invoiceSettings?.includeQuotationReference !== false;
   if (showDelivery || showQuote) {
     const refsY = tableY + 1;
     if (showDelivery) {
       doc.text(`Delivery Note: ${params.deliveryNoteNumber}`, 12, refsY);
     }
     if (showQuote) {
-      doc.text(`Quotation Ref: ${params.quotationNumber || "N/A"}`, 198, refsY, { align: "right" });
+      doc.text(
+        `Quotation Ref: ${params.quotationNumber || "N/A"}`,
+        198,
+        refsY,
+        { align: "right" },
+      );
     }
     tableY = refsY + 6;
   }
 
   const endY = drawItemsTable(doc, tableY, params.items, params.branding);
 
-  const totalsY = drawTotalsSection(doc, params.subTotal, endY, params.branding, params.invoiceSettings);
-  const termsEndY = drawTermsAndPaymentChannelsSection(doc, totalsY, params.invoiceSettings, params.branding)
+  const totalsY = drawTotalsSection(
+    doc,
+    params.subTotal,
+    endY,
+    params.branding,
+    params.invoiceSettings,
+  );
+  const termsEndY = drawTermsAndPaymentChannelsSection(
+    doc,
+    totalsY,
+    params.invoiceSettings,
+    params.branding,
+  );
 
   if (params.invoiceSettings?.includePreparedBy !== false) {
-    drawPreparedBySignatureBlock(doc, totalsY, params.preparedBy, params.preparedBySignature);
+    drawPreparedBySignatureBlock(
+      doc,
+      totalsY,
+      params.preparedBy,
+      params.preparedBySignature,
+    );
   }
 
   drawBottomFooter(
     doc,
     params.branding,
     params.invoiceSettings,
-    params.invoiceSettings?.includePreparedBy !== false ? params.preparedBy : undefined,
+    params.invoiceSettings?.includePreparedBy !== false
+      ? params.preparedBy
+      : undefined,
   );
 
   if (params.autoSave !== false) {
@@ -906,15 +1754,31 @@ export function generateDeliveryNotePdf(params: {
     branding: params.branding,
   });
 
-  const contactBottom = drawContactSlotBelowLogo(doc, params.branding, params.invoiceSettings);
+  const contactBottom = drawContactSlotBelowLogo(
+    doc,
+    params.branding,
+    params.invoiceSettings,
+  );
 
-  let tableY = drawPartiesSection(doc, params.client, params.preparedBy, params.branding, "Delivery Info", contactBottom + 1);
+  let tableY = drawPartiesSection(
+    doc,
+    params.client,
+    params.preparedBy,
+    params.branding,
+    "Delivery Info",
+    contactBottom + 1,
+  );
 
   const endY = drawItemsTable(doc, tableY, params.items, params.branding, true); // compact mode
 
   drawDeliverySignatures(doc, endY, params.preparedBy);
 
-  drawBottomFooter(doc, params.branding, params.invoiceSettings, params.preparedBy);
+  drawBottomFooter(
+    doc,
+    params.branding,
+    params.invoiceSettings,
+    params.preparedBy,
+  );
 
   if (params.autoSave !== false) {
     doc.save(`delivery-note-${params.deliveryNoteNumber}.pdf`);
@@ -950,7 +1814,11 @@ export function generateCreditNotePdf(params: {
     branding: params.branding,
   });
 
-  const contactBottom = drawContactSlotBelowLogo(doc, params.branding, params.invoiceSettings);
+  const contactBottom = drawContactSlotBelowLogo(
+    doc,
+    params.branding,
+    params.invoiceSettings,
+  );
 
   let tableY = drawPartiesSection(
     doc,
@@ -958,7 +1826,8 @@ export function generateCreditNotePdf(params: {
     undefined,
     {
       ...params.branding,
-      invoiceEmail: params.invoiceSettings?.invoiceEmail || params.branding?.invoiceEmail,
+      invoiceEmail:
+        params.invoiceSettings?.invoiceEmail || params.branding?.invoiceEmail,
     },
     "Credit Note Info",
     contactBottom + 1,
@@ -969,19 +1838,19 @@ export function generateCreditNotePdf(params: {
   doc.setFontSize(9);
   setColorFromHex(doc, DEFAULT_GRAY, "text");
   doc.text(`Reference Invoice: ${params.invoiceNumber}`, 12, tableY + 1);
-  
+
   // Add reason section
   const reasonY = tableY + 8;
   doc.setFont("helvetica", "bold");
   doc.setFontSize(9);
   setColorFromHex(doc, DEFAULT_TEXT, "text");
   doc.text("Reason for Credit:", 12, reasonY);
-  
+
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8.5);
   setColorFromHex(doc, DEFAULT_GRAY, "text");
   doc.text(params.reason, 15, reasonY + 5);
-  
+
   if (params.reasonDetails) {
     const detailsLines = doc.splitTextToSize(params.reasonDetails, 180);
     doc.text("Details: " + detailsLines[0], 15, reasonY + 9);
@@ -996,9 +1865,20 @@ export function generateCreditNotePdf(params: {
 
   const endY = drawItemsTable(doc, tableY, params.items, params.branding);
 
-  const totalsY = drawTotalsSection(doc, params.subTotal, endY, params.branding, params.invoiceSettings);
+  const totalsY = drawTotalsSection(
+    doc,
+    params.subTotal,
+    endY,
+    params.branding,
+    params.invoiceSettings,
+  );
 
-  drawBottomFooter(doc, params.branding, params.invoiceSettings, params.preparedBy);
+  drawBottomFooter(
+    doc,
+    params.branding,
+    params.invoiceSettings,
+    params.preparedBy,
+  );
 
   if (params.autoSave !== false) {
     doc.save(`credit-note-${params.creditNoteNumber}.pdf`);
@@ -1022,14 +1902,15 @@ export async function applyStampToPdf(
   x: number,
   y: number,
   width: number = 30,
-  height: number = 30
+  height: number = 30,
 ): Promise<void> {
   try {
     // If stampData is a URL, fetch it
     let svgContent = stampData;
     if (stampData.startsWith("http")) {
       const response = await fetch(stampData);
-      if (!response.ok) throw new Error(`Failed to fetch SVG: ${response.statusText}`);
+      if (!response.ok)
+        throw new Error(`Failed to fetch SVG: ${response.statusText}`);
       svgContent = await response.text();
     }
 
@@ -1039,10 +1920,16 @@ export async function applyStampToPdf(
       .trim();
 
     // Fix partially quoted attributes: attribute="value1" value2 value3 -> attribute="value1 value2 value3"
-    svgContent = svgContent.replace(/(\s[a-zA-Z\-:]+)="([^"]*)"(\s+[^=\s>][^=]*?)(?=\s+[a-zA-Z\-:]+\s*=|\s*>)/g, '$1="$2$3"');
+    svgContent = svgContent.replace(
+      /(\s[a-zA-Z\-:]+)="([^"]*)"(\s+[^=\s>][^=]*?)(?=\s+[a-zA-Z\-:]+\s*=|\s*>)/g,
+      '$1="$2$3"',
+    );
 
     // Fix simple unquoted attributes: attribute=value -> attribute="value"
-    svgContent = svgContent.replace(/\s([a-zA-Z\-:]+)=([a-zA-Z0-9#:\-._\/]+)(?=\s|>)/g, ' $1="$2"');
+    svgContent = svgContent.replace(
+      /\s([a-zA-Z\-:]+)=([a-zA-Z0-9#:\-._\/]+)(?=\s|>)/g,
+      ' $1="$2"',
+    );
 
     // Remove xmlns:xlink (not needed for canvas rendering)
     svgContent = svgContent.replace(/\s+xmlns:xlink="[^"]*"/g, "");
@@ -1052,7 +1939,10 @@ export async function applyStampToPdf(
 
     // Ensure SVG has xmlns if missing (required for proper rendering)
     if (!svgContent.includes('xmlns="')) {
-      svgContent = svgContent.replace(/<svg\s+/, '<svg xmlns="http://www.w3.org/2000/svg" ');
+      svgContent = svgContent.replace(
+        /<svg\s+/,
+        '<svg xmlns="http://www.w3.org/2000/svg" ',
+      );
     }
 
     // Fix or validate viewBox
@@ -1060,8 +1950,11 @@ export async function applyStampToPdf(
     if (viewBoxMatch) {
       const viewBoxValue = viewBoxMatch[1];
       const boxParts = viewBoxValue.trim().split(/\s+/);
-      if (boxParts.length !== 4 || boxParts.some(p => isNaN(parseFloat(p)))) {
-        svgContent = svgContent.replace(/viewBox="[^"]*"/, 'viewBox="0 0 200 200"');
+      if (boxParts.length !== 4 || boxParts.some((p) => isNaN(parseFloat(p)))) {
+        svgContent = svgContent.replace(
+          /viewBox="[^"]*"/,
+          'viewBox="0 0 200 200"',
+        );
       }
     } else if (!svgContent.includes("viewBox=")) {
       svgContent = svgContent.replace(/<svg/, '<svg viewBox="0 0 200 200"');
@@ -1093,8 +1986,13 @@ export async function applyStampToPdf(
         }
       };
       img.onerror = () => {
-        console.error("Failed to load SVG image. SVG content preview:", svgContent.substring(0, 150));
-        reject(new Error("Failed to load stamp SVG image - ensure SVG is valid"));
+        console.error(
+          "Failed to load SVG image. SVG content preview:",
+          svgContent.substring(0, 150),
+        );
+        reject(
+          new Error("Failed to load stamp SVG image - ensure SVG is valid"),
+        );
       };
       img.src = dataUrl;
     });
@@ -1122,7 +2020,7 @@ export function applyTextStampToPdf(
   color: string = "#8B0000",
   opacity: number = 0.2,
   rotation: number = 12,
-  fontSize: number = 48
+  fontSize: number = 48,
 ): void {
   const rgb = hexToRgb(color);
 

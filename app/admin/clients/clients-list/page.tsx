@@ -2,11 +2,18 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { stockApi } from "@/lib/api";
+import API_URL from "@/lib/apiBase";
+import { getToken } from "@/lib/auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { useRef } from "react";
+
+interface TenantBranding {
+  primaryColor?: string;
+  secondaryColor?: string;
+}
 
 interface ClientActivity {
   type: "quotation" | "invoice" | "payment" | "sale";
@@ -61,6 +68,21 @@ interface SavedClientRow {
   isSavedClient?: boolean;
 }
 
+function hexToRgb(hex: string) {
+  const normalized = hex.replace("#", "");
+  if (normalized.length !== 6) return { r: 15, g: 118, b: 110 };
+  return {
+    r: Number.parseInt(normalized.slice(0, 2), 16),
+    g: Number.parseInt(normalized.slice(2, 4), 16),
+    b: Number.parseInt(normalized.slice(4, 6), 16),
+  };
+}
+
+function hexToRgba(hex: string, alpha: number) {
+  const { r, g, b } = hexToRgb(hex);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
 export default function AccountsClientsPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -76,13 +98,36 @@ export default function AccountsClientsPage() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [uploadingClients, setUploadingClients] = useState(false);
 
+  // Controls whether the "Create New Client" and "Bulk Upload" panels are shown.
+  const [showAddClientPanel, setShowAddClientPanel] = useState(false);
+  const [showBulkUploadPanel, setShowBulkUploadPanel] = useState(false);
+
+  const [branding, setBranding] = useState<TenantBranding>({});
+  const primaryColor = branding.primaryColor || "#0f766e";
+  const secondaryColor = branding.secondaryColor || "#0ea5e9";
+  const primarySoftColor = hexToRgba(primaryColor, 0.08);
+  const secondarySoftColor = hexToRgba(secondaryColor, 0.08);
+  const primaryBorderColor = hexToRgba(primaryColor, 0.18);
+
   const loadData = async () => {
     try {
       setLoading(true);
-      const [accountsResponse, clientsResponse] = await Promise.all([
+      const [accountsResponse, clientsResponse, brandingResult] = await Promise.all([
         stockApi.getAccountsClients(),
         stockApi.getSavedClients(),
+        fetch(`${API_URL}/api/company/branding`, {
+          headers: { Authorization: `Bearer ${getToken()}` },
+        }).catch(() => null),
       ]);
+
+      if (brandingResult) {
+        try {
+          const brandingJson = await brandingResult.json();
+          setBranding(brandingJson.data || {});
+        } catch {
+          setBranding({});
+        }
+      }
 
       const accountsRows = (accountsResponse.data || []) as AccountsClientRow[];
       const savedClients = (clientsResponse.data ||
@@ -196,6 +241,7 @@ export default function AccountsClientsPage() {
 
       await loadData();
       window.alert("Client saved successfully");
+      setShowAddClientPanel(false);
     } catch (error: any) {
       window.alert(error?.message || "Failed to save client");
     } finally {
@@ -207,138 +253,182 @@ export default function AccountsClientsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Accounts · Clients</h1>
-          <p className="text-sm text-muted-foreground">
-            View client activities, purchases, quotations, debt position, and
-            payment history.
-          </p>
-        </div>
-        <div>
-          <a
-            href="/admin/accounts/clients/installed-machines"
-            className="inline-block"
-          >
-            <Button size="sm">Installed Machines</Button>
-          </a>
+      {/* Branded header, echoing the Invoices page's gradient header but kept minimal */}
+      <div
+        className="rounded-2xl border px-4 py-4 shadow-sm"
+        style={{
+          borderColor: primaryBorderColor,
+          background: `linear-gradient(to right, ${primarySoftColor}, ${secondarySoftColor})`,
+        }}
+      >
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div className="space-y-0.5">
+            <p
+              className="text-sm font-medium tracking-wide"
+              style={{ color: primaryColor }}
+            >
+              Accounts
+            </p>
+            <h1 className="text-xl font-semibold tracking-tight text-foreground">
+              Clients
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              View client activities, purchases, quotations, debt position,
+              and payment history.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              variant={showBulkUploadPanel ? "default" : "outline"}
+              onClick={() => {
+                setShowBulkUploadPanel((prev) => !prev);
+                setShowAddClientPanel(false);
+              }}
+            >
+              Bulk Upload
+            </Button>
+            <Button
+              size="sm"
+              variant={showAddClientPanel ? "default" : "outline"}
+              onClick={() => {
+                setShowAddClientPanel((prev) => !prev);
+                setShowBulkUploadPanel(false);
+              }}
+            >
+              Create New Client
+            </Button>
+          </div>
         </div>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Add Client</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="grid gap-4 md:grid-cols-3">
-            <div>
-              <Label>Client Name</Label>
-              <Input
-                value={newClient.name}
-                onChange={(event) =>
-                  setNewClient((prev) => ({
-                    ...prev,
-                    name: event.target.value,
-                  }))
-                }
-              />
+      {showAddClientPanel ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Create New Client</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="grid gap-4 md:grid-cols-3">
+              <div>
+                <Label>Client Name</Label>
+                <Input
+                  value={newClient.name}
+                  onChange={(event) =>
+                    setNewClient((prev) => ({
+                      ...prev,
+                      name: event.target.value,
+                    }))
+                  }
+                />
+              </div>
+              <div>
+                <Label>Client Number</Label>
+                <Input
+                  value={newClient.number}
+                  onChange={(event) =>
+                    setNewClient((prev) => ({
+                      ...prev,
+                      number: event.target.value,
+                    }))
+                  }
+                />
+              </div>
+              <div>
+                <Label>Client Location</Label>
+                <Input
+                  value={newClient.location}
+                  onChange={(event) =>
+                    setNewClient((prev) => ({
+                      ...prev,
+                      location: event.target.value,
+                    }))
+                  }
+                />
+              </div>
+              <div>
+                <Label>Contact Person (optional)</Label>
+                <Input
+                  value={newClient.contactPerson}
+                  onChange={(event) =>
+                    setNewClient((prev) => ({
+                      ...prev,
+                      contactPerson: event.target.value,
+                    }))
+                  }
+                />
+              </div>
             </div>
-            <div>
-              <Label>Client Number</Label>
-              <Input
-                value={newClient.number}
-                onChange={(event) =>
-                  setNewClient((prev) => ({
-                    ...prev,
-                    number: event.target.value,
-                  }))
-                }
-              />
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="ghost"
+                onClick={() => setShowAddClientPanel(false)}
+                disabled={savingClient}
+              >
+                Cancel
+              </Button>
+              <Button onClick={handleAddClient} disabled={savingClient}>
+                {savingClient ? "Saving..." : "Save Client"}
+              </Button>
             </div>
-            <div>
-              <Label>Client Location</Label>
-              <Input
-                value={newClient.location}
-                onChange={(event) =>
-                  setNewClient((prev) => ({
-                    ...prev,
-                    location: event.target.value,
-                  }))
-                }
-              />
-            </div>
-            <div>
-              <Label>Contact Person (optional)</Label>
-              <Input
-                value={newClient.contactPerson}
-                onChange={(event) =>
-                  setNewClient((prev) => ({
-                    ...prev,
-                    contactPerson: event.target.value,
-                  }))
-                }
-              />
-            </div>
-          </div>
-          <div className="flex justify-end">
-            <Button onClick={handleAddClient} disabled={savingClient}>
-              {savingClient ? "Saving..." : "Save Client"}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      ) : null}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Bulk Upload Clients</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <p className="text-sm">
-            Download a sample CSV, fill rows and upload. Required columns:{" "}
-            <strong>client_name, client_number, client_location</strong>.
-            Optional: <strong>contact_person</strong>.
-          </p>
-          <div className="flex items-center gap-3">
-            <a
-              className="text-sm text-primary underline"
-              href="/static/sample-clients.csv"
-              download
-            >
-              Download sample CSV
-            </a>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".csv"
-              className="hidden"
-              onChange={async (e) => {
-                const file = e.target.files && e.target.files[0];
-                if (!file) return;
-                try {
-                  setUploadingClients(true);
-                  const res = await stockApi.bulkUploadClients(file);
-                  if (!res?.success)
-                    throw new Error(res?.message || "Upload failed");
-                  window.alert(res?.message || "Upload complete");
-                  await loadData();
-                } catch (err: any) {
-                  window.alert(err?.message || "Upload failed");
-                } finally {
-                  setUploadingClients(false);
-                  if (fileInputRef.current) fileInputRef.current.value = "";
-                }
-              }}
-            />
-            <Button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploadingClients}
-              size="sm"
-            >
-              {uploadingClients ? "Uploading..." : "Upload CSV"}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+      {showBulkUploadPanel ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Bulk Upload Clients</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm">
+              Download a sample CSV, fill rows and upload. Required columns:{" "}
+              <strong>client_name, client_number, client_location</strong>.
+              Optional: <strong>contact_person</strong>.
+            </p>
+            <div className="flex items-center gap-3">
+              <a
+                className="text-sm text-primary underline"
+                href="/static/sample-clients.csv"
+                download
+              >
+                Download sample CSV
+              </a>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv"
+                className="hidden"
+                onChange={async (e) => {
+                  const file = e.target.files && e.target.files[0];
+                  if (!file) return;
+                  try {
+                    setUploadingClients(true);
+                    const res = await stockApi.bulkUploadClients(file);
+                    if (!res?.success)
+                      throw new Error(res?.message || "Upload failed");
+                    window.alert(res?.message || "Upload complete");
+                    await loadData();
+                    setShowBulkUploadPanel(false);
+                  } catch (err: any) {
+                    window.alert(err?.message || "Upload failed");
+                  } finally {
+                    setUploadingClients(false);
+                    if (fileInputRef.current) fileInputRef.current.value = "";
+                  }
+                }}
+              />
+              <Button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploadingClients}
+                size="sm"
+              >
+                {uploadingClients ? "Uploading..." : "Upload CSV"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
@@ -346,69 +436,6 @@ export default function AccountsClientsPage() {
             <CardTitle>Clients</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="rounded border p-3 space-y-3 bg-muted/20">
-              <p className="text-sm font-medium">Quick Add Client</p>
-              <div className="grid gap-3 md:grid-cols-2">
-                <div>
-                  <Label>Client Name</Label>
-                  <Input
-                    value={newClient.name}
-                    onChange={(event) =>
-                      setNewClient((prev) => ({
-                        ...prev,
-                        name: event.target.value,
-                      }))
-                    }
-                  />
-                </div>
-                <div>
-                  <Label>Client Number</Label>
-                  <Input
-                    value={newClient.number}
-                    onChange={(event) =>
-                      setNewClient((prev) => ({
-                        ...prev,
-                        number: event.target.value,
-                      }))
-                    }
-                  />
-                </div>
-                <div>
-                  <Label>Client Location</Label>
-                  <Input
-                    value={newClient.location}
-                    onChange={(event) =>
-                      setNewClient((prev) => ({
-                        ...prev,
-                        location: event.target.value,
-                      }))
-                    }
-                  />
-                </div>
-                <div>
-                  <Label>Contact Person (optional)</Label>
-                  <Input
-                    value={newClient.contactPerson}
-                    onChange={(event) =>
-                      setNewClient((prev) => ({
-                        ...prev,
-                        contactPerson: event.target.value,
-                      }))
-                    }
-                  />
-                </div>
-              </div>
-              <div className="flex justify-end">
-                <Button
-                  onClick={handleAddClient}
-                  disabled={savingClient}
-                  size="sm"
-                >
-                  {savingClient ? "Saving..." : "Save Client"}
-                </Button>
-              </div>
-            </div>
-
             <Input
               placeholder="Search client by name, number, location or contact person"
               value={search}

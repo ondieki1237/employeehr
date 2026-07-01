@@ -145,6 +145,12 @@ const adminMenuItems = [
     section: "INVENTORY MANAGER",
   },
   {
+    label: "Tender",
+    icon: FileCheck,
+    href: "/admin/stock/tender",
+    section: "INVENTORY MANAGER",
+  },
+  {
     label: "Services",
     icon: Stamp,
     href: "/admin/stock/services",

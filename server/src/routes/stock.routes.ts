@@ -9,6 +9,7 @@ import {
 } from "../middleware/upload.middleware";
 import WarehouseController from "../controllers/warehouseController";
 import { InstalledMachineController } from "../controllers/installedMachineController";
+import { TenderController } from "../controllers/tenderController";
 
 const router = Router();
 
@@ -22,6 +23,7 @@ router.get("/categories/sales", StockController.getAllCategorySales);
 router.put("/categories/:id", StockController.updateCategory);
 router.delete("/categories/:id", StockController.deleteCategory);
 
+// Quotations
 router.post("/quotations", StockController.createQuotation);
 router.get("/quotations", StockController.getQuotations);
 router.put("/quotations/:quotationId", StockController.updateQuotation);
@@ -42,6 +44,15 @@ router.get(
   "/quotations/:quotationId/followups",
   StockController.getQuotationFollowUps,
 );
+
+// Tenders
+router.post("/tenders", TenderController.createTender);
+router.get("/tenders", TenderController.getTenders);
+router.put("/tenders/:tenderId", TenderController.updateTender);
+router.post("/tenders/:tenderId/approve", TenderController.approveTender);
+router.post("/tenders/:tenderId/reject", TenderController.rejectTender);
+router.post("/tenders/:tenderId/convert", TenderController.convertTenderToInvoice);
+
 router.get("/clients", StockController.getClients);
 router.get("/clients/saved", StockController.getSavedClients);
 router.post("/accounts/clients", StockController.createOrUpdateClient);
