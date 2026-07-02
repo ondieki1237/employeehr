@@ -225,8 +225,12 @@ export default function TendersPage() {
   useEffect(() => {
     setCategoryOrder((prev) => {
       const nextCategories = buildCategoryOrderFromItems(items);
-      const existing = prev.filter((category) => nextCategories.includes(category));
-      const missing = nextCategories.filter((category) => !existing.includes(category));
+      const existing = prev.filter((category) =>
+        nextCategories.includes(category),
+      );
+      const missing = nextCategories.filter(
+        (category) => !existing.includes(category),
+      );
       return [...existing, ...missing];
     });
   }, [items]);
@@ -506,14 +510,16 @@ export default function TendersPage() {
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [products]);
 
-  // Products in the currently selected bulk category
+  // Products in the currently selected bulk category, sorted by price (expensive to cheapest)
   const bulkCategoryProducts = useMemo(() => {
     if (!bulkCategoryId) return [];
-    return products.filter(
-      (p) =>
-        p.categoryDetails?._id === bulkCategoryId &&
-        Number(p.currentQuantity || 0) > 0,
-    );
+    return products
+      .filter(
+        (p) =>
+          p.categoryDetails?._id === bulkCategoryId &&
+          Number(p.currentQuantity || 0) > 0,
+      )
+      .sort((a, b) => (b.sellingPrice || 0) - (a.sellingPrice || 0));
   }, [products, bulkCategoryId]);
 
   const addProductsByCategory = () => {
@@ -565,6 +571,7 @@ export default function TendersPage() {
 
   const productSuggestions = matchingProducts
     .filter((product) => Number(product.currentQuantity || 0) > 0)
+    .sort((a, b) => (b.sellingPrice || 0) - (a.sellingPrice || 0))
     .slice(0, 8);
 
   const resetForm = () => {
@@ -1065,7 +1072,8 @@ export default function TendersPage() {
 
     const groupedByCategory = tender.items.reduce(
       (acc: Record<string, typeof tender.items>, item) => {
-        const category = item.categoryGroup || item.description || "Uncategorized";
+        const category =
+          item.categoryGroup || item.description || "Uncategorized";
         if (!acc[category]) acc[category] = [];
         acc[category].push(item);
         return acc;
@@ -1613,12 +1621,17 @@ export default function TendersPage() {
               </div>
               {bulkCategoryId && bulkCategoryProducts.length > 0 && (
                 <div className="rounded border bg-background">
-                  <div className="border-b bg-muted/30 px-3 py-2 text-xs font-medium text-muted-foreground">
-                    {
-                      productCategories.find((c) => c.id === bulkCategoryId)
-                        ?.name
-                    }{" "}
-                    — {bulkCategoryProducts.length} product(s) in stock
+                  <div className="border-b bg-muted/30 px-3 py-2 text-sm font-semibold mb-2 flex items-center justify-between">
+                    <span>
+                      {
+                        productCategories.find((c) => c.id === bulkCategoryId)
+                          ?.name
+                      }{" "}
+                      — {bulkCategoryProducts.length} product(s) in stock
+                    </span>
+                    <span className="text-xs text-muted-foreground font-normal">
+                      (Sorted: Expensive → Cheapest)
+                    </span>
                   </div>
                   <div className="divide-y max-h-56 overflow-y-auto">
                     {bulkCategoryProducts.map((product) => (
@@ -1629,7 +1642,7 @@ export default function TendersPage() {
                         <div>
                           <div className="font-medium">{product.name}</div>
                           <div className="text-xs text-muted-foreground">
-                            In stock: {product.currentQuantity}
+                            Stock: {product.currentQuantity}
                           </div>
                         </div>
                         <div className="text-right">
@@ -1687,7 +1700,9 @@ export default function TendersPage() {
                   <Input
                     placeholder="e.g. Furniture, Installation, Civil Works"
                     value={itemCategoryGroup}
-                    onChange={(event) => setItemCategoryGroup(event.target.value)}
+                    onChange={(event) =>
+                      setItemCategoryGroup(event.target.value)
+                    }
                     className="mt-1"
                   />
                 </div>
@@ -1710,6 +1725,14 @@ export default function TendersPage() {
 
               {productSearch.trim() && (
                 <div className="border rounded-md divide-y">
+                  {productSuggestions.length > 0 && (
+                    <div className="px-3 py-2 bg-muted/30 text-xs text-muted-foreground flex items-center justify-between">
+                      <span>Matching Products</span>
+                      <span className="font-medium text-primary">
+                        Sorted: Expensive → Cheapest
+                      </span>
+                    </div>
+                  )}
                   {productSuggestions.length === 0 ? (
                     <div className="p-3 text-sm text-muted-foreground space-y-2">
                       <p>No matching products</p>
@@ -1758,9 +1781,12 @@ export default function TendersPage() {
                 <div className="rounded-md border bg-muted/20 p-3">
                   <div className="flex items-center justify-between gap-2">
                     <div>
-                      <p className="text-sm font-medium">Quotation section order</p>
+                      <p className="text-sm font-medium">
+                        Quotation section order
+                      </p>
                       <p className="text-xs text-muted-foreground">
-                        Move categories up or down to decide which sections appear first in the quotation.
+                        Move categories up or down to decide which sections
+                        appear first in the quotation.
                       </p>
                     </div>
                   </div>
@@ -1799,213 +1825,223 @@ export default function TendersPage() {
                     </div>
                   ) : (
                     <p className="mt-3 text-xs text-muted-foreground">
-                      Add a section/category to each item to arrange quote sections here.
+                      Add a section/category to each item to arrange quote
+                      sections here.
                     </p>
                   )}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Reorder rows with ↑/↓ to change the quote output order, or duplicate a row to place the same product in another section/category.
+                  Reorder rows with ↑/↓ to change the quote output order, or
+                  duplicate a row to place the same product in another
+                  section/category.
                 </p>
                 <div className="overflow-x-auto border rounded-md">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-left border-b">
-                      <th className="py-2 px-2">Product</th>
-                      <th className="py-2 px-2">Qty</th>
-                      <th className="py-2 px-2">Product Price</th>
-                      <th className="py-2 px-2">Sold Price (Editable)</th>
-                      <th className="py-2 px-2">Section</th>
-                      <th className="py-2 px-2">Outsourced</th>
-                      <th className="py-2 px-2">Total</th>
-                      <th className="py-2 px-2">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(() => {
-                      const renderedGroups = new Set<string>();
-                      return items.flatMap((item, index) => {
-                        const name =
-                          item.productName ||
-                          products.find(
-                            (product) => product._id === item.productId,
-                          )?.name ||
-                          item.productId;
-                        const referencePrice =
-                          item.productUnitPrice ??
-                          products.find(
-                            (product) => product._id === item.productId,
-                          )?.sellingPrice ??
-                          item.unitPrice;
-                        const soldPrice = item.soldUnitPrice ?? item.unitPrice;
-                        const group = item.categoryGroup || "";
-                        const showGroupHeader =
-                          group && !renderedGroups.has(group);
-                        if (showGroupHeader) renderedGroups.add(group);
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left border-b">
+                        <th className="py-2 px-2">Product</th>
+                        <th className="py-2 px-2">Qty</th>
+                        <th className="py-2 px-2">Product Price</th>
+                        <th className="py-2 px-2">Sold Price (Editable)</th>
+                        <th className="py-2 px-2">Section</th>
+                        <th className="py-2 px-2">Outsourced</th>
+                        <th className="py-2 px-2">Total</th>
+                        <th className="py-2 px-2">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(() => {
+                        const renderedGroups = new Set<string>();
+                        return items.flatMap((item, index) => {
+                          const name =
+                            item.productName ||
+                            products.find(
+                              (product) => product._id === item.productId,
+                            )?.name ||
+                            item.productId;
+                          const referencePrice =
+                            item.productUnitPrice ??
+                            products.find(
+                              (product) => product._id === item.productId,
+                            )?.sellingPrice ??
+                            item.unitPrice;
+                          const soldPrice =
+                            item.soldUnitPrice ?? item.unitPrice;
+                          const group = item.categoryGroup || "";
+                          const showGroupHeader =
+                            group && !renderedGroups.has(group);
+                          if (showGroupHeader) renderedGroups.add(group);
 
-                        const rows = [];
-                        if (showGroupHeader) {
+                          const rows = [];
+                          if (showGroupHeader) {
+                            rows.push(
+                              <tr key={`group-header-${group}-${index}`}>
+                                <td colSpan={7} className="px-2 pt-4 pb-1">
+                                  <div className="flex items-center gap-3">
+                                    <div className="h-px flex-1 bg-border" />
+                                    <span className="rounded-full border bg-muted px-3 py-0.5 text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground whitespace-nowrap">
+                                      {group}
+                                    </span>
+                                    <div className="h-px flex-1 bg-border" />
+                                  </div>
+                                </td>
+                              </tr>,
+                            );
+                          }
+
                           rows.push(
-                            <tr key={`group-header-${group}-${index}`}>
-                              <td colSpan={7} className="px-2 pt-4 pb-1">
-                                <div className="flex items-center gap-3">
-                                  <div className="h-px flex-1 bg-border" />
-                                  <span className="rounded-full border bg-muted px-3 py-0.5 text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground whitespace-nowrap">
-                                    {group}
-                                  </span>
-                                  <div className="h-px flex-1 bg-border" />
+                            <tr
+                              key={`${item.productId}-${index}`}
+                              className="border-b"
+                            >
+                              <td className="py-2 px-2">
+                                <div className="flex items-center gap-2">
+                                  {item.imageUrl && (
+                                    <img
+                                      src={`${API_URL}${item.imageUrl}`}
+                                      alt={name}
+                                      className="h-10 w-10 rounded border object-cover"
+                                    />
+                                  )}
+                                  <div className="font-medium">{name}</div>
+                                </div>
+                                <Textarea
+                                  value={item.description || ""}
+                                  onChange={(e) =>
+                                    updateDraftItemDescription(
+                                      index,
+                                      e.target.value,
+                                    )
+                                  }
+                                  placeholder="Add description/notes..."
+                                  className="mt-1 h-16 w-full text-xs"
+                                />
+                                {item.imageUrl && (
+                                  <label className="mt-1 flex items-center gap-2 text-[10px] text-muted-foreground cursor-pointer">
+                                    <Checkbox
+                                      checked={item.showImageOnQuote}
+                                      onCheckedChange={(val) => {
+                                        setItems((prev) =>
+                                          prev.map((it, idx) =>
+                                            idx === index
+                                              ? {
+                                                  ...it,
+                                                  showImageOnQuote: !!val,
+                                                }
+                                              : it,
+                                          ),
+                                        );
+                                      }}
+                                    />
+                                    <span>Show image on tender PDF</span>
+                                  </label>
+                                )}
+                              </td>
+                              <td className="py-2 px-2">
+                                <Input
+                                  type="number"
+                                  min="1"
+                                  value={item.quantity}
+                                  onChange={(e) => {
+                                    const qty = Math.max(
+                                      1,
+                                      Number(e.target.value) || 1,
+                                    );
+                                    setItems((prev) =>
+                                      prev.map((it, idx) =>
+                                        idx === index
+                                          ? { ...it, quantity: qty }
+                                          : it,
+                                      ),
+                                    );
+                                  }}
+                                  className="h-8 w-20"
+                                />
+                              </td>
+                              <td className="py-2 px-2">{referencePrice}</td>
+                              <td className="py-2 px-2">
+                                <Input
+                                  type="number"
+                                  min={Number(referencePrice || 0)}
+                                  value={soldPrice}
+                                  onChange={(event) =>
+                                    updateDraftItemSoldPrice(
+                                      index,
+                                      event.target.value,
+                                    )
+                                  }
+                                  className="h-8"
+                                />
+                                <div className="mt-1 text-[10px] text-muted-foreground">
+                                  Min: {referencePrice}
+                                </div>
+                              </td>
+                              <td className="py-2 px-2">
+                                <Input
+                                  value={item.categoryGroup || ""}
+                                  onChange={(e) =>
+                                    updateDraftItemCategoryGroup(
+                                      index,
+                                      e.target.value,
+                                    )
+                                  }
+                                  placeholder="e.g. Furniture"
+                                  className="h-8 min-w-[140px]"
+                                />
+                              </td>
+                              <td className="py-2 px-2">
+                                {item.isOutsourced ? "Yes" : "No"}
+                              </td>
+                              <td className="py-2 px-2">
+                                {(item.quantity * soldPrice).toFixed(2)}
+                              </td>
+                              <td className="py-2 px-2">
+                                <div className="flex flex-wrap gap-1">
+                                  <Button
+                                    size="sm"
+                                    type="button"
+                                    variant="outline"
+                                    className="h-8 w-8 px-0"
+                                    onClick={() => moveDraftItem(index, -1)}
+                                    disabled={index === 0}
+                                  >
+                                    ↑
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    type="button"
+                                    variant="outline"
+                                    className="h-8 w-8 px-0"
+                                    onClick={() => moveDraftItem(index, 1)}
+                                    disabled={index === items.length - 1}
+                                  >
+                                    ↓
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => duplicateDraftItem(index)}
+                                  >
+                                    Duplicate
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    type="button"
+                                    variant="destructive"
+                                    onClick={() => removeDraftItem(index)}
+                                  >
+                                    Drop
+                                  </Button>
                                 </div>
                               </td>
                             </tr>,
                           );
-                        }
-
-                        rows.push(
-                          <tr
-                            key={`${item.productId}-${index}`}
-                            className="border-b"
-                          >
-                            <td className="py-2 px-2">
-                              <div className="flex items-center gap-2">
-                                {item.imageUrl && (
-                                  <img
-                                    src={`${API_URL}${item.imageUrl}`}
-                                    alt={name}
-                                    className="h-10 w-10 rounded border object-cover"
-                                  />
-                                )}
-                                <div className="font-medium">{name}</div>
-                              </div>
-                              <Textarea
-                                value={item.description || ""}
-                                onChange={(e) =>
-                                  updateDraftItemDescription(
-                                    index,
-                                    e.target.value,
-                                  )
-                                }
-                                placeholder="Add description/notes..."
-                                className="mt-1 h-16 w-full text-xs"
-                              />
-                              {item.imageUrl && (
-                                <label className="mt-1 flex items-center gap-2 text-[10px] text-muted-foreground cursor-pointer">
-                                  <Checkbox
-                                    checked={item.showImageOnQuote}
-                                    onCheckedChange={(val) => {
-                                      setItems((prev) =>
-                                        prev.map((it, idx) =>
-                                          idx === index
-                                            ? { ...it, showImageOnQuote: !!val }
-                                            : it,
-                                        ),
-                                      );
-                                    }}
-                                  />
-                                  <span>Show image on tender PDF</span>
-                                </label>
-                              )}
-                            </td>
-                            <td className="py-2 px-2">
-                              <Input
-                                type="number"
-                                min="1"
-                                value={item.quantity}
-                                onChange={(e) => {
-                                  const qty = Math.max(
-                                    1,
-                                    Number(e.target.value) || 1,
-                                  );
-                                  setItems((prev) =>
-                                    prev.map((it, idx) =>
-                                      idx === index
-                                        ? { ...it, quantity: qty }
-                                        : it,
-                                    ),
-                                  );
-                                }}
-                                className="h-8 w-20"
-                              />
-                            </td>
-                            <td className="py-2 px-2">{referencePrice}</td>
-                            <td className="py-2 px-2">
-                              <Input
-                                type="number"
-                                min={Number(referencePrice || 0)}
-                                value={soldPrice}
-                                onChange={(event) =>
-                                  updateDraftItemSoldPrice(
-                                    index,
-                                    event.target.value,
-                                  )
-                                }
-                                className="h-8"
-                              />
-                              <div className="mt-1 text-[10px] text-muted-foreground">
-                                Min: {referencePrice}
-                              </div>
-                            </td>
-                            <td className="py-2 px-2">
-                              <Input
-                                value={item.categoryGroup || ""}
-                                onChange={(e) =>
-                                  updateDraftItemCategoryGroup(index, e.target.value)
-                                }
-                                placeholder="e.g. Furniture"
-                                className="h-8 min-w-[140px]"
-                              />
-                            </td>
-                            <td className="py-2 px-2">
-                              {item.isOutsourced ? "Yes" : "No"}
-                            </td>
-                            <td className="py-2 px-2">
-                              {(item.quantity * soldPrice).toFixed(2)}
-                            </td>
-                            <td className="py-2 px-2">
-                              <div className="flex flex-wrap gap-1">
-                                <Button
-                                  size="sm"
-                                  type="button"
-                                  variant="outline"
-                                  className="h-8 w-8 px-0"
-                                  onClick={() => moveDraftItem(index, -1)}
-                                  disabled={index === 0}
-                                >
-                                  ↑
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  type="button"
-                                  variant="outline"
-                                  className="h-8 w-8 px-0"
-                                  onClick={() => moveDraftItem(index, 1)}
-                                  disabled={index === items.length - 1}
-                                >
-                                  ↓
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  type="button"
-                                  variant="outline"
-                                  onClick={() => duplicateDraftItem(index)}
-                                >
-                                  Duplicate
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  type="button"
-                                  variant="destructive"
-                                  onClick={() => removeDraftItem(index)}
-                                >
-                                  Drop
-                                </Button>
-                              </div>
-                            </td>
-                          </tr>,
-                        );
-                        return rows;
-                      });
-                    })()}
-                  </tbody>
-                </table>
+                          return rows;
+                        });
+                      })()}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             )}

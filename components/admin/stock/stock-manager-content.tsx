@@ -653,21 +653,98 @@ export function StockManagerContent({ view }: { view: StockView }) {
   const filteredProductsForSales = products.filter((product) =>
     matchesProductAndCategory(product, normalizedSalesSearch),
   );
+
+  // Helper function to get category name from product
+  const getCategoryNameForProduct = (product: Product) =>
+    product.categoryDetails?.name ||
+    categoryNameById.get(product.category) ||
+    "Uncategorized";
+
+  // Helper function to group products by category for display
+  const getGroupedProductsWithCategories = (
+    productsToGroup: Product[],
+  ): Array<{
+    type: "category" | "product";
+    category?: string;
+    product?: Product;
+  }> => {
+    const grouped = new Map<string, Product[]>();
+    productsToGroup.forEach((product) => {
+      const categoryId = product.category || "uncategorized";
+      if (!grouped.has(categoryId)) {
+        grouped.set(categoryId, []);
+      }
+      grouped.get(categoryId)!.push(product);
+    });
+
+    const result: Array<{
+      type: "category" | "product";
+      category?: string;
+      product?: Product;
+    }> = [];
+    Array.from(grouped.entries())
+      .sort(([catIdA], [catIdB]) => {
+        const nameA =
+          catIdA === "uncategorized"
+            ? "ZZZ"
+            : categoryNameById.get(catIdA) || "";
+        const nameB =
+          catIdB === "uncategorized"
+            ? "ZZZ"
+            : categoryNameById.get(catIdB) || "";
+        return nameA.localeCompare(nameB);
+      })
+      .forEach(([categoryId, categoryProducts]) => {
+        // Add category header
+        result.push({
+          type: "category",
+          category: categoryNameById.get(categoryId) || "Uncategorized",
+        });
+        // Add products sorted by price (highest to lowest)
+        categoryProducts
+          .sort((a, b) => (b.sellingPrice || 0) - (a.sellingPrice || 0))
+          .forEach((product) => {
+            result.push({ type: "product", product });
+          });
+      });
+    return result;
+  };
+
   const filteredProductsForSalePicker = useMemo(() => {
     const baseProducts = saleProductSearch.trim()
       ? products
       : filteredProductsForSales;
     const query = saleProductSearch.trim().toLowerCase();
-    return baseProducts
-      .filter((product) => {
-        if (!query) return true;
-        return (
-          product.name.toLowerCase().includes(query) ||
-          (product.sku || "").toLowerCase().includes(query)
-        );
-      })
+    const filtered = baseProducts.filter((product) => {
+      if (!query) return true;
+      return (
+        product.name.toLowerCase().includes(query) ||
+        (product.sku || "").toLowerCase().includes(query)
+      );
+    });
+
+    // Group by category and sort by price (expensive to cheapest) within each category
+    const grouped = new Map<string, Product[]>();
+    filtered.forEach((product) => {
+      const categoryId = product.category || "uncategorized";
+      if (!grouped.has(categoryId)) {
+        grouped.set(categoryId, []);
+      }
+      grouped.get(categoryId)!.push(product);
+    });
+
+    // Sort products within each category by price (highest to lowest)
+    const sorted = Array.from(grouped.entries())
+      .map(([, categoryProducts]) =>
+        categoryProducts.sort(
+          (a, b) => (b.sellingPrice || 0) - (a.sellingPrice || 0),
+        ),
+      )
+      .flat()
       .slice(0, 50);
-  }, [products, filteredProductsForSales, saleProductSearch]);
+
+    return sorted;
+  }, [products, filteredProductsForSales, saleProductSearch, categoryNameById]);
 
   const shouldShowSaleProductOptions =
     saleProductSearch.trim().length > 0 && saleProductOptionsOpen;
@@ -3248,29 +3325,45 @@ export function StockManagerContent({ view }: { view: StockView }) {
                       {shouldShowSaleProductOptions && (
                         <div className="mt-2">
                           <div className="max-h-40 overflow-auto rounded border">
-                            {filteredProductsForSalePicker.map((product) => (
-                              <button
-                                key={product._id}
-                                type="button"
-                                className={`w-full text-left px-3 py-2 hover:bg-gray-50 ${saleForm.productId === product._id ? "bg-gray-100" : ""}`}
-                                onClick={() => {
-                                  setSaleForm((prev) => ({
-                                    ...prev,
-                                    productId: product._id,
-                                    soldPrice: String(product.sellingPrice),
-                                  }));
-                                  setSaleProductSearch("");
-                                  setSaleProductOptionsOpen(false);
-                                }}
-                              >
-                                <div className="flex items-center justify-between">
-                                  <div className="truncate">{product.name}</div>
-                                  <div className="text-sm text-muted-foreground">
-                                    {product.sellingPrice.toFixed(2)}
-                                  </div>
+                            {getGroupedProductsWithCategories(
+                              filteredProductsForSalePicker,
+                            ).map((item, idx) =>
+                              item.type === "category" ? (
+                                <div
+                                  key={`category-${idx}`}
+                                  className="sticky top-0 bg-muted px-3 py-2 font-semibold text-sm border-b"
+                                >
+                                  {item.category}
                                 </div>
-                              </button>
-                            ))}
+                              ) : (
+                                <button
+                                  key={item.product?._id}
+                                  type="button"
+                                  className={`w-full text-left px-3 py-2 hover:bg-gray-50 ${saleForm.productId === item.product?._id ? "bg-blue-100" : ""}`}
+                                  onClick={() => {
+                                    setSaleForm((prev) => ({
+                                      ...prev,
+                                      productId: item.product?._id || "",
+                                      soldPrice: String(
+                                        item.product?.sellingPrice || 0,
+                                      ),
+                                    }));
+                                    setSaleProductSearch("");
+                                    setSaleProductOptionsOpen(false);
+                                  }}
+                                >
+                                  <div className="flex items-center justify-between">
+                                    <div className="truncate">
+                                      {item.product?.name}
+                                    </div>
+                                    <div className="text-sm text-muted-foreground">
+                                      KES{" "}
+                                      {item.product?.sellingPrice?.toFixed(2)}
+                                    </div>
+                                  </div>
+                                </button>
+                              ),
+                            )}
                             {filteredProductsForSalePicker.length === 0 && (
                               <div className="px-3 py-2 text-sm text-muted-foreground">
                                 No products match your search

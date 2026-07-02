@@ -1068,9 +1068,17 @@ function buildTenderTableRows(
     const rows: TenderTableRow[] = [];
     for (const [category, categoryItems] of Object.entries(groupedByCategory)) {
       rows.push({ kind: "category", name: category });
+
+      // Sort products within this category by price, highest first, so
+      // the most expensive item appears at the top of the category and
+      // the cheapest appears at the bottom.
+      const sortedCategoryItems = [...categoryItems].sort(
+        (a, b) => Number(b.unitPrice || 0) - Number(a.unitPrice || 0),
+      );
+
       let categoryIndex = 0;
       let categorySubtotal = 0;
-      for (const item of categoryItems) {
+      for (const item of sortedCategoryItems) {
         rows.push({ kind: "item", item, index: categoryIndex });
         categorySubtotal += item.lineTotal;
         categoryIndex += 1;
