@@ -94,6 +94,7 @@ interface Tender {
   branchName?: string;
   convertedInvoiceId?: string;
   createdAt: string;
+  categoryOrder?: string[];
 }
 
 interface DraftItem {
@@ -190,6 +191,7 @@ export default function TendersPage() {
   const [itemDescription, setItemDescription] = useState("");
   const [itemCategoryGroup, setItemCategoryGroup] = useState("");
   const [items, setItems] = useState<DraftItem[]>([]);
+  const [categoryOrder, setCategoryOrder] = useState<string[]>([]);
 
   // Bulk add by category
   const [bulkCategoryId, setBulkCategoryId] = useState("");
@@ -208,6 +210,26 @@ export default function TendersPage() {
   useEffect(() => {
     // No local UI preferences on this page; stamp and signature are managed per-user in User Settings / Profile
   }, []);
+
+  const buildCategoryOrderFromItems = (sourceItems: DraftItem[]) => {
+    const categories = Array.from(
+      new Set(
+        sourceItems
+          .map((item) => item.categoryGroup?.trim())
+          .filter((value): value is string => Boolean(value)),
+      ),
+    );
+    return categories;
+  };
+
+  useEffect(() => {
+    setCategoryOrder((prev) => {
+      const nextCategories = buildCategoryOrderFromItems(items);
+      const existing = prev.filter((category) => nextCategories.includes(category));
+      const missing = nextCategories.filter((category) => !existing.includes(category));
+      return [...existing, ...missing];
+    });
+  }, [items]);
 
   const getAuthHeaders = () => {
     const token = getToken();
@@ -564,6 +586,7 @@ export default function TendersPage() {
     setItemDescription("");
     setItemCategoryGroup("");
     setItems([]);
+    setCategoryOrder([]);
     setBulkCategoryId("");
     setEditingTenderId(null);
     setShowCreate(false);
@@ -696,6 +719,16 @@ export default function TendersPage() {
     );
   };
 
+  const moveCategoryOrder = (index: number, direction: -1 | 1) => {
+    setCategoryOrder((prev) => {
+      const next = [...prev];
+      const targetIndex = index + direction;
+      if (targetIndex < 0 || targetIndex >= next.length) return prev;
+      [next[index], next[targetIndex]] = [next[targetIndex], next[index]];
+      return next;
+    });
+  };
+
   const moveDraftItem = (index: number, direction: -1 | 1) => {
     setItems((prev) => {
       const next = [...prev];
@@ -765,6 +798,7 @@ export default function TendersPage() {
           ownerUserId: tenderOwnerId || undefined,
           branchId: tenderBranchId || undefined,
           items,
+          categoryOrder,
         }),
       });
 
@@ -822,28 +856,32 @@ export default function TendersPage() {
     setTenderOwnerId(tender.ownerUserId || "");
     setTenderBranchId(tender.branchId || "");
     setBranchHint(tender.branchName || "");
-    setItems(
-      tender.items.map((item) => {
-        const matchedProduct = products.find(
-          (product) => product._id === item.productId,
-        );
-        const categoryGroup =
-          item.categoryGroup || matchedProduct?.categoryDetails?.name || "";
+    const mappedItems = tender.items.map((item) => {
+      const matchedProduct = products.find(
+        (product) => product._id === item.productId,
+      );
+      const categoryGroup =
+        item.categoryGroup || matchedProduct?.categoryDetails?.name || "";
 
-        return {
-          productId: item.productId,
-          productName: item.productName,
-          quantity: item.quantity,
-          productUnitPrice: item.productUnitPrice ?? item.unitPrice,
-          soldUnitPrice: item.soldUnitPrice ?? item.unitPrice,
-          unitPrice: item.unitPrice,
-          isOutsourced: Boolean(item.isOutsourced),
-          description: item.description,
-          imageUrl: item.imageUrl,
-          showImageOnQuote: item.showImageOnQuote ?? true,
-          categoryGroup: categoryGroup || undefined,
-        };
-      }),
+      return {
+        productId: item.productId,
+        productName: item.productName,
+        quantity: item.quantity,
+        productUnitPrice: item.productUnitPrice ?? item.unitPrice,
+        soldUnitPrice: item.soldUnitPrice ?? item.unitPrice,
+        unitPrice: item.unitPrice,
+        isOutsourced: Boolean(item.isOutsourced),
+        description: item.description,
+        imageUrl: item.imageUrl,
+        showImageOnQuote: item.showImageOnQuote ?? true,
+        categoryGroup: categoryGroup || undefined,
+      };
+    });
+    setItems(mappedItems);
+    setCategoryOrder(
+      tender.categoryOrder?.length
+        ? tender.categoryOrder.filter(Boolean)
+        : buildCategoryOrderFromItems(mappedItems),
     );
   };
 
@@ -1025,16 +1063,37 @@ export default function TendersPage() {
         : false;
     const stampSelection = stampPref ? await promptStampSelection() : null;
 
-    // Group items by category for tender PDF
     const groupedByCategory = tender.items.reduce(
       (acc: Record<string, typeof tender.items>, item) => {
-        const category =
-          item.categoryGroup || item.description || "Uncategorized";
+        const category = item.categoryGroup || item.description || "Uncategorized";
         if (!acc[category]) acc[category] = [];
         acc[category].push(item);
         return acc;
       },
       {},
+    );
+
+    const orderedCategoryNames = [
+      ...(tender.categoryOrder || []).filter(Boolean),
+      ...Object.keys(groupedByCategory).filter(
+        (category) => !(tender.categoryOrder || []).includes(category),
+      ),
+    ];
+    const orderedGroupedByCategory = Object.fromEntries(
+      orderedCategoryNames
+        .filter((category) => Boolean(groupedByCategory[category]))
+        .map((category) => [
+          category,
+          (groupedByCategory[category] || []).map((item) => ({
+            productName: item.productName,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            lineTotal: item.lineTotal,
+            description: item.description,
+            imageUrl: item.imageUrl,
+            showImageOnQuote: item.showImageOnQuote,
+          })),
+        ]),
     );
 
     const doc = generateTenderPdf({
@@ -1059,20 +1118,7 @@ export default function TendersPage() {
       preparedBySignature,
       watermarkText: tender.status === "cancelled" ? "CANCELLED" : undefined,
       autoSave: false,
-      groupedByCategory: Object.fromEntries(
-        Object.entries(groupedByCategory).map(([category, categoryItems]) => [
-          category,
-          categoryItems.map((item) => ({
-            productName: item.productName,
-            quantity: item.quantity,
-            unitPrice: item.unitPrice,
-            lineTotal: item.lineTotal,
-            description: item.description,
-            imageUrl: item.imageUrl,
-            showImageOnQuote: item.showImageOnQuote,
-          })),
-        ]),
-      ),
+      groupedByCategory: orderedGroupedByCategory,
     });
 
     if (stampSelection) {
@@ -1708,7 +1754,55 @@ export default function TendersPage() {
             </div>
 
             {items.length > 0 && (
-              <div className="space-y-2">
+              <div className="space-y-3">
+                <div className="rounded-md border bg-muted/20 p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <p className="text-sm font-medium">Quotation section order</p>
+                      <p className="text-xs text-muted-foreground">
+                        Move categories up or down to decide which sections appear first in the quotation.
+                      </p>
+                    </div>
+                  </div>
+                  {categoryOrder.length > 0 ? (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {categoryOrder.map((category, index) => (
+                        <div
+                          key={category}
+                          className="flex items-center gap-2 rounded-full border bg-background px-3 py-1.5 text-sm"
+                        >
+                          <span className="font-medium">{category}</span>
+                          <div className="flex items-center gap-1">
+                            <Button
+                              size="sm"
+                              type="button"
+                              variant="outline"
+                              className="h-7 w-7 px-0"
+                              onClick={() => moveCategoryOrder(index, -1)}
+                              disabled={index === 0}
+                            >
+                              ↑
+                            </Button>
+                            <Button
+                              size="sm"
+                              type="button"
+                              variant="outline"
+                              className="h-7 w-7 px-0"
+                              onClick={() => moveCategoryOrder(index, 1)}
+                              disabled={index === categoryOrder.length - 1}
+                            >
+                              ↓
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="mt-3 text-xs text-muted-foreground">
+                      Add a section/category to each item to arrange quote sections here.
+                    </p>
+                  )}
+                </div>
                 <p className="text-xs text-muted-foreground">
                   Reorder rows with ↑/↓ to change the quote output order, or duplicate a row to place the same product in another section/category.
                 </p>

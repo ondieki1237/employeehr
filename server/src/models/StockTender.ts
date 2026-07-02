@@ -33,6 +33,7 @@ export interface IStockTender {
   client: ITenderClient
   items: ITenderItem[]
   subTotal: number
+  categoryOrder?: string[]
   status: "draft" | "pending_approval" | "converted" | "cancelled"
   createdBy: string
   ownerUserId?: string
@@ -78,6 +79,7 @@ const stockTenderSchema = new Schema<IStockTender>(
     },
     items: { type: [tenderItemSchema], required: true },
     subTotal: { type: Number, required: true, min: 0 },
+    categoryOrder: { type: [String], default: [] },
     status: {
       type: String,
       enum: ["draft", "pending_approval", "converted", "cancelled"],

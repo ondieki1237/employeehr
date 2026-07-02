@@ -27,7 +27,8 @@ export class TenderController {
         clientContactPerson,
         ownerUserId,
         branchId,
-        items
+        items,
+        categoryOrder
       } = req.body;
 
       if (!Array.isArray(items) || items.length === 0) {
@@ -59,6 +60,7 @@ export class TenderController {
         },
         items: normalizedItems,
         subTotal,
+        categoryOrder: Array.isArray(categoryOrder) ? categoryOrder.filter(Boolean) : [],
         status: "draft",
         createdBy,
         ownerUserId: ownerUserId || undefined,
@@ -105,7 +107,8 @@ export class TenderController {
         clientContactPerson,
         ownerUserId,
         branchId,
-        items
+        items,
+        categoryOrder
       } = req.body;
 
       if (!Array.isArray(items) || items.length === 0) {
@@ -135,6 +138,7 @@ export class TenderController {
         },
         items: normalizedItems,
         subTotal,
+        categoryOrder: Array.isArray(categoryOrder) ? categoryOrder.filter(Boolean) : [],
         ownerUserId: ownerUserId || undefined,
         branchId: branchId || undefined,
       }
