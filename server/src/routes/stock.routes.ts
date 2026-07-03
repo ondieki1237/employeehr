@@ -215,6 +215,16 @@ router.post("/add", StockController.addStock);
 router.get("/entries", StockController.getStockEntries);
 router.post("/check-expiry", StockController.checkExpiringProducts);
 
+router.post("/stock-checks", StockController.createStockCheck);
+router.get("/stock-checks", StockController.getStockChecks);
+router.get(
+  "/stock-checks/:stockCheckId/audit-trail",
+  StockController.getStockCheckAuditTrail,
+);
+router.get("/stock-checks/:stockCheckId", StockController.getStockCheckById);
+router.put("/stock-checks/:stockCheckId", StockController.updateStockCheck);
+router.post("/stock-checks/:stockCheckId/close", StockController.closeStockCheck);
+
 router.get("/warehouse-locations", StockController.getWarehouseLocations);
 router.post("/warehouse-locations", StockController.createWarehouseLocation);
 router.put(

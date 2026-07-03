@@ -30,6 +30,8 @@ import { StockServiceJob } from "../models/StockServiceJob";
 import { StockManufacturer } from "../models/StockManufacturer";
 import { StockLocation } from "../models/StockLocation";
 import { StockProductLocation } from "../models/StockProductLocation";
+import { StockCheck } from "../models/StockCheck";
+import { Warehouse } from "../models/Warehouse";
 
 const ADMIN_ROLES = ["company_admin", "hr", "admin", "super_admin"];
 
@@ -5539,10 +5541,24 @@ export class StockController {
           .status(401)
           .json({ success: false, message: "Unauthorized" });
 
-      const products = await StockProduct.find({
+      const categoryFilter = String(req.query.categoryIds || "").trim()
+      const warehouseId = String(req.query.warehouseId || "").trim()
+      const productQuery: any = {
         org_id,
         isActive: { $ne: false },
-      })
+      }
+
+      if (categoryFilter) {
+        const categoryIds = categoryFilter
+          .split(",")
+          .map((id) => String(id).trim())
+          .filter(Boolean)
+        if (categoryIds.length) {
+          productQuery.category = { $in: categoryIds }
+        }
+      }
+
+      const products = await StockProduct.find(productQuery)
         .sort({ createdAt: -1 })
         .lean();
 
@@ -5556,6 +5572,21 @@ export class StockController {
       const categoryMap = new Map(
         categories.map((category) => [String(category._id), category]),
       );
+
+      const warehouseQuantities = new Map<string, number>();
+      if (warehouseId) {
+        const productLocations = await StockProductLocation.find({
+          org_id,
+          branchId: warehouseId,
+        }).lean();
+        productLocations.forEach((location) => {
+          const productId = String(location.productId);
+          warehouseQuantities.set(
+            productId,
+            (warehouseQuantities.get(productId) || 0) + Number(location.quantity || 0),
+          );
+        });
+      }
 
       // attach manufacturer details when available (defensive: avoid failing whole request if lookup errors)
       let manufacturerMap = new Map();
@@ -5582,13 +5613,19 @@ export class StockController {
         manufacturerMap = new Map();
       }
 
-      const data = products.map((product) => ({
-        ...product,
-        categoryDetails: categoryMap.get(String(product.category)) || null,
-        manufacturerDetails: product.manufacturer
-          ? manufacturerMap.get(String(product.manufacturer)) || null
-          : null,
-      }));
+      const data = products.map((product) => {
+        const productId = String(product._id);
+        return {
+          ...product,
+          categoryDetails: categoryMap.get(String(product.category)) || null,
+          manufacturerDetails: product.manufacturer
+            ? manufacturerMap.get(String(product.manufacturer)) || null
+            : null,
+          warehouseQuantity: warehouseId
+            ? warehouseQuantities.get(productId) ?? Number(product.currentQuantity || 0)
+            : Number(product.currentQuantity || 0),
+        }
+      });
 
       return res.status(200).json({ success: true, data });
     } catch (error: any) {
@@ -6670,6 +6707,466 @@ export class StockController {
       return res.status(500).json({
         success: false,
         message: error.message || "Failed to fetch stock entries",
+      });
+    }
+  }
+
+  static async createStockCheck(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = req.user?.org_id;
+      const createdBy = req.user?.userId;
+      if (!org_id || !createdBy)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
+
+      const {
+        warehouseId,
+        checkType = "full",
+        supervisor,
+        assignedCounters,
+        categories,
+        notes,
+      } = req.body;
+
+      if (!warehouseId) {
+        return res.status(400).json({
+          success: false,
+          message: "warehouseId is required",
+        });
+      }
+
+      const warehouse = await Warehouse.findOne({ _id: warehouseId, org_id }).lean();
+      if (!warehouse) {
+        return res.status(404).json({
+          success: false,
+          message: "Warehouse not found",
+        });
+      }
+
+      const productQuery: any = {
+        org_id,
+        isActive: { $ne: false },
+      };
+      const selectedCategories = Array.isArray(categories)
+        ? categories.map(String).filter(Boolean)
+        : categories
+        ? [String(categories).trim()]
+        : [];
+
+      if (selectedCategories.length) {
+        productQuery.category = { $in: selectedCategories };
+      }
+
+      const itemsTotal = await StockProduct.countDocuments(productQuery);
+
+      const stockCheck = await StockCheck.create({
+        org_id,
+        stockCheckNumber: generateDocumentNumber("SC"),
+        warehouseId,
+        warehouse: { _id: warehouseId, name: warehouse.name || "" },
+        checkType,
+        status: "draft",
+        createdBy,
+        supervisor: supervisor ? String(supervisor) : undefined,
+        assignedCounters: Array.isArray(assignedCounters)
+          ? assignedCounters.map(String)
+          : assignedCounters
+          ? [String(assignedCounters)]
+          : [],
+        categories: selectedCategories,
+        itemsTotal,
+        itemsCounted: 0,
+        varianceCount: 0,
+        totalVarianceValue: 0,
+        notes: notes ? String(notes).trim() : undefined,
+      });
+
+      return res.status(201).json({ success: true, data: stockCheck });
+    } catch (error: any) {
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to create stock check",
+      });
+    }
+  }
+
+  static async getStockCheckById(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = req.user?.org_id;
+      if (!org_id)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
+
+      const stockCheckId = req.params.stockCheckId;
+      const stockCheck = await StockCheck.findOne({
+        _id: stockCheckId,
+        org_id,
+      }).lean();
+
+      if (!stockCheck) {
+        return res.status(404).json({
+          success: false,
+          message: "Stock check not found",
+        });
+      }
+
+      const warehouseIds = [
+        String(stockCheck.warehouseId || stockCheck.warehouse?._id || ""),
+      ].filter(Boolean);
+      const userIds = Array.from(
+        new Set(
+          [
+            stockCheck.createdBy,
+            stockCheck.supervisor,
+            ...(Array.isArray(stockCheck.assignedCounters)
+              ? stockCheck.assignedCounters
+              : []),
+          ]
+            .filter(Boolean)
+            .map(String),
+        ),
+      );
+
+      const [warehouses, users] = await Promise.all([
+        Warehouse.find({ org_id, _id: { $in: warehouseIds } })
+          .select("name")
+          .lean(),
+        User.find({ org_id, _id: { $in: userIds } })
+          .select("firstName lastName email")
+          .lean(),
+      ]);
+
+      const warehouseMap = new Map(
+        warehouses.map((warehouse) => [String(warehouse._id), warehouse]),
+      );
+      const userMap = new Map(users.map((user) => [String(user._id), user]));
+
+      const warehouseId = String(stockCheck.warehouseId || stockCheck.warehouse?._id || "");
+      const warehouse =
+        stockCheck.warehouse?.name && stockCheck.warehouse?._id
+          ? stockCheck.warehouse
+          : warehouseMap.has(warehouseId)
+          ? { _id: warehouseId, name: warehouseMap.get(warehouseId)?.name || "" }
+          : stockCheck.warehouse;
+
+      return res.status(200).json({
+        success: true,
+        data: {
+          ...stockCheck,
+          warehouse,
+          createdBy:
+            userMap.get(String(stockCheck.createdBy)) || stockCheck.createdBy,
+          supervisor: stockCheck.supervisor
+            ? userMap.get(String(stockCheck.supervisor)) || stockCheck.supervisor
+            : undefined,
+          assignedCounters: Array.isArray(stockCheck.assignedCounters)
+            ? stockCheck.assignedCounters.map(
+                (counter) => userMap.get(String(counter)) || counter,
+              )
+            : [],
+        },
+      });
+    } catch (error: any) {
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to fetch stock check",
+      });
+    }
+  }
+
+  static async updateStockCheck(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = req.user?.org_id;
+      if (!org_id)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
+
+      const stockCheckId = String(req.params.stockCheckId || "").trim();
+      if (!stockCheckId)
+        return res
+          .status(400)
+          .json({ success: false, message: "stockCheckId is required" });
+
+      const { countedItems, status, notes, supervisor, assignedCounters } = req.body;
+      const update: any = {};
+
+      if (Array.isArray(countedItems)) {
+        const normalizedItems = countedItems.map((item: any) => {
+          const countedQuantity =
+            item.countedQuantity != null ? Number(item.countedQuantity) : null;
+          const expectedQuantity = Number(item.expectedQuantity || 0);
+          return {
+            productId: String(item.productId || "").trim(),
+            productName: item.productName ? String(item.productName) : undefined,
+            categoryId: item.categoryId ? String(item.categoryId) : undefined,
+            expiryDate: item.expiryDate ? new Date(item.expiryDate) : undefined,
+            warehouseQuantity: Number(item.warehouseQuantity || 0),
+            expectedQuantity,
+            countedQuantity,
+            variance:
+              countedQuantity != null ? countedQuantity - expectedQuantity : 0,
+          };
+        });
+
+        const itemsCounted = normalizedItems.filter(
+          (item) => item.countedQuantity != null,
+        ).length;
+        const varianceCount = normalizedItems.reduce(
+          (sum, item) => sum + Number(item.variance || 0),
+          0,
+        );
+        const totalVarianceValue = normalizedItems.reduce(
+          (sum, item) => sum + Number(item.variance || 0) * Number(item.warehouseQuantity || 0),
+          0,
+        );
+
+        update.countedItems = normalizedItems;
+        update.itemsCounted = itemsCounted;
+        update.varianceCount = varianceCount;
+        update.totalVarianceValue = totalVarianceValue;
+      }
+
+      if (typeof status === "string" && status.trim()) {
+        update.status = status.trim();
+      }
+      if (typeof notes === "string") {
+        update.notes = notes.trim();
+      }
+      if (typeof supervisor === "string") {
+        update.supervisor = supervisor.trim() || undefined;
+      }
+      if (Array.isArray(assignedCounters)) {
+        update.assignedCounters = assignedCounters.map(String);
+      }
+
+      const stockCheck = await StockCheck.findOneAndUpdate(
+        { _id: stockCheckId, org_id },
+        { $set: update },
+        { new: true },
+      ).lean();
+
+      if (!stockCheck)
+        return res
+          .status(404)
+          .json({ success: false, message: "Stock check not found" });
+
+      return res.status(200).json({ success: true, data: stockCheck });
+    } catch (error: any) {
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to update stock check",
+      });
+    }
+  }
+
+  static async getStockCheckAuditTrail(
+    req: AuthenticatedRequest,
+    res: Response,
+  ) {
+    try {
+      const org_id = req.user?.org_id;
+      if (!org_id)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
+
+      const stockCheckId = req.params.stockCheckId;
+      const stockCheck = await StockCheck.findOne({
+        _id: stockCheckId,
+        org_id,
+      }).lean();
+
+      if (!stockCheck) {
+        return res.status(404).json({
+          success: false,
+          message: "Stock check not found",
+        });
+      }
+
+      const userIds = Array.from(
+        new Set(
+          [
+            stockCheck.createdBy,
+            stockCheck.supervisor,
+            stockCheck.closedBy,
+          ]
+            .filter(Boolean)
+            .map(String),
+        ),
+      );
+      const users = await User.find({ org_id, _id: { $in: userIds } })
+        .select("firstName lastName email")
+        .lean();
+      const userMap = new Map(users.map((user) => [String(user._id), user]));
+
+      const buildActor = (actorId?: string) => {
+        if (!actorId) return "System";
+        const found = userMap.get(String(actorId));
+        if (!found) return actorId;
+        return [found.firstName, found.lastName].filter(Boolean).join(" ") ||
+          found.email ||
+          String(actorId);
+      };
+
+      const events: Array<{ type: string; when?: Date; actor: string }> = [
+        {
+          type: "Created",
+          when: stockCheck.createdAt,
+          actor: buildActor(stockCheck.createdBy),
+        },
+      ];
+
+      if (stockCheck.startTime) {
+        events.push({
+          type: "Started",
+          when: new Date(stockCheck.startTime),
+          actor: buildActor(stockCheck.createdBy),
+        });
+      }
+
+      if (stockCheck.status && stockCheck.status !== "draft") {
+        events.push({
+          type: `Status changed to ${stockCheck.status}`,
+          when: stockCheck.updatedAt || stockCheck.createdAt,
+          actor: buildActor(stockCheck.createdBy),
+        });
+      }
+
+      if (stockCheck.closedAt) {
+        events.push({
+          type: "Closed",
+          when: stockCheck.closedAt,
+          actor: buildActor(stockCheck.closedBy),
+        });
+      }
+
+      return res.status(200).json({ success: true, data: events });
+    } catch (error: any) {
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to fetch audit trail",
+      });
+    }
+  }
+
+  static async getStockChecks(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = req.user?.org_id;
+      if (!org_id)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
+
+      const stockChecks = await StockCheck.find({ org_id })
+        .sort({ createdAt: -1 })
+        .lean();
+
+      const warehouseIds = Array.from(
+        new Set(
+          stockChecks
+            .map((check) => String(check.warehouseId || check.warehouse?._id || ""))
+            .filter(Boolean),
+        ),
+      );
+
+      const userIds = Array.from(
+        new Set(
+          stockChecks.flatMap((check) => [
+            check.createdBy,
+            check.supervisor,
+            ...(Array.isArray(check.assignedCounters) ? check.assignedCounters : []),
+          ]).filter(Boolean).map(String),
+        ),
+      );
+
+      const [warehouses, users] = await Promise.all([
+        Warehouse.find({ org_id, _id: { $in: warehouseIds } })
+          .select("name")
+          .lean(),
+        User.find({ org_id, _id: { $in: userIds } })
+          .select("firstName lastName email")
+          .lean(),
+      ]);
+
+      const warehouseMap = new Map(
+        warehouses.map((warehouse) => [String(warehouse._id), warehouse]),
+      );
+      const userMap = new Map(users.map((user) => [String(user._id), user]));
+
+      const enriched = stockChecks.map((check) => {
+        const warehouseId = String(check.warehouseId || check.warehouse?._id || "");
+        const warehouse =
+          check.warehouse?.name && check.warehouse?._id
+            ? check.warehouse
+            : warehouseMap.has(warehouseId)
+            ? { _id: warehouseId, name: warehouseMap.get(warehouseId)?.name || "" }
+            : check.warehouse;
+
+        return {
+          ...check,
+          warehouse,
+          createdBy: userMap.get(String(check.createdBy)) || check.createdBy,
+          supervisor: check.supervisor
+            ? userMap.get(String(check.supervisor)) || check.supervisor
+            : undefined,
+          assignedCounters: Array.isArray(check.assignedCounters)
+            ? check.assignedCounters.map(
+                (counter) => userMap.get(String(counter)) || counter,
+              )
+            : [],
+        };
+      });
+
+      return res.status(200).json({ success: true, data: enriched });
+    } catch (error: any) {
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to fetch stock checks",
+      });
+    }
+  }
+
+  static async closeStockCheck(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = req.user?.org_id;
+      const userId = req.user?.userId;
+      const stockCheckId = req.params.stockCheckId;
+
+      if (!org_id || !userId)
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
+
+      const stockCheck = await StockCheck.findOne({ _id: stockCheckId, org_id });
+      if (!stockCheck) {
+        return res
+          .status(404)
+          .json({ success: false, message: "Stock check not found" });
+      }
+
+      if (stockCheck.status === "closed") {
+        return res.status(400).json({
+          success: false,
+          message: "Stock check is already closed",
+        });
+      }
+
+      stockCheck.status = "closed";
+      stockCheck.closedAt = new Date();
+      stockCheck.closedBy = userId;
+      if (!stockCheck.endTime) {
+        stockCheck.endTime = new Date();
+      }
+
+      await stockCheck.save();
+      return res.status(200).json({ success: true, data: stockCheck });
+    } catch (error: any) {
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to close stock check",
       });
     }
   }

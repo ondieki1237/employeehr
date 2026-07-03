@@ -13,6 +13,8 @@ import {
   AccordionTrigger,
   AccordionContent,
 } from "@/components/ui/accordion";
+import { API_URL } from "@/lib/apiBase";
+import { fetchJson } from "@/lib/fetchUtils";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -1155,14 +1157,14 @@ export function WarehouseCanvas({
 
     setIsSaving(true);
     try {
-      const response = await fetch(`/api/stock/warehouses/${warehouse._id}`, {
+      const result = await fetchJson(`/api/stock/warehouses/${warehouse._id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ layoutObjects: objects }),
       });
 
-      if (!response.ok) {
-        throw new Error(`Failed to save: ${response.statusText}`);
+      if (!result.response.ok) {
+        throw new Error(result.errorMessage || "Failed to save warehouse layout");
       }
 
       setSavedAt(new Date());
@@ -1683,10 +1685,9 @@ function WarehouseManagementWrapper({
   useEffect(() => {
     const fetchWarehouses = async () => {
       try {
-        const response = await fetch("/api/stock/warehouses");
-        if (!response.ok) throw new Error("Failed to fetch warehouses");
-        const data = await response.json();
-        const warehouseList = data.data || [];
+        const result = await fetchJson("/api/stock/warehouses");
+        if (!result.response.ok) throw new Error(result.errorMessage || "Failed to fetch warehouses");
+        const warehouseList = result.data?.data || [];
         setWarehouses(warehouseList);
         if (warehouseList.length > 0 && !selectedWarehouseId) {
           setSelectedWarehouseId(warehouseList[0]._id);
@@ -1717,7 +1718,7 @@ function WarehouseManagementWrapper({
     setError(null);
 
     try {
-      const response = await fetch("/api/stock/warehouses", {
+      const result = await fetchJson("/api/stock/warehouses", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1728,9 +1729,8 @@ function WarehouseManagementWrapper({
         }),
       });
 
-      if (!response.ok) throw new Error("Failed to create warehouse");
-      const data = await response.json();
-      const newWarehouse = data.data;
+      if (!result.response.ok) throw new Error(result.errorMessage || "Failed to create warehouse");
+      const newWarehouse = result.data?.data;
 
       setWarehouses((prev) => [...prev, newWarehouse]);
       setSelectedWarehouseId(newWarehouse._id);

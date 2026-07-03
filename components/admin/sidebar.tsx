@@ -133,6 +133,12 @@ const adminMenuItems = [
     section: "INVENTORY MANAGER",
   },
   {
+    label: "Stock Checks",
+    icon: FileCheck,
+    href: "/admin/stock/stock-check",
+    section: "INVENTORY MANAGER",
+  },
+  {
     label: "Sales",
     icon: Package,
     href: "/admin/stock/sales",
