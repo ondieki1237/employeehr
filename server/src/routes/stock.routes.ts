@@ -9,6 +9,7 @@ import {
 } from "../middleware/upload.middleware";
 import WarehouseController from "../controllers/warehouseController";
 import { InstalledMachineController } from "../controllers/installedMachineController";
+import { MachineServiceController } from "../controllers/machineServiceController";
 import { TenderController } from "../controllers/tenderController";
 
 const router = Router();
@@ -303,6 +304,17 @@ router.delete(
 router.get(
   "/installed-candidates",
   InstalledMachineController.listInstallableCandidates,
+);
+
+// Machine services
+router.get("/machine-services", MachineServiceController.listMachineServices);
+router.get("/machine-services/:id", MachineServiceController.getMachineService);
+router.post("/machine-services", MachineServiceController.createMachineService);
+router.put("/machine-services/:id", MachineServiceController.updateMachineService);
+router.delete("/machine-services/:id", MachineServiceController.deleteMachineService);
+router.get(
+  "/installed-machines/:id/services",
+  MachineServiceController.listMachineServices,
 );
 
 export default router;

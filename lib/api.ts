@@ -792,6 +792,27 @@ export const stockApi = {
     client.patch<any>(`/api/stock/installed-machines/${id}`, data),
   deleteInstalledMachine: (id: string) =>
     client.delete<any>(`/api/stock/installed-machines/${id}`),
+  // Machine services
+  getMachineServices: (params?: {
+    machineId?: string;
+    status?: string;
+    withinDays?: number;
+  }) => {
+    const search = new URLSearchParams();
+    if (params?.machineId) search.set("machineId", params.machineId);
+    if (params?.status) search.set("status", params.status);
+    if (params?.withinDays) search.set("withinDays", String(params.withinDays));
+    const query = search.toString();
+    return client.get<any[]>(`/api/stock/machine-services${query ? `?${query}` : ""}`);
+  },
+  getMachineService: (id: string) =>
+    client.get<any>(`/api/stock/machine-services/${id}`),
+  createMachineService: (data: any) =>
+    client.post<any>("/api/stock/machine-services", data),
+  updateMachineService: (id: string, data: any) =>
+    client.put<any>(`/api/stock/machine-services/${id}`, data),
+  deleteMachineService: (id: string) =>
+    client.delete<any>(`/api/stock/machine-services/${id}`),
   // Candidates
   getInstallableCandidates: () =>
     client.get<any>(`/api/stock/installed-candidates`),
