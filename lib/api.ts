@@ -381,6 +381,7 @@ export const reportsApi = {
 
   generateSummary: (data: { fromType: string; toType: string }) =>
     client.post<any>("/api/reports/generate-summary", data),
+  getGeneral: () => client.get<any>("/api/reports/general"),
 };
 
 export const companyApi = {

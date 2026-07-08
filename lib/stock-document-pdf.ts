@@ -1450,12 +1450,9 @@ function drawTenderCategoryRecap(
   doc.setFont("helvetica", "bold");
   doc.setFontSize(9);
   doc.text("GRAND TOTAL", colPositions[0] + 3, y + 6);
-  doc.text(
-    formatAmount(subTotal),
-    colPositions[2] + colWidths[2] - 3,
-    y + 6,
-    { align: "right" },
-  );
+  doc.text(formatAmount(subTotal), colPositions[2] + colWidths[2] - 3, y + 6, {
+    align: "right",
+  });
   y += totalRowHeight;
 
   doc.setFont("helvetica", "normal");
@@ -1552,6 +1549,431 @@ export function generateTenderPdf(params: {
 
   if (params.autoSave !== false) {
     doc.save(`tender-${params.tenderNumber}.pdf`);
+  }
+
+  return doc;
+}
+
+export interface SummaryReportItem {
+  date: string;
+  documentNumber: string;
+  clientName: string;
+  salesperson: string;
+  products: string[];
+  status: string;
+  amount: number;
+  paid?: number;
+  balance?: number;
+}
+
+function drawLandscapeSummaryHeader(
+  doc: jsPDF,
+  title: string,
+  branding?: TenantBranding,
+  periodStr?: string,
+) {
+  const primary = branding?.primaryColor || DEFAULT_PRIMARY;
+
+  // Left side - Logo & Company
+  if (branding?.logo) {
+    try {
+      const lower = branding.logo.toLowerCase();
+      const format =
+        lower.includes("jpg") || lower.includes("jpeg") ? "JPEG" : "PNG";
+      doc.addImage(branding.logo, format, 12, 12, 40, 16);
+    } catch {}
+  } else if (branding?.name) {
+    doc.setFontSize(16);
+    doc.setFont("helvetica", "bold");
+    setColorFromHex(doc, DEFAULT_TEXT, "text");
+    doc.text(branding.name, 12, 20);
+  }
+
+  // Right side - Title
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(24);
+  setColorFromHex(doc, primary, "text");
+  doc.text(title.toUpperCase(), 285, 20, { align: "right" });
+
+  if (periodStr) {
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    setColorFromHex(doc, DEFAULT_GRAY, "text");
+    doc.text(periodStr, 285, 28, { align: "right" });
+  }
+
+  // Divider
+  setColorFromHex(doc, "#e2e8f0", "draw");
+  doc.setLineWidth(0.4);
+  doc.line(12, 34, 285, 34);
+
+  return 42;
+}
+
+function drawLandscapeSummaryTable(
+  doc: jsPDF,
+  startY: number,
+  items: SummaryReportItem[],
+  totalAmount: number,
+  branding?: TenantBranding,
+  periodStr?: string,
+  title: string = "SUMMARY REPORT",
+) {
+  const primary = branding?.primaryColor || DEFAULT_PRIMARY;
+  const hasPaidAndBalance = items.some(
+    (i) => i.paid !== undefined || i.balance !== undefined,
+  );
+  const columns = hasPaidAndBalance
+    ? [
+        { header: "Date", width: 23 },
+        { header: "Doc #", width: 33 },
+        { header: "Client", width: 40 },
+        { header: "Salesperson", width: 35 },
+        { header: "Products", width: 50 },
+        { header: "Status", width: 20 },
+        { header: "Amount", width: 24 },
+        { header: "Paid", width: 24 },
+        { header: "Balance", width: 24 },
+      ]
+    : [
+        { header: "Date", width: 25 },
+        { header: "Doc #", width: 35 },
+        { header: "Client", width: 45 },
+        { header: "Salesperson", width: 40 },
+        { header: "Products", width: 78 },
+        { header: "Status", width: 20 },
+        { header: "Amount", width: 30 },
+      ];
+
+  const startX = 12;
+  const pageBottomLimit = 195; // A4 Landscape is 210mm high
+  let y = startY;
+
+  const drawHeaderRow = (currentY: number) => {
+    setColorFromHex(doc, primary, "fill");
+    doc.rect(startX, currentY, 273, 9, "F");
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9);
+    doc.setTextColor(255, 255, 255);
+
+    let currentX = startX;
+    columns.forEach((col, i) => {
+      let align: "left" | "right" = "left";
+      let xOffset = 3;
+      if (i === columns.length - 1) {
+        align = "right";
+        xOffset = col.width - 3;
+      }
+      doc.text(col.header, currentX + xOffset, currentY + 6, { align });
+      currentX += col.width;
+    });
+    return currentY + 9;
+  };
+
+  y = drawHeaderRow(y);
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8.5);
+
+  const drawRowBackground = (
+    currentY: number,
+    height: number,
+    rowIndex: number,
+  ) => {
+    if (rowIndex % 2 === 0) {
+      doc.setFillColor(248, 250, 252);
+      doc.rect(startX, currentY, 273, height, "F");
+    }
+    setColorFromHex(doc, primary, "draw");
+    doc.setLineWidth(0.2);
+    // Left edge
+    doc.line(startX, currentY, startX, currentY + height);
+    // Right edge
+    doc.line(startX + 273, currentY, startX + 273, currentY + height);
+    // Bottom edge
+    doc.line(startX, currentY + height, startX + 273, currentY + height);
+
+    // Vertical dividers
+    let currentX = startX;
+    columns.forEach((col) => {
+      if (currentX > startX) {
+        doc.line(currentX, currentY, currentX, currentY + height);
+      }
+      currentX += col.width;
+    });
+  };
+
+  items.forEach((item, rowIndex) => {
+    const defaultRowHeight = 8;
+    // Calculate products column height
+    const maxLineLength = 55;
+    const allProductText = item.products.join("\n");
+    const productLines = doc.splitTextToSize(
+      allProductText,
+      columns[4].width - 4,
+    );
+
+    const requiredHeight = Math.max(
+      defaultRowHeight,
+      productLines.length * 4 + 4,
+    );
+
+    if (y + requiredHeight > pageBottomLimit) {
+      doc.addPage();
+      y = drawLandscapeSummaryHeader(doc, title, branding, periodStr);
+      y = drawHeaderRow(y);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8.5);
+    }
+
+    drawRowBackground(y, requiredHeight, rowIndex);
+
+    setColorFromHex(doc, DEFAULT_TEXT, "text");
+
+    let currentX = startX;
+
+    // Date
+    doc.text(item.date, currentX + 3, y + 5);
+    currentX += columns[0].width;
+
+    // Doc #
+    const docNoLines = doc.splitTextToSize(
+      item.documentNumber,
+      columns[1].width - 4,
+    );
+    doc.text(docNoLines, currentX + 3, y + 5);
+    currentX += columns[1].width;
+
+    // Client
+    const clientLines = doc.splitTextToSize(
+      item.clientName,
+      columns[2].width - 4,
+    );
+    doc.text(clientLines, currentX + 3, y + 5);
+    currentX += columns[2].width;
+
+    // Salesperson
+    const sellerLines = doc.splitTextToSize(
+      item.salesperson,
+      columns[3].width - 4,
+    );
+    doc.text(sellerLines, currentX + 3, y + 5);
+    currentX += columns[3].width;
+
+    // Products
+    doc.setFont("helvetica", "italic");
+    setColorFromHex(doc, DEFAULT_GRAY, "text");
+    doc.text(productLines, currentX + 2, y + 5);
+    doc.setFont("helvetica", "normal");
+    setColorFromHex(doc, DEFAULT_TEXT, "text");
+    currentX += columns[4].width;
+
+    // Status
+    doc.text(item.status.replace("_", " ").toUpperCase(), currentX + 3, y + 5);
+    currentX += columns[5].width;
+
+    // Amount
+    doc.setFont("helvetica", "bold");
+    doc.text(
+      formatAmount(item.amount),
+      currentX + columns[6].width - 3,
+      y + 5,
+      { align: "right" },
+    );
+    currentX += columns[6].width;
+    doc.setFont("helvetica", "normal");
+
+    if (hasPaidAndBalance) {
+      doc.text(
+        formatAmount(item.paid || 0),
+        currentX + columns[7].width - 3,
+        y + 5,
+        { align: "right" },
+      );
+      currentX += columns[7].width;
+
+      doc.text(
+        formatAmount(item.balance || 0),
+        currentX + columns[8].width - 3,
+        y + 5,
+        { align: "right" },
+      );
+      currentX += columns[8].width;
+    }
+
+    y += requiredHeight;
+  });
+
+  // Totals Row
+  if (y + 10 > pageBottomLimit) {
+    doc.addPage();
+    y = drawLandscapeSummaryHeader(doc, title, branding, periodStr);
+  }
+
+  setColorFromHex(doc, DEFAULT_LIGHT, "fill");
+  doc.rect(startX, y, 273, 10, "F");
+  setColorFromHex(doc, primary, "draw");
+  doc.setLineWidth(0.4);
+  doc.rect(startX, y, 273, 10);
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(10);
+  doc.text("TOTAL SUMMARY", startX + 3, y + 6.5);
+
+  if (hasPaidAndBalance) {
+    const totalPaid = items.reduce((sum, item) => sum + (item.paid || 0), 0);
+    const totalBalance = items.reduce(
+      (sum, item) => sum + (item.balance || 0),
+      0,
+    );
+    doc.text(formatAmount(totalAmount), startX + 225 - 3, y + 6.5, {
+      align: "right",
+    });
+    doc.text(formatAmount(totalPaid), startX + 249 - 3, y + 6.5, {
+      align: "right",
+    });
+    doc.text(formatAmount(totalBalance), startX + 273 - 3, y + 6.5, {
+      align: "right",
+    });
+  } else {
+    doc.text(formatAmount(totalAmount), startX + 273 - 3, y + 6.5, {
+      align: "right",
+    });
+  }
+
+  // Footer
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8);
+  setColorFromHex(doc, DEFAULT_GRAY, "text");
+  const timeStr = new Date().toLocaleString("en-KE");
+  doc.text(`Generated on ${timeStr}`, 285, 203, { align: "right" });
+
+  return y + 10;
+}
+
+export function generateQuotationStyleSummaryPdf(params: {
+  quotations: Array<{
+    quotationNumber: string;
+    createdAt: string;
+    client: DocumentClient;
+    items: DocumentItem[];
+    subTotal: number;
+    convertedInvoiceNumber?: string;
+    status?: string;
+    salesperson?: string;
+  }>;
+  branding?: TenantBranding;
+  periodStr?: string;
+  watermarkText?: string;
+  autoSave?: boolean;
+}) {
+  const doc = new jsPDF({ unit: "mm", format: "a4", orientation: "landscape" });
+  if (params.watermarkText) {
+    doc.setTextColor(230, 230, 230);
+    doc.setFontSize(60);
+    doc.text(params.watermarkText.toUpperCase(), 148, 105, {
+      angle: 25,
+      align: "center",
+    });
+  }
+
+  const items: SummaryReportItem[] = params.quotations.map((q) => ({
+    date: new Date(q.createdAt).toLocaleDateString("en-GB"),
+    documentNumber: q.quotationNumber,
+    clientName: q.client.name,
+    salesperson: q.salesperson || "N/A",
+    products: q.items.map((i) => `${i.productName} (${i.quantity}x)`),
+    status: q.status || "N/A",
+    amount: q.subTotal,
+  }));
+
+  const totalAmount = items.reduce((sum, item) => sum + item.amount, 0);
+
+  const startY = drawLandscapeSummaryHeader(
+    doc,
+    "Quotations Summary",
+    params.branding,
+    params.periodStr,
+  );
+  drawLandscapeSummaryTable(
+    doc,
+    startY,
+    items,
+    totalAmount,
+    params.branding,
+    params.periodStr,
+    "Quotations Summary",
+  );
+
+  if (params.autoSave !== false) {
+    doc.save("quotations-summary.pdf");
+  }
+
+  return doc;
+}
+
+export function generateInvoiceStyleSummaryPdf(params: {
+  invoices: Array<{
+    invoiceNumber: string;
+    deliveryNoteNumber?: string;
+    quotationNumber?: string;
+    createdAt: string;
+    client: DocumentClient;
+    items: DocumentItem[];
+    subTotal: number;
+    status: string;
+    salesperson?: string;
+    paidAmount?: number;
+    balanceRemaining?: number;
+  }>;
+  branding?: TenantBranding;
+  periodStr?: string;
+  watermarkText?: string;
+  autoSave?: boolean;
+}) {
+  const doc = new jsPDF({ unit: "mm", format: "a4", orientation: "landscape" });
+  if (params.watermarkText) {
+    doc.setTextColor(230, 230, 230);
+    doc.setFontSize(60);
+    doc.text(params.watermarkText.toUpperCase(), 148, 105, {
+      angle: 25,
+      align: "center",
+    });
+  }
+
+  const items: SummaryReportItem[] = params.invoices.map((inv) => ({
+    date: new Date(inv.createdAt).toLocaleDateString("en-GB"),
+    documentNumber: inv.invoiceNumber,
+    clientName: inv.client.name,
+    salesperson: inv.salesperson || "N/A",
+    products: inv.items.map((i) => `${i.productName} (${i.quantity}x)`),
+    status: inv.status,
+    amount: inv.subTotal,
+    paid: inv.paidAmount,
+    balance: inv.balanceRemaining,
+  }));
+
+  const totalAmount = items.reduce((sum, item) => sum + item.amount, 0);
+
+  const startY = drawLandscapeSummaryHeader(
+    doc,
+    "Invoices Summary",
+    params.branding,
+    params.periodStr,
+  );
+  drawLandscapeSummaryTable(
+    doc,
+    startY,
+    items,
+    totalAmount,
+    params.branding,
+    params.periodStr,
+    "Invoices Summary",
+  );
+
+  if (params.autoSave !== false) {
+    doc.save("invoices-summary.pdf");
   }
 
   return doc;
@@ -1758,6 +2180,7 @@ export function generateDeliveryNotePdf(params: {
   branding?: TenantBranding;
   invoiceSettings?: InvoiceDocumentSettings;
   preparedBy: string;
+  preparedBySignature?: string;
   watermarkText?: string;
   autoSave?: boolean;
 }) {
@@ -2066,4 +2489,189 @@ export function applyTextStampToPdf(
     align: "center",
     angle: rotation,
   });
+}
+
+export function generateStatementOfAccountPdf(params: {
+  client: { name: string; number: string; location: string };
+  invoices: Array<{
+    invoiceNumber: string;
+    createdAt: string;
+    items: DocumentItem[];
+    subTotal: number;
+    paidAmount?: number;
+    balanceRemaining?: number;
+  }>;
+  branding?: TenantBranding;
+  periodStr?: string;
+  autoSave?: boolean;
+}) {
+  const doc = new jsPDF({ unit: "mm", format: "a4" });
+  const startY = 50;
+
+  // Manual generic header for statement of account
+  const primary = params.branding?.primaryColor || DEFAULT_PRIMARY;
+
+  if (params.branding?.logo) {
+    try {
+      const lower = params.branding.logo.toLowerCase();
+      const format =
+        lower.includes("jpg") || lower.includes("jpeg") ? "JPEG" : "PNG";
+      doc.addImage(params.branding.logo, format, 12, 12, 44, 20);
+    } catch {}
+  } else if (params.branding?.name) {
+    doc.setFontSize(22);
+    doc.setFont("helvetica", "bold");
+    setColorFromHex(doc, DEFAULT_TEXT, "text");
+    doc.text(params.branding.name, 12, 24);
+  }
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(28);
+  setColorFromHex(doc, primary, "text");
+  doc.text("STATEMENT OF ACCOUNT", 198, 25, { align: "right" });
+
+  if (params.periodStr) {
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    setColorFromHex(doc, DEFAULT_GRAY, "text");
+    doc.text(params.periodStr, 198, 32, { align: "right" });
+  }
+
+  // Client info
+  setColorFromHex(doc, DEFAULT_LIGHT, "fill");
+  doc.rect(12, 40, 186, 25, "F");
+
+  doc.setFontSize(10);
+  doc.setFont("helvetica", "bold");
+  setColorFromHex(doc, DEFAULT_TEXT, "text");
+  doc.text("CLIENT SUMMARY", 15, 48);
+  doc.setFont("helvetica", "normal");
+  doc.text(`Name: ${params.client.name}`, 15, 54);
+  doc.text(`Phone: ${params.client.number}`, 15, 60);
+
+  // Table
+  let y = 75;
+  const columns = [
+    { h: "Date", w: 25 },
+    { h: "Reference", w: 35 },
+    { h: "Products Bought", w: 66 },
+    { h: "Value", w: 20 },
+    { h: "Paid", w: 20 },
+    { h: "Balance", w: 20 },
+  ];
+
+  setColorFromHex(doc, primary, "fill");
+  doc.rect(12, y, 186, 9, "F");
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(9);
+  doc.setFont("helvetica", "bold");
+
+  let cx = 12;
+  columns.forEach((col, i) => {
+    let alg: "left" | "right" = i >= 3 ? "right" : "left";
+    let off = i >= 3 ? col.w - 3 : 3;
+    doc.text(col.h, cx + off, y + 6, { align: alg });
+    cx += col.w;
+  });
+
+  y += 9;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8.5);
+
+  let totalValue = 0;
+  let totalPaid = 0;
+  let totalBalance = 0;
+
+  params.invoices.forEach((inv, i) => {
+    const val = Number(inv.subTotal || 0);
+    const paid = Number(inv.paidAmount || 0);
+    const bal = Number(inv.balanceRemaining || 0);
+    totalValue += val;
+    totalPaid += paid;
+    totalBalance += bal;
+
+    const prods = inv.items
+      .map((i) => `${i.productName} (${i.quantity})`)
+      .join(", ");
+    const textLines = doc.splitTextToSize(prods, columns[2].w - 4);
+    const rh = Math.max(8, textLines.length * 4 + 4);
+
+    if (y + rh > 270) {
+      doc.addPage();
+      y = 20;
+    }
+
+    if (i % 2 === 0) {
+      doc.setFillColor(248, 250, 252);
+      doc.rect(12, y, 186, rh, "F");
+    }
+
+    setColorFromHex(doc, DEFAULT_TEXT, "text");
+    cx = 12;
+    doc.text(
+      new Date(inv.createdAt).toLocaleDateString("en-GB"),
+      cx + 3,
+      y + 5,
+    );
+    cx += columns[0].w;
+    doc.text(inv.invoiceNumber, cx + 3, y + 5);
+    cx += columns[1].w;
+
+    doc.setFont("helvetica", "italic");
+    setColorFromHex(doc, DEFAULT_GRAY, "text");
+    doc.text(textLines, cx + 2, y + 5);
+    doc.setFont("helvetica", "normal");
+    setColorFromHex(doc, DEFAULT_TEXT, "text");
+    cx += columns[2].w;
+
+    doc.text(formatAmount(val), cx + columns[3].w - 3, y + 5, {
+      align: "right",
+    });
+    cx += columns[3].w;
+    doc.text(formatAmount(paid), cx + columns[4].w - 3, y + 5, {
+      align: "right",
+    });
+    cx += columns[4].w;
+    doc.text(formatAmount(bal), cx + columns[5].w - 3, y + 5, {
+      align: "right",
+    });
+
+    y += rh;
+  });
+
+  if (y + 20 > 270) (doc.addPage(), (y = 20));
+
+  setColorFromHex(doc, primary, "draw");
+  doc.line(12, y, 198, y);
+
+  y += 5;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(10);
+  doc.text(
+    "TOTALS:",
+    12 + columns[0].w + columns[1].w + columns[2].w - 3,
+    y + 2,
+    { align: "right" },
+  );
+  doc.text(formatAmount(totalValue), 12 + 126 + 20 - 3, y + 2, {
+    align: "right",
+  });
+  doc.text(formatAmount(totalPaid), 12 + 146 + 20 - 3, y + 2, {
+    align: "right",
+  });
+  doc.text(formatAmount(totalBalance), 12 + 166 + 20 - 3, y + 2, {
+    align: "right",
+  });
+
+  const timeStr = new Date().toLocaleString("en-KE");
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8);
+  setColorFromHex(doc, DEFAULT_GRAY, "text");
+  doc.text(`Generated on ${timeStr}`, 198, 285, { align: "right" });
+
+  if (params.autoSave !== false) {
+    doc.save(`statement-${params.client.name.replace(/\s+/g, "-")}.pdf`);
+  }
+
+  return doc;
 }

@@ -1,77 +1,94 @@
-"use client"
+"use client";
 
-import { useEffect, useMemo, useState } from "react"
-import Link from "next/link"
-import { useSearchParams } from "next/navigation"
-import API_URL from "@/lib/apiBase"
-import { getToken, getUser } from "@/lib/auth"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Badge } from "@/components/ui/badge"
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import API_URL from "@/lib/apiBase";
+import { getToken, getUser } from "@/lib/auth";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"
+} from "@/components/ui/select";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+} from "@/components/ui/dropdown-menu";
 import {
   applyStampToPdf,
   generateDeliveryNotePdf,
   generateInvoicePdf,
+  generateInvoiceStyleSummaryPdf,
   type InvoiceDocumentSettings,
   type TenantBranding,
-} from "@/lib/stock-document-pdf"
+} from "@/lib/stock-document-pdf";
 
 interface InvoiceItem {
-  productId: string
-  productName: string
-  quantity: number
-  unitPrice: number
-  lineTotal: number
-  description?: string
+  productId: string;
+  productName: string;
+  quantity: number;
+  unitPrice: number;
+  lineTotal: number;
+  description?: string;
 }
 
 interface Invoice {
-  _id: string
-  invoiceNumber: string
-  deliveryNoteNumber: string
-  quotationNumber?: string
-  client: { name: string; number: string; location: string }
-  items: InvoiceItem[]
-  subTotal: number
-  status: "issued" | "paid" | "cancelled"
-  createdBy: string
-  createdAt: string
+  _id: string;
+  invoiceNumber: string;
+  deliveryNoteNumber: string;
+  quotationNumber?: string;
+  client: { name: string; number: string; location: string };
+  items: InvoiceItem[];
+  subTotal: number;
+  paidAmount?: number;
+  balanceRemaining?: number;
+  status: "issued" | "paid" | "cancelled";
+  createdBy: string;
+  createdAt: string;
   dispatch?: {
-    status: "not_assigned" | "assigned" | "packing" | "packed" | "dispatched" | "delivered"
-    assignedToUserId?: string
-    packingItems?: Array<{ requiredQuantity: number; packedQuantity: number }>
-  }
+    status:
+      | "not_assigned"
+      | "assigned"
+      | "packing"
+      | "packed"
+      | "dispatched"
+      | "delivered";
+    assignedToUserId?: string;
+    packingItems?: Array<{ requiredQuantity: number; packedQuantity: number }>;
+  };
 }
 
 interface DispatchUser {
-  _id: string
-  firstName?: string
-  lastName?: string
-  first_name?: string
-  last_name?: string
-  role?: string
-  email?: string
-  signatureUrl?: string
+  _id: string;
+  firstName?: string;
+  lastName?: string;
+  first_name?: string;
+  last_name?: string;
+  role?: string;
+  email?: string;
+  signatureUrl?: string;
 }
 
 interface StampOption {
-  _id: string
-  name: string
+  _id: string;
+  name: string;
 }
 
 type SortOption =
@@ -85,25 +102,37 @@ type SortOption =
   | "amount-desc"
   | "amount-asc"
   | "invoice-asc"
-  | "invoice-desc"
+  | "invoice-desc";
 
 function hexToRgb(hex: string) {
-  const normalized = hex.replace("#", "")
-  if (normalized.length !== 6) return { r: 15, g: 118, b: 110 }
+  const normalized = hex.replace("#", "");
+  if (normalized.length !== 6) return { r: 15, g: 118, b: 110 };
   return {
     r: Number.parseInt(normalized.slice(0, 2), 16),
     g: Number.parseInt(normalized.slice(2, 4), 16),
     b: Number.parseInt(normalized.slice(4, 6), 16),
-  }
+  };
 }
 
 function hexToRgba(hex: string, alpha: number) {
-  const { r, g, b } = hexToRgb(hex)
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`
+  const { r, g, b } = hexToRgb(hex);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
 function exportInvoiceCsv(invoices: Invoice[]) {
-  const headers = ["Invoice Number", "Delivery Note", "Quotation", "Client", "Number", "Location", "Items", "Amount", "Status", "Date"]
+  const headers = [
+    "Invoice Number",
+    "Delivery Note",
+    "Quotation",
+    "Client",
+    "Number",
+    "Location",
+    "Items",
+    "Products",
+    "Amount",
+    "Status",
+    "Date",
+  ];
   const rows = invoices.map((invoice) => [
     invoice.invoiceNumber,
     invoice.deliveryNoteNumber,
@@ -112,61 +141,79 @@ function exportInvoiceCsv(invoices: Invoice[]) {
     invoice.client.number,
     invoice.client.location,
     String(invoice.items.length),
+    invoice.items.map((i) => `${i.productName} (${i.quantity}x)`).join("; "),
     invoice.subTotal.toFixed(2),
     invoice.status,
     new Date(invoice.createdAt).toISOString(),
-  ])
+  ]);
 
   const csv = [
     headers.join(","),
     ...rows.map((row) =>
       row
         .map((value) => {
-          const stringValue = String(value ?? "")
-          if (/[",\n]/.test(stringValue)) return `"${stringValue.replace(/"/g, '""')}"`
-          return stringValue
+          const stringValue = String(value ?? "");
+          if (/[",\n]/.test(stringValue))
+            return `"${stringValue.replace(/"/g, '""')}"`;
+          return stringValue;
         })
         .join(","),
     ),
-  ].join("\n")
+  ].join("\n");
 
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement("a")
-  link.href = url
-  link.download = "invoices.csv"
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
-  URL.revokeObjectURL(url)
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "invoices.csv";
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
 }
 
 export default function InvoicesPage() {
-  const searchParams = useSearchParams()
-  const [loading, setLoading] = useState(true)
-  const [invoices, setInvoices] = useState<Invoice[]>([])
-  const [branding, setBranding] = useState<TenantBranding>({})
-  const [invoiceSettings, setInvoiceSettings] = useState<InvoiceDocumentSettings>({})
-  const [searchInput, setSearchInput] = useState("")
-  const [search, setSearch] = useState("")
-  const [sortBy, setSortBy] = useState<SortOption>("date-desc")
-  const [page, setPage] = useState(1)
-  const pageSize = 10
-  const [dispatchUsers, setDispatchUsers] = useState<DispatchUser[]>([])
-  const [selectedDispatchByInvoice, setSelectedDispatchByInvoice] = useState<Record<string, string>>({})
-  const [assigningInvoiceId, setAssigningInvoiceId] = useState<string | null>(null)
-  const [dispatchSnapshotCollapsed, setDispatchSnapshotCollapsed] = useState(true)
+  const searchParams = useSearchParams();
+  const [loading, setLoading] = useState(true);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [branding, setBranding] = useState<TenantBranding>({});
+  const [invoiceSettings, setInvoiceSettings] =
+    useState<InvoiceDocumentSettings>({});
+  const [searchInput, setSearchInput] = useState("");
+  const [search, setSearch] = useState("");
+  const [sortBy, setSortBy] = useState<SortOption>("date-desc");
+  const [page, setPage] = useState(1);
+
+  const pageSize = 10;
+
+  // Export Modal State
+  const [exportModalOpen, setExportModalOpen] = useState(false);
+  const [exportType, setExportType] = useState<"pdf" | "excel" | null>(null);
+  const [exportStartDate, setExportStartDate] = useState("");
+  const [exportEndDate, setExportEndDate] = useState("");
+  const [dispatchUsers, setDispatchUsers] = useState<DispatchUser[]>([]);
+  const [selectedDispatchByInvoice, setSelectedDispatchByInvoice] = useState<
+    Record<string, string>
+  >({});
+  const [assigningInvoiceId, setAssigningInvoiceId] = useState<string | null>(
+    null,
+  );
+  const [dispatchSnapshotCollapsed, setDispatchSnapshotCollapsed] =
+    useState(true);
+  const [invoicePaymentSummaries, setInvoicePaymentSummaries] = useState<
+    Record<string, { paidAmount: number; balanceRemaining: number }>
+  >({});
 
   useEffect(() => {
-    const q = searchParams.get("q") || ""
-    if (!q) return
-    setSearchInput(q)
-    setSearch(q)
-  }, [searchParams])
+    const q = searchParams.get("q") || "";
+    if (!q) return;
+    setSearchInput(q);
+    setSearch(q);
+  }, [searchParams]);
 
   useEffect(() => {
-    setPage(1)
-  }, [search, sortBy])
+    setPage(1);
+  }, [search, sortBy]);
 
   const headers = useMemo(
     () => ({
@@ -174,176 +221,217 @@ export default function InvoicesPage() {
       Authorization: `Bearer ${getToken()}`,
     }),
     [],
-  )
+  );
 
-  const primaryColor = branding.primaryColor || "#0f766e"
-  const secondaryColor = branding.secondaryColor || "#0ea5e9"
-  const primarySoftColor = hexToRgba(primaryColor, 0.08)
-  const secondarySoftColor = hexToRgba(secondaryColor, 0.08)
-  const primaryBorderColor = hexToRgba(primaryColor, 0.18)
+  const primaryColor = branding.primaryColor || "#0f766e";
+  const secondaryColor = branding.secondaryColor || "#0ea5e9";
+  const primarySoftColor = hexToRgba(primaryColor, 0.08);
+  const secondarySoftColor = hexToRgba(secondaryColor, 0.08);
+  const primaryBorderColor = hexToRgba(primaryColor, 0.18);
 
   const loadInvoices = async () => {
     try {
-      setLoading(true)
-      const invoicesResponse = await fetch(`${API_URL}/api/stock/invoices`, { headers })
-      const invoicesData = await invoicesResponse.json()
+      setLoading(true);
+      const invoicesResponse = await fetch(`${API_URL}/api/stock/invoices`, {
+        headers,
+      });
+      const invoicesData = await invoicesResponse.json();
       if (!invoicesResponse.ok) {
-        throw new Error(invoicesData.message || "Failed to load invoices")
+        throw new Error(invoicesData.message || "Failed to load invoices");
       }
-      setInvoices(invoicesData.data || [])
+      setInvoices(invoicesData.data || []);
 
-      const [brandingResult, invoiceSettingsResult, usersResult] = await Promise.allSettled([
-        fetch(`${API_URL}/api/company/branding`, { headers }),
-        fetch(`${API_URL}/api/company/invoice-settings`, { headers }),
-        fetch(`${API_URL}/api/users`, { headers }),
-      ])
+      const [brandingResult, invoiceSettingsResult, usersResult] =
+        await Promise.allSettled([
+          fetch(`${API_URL}/api/company/branding`, { headers }),
+          fetch(`${API_URL}/api/company/invoice-settings`, { headers }),
+          fetch(`${API_URL}/api/users`, { headers }),
+        ]);
 
       if (brandingResult.status === "fulfilled") {
         try {
-          const brandingData = await brandingResult.value.json()
-          setBranding(brandingData.data || {})
+          const brandingData = await brandingResult.value.json();
+          setBranding(brandingData.data || {});
         } catch {
-          setBranding({})
+          setBranding({});
         }
       } else {
-        setBranding({})
+        setBranding({});
       }
 
       if (invoiceSettingsResult.status === "fulfilled") {
         try {
-          const invoiceSettingsData = await invoiceSettingsResult.value.json()
-          setInvoiceSettings(invoiceSettingsData.data || {})
+          const invoiceSettingsData = await invoiceSettingsResult.value.json();
+          setInvoiceSettings(invoiceSettingsData.data || {});
         } catch {
-          setInvoiceSettings({})
+          setInvoiceSettings({});
         }
       } else {
-        setInvoiceSettings({})
+        setInvoiceSettings({});
       }
 
       if (usersResult.status === "fulfilled") {
         try {
-          const usersData = await usersResult.value.json()
-          setDispatchUsers(usersData.data || [])
+          const usersData = await usersResult.value.json();
+          setDispatchUsers(usersData.data || []);
         } catch {
-          setDispatchUsers([])
+          setDispatchUsers([]);
         }
       } else {
-        setDispatchUsers([])
+        setDispatchUsers([]);
       }
     } catch (loadError: any) {
-      setInvoices([])
-      window.alert(loadError?.message || "Failed to load invoices")
+      setInvoices([]);
+      window.alert(loadError?.message || "Failed to load invoices");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const assignToDispatch = async (invoiceId: string) => {
     try {
-      const assignedToUserId = selectedDispatchByInvoice[invoiceId]
+      const assignedToUserId = selectedDispatchByInvoice[invoiceId];
       if (!assignedToUserId) {
-        window.alert("Select a dispatch user first")
-        return
+        window.alert("Select a dispatch user first");
+        return;
       }
 
-      setAssigningInvoiceId(invoiceId)
-      const response = await fetch(`${API_URL}/api/stock/invoices/${invoiceId}/dispatch/assign`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({ assignedToUserId }),
-      })
-      const json = await response.json()
+      setAssigningInvoiceId(invoiceId);
+      const response = await fetch(
+        `${API_URL}/api/stock/invoices/${invoiceId}/dispatch/assign`,
+        {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ assignedToUserId }),
+        },
+      );
+      const json = await response.json();
       if (!response.ok) {
-        window.alert(json.message || "Failed to assign dispatch")
-        return
+        window.alert(json.message || "Failed to assign dispatch");
+        return;
       }
       if (json?.success) {
-        const openDispatchNow = window.confirm("Dispatch handler assigned. Open Dispatch Form now to mark as dispatched and send client SMS?")
+        const openDispatchNow = window.confirm(
+          "Dispatch handler assigned. Open Dispatch Form now to mark as dispatched and send client SMS?",
+        );
         if (openDispatchNow) {
-          window.location.href = `/admin/stock/dispatch/${invoiceId}`
-          return
+          window.location.href = `/admin/stock/dispatch/${invoiceId}`;
+          return;
         }
       }
-      await loadInvoices()
+      await loadInvoices();
     } finally {
-      setAssigningInvoiceId(null)
+      setAssigningInvoiceId(null);
     }
-  }
+  };
 
-  const promptStampSelection = async (): Promise<{ stampId: string; date: string } | null> => {
-    const addStamp = window.confirm("Add a stamp to this PDF?")
-    if (!addStamp) return null
+  const promptStampSelection = async (): Promise<{
+    stampId: string;
+    date: string;
+  } | null> => {
+    const addStamp = window.confirm("Add a stamp to this PDF?");
+    if (!addStamp) return null;
 
-    const defaultDate = new Date().toLocaleDateString("en-GB")
-    const selectedDate = window.prompt("Enter stamp date (DD/MM/YYYY)", defaultDate)
-    if (selectedDate === null) return null
+    const defaultDate = new Date().toLocaleDateString("en-GB");
+    const selectedDate = window.prompt(
+      "Enter stamp date (DD/MM/YYYY)",
+      defaultDate,
+    );
+    if (selectedDate === null) return null;
 
-    const stampsRes = await fetch(`${API_URL}/api/stamps`, { headers })
-    const stampsJson = await stampsRes.json()
-    const stamps: StampOption[] = stampsJson.data || stampsJson || []
+    const stampsRes = await fetch(`${API_URL}/api/stamps`, { headers });
+    const stampsJson = await stampsRes.json();
+    const stamps: StampOption[] = stampsJson.data || stampsJson || [];
 
     if (!stamps.length) {
-      window.alert("No stamps found. Create one first in System > Stamps.")
-      return null
+      window.alert("No stamps found. Create one first in System > Stamps.");
+      return null;
     }
 
-    const stampList = stamps.map((stamp, index) => `${index + 1}. ${stamp.name}`).join("\n")
-    const selected = window.prompt(`Select stamp number:\n${stampList}`, "1")
-    if (!selected) return null
+    const stampList = stamps
+      .map((stamp, index) => `${index + 1}. ${stamp.name}`)
+      .join("\n");
+    const selected = window.prompt(`Select stamp number:\n${stampList}`, "1");
+    if (!selected) return null;
 
-    const index = Number(selected) - 1
+    const index = Number(selected) - 1;
     if (Number.isNaN(index) || index < 0 || index >= stamps.length) {
-      window.alert("Invalid stamp selection")
-      return null
+      window.alert("Invalid stamp selection");
+      return null;
     }
 
-    return { stampId: stamps[index]._id, date: selectedDate || defaultDate }
-  }
+    return { stampId: stamps[index]._id, date: selectedDate || defaultDate };
+  };
 
   const getUserDisplayName = (user?: DispatchUser | null) => {
-    if (!user) return "System User"
-    return [user.firstName || user.first_name, user.lastName || user.last_name].filter(Boolean).join(" ") || user.email || "System User"
-  }
+    if (!user) return "System User";
+    return (
+      [user.firstName || user.first_name, user.lastName || user.last_name]
+        .filter(Boolean)
+        .join(" ") ||
+      user.email ||
+      "System User"
+    );
+  };
 
   const toDataUrl = async (url?: string): Promise<string | undefined> => {
-    if (!url) return undefined
+    if (!url) return undefined;
     try {
-      const response = await fetch(url)
-      if (!response.ok) return undefined
-      const blob = await response.blob()
+      const response = await fetch(url);
+      if (!response.ok) return undefined;
+      const blob = await response.blob();
       const dataUrl = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader()
-        reader.onloadend = () => resolve(String(reader.result || ""))
-        reader.onerror = () => reject(new Error("Failed to read signature image"))
-        reader.readAsDataURL(blob)
-      })
-      return dataUrl || undefined
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(String(reader.result || ""));
+        reader.onerror = () =>
+          reject(new Error("Failed to read signature image"));
+        reader.readAsDataURL(blob);
+      });
+      return dataUrl || undefined;
     } catch {
-      return undefined
+      return undefined;
     }
-  }
+  };
 
   const resolvePreparedBy = async () => {
     try {
-      const currentUser = getUser()
-      if (!currentUser) return { preparedBy: "System User", preparedBySignature: undefined, stampPref: false }
-      const userId = currentUser.userId || currentUser._id
-      const res = await fetch(`${API_URL}/api/users/${userId}`, { headers })
-      if (!res.ok) return { preparedBy: "System User", preparedBySignature: undefined, stampPref: false }
-      const json = await res.json()
-      const user = json.data || json
-      const preparedBy = getUserDisplayName(user)
-      const preparedBySignature = await toDataUrl(user?.signatureUrl)
-      const stampPref = typeof user?.promptStampOnPdf === "boolean" ? user.promptStampOnPdf : false
-      return { preparedBy, preparedBySignature, stampPref }
+      const currentUser = getUser();
+      if (!currentUser)
+        return {
+          preparedBy: "System User",
+          preparedBySignature: undefined,
+          stampPref: false,
+        };
+      const userId = currentUser.userId || currentUser._id;
+      const res = await fetch(`${API_URL}/api/users/${userId}`, { headers });
+      if (!res.ok)
+        return {
+          preparedBy: "System User",
+          preparedBySignature: undefined,
+          stampPref: false,
+        };
+      const json = await res.json();
+      const user = json.data || json;
+      const preparedBy = getUserDisplayName(user);
+      const preparedBySignature = await toDataUrl(user?.signatureUrl);
+      const stampPref =
+        typeof user?.promptStampOnPdf === "boolean"
+          ? user.promptStampOnPdf
+          : false;
+      return { preparedBy, preparedBySignature, stampPref };
     } catch {
-      return { preparedBy: "System User", preparedBySignature: undefined, stampPref: false }
+      return {
+        preparedBy: "System User",
+        preparedBySignature: undefined,
+        stampPref: false,
+      };
     }
-  }
+  };
 
   const handleDownloadInvoicePdf = async (invoice: Invoice) => {
-    const { preparedBy, preparedBySignature, stampPref } = await resolvePreparedBy()
-    const stampSelection = stampPref ? await promptStampSelection() : null
+    const { preparedBy, preparedBySignature, stampPref } =
+      await resolvePreparedBy();
+    const stampSelection = stampPref ? await promptStampSelection() : null;
 
     const doc = generateInvoicePdf({
       invoiceNumber: invoice.invoiceNumber,
@@ -357,9 +445,14 @@ export default function InvoicesPage() {
       invoiceSettings,
       preparedBy,
       preparedBySignature,
-      watermarkText: invoice.status === "paid" ? "PAID" : invoice.status === "cancelled" ? "CANCELLED" : undefined,
+      watermarkText:
+        invoice.status === "paid"
+          ? "PAID"
+          : invoice.status === "cancelled"
+            ? "CANCELLED"
+            : undefined,
       autoSave: false,
-    })
+    });
 
     if (stampSelection) {
       try {
@@ -368,27 +461,38 @@ export default function InvoicesPage() {
           user: preparedBy,
           email: branding?.email || "",
           poBox: "",
-        }).toString()
-        const stampRes = await fetch(`${API_URL}/api/stamps/${stampSelection.stampId}/svg?${query}`, { headers })
+        }).toString();
+        const stampRes = await fetch(
+          `${API_URL}/api/stamps/${stampSelection.stampId}/svg?${query}`,
+          { headers },
+        );
         if (stampRes.ok) {
-          const stampSvg = await stampRes.text()
-          await applyStampToPdf(doc, stampSvg, 140, 255, 55, 33)
+          const stampSvg = await stampRes.text();
+          await applyStampToPdf(doc, stampSvg, 140, 255, 55, 33);
         } else {
-          const errorText = await stampRes.text()
-          window.alert(errorText || "Failed to load selected stamp. PDF will be downloaded without stamp.")
+          const errorText = await stampRes.text();
+          window.alert(
+            errorText ||
+              "Failed to load selected stamp. PDF will be downloaded without stamp.",
+          );
         }
       } catch {
-        window.alert("Failed to apply stamp. PDF will be downloaded without stamp.")
+        window.alert(
+          "Failed to apply stamp. PDF will be downloaded without stamp.",
+        );
       }
     }
 
-    doc.save(`invoice-${invoice.invoiceNumber}.pdf`)
-  }
+    doc.save(`invoice-${invoice.invoiceNumber}.pdf`);
+  };
 
   const handleDownloadDeliveryNotePdf = async (invoice: Invoice) => {
-    const currentUser = getUser()
-    const preparedBy = [currentUser?.first_name, currentUser?.last_name].filter(Boolean).join(" ") || "System User"
-    const stampSelection = await promptStampSelection()
+    const currentUser = getUser();
+    const preparedBy =
+      [currentUser?.first_name, currentUser?.last_name]
+        .filter(Boolean)
+        .join(" ") || "System User";
+    const stampSelection = await promptStampSelection();
 
     const doc = generateDeliveryNotePdf({
       invoiceNumber: invoice.invoiceNumber,
@@ -399,9 +503,14 @@ export default function InvoicesPage() {
       branding,
       invoiceSettings,
       preparedBy,
-      watermarkText: invoice.status === "paid" ? "PAID" : invoice.status === "cancelled" ? "CANCELLED" : undefined,
+      watermarkText:
+        invoice.status === "paid"
+          ? "PAID"
+          : invoice.status === "cancelled"
+            ? "CANCELLED"
+            : undefined,
       autoSave: false,
-    })
+    });
 
     if (stampSelection) {
       try {
@@ -410,39 +519,52 @@ export default function InvoicesPage() {
           user: preparedBy,
           email: branding?.email || "",
           poBox: "",
-        }).toString()
-        const stampRes = await fetch(`${API_URL}/api/stamps/${stampSelection.stampId}/svg?${query}`, { headers })
+        }).toString();
+        const stampRes = await fetch(
+          `${API_URL}/api/stamps/${stampSelection.stampId}/svg?${query}`,
+          { headers },
+        );
         if (stampRes.ok) {
-          const stampSvg = await stampRes.text()
-          await applyStampToPdf(doc, stampSvg, 140, 255, 55, 33)
+          const stampSvg = await stampRes.text();
+          await applyStampToPdf(doc, stampSvg, 140, 255, 55, 33);
         } else {
-          const errorText = await stampRes.text()
-          window.alert(errorText || "Failed to load selected stamp. PDF will be downloaded without stamp.")
+          const errorText = await stampRes.text();
+          window.alert(
+            errorText ||
+              "Failed to load selected stamp. PDF will be downloaded without stamp.",
+          );
         }
       } catch {
-        window.alert("Failed to apply stamp. PDF will be downloaded without stamp.")
+        window.alert(
+          "Failed to apply stamp. PDF will be downloaded without stamp.",
+        );
       }
     }
 
-    doc.save(`delivery-note-${invoice.deliveryNoteNumber}.pdf`)
-  }
+    doc.save(`delivery-note-${invoice.deliveryNoteNumber}.pdf`);
+  };
 
   useEffect(() => {
-    loadInvoices()
-  }, [])
+    loadInvoices();
+  }, []);
 
   const userNameById = useMemo(() => {
     return new Map(
       dispatchUsers.map((user) => {
-        const fullName = [user.firstName || user.first_name, user.lastName || user.last_name].filter(Boolean).join(" ")
-        return [user._id, fullName || user.email || user._id]
+        const fullName = [
+          user.firstName || user.first_name,
+          user.lastName || user.last_name,
+        ]
+          .filter(Boolean)
+          .join(" ");
+        return [user._id, fullName || user.email || user._id];
       }),
-    )
-  }, [dispatchUsers])
+    );
+  }, [dispatchUsers]);
 
   const filteredInvoices = invoices.filter((invoice) => {
-    const query = search.trim().toLowerCase()
-    if (!query) return true
+    const query = search.trim().toLowerCase();
+    if (!query) return true;
     return (
       invoice.invoiceNumber.toLowerCase().includes(query) ||
       invoice.deliveryNoteNumber.toLowerCase().includes(query) ||
@@ -450,117 +572,366 @@ export default function InvoicesPage() {
       invoice.client.name.toLowerCase().includes(query) ||
       invoice.client.number.toLowerCase().includes(query) ||
       invoice.client.location.toLowerCase().includes(query)
-    )
-  })
+    );
+  });
 
   const sortedInvoices = useMemo(() => {
-    const sellerNameFor = (invoice: Invoice) => userNameById.get(invoice.createdBy) || "System User"
+    const exportInvoicePdf = (
+      invoicesToExport: Invoice[],
+      periodStr?: string,
+    ) => {
+      if (!invoicesToExport.length) {
+        window.alert("No invoices to export.");
+        return;
+      }
+
+      const resolvedInvoices = invoicesToExport.map((inv) => {
+        return {
+          invoiceNumber: inv.invoiceNumber,
+          deliveryNoteNumber: inv.deliveryNoteNumber,
+          quotationNumber: inv.quotationNumber,
+          createdAt: inv.createdAt,
+          client: inv.client,
+          salesperson: userNameById.get(inv.createdBy) || "N/A",
+          items: inv.items.map((item) => ({
+            productName: item.productName,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            lineTotal: item.lineTotal,
+          })),
+          subTotal: inv.subTotal,
+          status: inv.status,
+          paidAmount: invoicePaymentSummaries?.[inv._id]?.paidAmount || 0,
+          balanceRemaining:
+            invoicePaymentSummaries?.[inv._id]?.balanceRemaining ||
+            inv.subTotal,
+        };
+      });
+
+      generateInvoiceStyleSummaryPdf({
+        invoices: resolvedInvoices,
+        branding,
+        periodStr,
+        autoSave: true,
+      });
+    };
+
+    const handleExportRequest = (type: "pdf" | "excel") => {
+      setExportType(type);
+      setExportStartDate("");
+      setExportEndDate("");
+      setExportModalOpen(true);
+    };
+
+    const confirmExport = () => {
+      let filtered = [...invoices];
+
+      if (exportStartDate) {
+        const start = new Date(exportStartDate).getTime();
+        filtered = filtered.filter(
+          (q) => new Date(q.createdAt).getTime() >= start,
+        );
+      }
+
+      if (exportEndDate) {
+        const end = new Date(exportEndDate).getTime() + 86400000;
+        filtered = filtered.filter(
+          (q) => new Date(q.createdAt).getTime() < end,
+        );
+      }
+
+      if (filtered.length === 0) {
+        window.alert("No invoices found for this period.");
+        setExportModalOpen(false);
+        return;
+      }
+
+      let periodStr = "All Time";
+      if (exportStartDate && exportEndDate) {
+        periodStr = `${exportStartDate} to ${exportEndDate}`;
+      } else if (exportStartDate) {
+        periodStr = `From ${exportStartDate}`;
+      } else if (exportEndDate) {
+        periodStr = `Until ${exportEndDate}`;
+      }
+
+      if (exportType === "pdf") {
+        exportInvoicePdf(filtered, periodStr);
+      } else {
+        exportInvoiceCsv(filtered);
+      }
+
+      setExportModalOpen(false);
+    };
+
+    const sellerNameFor = (invoice: Invoice) =>
+      userNameById.get(invoice.createdBy) || "System User";
 
     return [...filteredInvoices].sort((a, b) => {
-      const aDate = new Date(a.createdAt).getTime()
-      const bDate = new Date(b.createdAt).getTime()
-      const aClient = a.client.name.toLowerCase()
-      const bClient = b.client.name.toLowerCase()
-      const aSeller = sellerNameFor(a).toLowerCase()
-      const bSeller = sellerNameFor(b).toLowerCase()
-      const aAmount = Number(a.subTotal || 0)
-      const bAmount = Number(b.subTotal || 0)
-      const aInvoice = a.invoiceNumber.toLowerCase()
-      const bInvoice = b.invoiceNumber.toLowerCase()
+      const aDate = new Date(a.createdAt).getTime();
+      const bDate = new Date(b.createdAt).getTime();
+      const aClient = a.client.name.toLowerCase();
+      const bClient = b.client.name.toLowerCase();
+      const aSeller = sellerNameFor(a).toLowerCase();
+      const bSeller = sellerNameFor(b).toLowerCase();
+      const aAmount = Number(a.subTotal || 0);
+      const bAmount = Number(b.subTotal || 0);
+      const aInvoice = a.invoiceNumber.toLowerCase();
+      const bInvoice = b.invoiceNumber.toLowerCase();
 
       switch (sortBy) {
         case "date-asc":
-          return aDate - bDate
+          return aDate - bDate;
         case "client-asc":
-          return aClient.localeCompare(bClient)
+          return aClient.localeCompare(bClient);
         case "client-desc":
-          return bClient.localeCompare(aClient)
+          return bClient.localeCompare(aClient);
         case "seller-asc":
-          return aSeller.localeCompare(bSeller)
+          return aSeller.localeCompare(bSeller);
         case "seller-desc":
-          return bSeller.localeCompare(aSeller)
+          return bSeller.localeCompare(aSeller);
         case "paid-first": {
-          const aPaid = a.status === "paid" ? 1 : 0
-          const bPaid = b.status === "paid" ? 1 : 0
-          if (aPaid !== bPaid) return bPaid - aPaid
-          return bDate - aDate
+          const aPaid = a.status === "paid" ? 1 : 0;
+          const bPaid = b.status === "paid" ? 1 : 0;
+          if (aPaid !== bPaid) return bPaid - aPaid;
+          return bDate - aDate;
         }
         case "amount-desc":
-          return bAmount - aAmount
+          return bAmount - aAmount;
         case "amount-asc":
-          return aAmount - bAmount
+          return aAmount - bAmount;
         case "invoice-asc":
-          return aInvoice.localeCompare(bInvoice)
+          return aInvoice.localeCompare(bInvoice);
         case "invoice-desc":
-          return bInvoice.localeCompare(aInvoice)
+          return bInvoice.localeCompare(aInvoice);
         case "date-desc":
         default:
-          return bDate - aDate
+          return bDate - aDate;
       }
-    })
-  }, [filteredInvoices, sortBy, userNameById])
+    });
+  }, [filteredInvoices, sortBy, userNameById]);
 
   const totals = useMemo(() => {
     return invoices.reduce(
       (acc, invoice) => {
-        acc.total += 1
-        acc.amount += Number(invoice.subTotal || 0)
-        if (invoice.status === "paid") acc.paid += 1
-        if (invoice.status === "issued") acc.issued += 1
-        if (invoice.status === "cancelled") acc.cancelled += 1
-        return acc
+        acc.total += 1;
+        acc.amount += Number(invoice.subTotal || 0);
+        if (invoice.status === "paid") acc.paid += 1;
+        if (invoice.status === "issued") acc.issued += 1;
+        if (invoice.status === "cancelled") acc.cancelled += 1;
+        return acc;
       },
       { total: 0, amount: 0, paid: 0, issued: 0, cancelled: 0 },
-    )
-  }, [invoices])
+    );
+  }, [invoices]);
 
   const dispatchStats = useMemo(() => {
     return invoices.reduce(
       (acc, invoice) => {
-        const status = invoice.dispatch?.status || "not_assigned"
-        if (status === "packed") acc.readyToDispatch += 1
-        if (status === "assigned" || status === "packing" || status === "packed") acc.active += 1
-        if (status === "dispatched" || status === "delivered") acc.completed += 1
-        if (status === "delivered") acc.delivered += 1
-        return acc
+        const status = invoice.dispatch?.status || "not_assigned";
+        if (status === "packed") acc.readyToDispatch += 1;
+        if (
+          status === "assigned" ||
+          status === "packing" ||
+          status === "packed"
+        )
+          acc.active += 1;
+        if (status === "dispatched" || status === "delivered")
+          acc.completed += 1;
+        if (status === "delivered") acc.delivered += 1;
+        return acc;
       },
       { readyToDispatch: 0, active: 0, completed: 0, delivered: 0 },
-    )
-  }, [invoices])
+    );
+  }, [invoices]);
 
-  const activeUserCount = useMemo(() => new Set(invoices.map((invoice) => invoice.createdBy).filter(Boolean)).size, [invoices])
+  const activeUserCount = useMemo(
+    () =>
+      new Set(invoices.map((invoice) => invoice.createdBy).filter(Boolean))
+        .size,
+    [invoices],
+  );
 
-  const totalPages = Math.max(1, Math.ceil(sortedInvoices.length / pageSize))
+  const totalPages = Math.max(1, Math.ceil(sortedInvoices.length / pageSize));
 
   useEffect(() => {
-    if (page > totalPages) setPage(totalPages)
-  }, [page, totalPages])
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
 
   const pagedInvoices = useMemo(() => {
-    const start = (page - 1) * pageSize
-    return sortedInvoices.slice(start, start + pageSize)
-  }, [page, pageSize, sortedInvoices])
+    const start = (page - 1) * pageSize;
+    return sortedInvoices.slice(start, start + pageSize);
+  }, [page, pageSize, sortedInvoices]);
+
+  useEffect(() => {
+    const loadPaymentSummaries = async () => {
+      if (pagedInvoices.length === 0) {
+        setInvoicePaymentSummaries({});
+        return;
+      }
+
+      const summaries: Record<
+        string,
+        { paidAmount: number; balanceRemaining: number }
+      > = {};
+      await Promise.all(
+        pagedInvoices.map(async (invoice) => {
+          try {
+            const response = await fetch(
+              `${API_URL}/api/stock/invoices/${invoice._id}/lifecycle`,
+              { headers },
+            );
+            if (!response.ok) return;
+            const json = await response.json();
+            if (!json?.data) return;
+            const ps = json.data.paymentSummary || {};
+            summaries[invoice._id] = {
+              paidAmount: Number(ps.paidAmount ?? 0),
+              balanceRemaining: Number(ps.balanceRemaining ?? invoice.subTotal),
+            };
+          } catch {
+            // ignore individual failures
+          }
+        }),
+      );
+      setInvoicePaymentSummaries(summaries);
+    };
+
+    loadPaymentSummaries();
+  }, [pagedInvoices, headers]);
 
   const visiblePages = useMemo(() => {
-    const count = Math.min(8, totalPages)
-    return Array.from({ length: count }, (_, index) => index + 1)
-  }, [totalPages])
+    const count = Math.min(8, totalPages);
+    return Array.from({ length: count }, (_, index) => index + 1);
+  }, [totalPages]);
 
-  if (loading) return <div className="p-6">Loading invoices...</div>
+  if (loading) return <div className="p-6">Loading invoices...</div>;
 
-  const sellerNameFor = (invoice: Invoice) => userNameById.get(invoice.createdBy) || "System User"
+  const exportInvoicePdf = (
+    invoicesToExport: Invoice[],
+    periodStr?: string,
+  ) => {
+    if (!invoicesToExport.length) {
+      window.alert("No invoices to export.");
+      return;
+    }
+
+    const resolvedInvoices = invoicesToExport.map((inv) => {
+      return {
+        invoiceNumber: inv.invoiceNumber,
+        deliveryNoteNumber: inv.deliveryNoteNumber,
+        quotationNumber: inv.quotationNumber,
+        createdAt: inv.createdAt,
+        client: inv.client,
+        salesperson: userNameById.get(inv.createdBy) || "N/A",
+        items: inv.items.map((item) => ({
+          productName: item.productName,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          lineTotal: item.lineTotal,
+        })),
+        subTotal: inv.subTotal,
+        status: inv.status,
+        paidAmount: invoicePaymentSummaries[inv._id]?.paidAmount || 0,
+        balanceRemaining:
+          invoicePaymentSummaries[inv._id]?.balanceRemaining || inv.subTotal,
+      };
+    });
+
+    generateInvoiceStyleSummaryPdf({
+      invoices: resolvedInvoices,
+      branding,
+      periodStr,
+      autoSave: true,
+    });
+  };
+
+  const handleExportRequest = (type: "pdf" | "excel") => {
+    setExportType(type);
+    setExportStartDate("");
+    setExportEndDate("");
+    setExportModalOpen(true);
+  };
+
+  const confirmExport = () => {
+    let filtered = [...invoices];
+
+    if (exportStartDate) {
+      const start = new Date(exportStartDate).getTime();
+      filtered = filtered.filter(
+        (q) => new Date(q.createdAt).getTime() >= start,
+      );
+    }
+
+    if (exportEndDate) {
+      const end = new Date(exportEndDate).getTime() + 86400000;
+      filtered = filtered.filter((q) => new Date(q.createdAt).getTime() < end);
+    }
+
+    if (filtered.length === 0) {
+      window.alert("No invoices found for this period.");
+      setExportModalOpen(false);
+      return;
+    }
+
+    let periodStr = "All Time";
+    if (exportStartDate && exportEndDate) {
+      periodStr = `${exportStartDate} to ${exportEndDate}`;
+    } else if (exportStartDate) {
+      periodStr = `From ${exportStartDate}`;
+    } else if (exportEndDate) {
+      periodStr = `Until ${exportEndDate}`;
+    }
+
+    if (exportType === "pdf") {
+      exportInvoicePdf(filtered, periodStr);
+    } else {
+      exportInvoiceCsv(filtered);
+    }
+
+    setExportModalOpen(false);
+  };
+
+  const sellerNameFor = (invoice: Invoice) =>
+    userNameById.get(invoice.createdBy) || "System User";
 
   return (
     <div className="space-y-5">
-      <div className="rounded-2xl border px-4 py-3 shadow-sm" style={{ borderColor: primaryBorderColor, background: `linear-gradient(to right, ${primarySoftColor}, ${secondarySoftColor})` }}>
+      <div
+        className="rounded-2xl border px-4 py-3 shadow-sm"
+        style={{
+          borderColor: primaryBorderColor,
+          background: `linear-gradient(to right, ${primarySoftColor}, ${secondarySoftColor})`,
+        }}
+      >
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div className="space-y-0.5">
-            <p className="text-sm font-medium tracking-wide" style={{ color: primaryColor }}>Invoices</p>
-            <h1 className="text-xl font-semibold tracking-tight text-foreground">Invoices dashboard</h1>
-            <p className="text-sm text-muted-foreground">Search, sort, download, and dispatch from one screen.</p>
+            <p
+              className="text-sm font-medium tracking-wide"
+              style={{ color: primaryColor }}
+            >
+              Invoices
+            </p>
+            <h1 className="text-xl font-semibold tracking-tight text-foreground">
+              Invoices dashboard
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              Search, sort, download, and dispatch from one screen.
+            </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={() => exportInvoiceCsv(sortedInvoices)}>Export Invoices (Excel)</Button>
+            <Button
+              variant="outline"
+              onClick={() => handleExportRequest("excel")}
+            >
+              Export Invoices (Excel)
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => handleExportRequest("pdf")}
+            >
+              Export Invoices (PDF)
+            </Button>
           </div>
         </div>
 
@@ -569,27 +940,52 @@ export default function InvoicesPage() {
             <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
               <Card className="shadow-sm">
                 <CardContent className="p-3">
-                  <div className="text-xs uppercase tracking-wide text-muted-foreground">Total invoices</div>
-                  <div className="mt-1 text-xl font-semibold">{totals.total}</div>
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                    Total invoices
+                  </div>
+                  <div className="mt-1 text-xl font-semibold">
+                    {totals.total}
+                  </div>
                 </CardContent>
               </Card>
               <Card className="shadow-sm">
                 <CardContent className="p-3">
-                  <div className="text-xs uppercase tracking-wide text-muted-foreground">Paid</div>
-                  <div className="mt-1 text-xl font-semibold" style={{ color: secondaryColor }}>{totals.paid}</div>
-                  <div className="mt-1 text-xs text-muted-foreground">KES {totals.amount.toLocaleString("en-KE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                    Paid
+                  </div>
+                  <div
+                    className="mt-1 text-xl font-semibold"
+                    style={{ color: secondaryColor }}
+                  >
+                    {totals.paid}
+                  </div>
+                  <div className="mt-1 text-xs text-muted-foreground">
+                    KES{" "}
+                    {totals.amount.toLocaleString("en-KE", {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
+                  </div>
                 </CardContent>
               </Card>
               <Card className="shadow-sm">
                 <CardContent className="p-3">
-                  <div className="text-xs uppercase tracking-wide text-muted-foreground">Issued</div>
-                  <div className="mt-1 text-xl font-semibold">{totals.issued}</div>
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                    Issued
+                  </div>
+                  <div className="mt-1 text-xl font-semibold">
+                    {totals.issued}
+                  </div>
                 </CardContent>
               </Card>
               <Card className="shadow-sm">
                 <CardContent className="p-3">
-                  <div className="text-xs uppercase tracking-wide text-muted-foreground">Active sellers</div>
-                  <div className="mt-1 text-xl font-semibold">{activeUserCount}</div>
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                    Active sellers
+                  </div>
+                  <div className="mt-1 text-xl font-semibold">
+                    {activeUserCount}
+                  </div>
                 </CardContent>
               </Card>
             </div>
@@ -602,33 +998,57 @@ export default function InvoicesPage() {
                     value={searchInput}
                     onChange={(event) => setSearchInput(event.target.value)}
                     onKeyDown={(event) => {
-                      if (event.key === "Enter") setSearch(searchInput)
+                      if (event.key === "Enter") setSearch(searchInput);
                     }}
                   />
                 </div>
                 <div className="space-y-2">
                   <Label>Sort by</Label>
-                  <Select value={sortBy} onValueChange={(value: SortOption) => setSortBy(value)}>
+                  <Select
+                    value={sortBy}
+                    onValueChange={(value: SortOption) => setSortBy(value)}
+                  >
                     <SelectTrigger className="w-full">
                       <SelectValue placeholder="Sort invoices" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="date-desc">Date: newest first</SelectItem>
-                      <SelectItem value="date-asc">Date: oldest first</SelectItem>
+                      <SelectItem value="date-desc">
+                        Date: newest first
+                      </SelectItem>
+                      <SelectItem value="date-asc">
+                        Date: oldest first
+                      </SelectItem>
                       <SelectItem value="paid-first">Paid first</SelectItem>
-                      <SelectItem value="client-asc">Client name: A to Z</SelectItem>
-                      <SelectItem value="client-desc">Client name: Z to A</SelectItem>
+                      <SelectItem value="client-asc">
+                        Client name: A to Z
+                      </SelectItem>
+                      <SelectItem value="client-desc">
+                        Client name: Z to A
+                      </SelectItem>
                       <SelectItem value="seller-asc">Seller: A to Z</SelectItem>
-                      <SelectItem value="seller-desc">Seller: Z to A</SelectItem>
-                      <SelectItem value="amount-desc">Amount: highest first</SelectItem>
-                      <SelectItem value="amount-asc">Amount: lowest first</SelectItem>
-                      <SelectItem value="invoice-asc">Invoice number: A to Z</SelectItem>
-                      <SelectItem value="invoice-desc">Invoice number: Z to A</SelectItem>
+                      <SelectItem value="seller-desc">
+                        Seller: Z to A
+                      </SelectItem>
+                      <SelectItem value="amount-desc">
+                        Amount: highest first
+                      </SelectItem>
+                      <SelectItem value="amount-asc">
+                        Amount: lowest first
+                      </SelectItem>
+                      <SelectItem value="invoice-asc">
+                        Invoice number: A to Z
+                      </SelectItem>
+                      <SelectItem value="invoice-desc">
+                        Invoice number: Z to A
+                      </SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="flex gap-2">
-                  <Button className="w-full" onClick={() => setSearch(searchInput)}>
+                  <Button
+                    className="w-full"
+                    onClick={() => setSearch(searchInput)}
+                  >
                     Apply search
                   </Button>
                 </div>
@@ -641,28 +1061,46 @@ export default function InvoicesPage() {
               <CardHeader className="pb-3 flex items-center justify-between">
                 <CardTitle className="text-base">Dispatch snapshot</CardTitle>
                 <div className="ml-3">
-                  <Button variant="ghost" size="sm" onClick={() => setDispatchSnapshotCollapsed((p) => !p)}>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setDispatchSnapshotCollapsed((p) => !p)}
+                  >
                     {dispatchSnapshotCollapsed ? "Show" : "Hide"}
                   </Button>
                 </div>
               </CardHeader>
               {!dispatchSnapshotCollapsed && (
                 <CardContent className="space-y-3 text-sm">
-                <div className="rounded-xl border bg-muted/30 p-3">
-                  <div className="text-xs uppercase tracking-wide text-muted-foreground">Ready to dispatch</div>
-                  <div className="mt-1 text-2xl font-semibold">{dispatchStats.readyToDispatch}</div>
-                </div>
-                <div className="rounded-xl border bg-muted/30 p-3">
-                  <div className="text-xs uppercase tracking-wide text-muted-foreground">Active dispatches</div>
-                  <div className="mt-1 text-2xl font-semibold">{dispatchStats.active}</div>
-                </div>
-                <div className="rounded-xl border bg-muted/30 p-3">
-                  <div className="text-xs uppercase tracking-wide text-muted-foreground">Completed</div>
-                  <div className="mt-1 text-2xl font-semibold">{dispatchStats.completed}</div>
-                </div>
-                <Button asChild className="w-full">
-                  <Link href="/admin/stock/dispatch">Open dispatch board</Link>
-                </Button>
+                  <div className="rounded-xl border bg-muted/30 p-3">
+                    <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                      Ready to dispatch
+                    </div>
+                    <div className="mt-1 text-2xl font-semibold">
+                      {dispatchStats.readyToDispatch}
+                    </div>
+                  </div>
+                  <div className="rounded-xl border bg-muted/30 p-3">
+                    <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                      Active dispatches
+                    </div>
+                    <div className="mt-1 text-2xl font-semibold">
+                      {dispatchStats.active}
+                    </div>
+                  </div>
+                  <div className="rounded-xl border bg-muted/30 p-3">
+                    <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                      Completed
+                    </div>
+                    <div className="mt-1 text-2xl font-semibold">
+                      {dispatchStats.completed}
+                    </div>
+                  </div>
+                  <Button asChild className="w-full">
+                    <Link href="/admin/stock/dispatch">
+                      Open dispatch board
+                    </Link>
+                  </Button>
                 </CardContent>
               )}
             </Card>
@@ -679,15 +1117,21 @@ export default function InvoicesPage() {
                 Showing {sortedInvoices.length} of {invoices.length} invoices
               </p>
             </div>
-            <p className="text-xs text-muted-foreground">Rows are compacted for faster scanning.</p>
+            <p className="text-xs text-muted-foreground">
+              Rows are compacted for faster scanning.
+            </p>
           </div>
         </CardHeader>
         <CardContent className="p-0">
           {sortedInvoices.length === 0 ? (
             <div className="flex min-h-[220px] items-center justify-center px-6 py-10 text-center">
               <div>
-                <p className="text-sm font-medium text-foreground">No invoices found</p>
-                <p className="mt-1 text-sm text-muted-foreground">Try adjusting your search or sorting options.</p>
+                <p className="text-sm font-medium text-foreground">
+                  No invoices found
+                </p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Try adjusting your search or sorting options.
+                </p>
               </div>
             </div>
           ) : (
@@ -708,26 +1152,34 @@ export default function InvoicesPage() {
                 </thead>
                 <tbody>
                   {sortedInvoices.map((invoice, index) => {
-                    const sellerName = sellerNameFor(invoice)
-                    const packingItems = invoice.dispatch?.packingItems || []
-                    const required = packingItems.reduce((sum, item) => sum + Number(item.requiredQuantity || 0), 0)
-                    const packed = packingItems.reduce((sum, item) => sum + Number(item.packedQuantity || 0), 0)
-                    const isFullyPacked = required > 0 && packed >= required
-                    const hasProgress = packed > 0
-                    const dispatchState = invoice.dispatch?.status || "not_assigned"
-                    const isDelivered = dispatchState === "delivered"
+                    const sellerName = sellerNameFor(invoice);
+                    const packingItems = invoice.dispatch?.packingItems || [];
+                    const required = packingItems.reduce(
+                      (sum, item) => sum + Number(item.requiredQuantity || 0),
+                      0,
+                    );
+                    const packed = packingItems.reduce(
+                      (sum, item) => sum + Number(item.packedQuantity || 0),
+                      0,
+                    );
+                    const isFullyPacked = required > 0 && packed >= required;
+                    const hasProgress = packed > 0;
+                    const dispatchState =
+                      invoice.dispatch?.status || "not_assigned";
+                    const isDelivered = dispatchState === "delivered";
 
                     const dispatchLabel = isFullyPacked
                       ? `Packed ${packed}/${required}`
                       : hasProgress
                         ? `Partial ${packed}/${required}`
-                        : dispatchState.replaceAll("_", " ")
+                        : dispatchState.replaceAll("_", " ");
 
-                    const dispatchTone = isDelivered || isFullyPacked
-                      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                      : hasProgress
-                        ? "border-amber-200 bg-amber-50 text-amber-700"
-                        : "border-slate-200 bg-slate-50 text-slate-600"
+                    const dispatchTone =
+                      isDelivered || isFullyPacked
+                        ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                        : hasProgress
+                          ? "border-amber-200 bg-amber-50 text-amber-700"
+                          : "border-slate-200 bg-slate-50 text-slate-600";
 
                     return (
                       <tr
@@ -736,40 +1188,80 @@ export default function InvoicesPage() {
                       >
                         <td className="px-3 py-2 align-top">
                           <div className="min-w-0">
-                            <div className="truncate font-medium text-foreground" title={invoice.invoiceNumber}>
+                            <div
+                              className="truncate font-medium text-foreground"
+                              title={invoice.invoiceNumber}
+                            >
                               {invoice.invoiceNumber}
                             </div>
-                            <div className="truncate text-[11px] text-muted-foreground" title={invoice.deliveryNoteNumber}>
+                            <div
+                              className="truncate text-[11px] text-muted-foreground"
+                              title={invoice.deliveryNoteNumber}
+                            >
                               DN {invoice.deliveryNoteNumber}
                             </div>
                           </div>
                         </td>
                         <td className="px-3 py-2 align-top">
                           <div className="min-w-0">
-                            <div className="truncate font-medium text-foreground" title={invoice.client.name}>
+                            <div
+                              className="truncate font-medium text-foreground"
+                              title={invoice.client.name}
+                            >
                               {invoice.client.name}
                             </div>
-                            <div className="truncate text-[11px] text-muted-foreground" title={`${invoice.client.number} ${invoice.client.location}`.trim()}>
-                              {[invoice.client.number, invoice.client.location].filter(Boolean).join(" · ") || "-"}
+                            <div
+                              className="truncate text-[11px] text-muted-foreground"
+                              title={`${invoice.client.number} ${invoice.client.location}`.trim()}
+                            >
+                              {[invoice.client.number, invoice.client.location]
+                                .filter(Boolean)
+                                .join(" · ") || "-"}
                             </div>
                           </div>
                         </td>
                         <td className="px-3 py-2 align-top">
-                          <div className="truncate text-foreground" title={sellerName}>
+                          <div
+                            className="truncate text-foreground"
+                            title={sellerName}
+                          >
                             {sellerName}
                           </div>
                         </td>
-                        <td className="px-3 py-2 align-top text-muted-foreground">{invoice.items.length}</td>
-                        <td className="px-3 py-2 align-top font-medium text-foreground">KES {invoice.subTotal.toLocaleString("en-KE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                        <td className="px-3 py-2 align-top text-muted-foreground">
+                          {invoice.items.length}
+                        </td>
+                        <td className="px-3 py-2 align-top font-medium text-foreground">
+                          <div>
+                            Total: KES{" "}
+                            {invoice.subTotal.toLocaleString("en-KE", {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            })}
+                          </div>
+                          <div className="text-[11px] text-muted-foreground">
+                            Paid:{" "}
+                            {invoicePaymentSummaries[invoice._id]
+                              ? `KES ${invoicePaymentSummaries[invoice._id].paidAmount.toLocaleString("en-KE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                              : "N/A"}
+                          </div>
+                          <div className="text-[11px] font-semibold">
+                            Balance:{" "}
+                            {invoicePaymentSummaries[invoice._id]
+                              ? `KES ${invoicePaymentSummaries[invoice._id].balanceRemaining.toLocaleString("en-KE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                              : "N/A"}
+                          </div>
+                        </td>
                         <td className="px-3 py-2 align-top">
                           <Badge
                             variant="outline"
-                            className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium capitalize ${invoice.status === "paid"
-                              ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                              : invoice.status === "cancelled"
-                                ? "border-rose-200 bg-rose-50 text-rose-700"
-                                : "border-sky-200 bg-sky-50 text-sky-700"
-                              }`}
+                            className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium capitalize ${
+                              invoice.status === "paid"
+                                ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                                : invoice.status === "cancelled"
+                                  ? "border-rose-200 bg-rose-50 text-rose-700"
+                                  : "border-sky-200 bg-sky-50 text-sky-700"
+                            }`}
                           >
                             {invoice.status}
                           </Badge>
@@ -777,7 +1269,9 @@ export default function InvoicesPage() {
                         <td className="px-3 py-2 align-top">
                           <div className="flex min-w-0 flex-col gap-1">
                             <div className="flex flex-wrap items-center gap-2">
-                              <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium whitespace-nowrap ${dispatchTone}`}>
+                              <span
+                                className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium whitespace-nowrap ${dispatchTone}`}
+                              >
                                 {dispatchLabel}
                               </span>
                               {dispatchState !== "not_assigned" && (
@@ -789,7 +1283,9 @@ export default function InvoicesPage() {
                             {!isDelivered && (
                               <div className="flex flex-wrap items-center gap-2">
                                 <Select
-                                  value={selectedDispatchByInvoice[invoice._id] || ""}
+                                  value={
+                                    selectedDispatchByInvoice[invoice._id] || ""
+                                  }
                                   onValueChange={(value) =>
                                     setSelectedDispatchByInvoice((prev) => ({
                                       ...prev,
@@ -802,12 +1298,18 @@ export default function InvoicesPage() {
                                   </SelectTrigger>
                                   <SelectContent>
                                     {dispatchUsers.map((user) => {
-                                      const fullName = `${user.firstName || user.first_name || ""} ${user.lastName || user.last_name || ""}`.trim() || user._id
+                                      const fullName =
+                                        `${user.firstName || user.first_name || ""} ${user.lastName || user.last_name || ""}`.trim() ||
+                                        user._id;
                                       return (
-                                        <SelectItem key={user._id} value={user._id}>
-                                          {fullName}{user.role ? ` (${user.role})` : ""}
+                                        <SelectItem
+                                          key={user._id}
+                                          value={user._id}
+                                        >
+                                          {fullName}
+                                          {user.role ? ` (${user.role})` : ""}
                                         </SelectItem>
-                                      )
+                                      );
                                     })}
                                   </SelectContent>
                                 </Select>
@@ -825,37 +1327,61 @@ export default function InvoicesPage() {
                           </div>
                         </td>
                         <td className="px-3 py-2 align-top text-[11px] text-muted-foreground">
-                          {new Date(invoice.createdAt).toLocaleDateString("en-KE", {
-                            year: "numeric",
-                            month: "short",
-                            day: "2-digit",
-                          })}
-                          <div className="mt-0.5 text-[10px]">{new Date(invoice.createdAt).toLocaleTimeString("en-KE", { hour: "2-digit", minute: "2-digit" })}</div>
+                          {new Date(invoice.createdAt).toLocaleDateString(
+                            "en-KE",
+                            {
+                              year: "numeric",
+                              month: "short",
+                              day: "2-digit",
+                            },
+                          )}
+                          <div className="mt-0.5 text-[10px]">
+                            {new Date(invoice.createdAt).toLocaleTimeString(
+                              "en-KE",
+                              { hour: "2-digit", minute: "2-digit" },
+                            )}
+                          </div>
                         </td>
                         <td className="px-3 py-2 align-top">
                           <div className="flex flex-col gap-2">
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
-                                <Button size="sm" variant="outline" className="h-8 w-full whitespace-nowrap">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-8 w-full whitespace-nowrap"
+                                >
                                   Actions
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end" className="w-52">
-                                <DropdownMenuItem onClick={() => handleDownloadInvoicePdf(invoice)}>
+                                <DropdownMenuItem
+                                  onClick={() =>
+                                    handleDownloadInvoicePdf(invoice)
+                                  }
+                                >
                                   Download invoice PDF
                                 </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => handleDownloadDeliveryNotePdf(invoice)}>
+                                <DropdownMenuItem
+                                  onClick={() =>
+                                    handleDownloadDeliveryNotePdf(invoice)
+                                  }
+                                >
                                   Download delivery note
                                 </DropdownMenuItem>
                                 <DropdownMenuItem asChild>
-                                  <Link href={`/admin/stock/dispatch/${invoice._id}`}>Open dispatch form</Link>
+                                  <Link
+                                    href={`/admin/stock/dispatch/${invoice._id}`}
+                                  >
+                                    Open dispatch form
+                                  </Link>
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
                           </div>
                         </td>
                       </tr>
-                    )
+                    );
                   })}
                 </tbody>
               </table>
@@ -864,7 +1390,9 @@ export default function InvoicesPage() {
           {sortedInvoices.length > 0 && (
             <div className="flex flex-col gap-3 border-t px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="text-sm text-muted-foreground">
-                Showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, sortedInvoices.length)} of {sortedInvoices.length}
+                Showing {(page - 1) * pageSize + 1}–
+                {Math.min(page * pageSize, sortedInvoices.length)} of{" "}
+                {sortedInvoices.length}
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <Button
@@ -886,7 +1414,9 @@ export default function InvoicesPage() {
                     {pageNumber}
                   </Button>
                 ))}
-                {totalPages > 8 && <span className="px-1 text-sm text-muted-foreground">…</span>}
+                {totalPages > 8 && (
+                  <span className="px-1 text-sm text-muted-foreground">…</span>
+                )}
                 {totalPages > 8 && (
                   <Button
                     variant={page === totalPages ? "default" : "outline"}
@@ -901,7 +1431,9 @@ export default function InvoicesPage() {
                   variant="outline"
                   size="sm"
                   disabled={page === totalPages}
-                  onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
+                  onClick={() =>
+                    setPage((current) => Math.min(totalPages, current + 1))
+                  }
                 >
                   Next
                 </Button>
@@ -910,6 +1442,40 @@ export default function InvoicesPage() {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={exportModalOpen} onOpenChange={setExportModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Export Summary</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Start Date</Label>
+              <Input
+                type="date"
+                value={exportStartDate}
+                onChange={(e) => setExportStartDate(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>End Date</Label>
+              <Input
+                type="date"
+                value={exportEndDate}
+                onChange={(e) => setExportEndDate(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setExportModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={confirmExport}>
+              Export {exportType?.toUpperCase()}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
-  )
+  );
 }

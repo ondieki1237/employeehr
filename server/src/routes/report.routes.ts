@@ -23,5 +23,6 @@ router.post("/admin/reject", roleMiddleware("company_admin", "hr"), ReportContro
 router.get("/admin/analytics", roleMiddleware("company_admin", "hr"), ReportController.getReportAnalytics)
 router.get("/admin/monthly-invoice-summary", roleMiddleware("company_admin", "hr"), ReportController.getMonthlyInvoiceSummary)
 router.get("/admin/monthly-invoice-summary/download", roleMiddleware("company_admin", "hr"), ReportController.downloadMonthlyInvoiceSummary)
+router.get("/general", ReportController.getGeneralReport)
 
 export default router

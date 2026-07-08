@@ -1,392 +1,196 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import React, { useState } from "react"
+import { API_URL } from "@/lib/apiBase"
+import { getToken } from "@/lib/auth"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Input } from "@/components/ui/input"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import { CheckCircle2, XCircle, Eye, Loader2 } from "lucide-react"
-import { api } from "@/lib/api"
-import { useToast } from "@/hooks/use-toast"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog"
-import { Textarea } from "@/components/ui/textarea"
-
-interface Report {
-  _id: string
-  user_id?: {
-    _id: string
-    name: string
-    email: string
-  }
-  type: "daily" | "weekly" | "monthly" | "quarterly" | "annual"
-  title: string
-  content: string
-  status: "submitted" | "approved" | "rejected"
-  submitted_at?: string
-  approved_at?: string
-  rejection_reason?: string
-  tags?: string[]
-}
-
-const statusColors = {
-  submitted: "bg-blue-100 text-blue-800 dark:bg-blue-900",
-  approved: "bg-green-100 text-green-800 dark:bg-green-900",
-  rejected: "bg-red-100 text-red-800 dark:bg-red-900",
-}
 
 export default function AdminReportsPage() {
-  const { toast } = useToast()
+  const [month, setMonth] = useState(() => {
+    const now = new Date()
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`
+  })
+  const [includeQuotations, setIncludeQuotations] = useState(true)
+  const [includeInvoices, setIncludeInvoices] = useState(true)
+  const [includeStock, setIncludeStock] = useState(true)
+  const [loading, setLoading] = useState(false)
 
-  const [reports, setReports] = useState<Report[]>([])
-  const [filteredReports, setFilteredReports] = useState<Report[]>([])
-  const [loading, setLoading] = useState(true)
-  const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const buildQuery = () => {
+    const [year, mon] = month.split("-")
+    const start = new Date(Number(year), Number(mon) - 1, 1).toISOString()
+    const end = new Date(Number(year), Number(mon), 1).toISOString()
+    const includeParts: string[] = []
+    if (includeQuotations) includeParts.push("quotations")
+    if (includeInvoices) includeParts.push("invoices")
+    if (includeStock) includeParts.push("stock")
 
-  // Filters
-  const [searchQuery, setSearchQuery] = useState("")
-  const [selectedType, setSelectedType] = useState<string>("all")
-  const [selectedStatus, setSelectedStatus] = useState<string>("submitted")
+    const params = new URLSearchParams()
+    params.set("startDate", start)
+    params.set("endDate", end)
+    params.set("include", includeParts.join(","))
+    return params.toString()
+  }
 
-  // Dialog states
-  const [showRejectionDialog, setShowRejectionDialog] = useState(false)
-  const [selectedReportId, setSelectedReportId] = useState<string | null>(null)
-  const [rejectionReason, setRejectionReason] = useState("")
-
-  useEffect(() => {
-    loadReports()
-  }, [])
-
-  useEffect(() => {
-    filterReports()
-  }, [reports, searchQuery, selectedType, selectedStatus])
-
-  const loadReports = async () => {
+  const handleDownload = async () => {
+    setLoading(true)
     try {
-      setLoading(true)
-      const response = await api.reports.getAllSubmitted()
-      if (response.success) {
-        setReports(response.data || [])
-      } else {
-        toast({ description: "Failed to load reports", variant: "destructive" })
+      const query = buildQuery()
+      const url = `${API_URL}/api/reports/admin/monthly-invoice-summary/download?${query}`
+      const token = getToken()
+      const response = await fetch(url, {
+        method: "GET",
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        credentials: "include",
+      })
+
+      if (!response.ok) {
+        const text = await response.text()
+        throw new Error(text || `Download failed (${response.status})`)
       }
-    } catch (error: any) {
-      toast({ description: error.message, variant: "destructive" })
+
+      const blob = await response.blob()
+      const filename = `monthly-summary-${month}.csv`
+      const objectUrl = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = objectUrl
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      URL.revokeObjectURL(objectUrl)
+      a.remove()
+    } catch (error) {
+      console.error("Download error:", error)
+      window.alert(error instanceof Error ? error.message : "Download failed")
     } finally {
       setLoading(false)
     }
   }
 
-  const filterReports = () => {
-    let filtered = reports
-
-    // Filter by status
-    if (selectedStatus !== "all") {
-      filtered = filtered.filter((r) => r.status === selectedStatus)
-    }
-
-    // Filter by type
-    if (selectedType !== "all") {
-      filtered = filtered.filter((r) => r.type === selectedType)
-    }
-
-    // Filter by search query
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase()
-      filtered = filtered.filter(
-        (r) =>
-          r.title.toLowerCase().includes(query) ||
-          r.content.toLowerCase().includes(query) ||
-          r.user_id?.name.toLowerCase().includes(query) ||
-          r.user_id?.email.toLowerCase().includes(query)
-      )
-    }
-
-    setFilteredReports(filtered)
-  }
-
-  const handleApprove = async (reportId: string) => {
-    try {
-      setActionLoading(reportId)
-      const response = await api.reports.approve(reportId)
-      if (response.success) {
-        toast({ description: "Report approved successfully" })
-        loadReports()
-      } else {
-        toast({ description: response.message || "Failed to approve report", variant: "destructive" })
-      }
-    } catch (error: any) {
-      toast({ description: error.message, variant: "destructive" })
-    } finally {
-      setActionLoading(null)
-    }
-  }
-
-  const handleRejectClick = (reportId: string) => {
-    setSelectedReportId(reportId)
-    setRejectionReason("")
-    setShowRejectionDialog(true)
-  }
-
-  const handleRejectSubmit = async () => {
-    if (!selectedReportId) return
-
-    if (!rejectionReason.trim()) {
-      toast({ description: "Please provide a rejection reason", variant: "destructive" })
-      return
-    }
-
-    try {
-      setActionLoading(selectedReportId)
-      const response = await api.reports.reject(selectedReportId, rejectionReason)
-      if (response.success) {
-        toast({ description: "Report rejected successfully" })
-        setShowRejectionDialog(false)
-        loadReports()
-      } else {
-        toast({ description: response.message || "Failed to reject report", variant: "destructive" })
-      }
-    } catch (error: any) {
-      toast({ description: error.message, variant: "destructive" })
-    } finally {
-      setActionLoading(null)
-    }
-  }
-
-  // Stats
-  const stats = {
-    submitted: reports.filter((r) => r.status === "submitted").length,
-    approved: reports.filter((r) => r.status === "approved").length,
-    rejected: reports.filter((r) => r.status === "rejected").length,
-  }
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
-    )
+  const getMonthName = (monthString: string) => {
+    const [year, month] = monthString.split("-")
+    const date = new Date(Number(year), Number(month) - 1)
+    return date.toLocaleDateString("en-US", { month: "long", year: "numeric" })
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
+    <div className="space-y-6 p-6">
       <div>
-        <h1 className="text-3xl font-bold">Report Approvals</h1>
-        <p className="text-muted-foreground mt-1">Review and approve employee reports</p>
+        <h1 className="text-3xl font-bold">Monthly Invoice Summary</h1>
+        <p className="text-gray-600 mt-2">
+          Choose a month and the record types you want included in the export.
+        </p>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-3 gap-4">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-center">
-              <p className="text-3xl font-bold text-blue-600">{stats.submitted}</p>
-              <p className="text-sm text-muted-foreground mt-1">Pending Review</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-center">
-              <p className="text-3xl font-bold text-green-600">{stats.approved}</p>
-              <p className="text-sm text-muted-foreground mt-1">Approved</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-center">
-              <p className="text-3xl font-bold text-red-600">{stats.rejected}</p>
-              <p className="text-sm text-muted-foreground mt-1">Rejected</p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Filters */}
-      <Card>
-        <CardContent className="pt-6 space-y-4">
-          <div className="grid grid-cols-3 gap-4">
-            <Input
-              placeholder="Search by title, content, or employee..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+      <Card className="border border-gray-200">
+        <CardHeader className="bg-gray-50">
+          <CardTitle>Export Configuration</CardTitle>
+          <CardDescription>Pick the month and data groups before downloading the summary CSV.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6 pt-6">
+          <div className="space-y-3">
+            <p className="text-sm font-semibold text-gray-700">Select Month</p>
+            <input
+              type="month"
+              value={month}
+              onChange={(e) => setMonth(e.target.value)}
+              className="w-full md:w-64 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
             />
-            <Select value={selectedType} onValueChange={setSelectedType}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Types</SelectItem>
-                <SelectItem value="daily">Daily</SelectItem>
-                <SelectItem value="weekly">Weekly</SelectItem>
-                <SelectItem value="monthly">Monthly</SelectItem>
-                <SelectItem value="quarterly">Quarterly</SelectItem>
-                <SelectItem value="annual">Annual</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="submitted">Pending Review</SelectItem>
-                <SelectItem value="approved">Approved</SelectItem>
-                <SelectItem value="rejected">Rejected</SelectItem>
-                <SelectItem value="all">All Statuses</SelectItem>
-              </SelectContent>
-            </Select>
+            <p className="text-sm text-gray-500">
+              Viewing: <span className="font-semibold text-gray-700">{getMonthName(month)}</span>
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            <p className="text-sm font-semibold text-gray-700">Data Types to Include</p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <label className="flex items-center gap-3 p-4 border border-gray-200 rounded-lg cursor-pointer hover:bg-blue-50 hover:border-blue-300 transition">
+                <input
+                  type="checkbox"
+                  checked={includeQuotations}
+                  onChange={(e) => setIncludeQuotations(e.target.checked)}
+                  className="w-5 h-5 text-blue-600 rounded border-gray-300 cursor-pointer"
+                />
+                <div className="flex-1">
+                  <p className="font-medium text-gray-800">Quotations</p>
+                  <p className="text-xs text-gray-500">Include sales quotation entries.</p>
+                </div>
+              </label>
+
+              <label className="flex items-center gap-3 p-4 border border-gray-200 rounded-lg cursor-pointer hover:bg-green-50 hover:border-green-300 transition">
+                <input
+                  type="checkbox"
+                  checked={includeInvoices}
+                  onChange={(e) => setIncludeInvoices(e.target.checked)}
+                  className="w-5 h-5 text-green-600 rounded border-gray-300 cursor-pointer"
+                />
+                <div className="flex-1">
+                  <p className="font-medium text-gray-800">Invoices</p>
+                  <p className="text-xs text-gray-500">Include invoice entries.</p>
+                </div>
+              </label>
+
+              <label className="flex items-center gap-3 p-4 border border-gray-200 rounded-lg cursor-pointer hover:bg-purple-50 hover:border-purple-300 transition">
+                <input
+                  type="checkbox"
+                  checked={includeStock}
+                  onChange={(e) => setIncludeStock(e.target.checked)}
+                  className="w-5 h-5 text-purple-600 rounded border-gray-300 cursor-pointer"
+                />
+                <div className="flex-1">
+                  <p className="font-medium text-gray-800">Stock Movements</p>
+                  <p className="text-xs text-gray-500">Include inventory movement records.</p>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <p className="text-sm font-semibold text-gray-700">Selected Data Types</p>
+            <div className="flex flex-wrap gap-2">
+              {includeQuotations && (
+                <Badge variant="default" className="bg-blue-100 text-blue-800 border border-blue-300">
+                  Quotations
+                </Badge>
+              )}
+              {includeInvoices && (
+                <Badge variant="default" className="bg-green-100 text-green-800 border border-green-300">
+                  Invoices
+                </Badge>
+              )}
+              {includeStock && (
+                <Badge variant="default" className="bg-purple-100 text-purple-800 border border-purple-300">
+                  Stock Movements
+                </Badge>
+              )}
+              {!includeQuotations && !includeInvoices && !includeStock && (
+                <span className="text-sm text-gray-500 italic">No data types selected</span>
+              )}
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-3 mt-8 pt-4 border-t border-gray-200">
+            <Button
+              onClick={handleDownload}
+              disabled={loading || (!includeQuotations && !includeInvoices && !includeStock)}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              {loading ? "Generating..." : "Download CSV"}
+            </Button>
           </div>
         </CardContent>
       </Card>
 
-      {/* Reports List */}
-      <div className="space-y-4">
-        {filteredReports.length === 0 ? (
-          <Card>
-            <CardContent className="pt-6 text-center py-12">
-              <p className="text-muted-foreground">No reports found</p>
-            </CardContent>
-          </Card>
-        ) : (
-          filteredReports.map((report) => (
-            <Card key={report._id} className="hover:shadow-lg transition-shadow">
-              <CardContent className="pt-6">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
-                      <h3 className="text-lg font-semibold">{report.title}</h3>
-                      <Badge variant="outline">{report.type}</Badge>
-                      <Badge className={statusColors[report.status]}>
-                        {report.status}
-                      </Badge>
-                    </div>
-                    <p className="text-sm text-muted-foreground mb-3">
-                      By{" "}
-                      <span className="font-medium">
-                        {report.user_id?.name || "Unknown"}
-                      </span>{" "}
-                      ({report.user_id?.email || "N/A"}) •{" "}
-                      <span>
-                        Submitted{" "}
-                        {report.submitted_at
-                          ? new Date(report.submitted_at).toLocaleDateString()
-                          : "N/A"}
-                      </span>
-                    </p>
-                    <p className="text-sm text-foreground line-clamp-2 mb-3">
-                      {report.content}
-                    </p>
-                    {report.tags && report.tags.length > 0 && (
-                      <div className="flex flex-wrap gap-2">
-                        {report.tags.map((tag) => (
-                          <Badge key={tag} variant="secondary" className="text-xs">
-                            {tag}
-                          </Badge>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Actions */}
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <Button variant="outline" size="sm">
-                      <Eye className="w-4 h-4" />
-                    </Button>
-                    {report.status === "submitted" && (
-                      <>
-                        <Button
-                          size="sm"
-                          className="bg-green-600 hover:bg-green-700"
-                          onClick={() => handleApprove(report._id)}
-                          disabled={actionLoading === report._id}
-                        >
-                          {actionLoading === report._id && (
-                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          )}
-                          <CheckCircle2 className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          onClick={() => handleRejectClick(report._id)}
-                          disabled={actionLoading === report._id}
-                        >
-                          {actionLoading === report._id && (
-                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          )}
-                          <XCircle className="w-4 h-4" />
-                        </Button>
-                      </>
-                    )}
-                  </div>
-                </div>
-
-                {/* Approval/Rejection Info */}
-                {report.status === "approved" && report.approved_at && (
-                  <div className="mt-4 text-sm text-green-600 dark:text-green-400">
-                    ✓ Approved on {new Date(report.approved_at).toLocaleDateString()}
-                  </div>
-                )}
-                {report.status === "rejected" && report.rejection_reason && (
-                  <div className="mt-4 text-sm text-red-600 dark:text-red-400">
-                    ✗ Rejected: {report.rejection_reason}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          ))
-        )}
-      </div>
-
-      {/* Rejection Dialog */}
-      <Dialog open={showRejectionDialog} onOpenChange={setShowRejectionDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Reject Report</DialogTitle>
-            <DialogDescription>
-              Please provide a reason for rejecting this report. The employee will be able to view it and revise if needed.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <Textarea
-              placeholder="Rejection reason..."
-              value={rejectionReason}
-              onChange={(e) => setRejectionReason(e.target.value)}
-              className="min-h-24"
-            />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowRejectionDialog(false)}>
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={handleRejectSubmit}
-              disabled={actionLoading === selectedReportId}
-            >
-              {actionLoading === selectedReportId && (
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              )}
-              Reject
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <Card className="border border-gray-200 bg-gray-50">
+        <CardContent className="pt-6">
+          <p className="text-sm text-gray-700">
+            Reports are generated based on the selected month and filters. The export includes quotation, invoice, and stock movement references only.
+          </p>
+        </CardContent>
+      </Card>
     </div>
   )
 }

@@ -9,6 +9,14 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { useRef } from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { generateStatementOfAccountPdf } from "@/lib/stock-document-pdf";
 
 interface TenantBranding {
   primaryColor?: string;
@@ -98,6 +106,94 @@ export default function AccountsClientsPage() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [uploadingClients, setUploadingClients] = useState(false);
 
+  const [statementModalOpen, setStatementModalOpen] = useState(false);
+  const [statementStartDate, setStatementStartDate] = useState("");
+  const [statementEndDate, setStatementEndDate] = useState("");
+  const [exportingStatement, setExportingStatement] = useState(false);
+
+  const handleExportStatement = async () => {
+    if (!selectedClient) return;
+    setExportingStatement(true);
+    try {
+      const response = await fetch(`${API_URL}/api/stock/invoices`, {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${getToken()}`,
+        },
+      });
+      if (!response.ok) throw new Error("Failed to fetch invoices");
+      const data = await response.json();
+      let invoices = data.data || [];
+
+      invoices = invoices.filter(
+        (inv: any) =>
+          inv.client.name === selectedClient.client.name &&
+          inv.client.number === selectedClient.client.number,
+      );
+
+      if (statementStartDate) {
+        const start = new Date(statementStartDate).getTime();
+        invoices = invoices.filter(
+          (inv: any) => new Date(inv.createdAt).getTime() >= start,
+        );
+      }
+      if (statementEndDate) {
+        const end = new Date(statementEndDate).getTime() + 86400000;
+        invoices = invoices.filter(
+          (inv: any) => new Date(inv.createdAt).getTime() < end,
+        );
+      }
+
+      const summariesPromises = invoices.map((inv: any) =>
+        stockApi
+          .getInvoiceLifecycle(inv._id)
+          .catch(() => ({
+            data: {
+              paymentSummary: { paidAmount: 0, balanceRemaining: inv.subTotal },
+            },
+          })),
+      );
+      const summariesResults = await Promise.all(summariesPromises);
+
+      const mappedInvoices = invoices.map((inv: any, i: number) => {
+        // The lifecycle endpoint returns: { data: { paymentSummary: { paidAmount, balanceRemaining }, ... } }
+        const paymentSummary =
+          (summariesResults[i] as any)?.data?.paymentSummary || {};
+        return {
+          invoiceNumber: inv.invoiceNumber,
+          createdAt: inv.createdAt,
+          items: inv.items,
+          subTotal: inv.subTotal,
+          paidAmount: Number(paymentSummary.paidAmount ?? 0),
+          balanceRemaining: Number(
+            paymentSummary.balanceRemaining ?? inv.subTotal,
+          ),
+        };
+      });
+
+
+      let periodStr = "All Time";
+      if (statementStartDate && statementEndDate)
+        periodStr = `${statementStartDate} to ${statementEndDate}`;
+      else if (statementStartDate) periodStr = `From ${statementStartDate}`;
+      else if (statementEndDate) periodStr = `Until ${statementEndDate}`;
+
+      generateStatementOfAccountPdf({
+        client: selectedClient.client,
+        invoices: mappedInvoices,
+        branding,
+        periodStr,
+        autoSave: true,
+      });
+
+      setStatementModalOpen(false);
+    } catch (e: any) {
+      window.alert("Export Error: " + e.message);
+    } finally {
+      setExportingStatement(false);
+    }
+  };
+
   // Controls whether the "Create New Client" and "Bulk Upload" panels are shown.
   const [showAddClientPanel, setShowAddClientPanel] = useState(false);
   const [showBulkUploadPanel, setShowBulkUploadPanel] = useState(false);
@@ -112,13 +208,14 @@ export default function AccountsClientsPage() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [accountsResponse, clientsResponse, brandingResult] = await Promise.all([
-        stockApi.getAccountsClients(),
-        stockApi.getSavedClients(),
-        fetch(`${API_URL}/api/company/branding`, {
-          headers: { Authorization: `Bearer ${getToken()}` },
-        }).catch(() => null),
-      ]);
+      const [accountsResponse, clientsResponse, brandingResult] =
+        await Promise.all([
+          stockApi.getAccountsClients(),
+          stockApi.getSavedClients(),
+          fetch(`${API_URL}/api/company/branding`, {
+            headers: { Authorization: `Bearer ${getToken()}` },
+          }).catch(() => null),
+        ]);
 
       if (brandingResult) {
         try {
@@ -273,8 +370,8 @@ export default function AccountsClientsPage() {
               Clients
             </h1>
             <p className="text-sm text-muted-foreground">
-              View client activities, purchases, quotations, debt position,
-              and payment history.
+              View client activities, purchases, quotations, debt position, and
+              payment history.
             </p>
           </div>
 
@@ -487,7 +584,18 @@ export default function AccountsClientsPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Client Activities</CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle>Client Activities</CardTitle>
+              {selectedClient && (
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={() => setStatementModalOpen(true)}
+                >
+                  ⬇ Statement of Account
+                </Button>
+              )}
+            </div>
           </CardHeader>
           <CardContent className="space-y-4">
             {!selectedClient ? (
@@ -614,6 +722,47 @@ export default function AccountsClientsPage() {
           </CardContent>
         </Card>
       </div>
+
+      <Dialog open={statementModalOpen} onOpenChange={setStatementModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Export Statement of Account</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Start Date (optional)</Label>
+              <Input
+                type="date"
+                value={statementStartDate}
+                onChange={(e) => setStatementStartDate(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>End Date (optional)</Label>
+              <Input
+                type="date"
+                value={statementEndDate}
+                onChange={(e) => setStatementEndDate(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setStatementModalOpen(false)}
+              disabled={exportingStatement}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleExportStatement}
+              disabled={exportingStatement}
+            >
+              {exportingStatement ? "Generating..." : "Generate PDF"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -6,6 +6,9 @@ import { StockQuotation } from "../models/StockQuotation"
 import { StockInvoice } from "../models/StockInvoice"
 import { StockEntry } from "../models/StockEntry"
 import { StockSale } from "../models/StockSale"
+import { MachineService } from "../models/MachineService"
+import { StockProduct } from "../models/StockProduct"
+import { InstalledMachine } from "../models/InstalledMachine"
 
 export class ReportController {
   // Create or update draft report
@@ -70,6 +73,75 @@ export class ReportController {
         message: "Failed to save report",
         error: error instanceof Error ? error.message : "Unknown error",
       })
+    }
+  }
+
+  // General dashboard-style summary for reports page
+  static async getGeneralReport(req: AuthenticatedRequest, res: Response) {
+    try {
+      if (!req.org_id) {
+        return res.status(400).json({ success: false, message: "Organization context required" })
+      }
+
+      const org_id = req.org_id
+
+      const startOfToday = new Date()
+      startOfToday.setHours(0, 0, 0, 0)
+      const endOfToday = new Date()
+      endOfToday.setHours(23, 59, 59, 999)
+
+      const now = new Date()
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+      const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999)
+
+      // Revenue today
+      const invoicesToday = await StockInvoice.find({ org_id, createdAt: { $gte: startOfToday, $lte: endOfToday } }).select('subTotal').lean()
+      const revenueToday = invoicesToday.reduce((s: number, inv: any) => s + Number(inv.subTotal || 0), 0)
+
+      // Revenue this month
+      const invoicesMonth = await StockInvoice.find({ org_id, createdAt: { $gte: startOfMonth, $lte: endOfMonth } }).select('subTotal').lean()
+      const revenueThisMonth = invoicesMonth.reduce((s: number, inv: any) => s + Number(inv.subTotal || 0), 0)
+
+      // Outstanding invoices
+      const outstandingInvoices = await StockInvoice.countDocuments({ org_id, status: 'issued' })
+
+      // Quotations sent (this month)
+      const quotationsSent = await StockQuotation.countDocuments({ org_id, createdAt: { $gte: startOfMonth, $lte: endOfMonth } })
+
+      // Service jobs
+      const openServiceJobs = await MachineService.countDocuments({ org_id, $or: [{ completedDate: null }, { completedDate: { $exists: false } }] })
+      const completedServiceJobs = await MachineService.countDocuments({ org_id, completedDate: { $exists: true, $ne: null } })
+
+      // Machines due for preventive maintenance (nextServiceDate within 30 days)
+      const in30 = new Date()
+      in30.setDate(in30.getDate() + 30)
+      const machinesDueForPM = await InstalledMachine.countDocuments({ org_id, nextServiceDate: { $exists: true, $ne: null, $lte: in30 } })
+
+      // Low stock items
+      const lowStockCountAgg: any = await StockProduct.aggregate([
+        { $match: { org_id } },
+        { $project: { isLow: { $lte: ['$currentQuantity', '$minAlertQuantity'] } } },
+        { $match: { isLow: true } },
+        { $count: 'count' },
+      ])
+      const lowStockItems = (lowStockCountAgg[0] && lowStockCountAgg[0].count) || 0
+
+      return res.status(200).json({
+        success: true,
+        data: {
+          revenueToday,
+          revenueThisMonth,
+          outstandingInvoices,
+          quotationsSent,
+          openServiceJobs,
+          completedServiceJobs,
+          machinesDueForPM,
+          lowStockItems,
+        },
+      })
+    } catch (error: any) {
+      console.error('Get general report error:', error)
+      return res.status(500).json({ success: false, message: 'Failed to generate general report', error: error.message || String(error) })
     }
   }
 
