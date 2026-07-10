@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useParams, useRouter } from "next/navigation"
 import API_URL from "@/lib/apiBase"
 import { getToken } from "@/lib/auth"
 import { Button } from "@/components/ui/button"
@@ -48,13 +48,10 @@ function getUserDisplayName(user?: StockCheckUserRef | string | null): string {
   return [first, last].filter(Boolean).join(" ") || user.email || "System User"
 }
 
-export default function StockCheckDetailsPage({
-  params,
-}: {
-  params: { stockCheckId: string }
-}) {
+export default function StockCheckDetailsPage() {
   const router = useRouter()
-  const { stockCheckId } = params
+  const params = useParams() as { stockCheckId: string }
+  const stockCheckId = String(params.stockCheckId || "")
   const [stockCheck, setStockCheck] = useState<StockCheck | null>(null)
   const [loading, setLoading] = useState(true)
   const [closing, setClosing] = useState(false)

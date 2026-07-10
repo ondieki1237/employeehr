@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { StockController } from "../controllers/stockController";
+import { QuotationController } from "../controllers/stock/quotationController";
 import { authMiddleware, orgMiddleware } from "../middleware/auth";
 import { tenantIsolation } from "../middleware/tenantIsolation.middleware";
 import {
@@ -25,25 +26,25 @@ router.put("/categories/:id", StockController.updateCategory);
 router.delete("/categories/:id", StockController.deleteCategory);
 
 // Quotations
-router.post("/quotations", StockController.createQuotation);
-router.get("/quotations", StockController.getQuotations);
-router.put("/quotations/:quotationId", StockController.updateQuotation);
+router.post("/quotations", QuotationController.createQuotation);
+router.get("/quotations", QuotationController.getQuotations);
+router.put("/quotations/:quotationId", QuotationController.updateQuotation);
 router.post(
   "/quotations/:quotationId/approve",
-  StockController.approveQuotation,
+  QuotationController.approveQuotation,
 );
-router.post("/quotations/:quotationId/reject", StockController.rejectQuotation);
+router.post("/quotations/:quotationId/reject", QuotationController.rejectQuotation);
 router.post(
   "/quotations/:quotationId/convert",
   StockController.convertQuotationToInvoice,
 );
 router.post(
   "/quotations/:quotationId/followups",
-  StockController.addQuotationFollowUp,
+  QuotationController.addQuotationFollowUp,
 );
 router.get(
   "/quotations/:quotationId/followups",
-  StockController.getQuotationFollowUps,
+  QuotationController.getQuotationFollowUps,
 );
 
 // Tenders

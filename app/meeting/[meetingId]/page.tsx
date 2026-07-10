@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { MeetingInterface } from '@/components/meetings/meeting-interface-webrtc'
 import { getToken, getUser } from '@/lib/auth'
 import { Card } from '@/components/ui/card'
@@ -46,7 +46,10 @@ interface GuestInfo {
   password: string
 }
 
-export default function MeetingPage({ params }: { params: { meetingId: string } }) {
+export default function MeetingPage() {
+  const params = useParams() as { meetingId: string }
+  const meetingId = String(params.meetingId || "")
+
   const [meeting, setMeeting] = useState<Meeting | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -68,7 +71,7 @@ export default function MeetingPage({ params }: { params: { meetingId: string } 
 
   useEffect(() => {
     checkAuthAndFetchMeeting()
-  }, [params.meetingId])
+  }, [meetingId])
 
   useEffect(() => {
     // Fetch meeting history after user is authenticated
@@ -165,7 +168,7 @@ export default function MeetingPage({ params }: { params: { meetingId: string } 
       setError(null)
 
       const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://hrapi.codewithseth.co.ke'
-      let url = `${baseUrl}/api/meetings/by-meeting-id/${params.meetingId}`
+      let url = `${baseUrl}/api/meetings/by-meeting-id/${meetingId}`
       if (pwd) {
         url += `?password=${encodeURIComponent(pwd)}`
       }
@@ -205,7 +208,7 @@ export default function MeetingPage({ params }: { params: { meetingId: string } 
       setPasswordError(false)
 
       const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://hrapi.codewithseth.co.ke'
-      let url = `${baseUrl}/api/meetings/by-meeting-id/${params.meetingId}`
+      let url = `${baseUrl}/api/meetings/by-meeting-id/${meetingId}`
       if (pwd) {
         url += `?password=${encodeURIComponent(pwd)}`
       }
@@ -257,7 +260,7 @@ export default function MeetingPage({ params }: { params: { meetingId: string } 
       const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://hrapi.codewithseth.co.ke'
 
       const response = await fetch(
-        `${baseUrl}/api/meetings/by-meeting-id/${params.meetingId}/join`,
+        `${baseUrl}/api/meetings/by-meeting-id/${meetingId}/join`,
         {
           method: 'POST',
           headers: {
@@ -348,7 +351,7 @@ export default function MeetingPage({ params }: { params: { meetingId: string } 
         const completed = data.data.filter(
           (m: Meeting) => 
             (m.status === 'completed' || m.status === 'cancelled') && 
-            m._id !== params.meetingId
+            m._id !== meetingId
         )
         // Sort by scheduled_at date, newest first
         setMeetingHistory(completed.sort((a: Meeting, b: Meeting) => 

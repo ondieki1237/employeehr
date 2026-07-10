@@ -1,7 +1,16 @@
 // Authentication utilities for token management
 
 const TOKEN_KEY = 'elevate_auth_token'
+const TOKEN_COOKIE = 'elevate_auth_token'
 const USER_KEY = 'elevate_user'
+
+const setAuthCookie = (token: string): void => {
+    document.cookie = `${TOKEN_COOKIE}=${encodeURIComponent(token)}; path=/; max-age=${7 * 24 * 60 * 60}; SameSite=Lax`
+}
+
+const clearAuthCookie = (): void => {
+    document.cookie = `${TOKEN_COOKIE}=; path=/; max-age=0; SameSite=Lax`
+}
 
 export interface AuthUser {
     _id: string
@@ -35,6 +44,7 @@ export const setToken = (token: string): void => {
             return
         }
         localStorage.setItem(TOKEN_KEY, token)
+        setAuthCookie(token)
     }
 }
 
@@ -73,6 +83,7 @@ export const getToken = (): string | null => {
 export const removeToken = (): void => {
     if (typeof window !== 'undefined') {
         localStorage.removeItem(TOKEN_KEY)
+        clearAuthCookie()
     }
 }
 

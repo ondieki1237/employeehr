@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
+import { useParams } from "next/navigation"
 import Link from "next/link"
 import { fetchJson } from "@/lib/fetchUtils"
 import { Button } from "@/components/ui/button"
@@ -47,12 +48,9 @@ interface ProductRow {
   variance: number
 }
 
-export default function StockCheckReviewPage({
-  params,
-}: {
-  params: { stockCheckId: string }
-}) {
-  const { stockCheckId } = params
+export default function StockCheckReviewPage() {
+  const params = useParams() as { stockCheckId: string }
+  const stockCheckId = String(params.stockCheckId || "")
   const [stockCheck, setStockCheck] = useState<StockCheck | null>(null)
   const [products, setProducts] = useState<ProductRow[]>([])
   const [loading, setLoading] = useState(true)

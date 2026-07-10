@@ -17,7 +17,9 @@
     "db:sync": "npx tsx src/scripts/syncMongoToMySQL.ts",
     "db:migrate": "npx prisma migrate dev",
     "db:reset": "npx prisma migrate reset",
-    "lint": "eslint src/**/*.ts"
+    "lint": "eslint src/**/*.ts",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@langchain/core": "^1.2.0",
@@ -67,6 +69,7 @@
     "eslint": "^8.55.0",
     "prisma": "^6.16.2",
     "tsx": "^4.7.0",
-    "typescript": "^5.3.3"
+    "typescript": "^5.3.3",
+    "vitest": "^3.2.7"
   }
 }

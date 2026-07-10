@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { Plus, Trash2, GripVertical, Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -24,7 +24,10 @@ interface FormField {
   order: number;
 }
 
-export default function FormBuilderPage({ params }: { params: { jobId: string } }) {
+export default function FormBuilderPage() {
+  const params = useParams() as { jobId: string }
+  const jobId = String(params.jobId || "")
+
   const router = useRouter();
   const [jobTitle, setJobTitle] = useState('');
   const [formTitle, setFormTitle] = useState('');
@@ -36,12 +39,12 @@ export default function FormBuilderPage({ params }: { params: { jobId: string } 
   useEffect(() => {
     // Fetch job details and existing form if any
     fetchJobAndForm();
-  }, [params.jobId]);
+  }, [jobId]);
 
   const fetchJobAndForm = async () => {
     try {
       // Fetch job
-      const jobRes = await fetch(`${API_URL}/api/jobs/${params.jobId}`, {
+      const jobRes = await fetch(`${API_URL}/api/jobs/${jobId}`, {
         headers: { Authorization: `Bearer ${getToken()}` },
       });
       const jobData = await jobRes.json();
@@ -51,7 +54,7 @@ export default function FormBuilderPage({ params }: { params: { jobId: string } 
       }
 
       // Try to fetch existing form
-      const formRes = await fetch(`${API_URL}/api/application-forms/job/${params.jobId}`, {
+      const formRes = await fetch(`${API_URL}/api/application-forms/job/${jobId}`, {
         headers: { Authorization: `Bearer ${getToken()}` },
       });
       const formData = await formRes.json();
@@ -127,7 +130,7 @@ export default function FormBuilderPage({ params }: { params: { jobId: string } 
           Authorization: `Bearer ${getToken()}`,
         },
         body: JSON.stringify({
-          job_id: params.jobId,
+          job_id: jobId,
           title: formTitle,
           description: formDescription,
           fields: fields.map((f, i) => ({ ...f, order: i })),

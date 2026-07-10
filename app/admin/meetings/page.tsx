@@ -59,7 +59,7 @@ export default function MeetingsPage() {
       setIsLoading(true)
       const response = await meetingsApi.getAll()
       if (response.success) {
-        setMeetings(response.data)
+        setMeetings(response.data || [])
       }
     } catch (error) {
       console.error('Error fetching meetings:', error)
@@ -124,7 +124,7 @@ export default function MeetingsPage() {
     // Show report for completed or cancelled meetings
     if (meeting.status === 'completed' || meeting.status === 'cancelled') {
       setView('report')
-    } else if (meeting.status === 'in-progress') {
+    } else if (meeting.status === 'in_progress') {
       setView('meeting')
     } else {
       // Default to meeting view for scheduled meetings

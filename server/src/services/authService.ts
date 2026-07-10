@@ -1,4 +1,5 @@
 import bcrypt from "bcryptjs"
+import { syncUserToQueue, syncCompanyToQueue } from "../utils/queueHelper"
 import { User } from "../models/User"
 import { Company } from "../models/Company"
 import { generateToken } from "../config/auth"
@@ -150,6 +151,9 @@ export class AuthService {
       })
 
       const savedUser = await user.save()
+
+      void syncCompanyToQueue(savedCompany.toObject(), "CREATE")
+      void syncUserToQueue(savedUser.toObject(), "CREATE")
 
       // Generate token
       const payload: IJWTPayload = {
@@ -475,6 +479,8 @@ export class AuthService {
       })
 
       const savedUser = await user.save()
+
+      void syncUserToQueue(savedUser.toObject(), "CREATE")
 
       // Send invitation email
       try {

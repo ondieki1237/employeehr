@@ -12,7 +12,6 @@ import { sanitizeInput } from "./middleware/sanitization.middleware"
 import { apiLimiter } from "./middleware/rateLimit.middleware"
 import { WebRTCSignalingService } from "./services/webrtcSignaling"
 import { runMigrations } from "./scripts/runMigrations.mjs"
-import startSyncScheduler from './services/scheduler/syncScheduler'
 
 // Routes
 import authRoutes from "./routes/auth.routes"
@@ -112,7 +111,7 @@ app.use(
       if (allowed.some((o) => origin === o)) {
         return callback(null, true)
       }
-      return callback(null, true) // fallback: allow others if needed
+      return callback(new Error("Not allowed by CORS"))
     },
     credentials: true,
   }),
@@ -238,8 +237,6 @@ async function startServer() {
         }
       }, expiryCheckIntervalMs)
 
-      // Start automatic sync scheduler (migrations + Mongo->MySQL sync every 5 minutes)
-      void startSyncScheduler()
     })
   } catch (error) {
     console.error("❌ Failed to start server:", error)

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -101,11 +101,10 @@ function buildBulkSmsKey(phone: string, name: string, location: string) {
   ].join("|");
 }
 
-export default function ComplaintDetailPage({
-  params,
-}: {
-  params: { complaintId: string };
-}) {
+export default function ComplaintDetailPage() {
+  const params = useParams() as { complaintId: string }
+  const complaintId = String(params.complaintId || "")
+
   const router = useRouter();
   const [complaint, setComplaint] = useState<IComplaint | null>(null);
   const [employees, setEmployees] = useState<User[]>([]);
@@ -130,13 +129,13 @@ export default function ComplaintDetailPage({
   useEffect(() => {
     loadComplaintDetails();
     loadEmployees();
-  }, [params.complaintId]);
+  }, [complaintId]);
 
   const loadComplaintDetails = async () => {
     try {
       setLoading(true);
       const response = await fetch(
-        `${API_URL}/api/complaints/${params.complaintId}`,
+        `${API_URL}/api/complaints/${complaintId}`,
         {
           headers: getAuthHeaders(),
         },

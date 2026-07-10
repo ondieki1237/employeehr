@@ -1,17 +1,18 @@
 import { z } from "zod"
 
-export const signupSchema = z.object({
-  email: z.string().email("Invalid email format"),
-  password: z
-    .string()
-    .min(8, "Password must be at least 8 characters")
-    .regex(/[A-Z]/, "Must contain uppercase")
-    .regex(/[0-9]/, "Must contain number"),
-  companyName: z.string().min(2, "Company name required").max(100),
-  companyIndustry: z.enum(["Technology", "Finance", "Healthcare", "Retail", "Manufacturing", "Other"]),
-  adminFirstName: z.string().min(2).max(50),
-  adminLastName: z.string().min(2).max(50),
+export const registerCompanySchema = z.object({
+  name: z.string().min(2).max(100),
+  email: z.string().email(),
+  phone: z.string().optional(),
+  website: z.string().optional(),
+  industry: z.string().optional(),
+  employeeCount: z.coerce.number().optional(),
+  adminEmail: z.string().email(),
+  adminPassword: z.string().min(8),
+  adminName: z.string().min(2).max(100),
 })
+
+export const signupSchema = registerCompanySchema
 
 export const loginSchema = z.object({
   email: z.string().email(),
@@ -73,3 +74,60 @@ export type PerformanceEvaluationInput = z.infer<typeof performanceEvaluationSch
 export type FeedbackInput = z.infer<typeof feedbackSchema>
 export type AttendanceInput = z.infer<typeof attendanceSchema>
 export type AwardNominationInput = z.infer<typeof awardNominationSchema>
+
+export const companyLoginSchema = z.object({
+  slug: z.string().min(1),
+  email: z.string().email(),
+  password: z.string().min(1),
+})
+
+export const employeeIdLoginSchema = z.object({
+  employee_id: z.string().min(1),
+  password: z.string().min(1),
+})
+
+export const forgotPasswordSchema = z.object({
+  email: z.string().email(),
+})
+
+export const verifyOtpSchema = z.object({
+  email: z.string().email(),
+  otp: z.string().min(4).max(8),
+})
+
+export const verifyLoginOtpSchema = verifyOtpSchema.extend({
+  challengeId: z.string().min(1),
+  loginType: z.enum(["standard", "company", "employee"]).optional(),
+})
+
+export const resetPasswordSchema = z.object({
+  email: z.string().email(),
+  otp: z.string().min(4).max(8),
+  newPassword: z.string().min(8),
+})
+
+export const createEmployeeSchema = z.object({
+  email: z.string().email(),
+  firstName: z.string().min(1).optional(),
+  lastName: z.string().min(1).optional(),
+  first_name: z.string().min(1).optional(),
+  last_name: z.string().min(1).optional(),
+  role: z.enum(["manager", "employee", "hr", "admin"]).optional(),
+  department: z.string().optional(),
+  manager_id: z.string().optional(),
+  password: z.string().min(8).optional(),
+}).refine((data) => (data.firstName || data.first_name) && (data.lastName || data.last_name), {
+  message: "firstName and lastName are required",
+})
+
+export const updateUserSchema = z.object({
+  firstName: z.string().min(1).optional(),
+  lastName: z.string().min(1).optional(),
+  email: z.string().email().optional(),
+  role: z.string().optional(),
+  department: z.string().optional(),
+  position: z.string().optional(),
+  manager_id: z.string().optional(),
+  phone: z.string().optional(),
+  status: z.enum(["active", "inactive", "pending"]).optional(),
+}).passthrough()

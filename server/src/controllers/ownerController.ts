@@ -1,13 +1,7 @@
 import type { Response } from "express"
 import type { AuthenticatedRequest } from "../middleware/auth"
 import { Company } from "../models/Company"
-
-// Fixed owner email from credentials
-const OWNER_EMAIL = "bellarinseth@gmail.com"
-
-const isOwner = (email: string): boolean => {
-  return email?.toLowerCase() === OWNER_EMAIL.toLowerCase()
-}
+import { isPlatformOwner } from "../utils/platformOwner"
 
 export class OwnerController {
   /**
@@ -17,7 +11,7 @@ export class OwnerController {
     try {
       const userEmail = req.user?.email || ""
 
-      if (!isOwner(userEmail)) {
+      if (!isPlatformOwner(req.user?.email, req.user?.role)) {
         return res.status(403).json({ success: false, message: "Unauthorized: Owner access required" })
       }
 
@@ -74,7 +68,7 @@ export class OwnerController {
     try {
       const userEmail = req.user?.email || ""
 
-      if (!isOwner(userEmail)) {
+      if (!isPlatformOwner(req.user?.email, req.user?.role)) {
         return res.status(403).json({ success: false, message: "Unauthorized: Owner access required" })
       }
 
@@ -117,7 +111,7 @@ export class OwnerController {
     try {
       const userEmail = req.user?.email || ""
 
-      if (!isOwner(userEmail)) {
+      if (!isPlatformOwner(req.user?.email, req.user?.role)) {
         return res.status(403).json({ success: false, message: "Unauthorized: Owner access required" })
       }
 
@@ -160,7 +154,7 @@ export class OwnerController {
     try {
       const userEmail = req.user?.email || ""
 
-      if (!isOwner(userEmail)) {
+      if (!isPlatformOwner(req.user?.email, req.user?.role)) {
         return res.status(403).json({ success: false, message: "Unauthorized: Owner access required" })
       }
 
@@ -202,7 +196,7 @@ export class OwnerController {
     try {
       const userEmail = req.user?.email || ""
 
-      if (!isOwner(userEmail)) {
+      if (!isPlatformOwner(req.user?.email, req.user?.role)) {
         return res.status(403).json({ success: false, message: "Unauthorized: Owner access required" })
       }
 

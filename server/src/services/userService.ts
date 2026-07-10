@@ -1,6 +1,7 @@
 import { User } from "../models/User"
 import { Types } from "mongoose"
 import type { IUser, IAPIResponse } from "../types/interfaces"
+import { syncUserToQueue } from "../utils/queueHelper"
 
 export class UserService {
   static async getAllUsers(org_id: string): Promise<IAPIResponse<IUser[]>> {
@@ -74,6 +75,8 @@ export class UserService {
         }
       }
 
+      void syncUserToQueue(user.toObject(), "UPDATE")
+
       return {
         success: true,
         message: "User updated successfully",
@@ -131,7 +134,10 @@ export class UserService {
         }
       }
 
+      const userObject = user.toObject()
       await User.deleteOne({ _id: userId, org_id })
+
+      void syncUserToQueue(userObject, "DELETE")
 
       return {
         success: true,

@@ -2,6 +2,7 @@ import type { Response } from "express"
 import type { AuthenticatedRequest } from "../middleware/auth"
 import { Company } from "../models/Company"
 import { emailTransportResolver } from "../services/emailTransportResolver"
+import { encryptSecret, decryptSecret } from "../utils/encryption"
 
 export class CompanyEmailController {
   /**
@@ -69,18 +70,23 @@ export class CompanyEmailController {
         password: smtp?.password || req.body.smtpPassword,
       }
 
+      const company = await Company.findById(req.org_id)
+      if (!company) {
+        return res.status(404).json({ success: false, message: "Company not found" })
+      }
+
       // Validate required fields if enabled
-      if (enabled && (!smtpPayload.host || !smtpPayload.username || !smtpPayload.password)) {
+      const hasExistingPassword = Boolean(company.emailConfig?.smtp?.password)
+      if (enabled && (!smtpPayload.host || !smtpPayload.username || (!smtpPayload.password && !hasExistingPassword))) {
         return res.status(400).json({
           success: false,
           message: "SMTP host, username, and password are required when email is enabled",
         })
       }
 
-      const company = await Company.findById(req.org_id)
-      if (!company) {
-        return res.status(404).json({ success: false, message: "Company not found" })
-      }
+      const passwordToStore = smtpPayload.password
+        ? encryptSecret(smtpPayload.password)
+        : company.emailConfig?.smtp?.password
 
       // Update email config
       company.emailConfig = {
@@ -94,7 +100,7 @@ export class CompanyEmailController {
               port: smtpPayload.port || 587,
               secure: smtpPayload.secure || false,
               username: smtpPayload.username,
-              password: smtpPayload.password, // TODO: Encrypt this
+              password: passwordToStore || "",
             }
           : undefined,
       }
@@ -157,7 +163,7 @@ export class CompanyEmailController {
         company.emailConfig.smtp.port,
         company.emailConfig.smtp.secure,
         company.emailConfig.smtp.username,
-        company.emailConfig.smtp.password,
+        decryptSecret(company.emailConfig.smtp.password),
         testEmail
       )
 

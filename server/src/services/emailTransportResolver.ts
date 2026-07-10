@@ -1,5 +1,6 @@
 import nodemailer from "nodemailer"
 import type { ICompany } from "../types/interfaces"
+import { decryptSecret } from "../utils/encryption"
 
 interface TransportResult {
   transporter: nodemailer.Transporter
@@ -55,7 +56,7 @@ export class EmailTransportResolver {
           secure: company.emailConfig.smtp.secure || false,
           auth: {
             user: company.emailConfig.smtp.username,
-            pass: company.emailConfig.smtp.password,
+            pass: decryptSecret(company.emailConfig.smtp.password),
           },
         })
 

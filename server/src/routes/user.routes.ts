@@ -3,6 +3,8 @@ import { UserController } from "../controllers/userController"
 import { authMiddleware, roleMiddleware, orgMiddleware } from "../middleware/auth"
 import { tenantIsolation } from "../middleware/tenantIsolation.middleware"
 import { uploadSignature } from "../middleware/upload.middleware"
+import { validateRequest } from "../middleware/validation.middleware"
+import { createEmployeeSchema, updateUserSchema } from "../types/validation.schemas"
 
 const router = Router()
 
@@ -19,8 +21,8 @@ router.post("/:userId/signature", uploadSignature.single("signature"), UserContr
 router.get("/:userId", UserController.getUserById)
 
 // Update user (Admin or self)
-router.put("/:userId", UserController.updateUser)
-router.patch("/:userId", UserController.updateUser)
+router.put("/:userId", validateRequest(updateUserSchema), UserController.updateUser)
+router.patch("/:userId", validateRequest(updateUserSchema), UserController.updateUser)
 
 // Delete user (Admin/HR only)
 router.delete("/:userId", roleMiddleware("company_admin", "hr"), UserController.deleteUser)
@@ -32,6 +34,6 @@ router.get("/team/:managerId", UserController.getTeamMembers)
 router.get("/colleagues/list", UserController.getColleagues)
 
 // Create employee (Admin only)
-router.post("/", roleMiddleware("company_admin", "hr"), UserController.createEmployee)
+router.post("/", roleMiddleware("company_admin", "hr"), validateRequest(createEmployeeSchema), UserController.createEmployee)
 
 export default router

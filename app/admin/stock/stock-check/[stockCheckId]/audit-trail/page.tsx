@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import { useParams } from "next/navigation"
 import Link from "next/link"
 import API_URL from "@/lib/apiBase"
 import { getToken } from "@/lib/auth"
@@ -14,12 +15,9 @@ interface StockCheckEvent {
   actor: string
 }
 
-export default function StockCheckAuditTrailPage({
-  params,
-}: {
-  params: { stockCheckId: string }
-}) {
-  const { stockCheckId } = params
+export default function StockCheckAuditTrailPage() {
+  const params = useParams() as { stockCheckId: string }
+  const stockCheckId = String(params.stockCheckId || "")
   const [events, setEvents] = useState<StockCheckEvent[]>([])
   const [loading, setLoading] = useState(true)
 
