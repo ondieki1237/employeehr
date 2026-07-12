@@ -18,6 +18,11 @@ const isValidObjectId = (id: string): boolean => {
 
 export const authMiddleware = (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
+    const isPublicRoute = req.path.includes("/public/") || req.path === "/api/quotes"
+    if (isPublicRoute) {
+      return next()
+    }
+
     const authHeader = req.headers.authorization
 
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -74,6 +79,11 @@ export const roleMiddleware = (...allowedRoles: string[]) => {
 }
 
 export const orgMiddleware = (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  const isPublicRoute = req.path.includes("/public/") || req.path === "/api/quotes"
+  if (isPublicRoute) {
+    return next()
+  }
+
   if (!req.org_id) {
     return res.status(401).json({
       success: false,

@@ -77,7 +77,28 @@ export async function buildQuotationItems(
 
     const product = productMap.get(String(item.productId))
     if (!product) {
-      throw new Error(`Product not found: ${item.productId}`)
+      const manualName = String(item.productName || item.description || item.productId || "Custom Item")
+        .trim()
+      const fallbackId = `manual:${manualName
+        .toLowerCase()
+        .replace(/\s+/g, "-")
+        .replace(/[^a-z0-9-]/g, "")}`
+      const unitPrice = Number(item.unitPrice)
+      const resolvedUnitPrice = Number.isFinite(unitPrice) && unitPrice >= 0 ? unitPrice : 0
+
+      result.push({
+        productId: String(item.productId || fallbackId),
+        productName: manualName,
+        quantity,
+        productUnitPrice: resolvedUnitPrice,
+        soldUnitPrice: resolvedUnitPrice,
+        unitPrice: resolvedUnitPrice,
+        lineTotal: Number((quantity * resolvedUnitPrice).toFixed(2)),
+        description: item.description,
+        isOutsourced: true,
+        categoryGroup: item.categoryGroup,
+      })
+      continue
     }
 
     const unitPrice =

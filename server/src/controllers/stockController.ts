@@ -1,8 +1,11 @@
 import type { Response } from "express";
 import type { AuthenticatedRequest } from "../middleware/auth";
+import bcrypt from "bcryptjs";
+import { Types } from "mongoose";
 import { promises as fs } from "fs";
 import path from "path";
 import sharp from "sharp";
+import { jsPDF } from "jspdf";
 import { StockCategory } from "../models/StockCategory";
 import { StockProduct } from "../models/StockProduct";
 import { StockEntry } from "../models/StockEntry";
@@ -45,6 +48,14 @@ function normalizeClientValue(value: string) {
     .trim()
     .toLowerCase()
     .replace(/\s+/g, " ");
+}
+
+function isCatalogProductIdentifier(value?: string) {
+  if (!value) return false;
+  const candidate = String(value).trim();
+  if (!candidate) return false;
+  if (candidate.startsWith("manual:") || candidate.startsWith("outsourced:")) return false;
+  return Types.ObjectId.isValid(candidate);
 }
 
 function buildClientSourceKey(client: {
@@ -108,6 +119,161 @@ type BulkSmsAudienceClient = {
   lastPurchaseAt?: Date;
   sources: string[];
 };
+
+function getTenantFromRequest(req: AuthenticatedRequest | any) {
+  const candidates = [
+    req?.query?.orgId,
+    req?.query?.tenantId,
+    req?.body?.orgId,
+    req?.body?.tenantId,
+    req?.headers?.["x-org-id"],
+    req?.headers?.["x-tenant-id"],
+    req?.headers?.["x-tenantid"],
+  ];
+
+  for (const candidate of candidates) {
+    const value = String(candidate || "").trim();
+    if (value) return value;
+  }
+
+  return undefined;
+}
+
+function getFirstAndLastName(fullName?: string) {
+  const value = String(fullName || "").trim();
+  if (!value) return { firstName: "Client", lastName: "User" };
+  const parts = value.split(/\s+/).filter(Boolean);
+  if (parts.length === 1) return { firstName: parts[0], lastName: "User" };
+  return {
+    firstName: parts[0],
+    lastName: parts.slice(1).join(" "),
+  };
+}
+
+async function ensureWebsitePortalUser(orgId: string, payload: any) {
+  const email = String(payload?.email || "").trim().toLowerCase();
+  if (!email) return null;
+
+  const existingUser = await User.findOne({ org_id: orgId, email }).lean();
+  if (existingUser) return existingUser;
+
+  const { firstName, lastName } = getFirstAndLastName(payload?.name || payload?.fullName);
+  const tempPassword = `${String(payload?.phone || "portal").replace(/\D/g, "") || "portal"}#2026`;
+  const passwordHash = await bcrypt.hash(tempPassword, 10);
+
+  const createdUser = await User.create({
+    org_id: orgId,
+    firstName,
+    lastName,
+    email,
+    password: passwordHash,
+    role: "employee",
+    phone: String(payload?.phone || "").trim() || undefined,
+    status: "active",
+  });
+
+  return createdUser;
+}
+
+function buildWebsiteInvoicePdfBuffer(invoice: any) {
+  const doc = new jsPDF({ unit: "mm", format: "a4" });
+  const today = new Date(invoice.createdAt || Date.now()).toLocaleDateString("en-KE");
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(20);
+  doc.text("Invoice", 14, 20);
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(11);
+  doc.text(`Invoice No: ${invoice.invoiceNumber}`, 14, 30);
+  doc.text(`Issued: ${today}`, 14, 38);
+  doc.text(`Client: ${invoice.client?.name || "Client"}`, 14, 46);
+  doc.text(`Phone: ${invoice.client?.number || "-"}`, 14, 54);
+  doc.text(`Location: ${invoice.client?.location || "-"}`, 14, 62);
+
+  doc.setLineWidth(0.4);
+  doc.line(14, 72, 196, 72);
+
+  let y = 82;
+  doc.setFont("helvetica", "bold");
+  doc.text("Item", 14, y);
+  doc.text("Qty", 110, y);
+  doc.text("Unit Price", 135, y);
+  doc.text("Line Total", 170, y);
+
+  y += 6;
+  doc.setFont("helvetica", "normal");
+  (invoice.items || []).forEach((item: any) => {
+    if (y > 270) {
+      doc.addPage();
+      y = 20;
+    }
+    doc.text(String(item.productName || "Item"), 14, y);
+    doc.text(String(item.quantity || 0), 110, y);
+    doc.text(`KSh ${Number(item.unitPrice || 0).toLocaleString("en-KE")}`, 135, y);
+    doc.text(`KSh ${Number(item.lineTotal || 0).toLocaleString("en-KE")}`, 170, y);
+    y += 7;
+  });
+
+  doc.line(14, y + 3, 196, y + 3);
+  doc.setFont("helvetica", "bold");
+  doc.text("Total", 150, y + 14);
+  doc.text(`KSh ${Number(invoice.subTotal || 0).toLocaleString("en-KE")}`, 170, y + 14);
+
+  return Buffer.from(doc.output("arraybuffer"));
+}
+
+function buildWebsiteQuotationPdfBuffer(quotation: any) {
+  const doc = new jsPDF({ unit: "mm", format: "a4" });
+  const issuedDate = new Date(quotation.createdAt || Date.now()).toLocaleDateString("en-KE");
+  const validUntil = quotation.validUntil
+    ? new Date(quotation.validUntil).toLocaleDateString("en-KE")
+    : "N/A";
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(20);
+  doc.text("Quotation", 14, 20);
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(11);
+  doc.text(`Quotation No: ${quotation.quotationNumber}`, 14, 30);
+  doc.text(`Issued: ${issuedDate}`, 14, 38);
+  doc.text(`Valid Until: ${validUntil}`, 14, 46);
+  doc.text(`Client: ${quotation.client?.name || "Client"}`, 14, 54);
+  doc.text(`Phone: ${quotation.client?.number || "-"}`, 14, 62);
+  doc.text(`Location: ${quotation.client?.location || "-"}`, 14, 70);
+
+  doc.setLineWidth(0.4);
+  doc.line(14, 78, 196, 78);
+
+  let y = 88;
+  doc.setFont("helvetica", "bold");
+  doc.text("Item", 14, y);
+  doc.text("Qty", 110, y);
+  doc.text("Unit Price", 135, y);
+  doc.text("Line Total", 170, y);
+
+  y += 6;
+  doc.setFont("helvetica", "normal");
+  (quotation.items || []).forEach((item: any) => {
+    if (y > 270) {
+      doc.addPage();
+      y = 20;
+    }
+    doc.text(String(item.productName || item.name || "Item"), 14, y);
+    doc.text(String(item.quantity || 0), 110, y);
+    doc.text(`KSh ${Number(item.unitPrice || 0).toLocaleString("en-KE")}`, 135, y);
+    doc.text(`KSh ${Number(item.lineTotal || 0).toLocaleString("en-KE")}`, 170, y);
+    y += 7;
+  });
+
+  doc.line(14, y + 3, 196, y + 3);
+  doc.setFont("helvetica", "bold");
+  doc.text("Total", 150, y + 14);
+  doc.text(`KSh ${Number(quotation.subTotal || quotation.totalAmount || 0).toLocaleString("en-KE")}`, 170, y + 14);
+
+  return Buffer.from(doc.output("arraybuffer"));
+}
 
 function upsertBulkSmsClient(
   map: Map<string, BulkSmsAudienceClient>,
@@ -1573,6 +1739,556 @@ export class StockController {
       return res.status(500).json({
         success: false,
         message: error.message || "Failed to save client KRA details",
+      });
+    }
+  }
+
+  static async publicGetProducts(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = getTenantFromRequest(req);
+      if (!org_id) {
+        return res.status(400).json({
+          success: false,
+          message: "orgId is required for public product access",
+        });
+      }
+
+      const categoryFilter = String(req.query.categoryIds || "").trim();
+      const productQuery: any = {
+        org_id,
+        isActive: { $ne: false },
+      };
+
+      if (categoryFilter) {
+        const categoryIds = categoryFilter
+          .split(",")
+          .map((id) => String(id).trim())
+          .filter(Boolean);
+        if (categoryIds.length) {
+          productQuery.category = { $in: categoryIds };
+        }
+      }
+
+      const products = await StockProduct.find(productQuery)
+        .sort({ createdAt: -1 })
+        .lean();
+
+      return res.status(200).json({ success: true, data: products });
+    } catch (error: any) {
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to fetch public products",
+      });
+    }
+  }
+
+  static async createWebsiteQuotationRequest(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = getTenantFromRequest(req);
+      if (!org_id) {
+        return res.status(400).json({
+          success: false,
+          message: "orgId is required for website quotation requests",
+        });
+      }
+
+      const payload = req.body || {};
+      const clientName = String(
+        payload.clientName || payload.client?.name || payload.companyName || "Website Client",
+      ).trim();
+      const clientNumber = String(
+        payload.clientNumber || payload.client?.number || payload.phone || "",
+      ).trim();
+      const clientLocation = String(
+        payload.clientLocation || payload.client?.location || payload.location || "Website Request",
+      ).trim();
+      const contactPerson = String(payload.contactPerson || payload.client?.contactPerson || "").trim();
+      const email = String(payload.email || payload.client?.email || "").trim().toLowerCase();
+      const items = Array.isArray(payload.items) ? payload.items : [];
+
+      if (!clientName || !clientNumber || !clientLocation || items.length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: "clientName, clientNumber, clientLocation and items are required",
+        });
+      }
+
+      const portalUser = await ensureWebsitePortalUser(org_id, {
+        name: clientName,
+        phone: clientNumber,
+        email,
+      });
+
+      const sourceName = clientName;
+      const sourceNumber = clientNumber;
+      const sourceLocation = clientLocation;
+
+      const clientProfile = await StockClient.findOneAndUpdate(
+        {
+          org_id,
+          sourceName,
+          sourceNumber,
+          sourceLocation,
+        },
+        {
+          $set: {
+            legalName: clientName,
+            contactPerson: contactPerson || undefined,
+            email: email || undefined,
+            updatedBy: portalUser ? String(portalUser._id) : "website",
+          },
+          $setOnInsert: {
+            org_id,
+            sourceName,
+            sourceNumber,
+            sourceLocation,
+            createdBy: portalUser ? String(portalUser._id) : "website",
+            hasKraDetails: false,
+          },
+        },
+        { upsert: true, new: true },
+      );
+
+      const normalizedItems = await buildQuotationItems(org_id, items);
+      const subTotal = Number(
+        normalizedItems
+          .reduce((sum: number, item: any) => sum + item.lineTotal, 0)
+          .toFixed(2),
+      );
+
+      const quotation = await StockQuotation.create({
+        org_id,
+        quotationNumber: generateDocumentNumber("QTN"),
+        client: {
+          name: clientName,
+          number: clientNumber,
+          location: clientLocation,
+          contactPerson: contactPerson || undefined,
+        },
+        items: normalizedItems,
+        subTotal,
+        status: "pending_approval",
+        createdBy: portalUser ? String(portalUser._id) : "website",
+        ownerUserId: portalUser ? String(portalUser._id) : undefined,
+      });
+
+      // Check company setting to see if website quotations should be auto-approved/converted
+      try {
+        const company = await Company.findById(org_id).select("stockSettings.bypassWebsiteQuotationApproval").lean();
+        const bypass = !!(company && (company as any).stockSettings && (company as any).stockSettings.bypassWebsiteQuotationApproval);
+
+        if (bypass) {
+          // Auto-convert quotation to invoice so it's immediately downloadable
+          const quotationDoc = await StockQuotation.findById(String(quotation._id));
+          if (quotationDoc) {
+            const quotationProductIds = [
+              ...new Set(
+                quotationDoc.items
+                  .map((item: any) => item.productId)
+                  .filter(Boolean)
+                  .filter((value: any) => isCatalogProductIdentifier(String(value))),
+              ),
+            ];
+            const allProducts = await StockProduct.find({ _id: { $in: quotationProductIds }, org_id });
+            const productMap = new Map(allProducts.map((p) => [String(p._id), p]));
+
+            const stockManagedItems = quotationDoc.items.filter((item: any) => {
+              if (item.isOutsourced) return false;
+              if (item.productType === "service") return false;
+              const product = productMap.get(String(item.productId));
+              return product ? product.productType !== "service" : true;
+            });
+
+            for (const item of stockManagedItems) {
+              const product = productMap.get(String(item.productId));
+              if (!product) {
+                // skip conversion if product missing
+                continue;
+              }
+              if (product.currentQuantity < item.quantity) {
+                // insufficient stock; skip reducing and continue conversion (keep behavior simple)
+                continue;
+              }
+            }
+
+            const invoice = await StockInvoice.create({
+              org_id,
+              invoiceNumber: generateDocumentNumber("INV"),
+              deliveryNoteNumber: generateDocumentNumber("DN"),
+              quotationId: String(quotationDoc._id),
+              quotationNumber: quotationDoc.quotationNumber,
+              client: quotationDoc.client,
+              items: quotationDoc.items,
+              subTotal: quotationDoc.subTotal,
+              status: "issued",
+              dispatch: {
+                status: "not_assigned",
+                packingItems: stockManagedItems.map((item: any) => ({
+                  productId: item.productId,
+                  productName: item.productName,
+                  requiredQuantity: item.quantity,
+                  packedQuantity: 0,
+                })),
+                packingCompleted: stockManagedItems.length === 0,
+                inquiries: [],
+              },
+              createdBy: portalUser ? String(portalUser._id) : "website",
+            });
+
+            const receiptNumber = generateDocumentNumber("RCP");
+
+            const salesToCreate = stockManagedItems.map((item: any) => {
+              const product = productMap.get(String(item.productId));
+              if (product) product.currentQuantity = Math.max(0, product.currentQuantity - item.quantity);
+              return {
+                org_id,
+                productId: item.productId,
+                quantitySold: item.quantity,
+                soldPrice: item.unitPrice,
+                soldBy: portalUser ? String(portalUser._id) : "website",
+                buyerName: quotationDoc.client.name,
+                buyerNumber: quotationDoc.client.number,
+                buyerLocation: quotationDoc.client.location,
+                isWalkInClient: false,
+                isSalesCompany: false,
+                quotationId: String(quotationDoc._id),
+                invoiceId: String(invoice._id),
+                receiptNumber,
+                remainingQuantity: product ? product.currentQuantity : 0,
+              };
+            });
+
+            if (stockManagedItems.length > 0) {
+              await Promise.all(allProducts.map((p) => p.save()));
+              if (salesToCreate.length > 0) await StockSale.insertMany(salesToCreate);
+            }
+
+            quotationDoc.status = "converted";
+            quotationDoc.convertedInvoiceId = String(invoice._id);
+            await quotationDoc.save();
+          }
+        }
+      } catch (err) {
+        // non-fatal: log and continue
+        console.error("Failed to auto-convert website quotation:", err);
+      }
+
+      const quotationId = String(quotation._id);
+      let invoiceId: string | null = null;
+      let invoiceNumber: string | null = null;
+
+      try {
+        if (quotation.status === "converted") {
+          const convertedInvoice = await StockInvoice.findOne({ quotationId, org_id }).select("_id invoiceNumber").lean();
+          if (convertedInvoice) {
+            invoiceId = String(convertedInvoice._id);
+            invoiceNumber = String(convertedInvoice.invoiceNumber || "");
+          }
+        }
+      } catch {
+        // ignore lookup failures
+      }
+
+      return res.status(201).json({
+        success: true,
+        message: "Quotation request created successfully",
+        data: {
+          quotationId,
+          qtnId: quotationId,
+          quoteId: quotationId,
+          invoiceId,
+          invoiceNumber,
+          quotation: quotation.toObject ? quotation.toObject() : quotation,
+          clientProfile,
+          portalUser,
+        },
+      });
+    } catch (error: any) {
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to create website quotation request",
+      });
+    }
+  }
+
+  static async requestWebsiteInvoice(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = getTenantFromRequest(req);
+      if (!org_id) {
+        return res.status(400).json({
+          success: false,
+          message: "orgId is required for website invoice requests",
+        });
+      }
+
+      const { quotationId } = req.params;
+      const quotation = await StockQuotation.findOne({ _id: quotationId, org_id });
+      if (!quotation) {
+        return res.status(404).json({ success: false, message: "Quotation not found" });
+      }
+
+      let invoice = null;
+      if (quotation.status === "converted" && quotation.convertedInvoiceId) {
+        invoice = await StockInvoice.findById(quotation.convertedInvoiceId).lean();
+      }
+
+      const wantsJson = String(req.headers.accept || "")
+        .toLowerCase()
+        .includes("application/json") || String(req.query.format || "").toLowerCase() === "json";
+
+      if (!invoice) {
+        const quotationProductIds = [
+          ...new Set(
+            quotation.items
+              .map((item: any) => item.productId)
+              .filter(Boolean)
+              .filter((value: any) => isCatalogProductIdentifier(String(value))),
+          ),
+        ];
+        const allProducts = await StockProduct.find({
+          _id: { $in: quotationProductIds },
+          org_id,
+        });
+        const productMap = new Map(
+          allProducts.map((product) => [String(product._id), product]),
+        );
+
+        const stockManagedItems = quotation.items.filter((item: any) => {
+          if (item.isOutsourced) return false;
+          if (item.productType === "service") return false;
+          const product = productMap.get(String(item.productId));
+          return product ? product.productType !== "service" : true;
+        });
+
+        const stockManagedProductIds = [
+          ...new Set(
+            stockManagedItems.map((item) => item.productId).filter(Boolean),
+          ),
+        ];
+        const stockManagedProducts = allProducts.filter((product) =>
+          stockManagedProductIds.includes(String(product._id)),
+        );
+        const stockManagedProductMap = new Map(
+          stockManagedProducts.map((product) => [String(product._id), product]),
+        );
+
+        for (const item of stockManagedItems) {
+          const product = stockManagedProductMap.get(String(item.productId));
+          if (!product) {
+            return res.status(400).json({
+              success: false,
+              message: `Product not found for quotation item: ${item.productName}`,
+            });
+          }
+          if (product.currentQuantity < item.quantity) {
+            return res.status(400).json({
+              success: false,
+              message: `Insufficient stock for ${item.productName}. Available: ${product.currentQuantity}, requested: ${item.quantity}`,
+            });
+          }
+        }
+
+        invoice = await StockInvoice.create({
+          org_id,
+          invoiceNumber: generateDocumentNumber("INV"),
+          deliveryNoteNumber: generateDocumentNumber("DN"),
+          quotationId: String(quotation._id),
+          quotationNumber: quotation.quotationNumber,
+          client: quotation.client,
+          items: quotation.items,
+          subTotal: quotation.subTotal,
+          status: "issued",
+          dispatch: {
+            status: "not_assigned",
+            packingItems: stockManagedItems.map((item: any) => ({
+              productId: item.productId,
+              productName: item.productName,
+              requiredQuantity: item.quantity,
+              packedQuantity: 0,
+            })),
+            packingCompleted: stockManagedItems.length === 0,
+            inquiries: [],
+          },
+          createdBy: String(quotation.createdBy || "website"),
+        });
+
+        const receiptNumber = generateDocumentNumber("RCP");
+        const salesToCreate = stockManagedItems.map((item: any) => {
+          const product = stockManagedProductMap.get(String(item.productId))!;
+          product.currentQuantity -= item.quantity;
+
+          return {
+            org_id,
+            productId: item.productId,
+            quantitySold: item.quantity,
+            soldPrice: item.unitPrice,
+            soldBy: "website",
+            buyerName: quotation.client.name,
+            buyerNumber: quotation.client.number,
+            buyerLocation: quotation.client.location,
+            isWalkInClient: false,
+            isSalesCompany: false,
+            quotationId: String(quotation._id),
+            invoiceId: String(invoice._id),
+            receiptNumber,
+            remainingQuantity: product.currentQuantity,
+          };
+        });
+
+        if (stockManagedProducts.length > 0) {
+          await Promise.all(stockManagedProducts.map((product) => product.save()));
+          await Promise.all(stockManagedProducts.map((product) => sendLowStockAlert(product, org_id)));
+        }
+
+        if (salesToCreate.length > 0) {
+          await StockSale.insertMany(salesToCreate);
+        }
+
+        quotation.status = "converted";
+        quotation.convertedInvoiceId = String(invoice._id);
+        await quotation.save();
+      }
+
+      if (wantsJson) {
+        return res.status(200).json({
+          success: true,
+          message: "Invoice ready",
+          data: {
+            invoiceId: String(invoice._id),
+            invoiceNumber: invoice.invoiceNumber,
+            quotationId: String(quotation._id),
+            quotationNumber: quotation.quotationNumber,
+          },
+        });
+      }
+
+      const pdfBuffer = buildWebsiteInvoicePdfBuffer(invoice);
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="${invoice.invoiceNumber || "invoice"}.pdf"`,
+      );
+      return res.status(201).send(pdfBuffer);
+    } catch (error: any) {
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to generate website invoice",
+      });
+    }
+  }
+
+  static async downloadPublicQuotationPdf(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = getTenantFromRequest(req);
+      if (!org_id) {
+        return res.status(400).json({
+          success: false,
+          message: "orgId is required for downloading quotation PDFs",
+        });
+      }
+
+      const { quotationId } = req.params;
+      const quotation = await StockQuotation.findOne({ _id: quotationId, org_id }).lean();
+      if (!quotation) {
+        return res.status(404).json({ success: false, message: "Quotation not found" });
+      }
+
+      // Only allow downloads for approved/converted quotations
+      if (quotation.status === "pending_approval") {
+        return res.status(403).json({ success: false, message: "Quotation is pending approval and cannot be downloaded yet" });
+      }
+
+      const pdfBuffer = buildWebsiteQuotationPdfBuffer(quotation);
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="${quotation.quotationNumber || "quotation"}.pdf"`,
+      );
+      return res.status(200).send(pdfBuffer);
+    } catch (error: any) {
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to generate quotation PDF",
+      });
+    }
+  }
+
+  static async downloadPublicInvoicePdf(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = getTenantFromRequest(req);
+      if (!org_id) {
+        return res.status(400).json({
+          success: false,
+          message: "orgId is required for downloading invoice PDFs",
+        });
+      }
+
+      const { invoiceId } = req.params;
+      const invoice = await StockInvoice.findOne({ _id: invoiceId, org_id }).lean();
+      if (!invoice) {
+        return res.status(404).json({ success: false, message: "Invoice not found" });
+      }
+
+      const pdfBuffer = buildWebsiteInvoicePdfBuffer(invoice);
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="${invoice.invoiceNumber || "invoice"}.pdf"`,
+      );
+      return res.status(200).send(pdfBuffer);
+    } catch (error: any) {
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to generate invoice PDF",
+      });
+    }
+  }
+
+  static async getPublicQuotationState(req: AuthenticatedRequest, res: Response) {
+    try {
+      const org_id = getTenantFromRequest(req);
+      if (!org_id) {
+        return res.status(400).json({
+          success: false,
+          message: "orgId is required for quotation state queries",
+        });
+      }
+
+      const { quotationId } = req.params;
+      const quotation = await StockQuotation.findOne({ _id: quotationId, org_id })
+        .select("status convertedInvoiceId quotationNumber")
+        .lean();
+      if (!quotation) {
+        return res.status(404).json({ success: false, message: "Quotation not found" });
+      }
+
+      let invoiceStatus: string | null = null;
+      let invoiceId: string | null = null;
+
+      if (quotation.convertedInvoiceId) {
+        const invoice = await StockInvoice.findById(quotation.convertedInvoiceId)
+          .select("status _id")
+          .lean();
+        if (invoice) {
+          invoiceStatus = invoice.status || "issued";
+          invoiceId = String(invoice._id);
+        }
+      }
+
+      return res.status(200).json({
+        success: true,
+        data: {
+          status: quotation.status || "draft",
+          convertedInvoiceId: quotation.convertedInvoiceId || null,
+          invoiceId: invoiceId,
+          invoiceStatus: invoiceStatus,
+          quotationNumber: quotation.quotationNumber,
+        },
+      });
+    } catch (error: any) {
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to fetch quotation state",
       });
     }
   }

@@ -734,12 +734,48 @@ export class CompanyController {
       });
     } catch (error) {
       console.error("Error fetching page access settings:", error);
-      return res.status(500).json({
-        success: false,
-        message: "Failed to fetch page access settings",
-      });
+      return res.status(500).json({ success: false, message: "Failed to fetch page access settings" });
     }
   }
+
+  static async getStockSettings(req: AuthenticatedRequest, res: Response) {
+      try {
+        if (!req.org_id) {
+          return res.status(400).json({ success: false, message: "Organization context required" });
+        }
+
+        const company = await Company.findById(req.org_id).select("stockSettings").lean();
+        if (!company) return res.status(404).json({ success: false, message: "Company not found" });
+
+        return res.json({ success: true, data: { stockSettings: company.stockSettings || {} } });
+      } catch (error) {
+        console.error("Error fetching stock settings:", error);
+        return res.status(500).json({ success: false, message: "Failed to fetch stock settings" });
+      }
+    }
+
+    static async updateStockSettings(req: AuthenticatedRequest, res: Response) {
+      try {
+        if (!req.org_id) {
+          return res.status(400).json({ success: false, message: "Organization context required" });
+        }
+
+        const bypass = Boolean(req.body?.bypassWebsiteQuotationApproval);
+
+        const company = await Company.findByIdAndUpdate(
+          req.org_id,
+          { $set: { "stockSettings.bypassWebsiteQuotationApproval": bypass } },
+          { new: true },
+        ).select("stockSettings");
+
+        if (!company) return res.status(404).json({ success: false, message: "Company not found" });
+
+        return res.json({ success: true, message: "Stock settings updated", data: { stockSettings: company.stockSettings } });
+      } catch (error) {
+        console.error("Error updating stock settings:", error);
+        return res.status(500).json({ success: false, message: "Failed to update stock settings" });
+      }
+    }
 
   static async updatePageAccessSettings(
     req: AuthenticatedRequest,

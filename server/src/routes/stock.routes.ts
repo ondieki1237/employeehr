@@ -15,6 +15,21 @@ import { TenderController } from "../controllers/tenderController";
 
 const router = Router();
 
+router.get("/public/products", StockController.publicGetProducts);
+router.post("/public/quote-requests", StockController.createWebsiteQuotationRequest);
+router.get(
+  "/public/quotations/:quotationId/pdf",
+  StockController.downloadPublicQuotationPdf,
+);
+router.get(
+  "/public/invoices/:invoiceId/pdf",
+  StockController.downloadPublicInvoicePdf,
+);
+router.post(
+  "/public/quotations/:quotationId/request-invoice",
+  StockController.requestWebsiteInvoice,
+);
+
 router.use(authMiddleware, orgMiddleware, tenantIsolation);
 
 router.post("/categories", StockController.createCategory);

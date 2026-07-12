@@ -210,6 +210,9 @@ const companySchema = new Schema<ICompany>(
       deliveryMessageTemplate: { type: String },
       smsSenderName: { type: String },
     },
+    stockSettings: {
+      bypassWebsiteQuotationApproval: { type: Boolean, default: false },
+    },
     setupProgress: {
       completed: { type: Boolean, default: false },
       currentStep: { type: String, default: "companyInfo" },

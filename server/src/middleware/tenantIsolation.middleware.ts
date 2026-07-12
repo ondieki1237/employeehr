@@ -3,6 +3,11 @@ import { AuditService } from "../services/audit.service"
 import type { AuthenticatedRequest } from "./auth"
 
 export const tenantIsolation = (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  const isPublicRoute = req.path.includes("/public/") || req.path === "/api/quotes"
+  if (isPublicRoute) {
+    return next()
+  }
+
   if (!req.user || !req.user.org_id) {
     return res.status(401).json({
       success: false,

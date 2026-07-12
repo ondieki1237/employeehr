@@ -26,6 +26,10 @@ router.post("/invoice-settings", roleMiddleware("company_admin", "hr"), CompanyC
 router.get("/dispatch-sms", roleMiddleware("company_admin", "hr"), CompanyController.getDispatchSmsSettings)
 router.post("/dispatch-sms", roleMiddleware("company_admin", "hr"), CompanyController.updateDispatchSmsSettings)
 
+// Stock settings (bypass website quotation approval)
+router.get("/stock-settings", roleMiddleware("company_admin", "hr"), CompanyController.getStockSettings)
+router.post("/stock-settings", roleMiddleware("company_admin"), CompanyController.updateStockSettings)
+
 // Email Configuration (Admin only)
 router.get("/email-config", roleMiddleware("company_admin", "hr"), CompanyEmailController.getEmailConfig)
 router.post("/email-config", roleMiddleware("company_admin", "hr"), CompanyEmailController.updateEmailConfig)

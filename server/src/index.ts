@@ -95,6 +95,9 @@ app.use('/uploads', (_req, res, next) => {
 app.use(
   cors({
     origin: (origin, callback) => {
+      const allowAllOrigins = String(process.env.ALLOW_ALL_ORIGINS || "true").toLowerCase() === "true"
+      if (allowAllOrigins) return callback(null, true)
+
       const allowed = [
         "http://localhost:3000",
         "http://127.0.0.1:3000",
@@ -141,6 +144,7 @@ app.get("/api/jobs/public/:companyName/:positionIndex", JobController.getPublicJ
 app.get("/api/application-forms/job/:jobId", ApplicationFormController.getFormByJobId)
 app.get("/api/meetings/by-meeting-id/:meetingId", MeetingController.getMeetingByMeetingIdPublic)
 app.post("/api/meetings/by-meeting-id/:meetingId/join", MeetingController.joinMeetingByMeetingIdPublic)
+app.post("/api/quotes", StockController.createWebsiteQuotationRequest)
 app.use("/api/sms", smsWebhookRoutes)
 app.use("/api/mpesa", mpesaWebhookRoutes)
 
@@ -177,6 +181,12 @@ app.use("/api/meetings", meetingRoutes)
 app.use("/api/setup", setupRoutes)
 app.use("/api/feedback-360", anonymousFeedbackRoutes)
 app.use("/api/feedback-surveys", feedbackSurveyRoutes)
+app.get("/api/stock/public/products", StockController.publicGetProducts)
+app.post("/api/stock/public/quote-requests", StockController.createWebsiteQuotationRequest)
+app.get("/api/stock/public/quotations/:quotationId/pdf", StockController.downloadPublicQuotationPdf)
+app.get("/api/stock/public/quotations/:quotationId/state", StockController.getPublicQuotationState)
+app.get("/api/stock/public/invoices/:invoiceId/pdf", StockController.downloadPublicInvoicePdf)
+app.post("/api/stock/public/quotations/:quotationId/request-invoice", StockController.requestWebsiteInvoice)
 app.use("/api/stock", stockRoutes)
 app.use("/api/stock/credit-notes", creditNoteRoutes)
 app.use("/api/stamps", stampRoutes)

@@ -2001,7 +2001,11 @@ export function generateQuotationPdf(params: {
     numberLabel: "Quotation No",
     numberValue: params.quotationNumber,
     createdAt: params.createdAt,
-    branding: params.branding,
+    branding: {
+      ...params.branding,
+      invoiceEmail:
+        params.invoiceSettings?.invoiceEmail || params.branding?.invoiceEmail,
+    },
   });
   const contactBottom = drawContactSlotBelowLogo(
     doc,
@@ -2009,14 +2013,25 @@ export function generateQuotationPdf(params: {
     params.invoiceSettings,
   );
 
-  const tableY = drawPartiesSection(
+  let tableY = drawPartiesSection(
     doc,
     params.client,
     undefined,
-    params.branding,
+    {
+      ...params.branding,
+      invoiceEmail:
+        params.invoiceSettings?.invoiceEmail || params.branding?.invoiceEmail,
+    },
     "Quotation Info",
     contactBottom + 1,
   );
+
+  // Add a spacing line for consistency with invoice layout
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  setColorFromHex(doc, DEFAULT_GRAY, "text");
+  tableY = tableY + 2;
+
   const endY = drawItemsTable(doc, tableY, params.items, params.branding);
 
   const totalsY = drawTotalsSection(
@@ -2025,6 +2040,13 @@ export function generateQuotationPdf(params: {
     endY,
     params.branding,
     params.invoiceSettings,
+  );
+
+  const termsEndY = drawTermsAndPaymentChannelsSection(
+    doc,
+    totalsY,
+    params.invoiceSettings,
+    params.branding,
   );
 
   if (params.invoiceSettings?.includePreparedBy !== false) {
@@ -2036,19 +2058,13 @@ export function generateQuotationPdf(params: {
     );
   }
 
-  // Include terms and payment channels for visual balance
-  drawTermsAndPaymentChannelsSection(
-    doc,
-    totalsY,
-    params.invoiceSettings,
-    params.branding,
-  );
-
   drawBottomFooter(
     doc,
     params.branding,
     params.invoiceSettings,
-    params.preparedBy,
+    params.invoiceSettings?.includePreparedBy !== false
+      ? params.preparedBy
+      : undefined,
   );
 
   if (params.autoSave !== false) {

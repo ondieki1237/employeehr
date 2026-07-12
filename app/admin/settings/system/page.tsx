@@ -1,12 +1,38 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Switch } from "@/components/ui/switch"
+import { getUser } from "@/lib/auth"
+import API_URL from "@/lib/apiBase"
 import { useRouter } from "next/navigation"
-import { Settings, ShieldCheck, FileText, MapPin } from "lucide-react"
+import { Settings, ShieldCheck, FileText, MapPin, Globe2, Download, Copy } from "lucide-react"
+
+const DEPLOYED_API_URL = "https://backend.codewithseth.co.ke"
 
 export default function SystemSettingsPage() {
   const router = useRouter()
+  const apiBaseUrl = DEPLOYED_API_URL || API_URL
+  const user = getUser()
+  const organizationId = user?.org_id || user?.organizationId || user?.companyId || ""
+  const [bypass, setBypass] = useState<boolean | null>(null)
+
+  const loadStockSettings = async () => {
+    try {
+      const token = undefined
+      const res = await fetch(`${API_URL}/api/company/stock-settings`, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.message || "Failed to load settings")
+      setBypass(Boolean(json.data?.stockSettings?.bypassWebsiteQuotationApproval))
+    } catch (err) {
+      // ignore
+    }
+  }
+
+  useEffect(() => {
+    loadStockSettings()
+  }, [])
 
   return (
     <div className="space-y-6 p-6">
@@ -68,6 +94,96 @@ export default function SystemSettingsPage() {
               <MapPin className="w-4 h-4" />
               Manage Branches
             </Button>
+          </CardContent>
+        </Card>
+
+        <Card className="lg:col-span-2 border-2">
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Globe2 className="w-4 h-4" />
+              Website Integration API
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4 text-sm text-muted-foreground">
+            <p>Use this ERP endpoint base URL to connect client websites to products, quotation requests, and invoice downloads.</p>
+
+            <div className="rounded-lg border bg-muted/40 p-3 space-y-2">
+              <p className="font-medium text-foreground">API base URL</p>
+              <code className="block break-all text-xs">{apiBaseUrl}</code>
+              <p className="text-xs">Send the tenant/company <span className="font-medium text-foreground">orgId</span> with every public request.</p>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="rounded-lg border p-3">
+                <p className="font-medium text-foreground">Public product catalog</p>
+                <code className="mt-1 block break-all text-xs">GET {apiBaseUrl}/api/stock/public/products?orgId=your-org-id</code>
+              </div>
+              <div className="rounded-lg border p-3">
+                <p className="font-medium text-foreground">Create quotation request</p>
+                <code className="mt-1 block break-all text-xs">POST {apiBaseUrl}/api/stock/public/quote-requests</code>
+              </div>
+            </div>
+
+            <div className="rounded-lg border p-3">
+              <p className="font-medium text-foreground">Generate invoice PDF</p>
+              <code className="mt-1 block break-all text-xs">POST {apiBaseUrl}/api/stock/public/quotations/{'{quotationId}'}/request-invoice?orgId=your-org-id</code>
+              <p className="mt-2 text-xs">This converts the quotation to an invoice and returns the PDF for download.</p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="rounded-lg border bg-background px-3 py-2 min-w-[220px]">
+                <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Organization ID</p>
+                <div className="mt-1 flex items-center gap-2">
+                  <code className="text-xs break-all text-foreground">{organizationId || "Not available"}</code>
+                  {organizationId ? (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      onClick={() => navigator.clipboard?.writeText(organizationId)}
+                      aria-label="Copy organization ID"
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                    </Button>
+                  ) : null}
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <a href="/PUBLIC_API_GUIDE.md" download className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700">
+                  <Download className="w-4 h-4" />
+                  API Guide for Developers
+                </a>
+                <a href="/documentation.md" download className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90">
+                  <Download className="w-4 h-4" />
+                  Quick Reference
+                </a>
+              </div>
+            </div>
+            <div className="mt-3 border-t pt-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium">Bypass Website Quotation Approval</p>
+                  <p className="text-xs text-muted-foreground">Enable to auto-approve/convert website quotation requests</p>
+                </div>
+                <div>
+                  <Switch checked={!!bypass} onCheckedChange={async (val) => {
+                    try {
+                      const token = undefined
+                      const res = await fetch(`${API_URL}/api/company/stock-settings`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+                        body: JSON.stringify({ bypassWebsiteQuotationApproval: Boolean(val) }),
+                      })
+                      const json = await res.json()
+                      if (!res.ok) throw new Error(json.message || "Failed to update")
+                      setBypass(Boolean(json.data?.stockSettings?.bypassWebsiteQuotationApproval))
+                    } catch (err) {
+                      // ignore errors in UI
+                    }
+                  }} />
+                </div>
+              </div>
+            </div>
           </CardContent>
         </Card>
 
