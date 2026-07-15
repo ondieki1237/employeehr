@@ -31,6 +31,7 @@ import {
   Stamp,
   ShieldCheck,
   Clock3,
+  Truck,
 } from "lucide-react";
 import { getUser, logout } from "@/lib/auth";
 import { getToken } from "@/lib/auth";
@@ -185,6 +186,12 @@ const adminMenuItems = [
     icon: AlertCircle,
     href: "/admin/clients/complaints",
     section: "CLIENTS",
+  },
+  {
+    label: "Fleet Tracker",
+    icon: Truck,
+    href: "/admin/fleet",
+    section: "FLEET",
   },
   {
     label: "Invoices",

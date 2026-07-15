@@ -9,6 +9,7 @@ export const MANAGER_SECTION_OPTIONS = [
   "FINANCE",
   "INVENTORY MANAGER",
   "CLIENTS",
+  "FLEET",
   "COMMUNICATIONS",
 ]
 
@@ -48,6 +49,8 @@ const SECTION_ALIASES: Record<string, string> = {
   inventory: "INVENTORY MANAGER",
   clients: "CLIENTS",
   client: "CLIENTS",
+  fleet: "FLEET",
+  vehicles: "FLEET",
 }
 
 const normalizeSection = (value: unknown): string | null => {

@@ -54,6 +54,7 @@ import ownerRoutes from "./routes/owner.routes"
 import complaintRoutes from "./routes/complaint.routes"
 import branchRoutes from "./routes/branch.routes"
 import aiAssistantRoutes from "./routes/aiAssistant.routes"
+import vehicleRoutes from "./routes/vehicle.routes"
 import creditNoteRoutes from "./routes/creditNote.routes"
 import resourcesRoutes from "./routes/resources.routes"
 import { JobController } from "./controllers/jobController"
@@ -192,6 +193,7 @@ app.use("/api/stock/credit-notes", creditNoteRoutes)
 app.use("/api/stamps", stampRoutes)
 app.use("/api/resources", resourcesRoutes)
 app.use("/api/complaints", complaintRoutes)
+app.use("/api/vehicles", vehicleRoutes)
 app.use("/api", bookingRoutes)
 app.use("/api/owner", ownerRoutes)
 app.use("/api/ai-assistant", aiAssistantRoutes)

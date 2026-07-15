@@ -47,6 +47,7 @@ const ADMIN_SECTION_PATHS: Array<{
     match: (path) => path.startsWith("/admin/stock"),
   },
   { section: "CLIENTS", match: (path) => path.startsWith("/admin/clients") },
+  { section: "FLEET", match: (path) => path.startsWith("/admin/fleet") },
   { section: "ACCOUNTS", match: (path) => path.startsWith("/admin/accounts") },
   {
     section: "PERFORMANCE",
